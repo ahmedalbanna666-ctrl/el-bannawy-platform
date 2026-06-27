@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+build/
+out/
+
+# Turborepo
+.turbo/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# Prisma
+packages/*/prisma/migrations/
+
+# Temp
+tmp/
+temp/
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# pnpm store
+.pnpm-store/

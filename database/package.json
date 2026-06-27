@@ -1,0 +1,27 @@
+{
+  "name": "@el-bannawy/database",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prisma schema and database configuration for El-bannawy Platform",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:reset": "prisma migrate reset",
+    "studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "lint": "echo 'No TypeScript files in database package to lint'"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "prisma": "^6.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "bcryptjs": "^2.4.3"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "el-bannawy-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise AI-Powered English Learning Platform",
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml,css,scss}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml,css,scss}\"",
+    "typecheck": "turbo typecheck",
+    "clean": "turbo clean && rimraf node_modules"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "prettier": "^3.5.0",
+    "rimraf": "^6.0.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}
