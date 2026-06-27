@@ -144,13 +144,13 @@ export default function DashboardHome() {
 
       {/* Section Links */}
       {[
-        { title: "Curriculum Units", icon: "📚" },
-        { title: "Learn From Mistakes", icon: "🔄" },
-        { title: "Story", icon: "📖" },
-        { title: "Educational Games", icon: "🎮" },
-        { title: "Final Review", icon: "📝", locked: true },
         { title: "Ask AI", icon: "🤖" },
         { title: "Book Live Class", icon: "🎯" },
+        { title: "Curriculum Units", icon: "📚" },
+        { title: "Story", icon: "📖" },
+        { title: "Final Review", icon: "📝", locked: true },
+        { title: "Learn From Mistakes", icon: "🔄" },
+        { title: "Educational Games", icon: "🎮" },
       ].map((section, i) => (
         <TouchableOpacity key={i} style={[styles.sectionCard, section.locked && styles.lockedSection]}>
           <Text style={styles.sectionIcon}>{section.icon}</Text>

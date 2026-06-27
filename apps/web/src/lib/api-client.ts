@@ -60,6 +60,11 @@ export const api = {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
     }),
+  patch: <T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> =>
+    request<T>(endpoint, {
+      method: "PATCH",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
   delete: <T>(endpoint: string): Promise<ApiResponse<T>> =>
     request<T>(endpoint, { method: "DELETE" }),
 };

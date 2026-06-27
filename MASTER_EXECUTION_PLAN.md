@@ -86,11 +86,11 @@ Authentication
 
 Core Dashboard
 
-████░░░░░░░░░░░░░░░░ 40%
+████████████████████ 100%
 
 Lesson Engine
 
-░░░░░░░░░░░░░░░░░░ 0%
+████████████████████ 100%
 
 Activity Engine
 

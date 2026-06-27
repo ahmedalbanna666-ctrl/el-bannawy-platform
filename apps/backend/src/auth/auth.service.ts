@@ -9,12 +9,12 @@ const ACCESS_TOKEN_EXPIRY = 3600; // 1 hour
 const REFRESH_TOKEN_EXPIRY = 7 * 24 * 3600; // 7 days
 const SALT_ROUNDS = 12;
 
-interface TokenPayload {
+interface ITokenPayload {
   sub: string;
   role: string;
 }
 
-export interface AuthTokens {
+export interface IAuthTokens {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
@@ -62,7 +62,7 @@ export class AuthService {
     dto: LoginDto,
     ipAddress?: string,
     userAgent?: string,
-  ): Promise<AuthTokens> {
+  ): Promise<IAuthTokens> {
     const user = await this.prisma.user.findUnique({
       where: { mobileNumber: dto.mobile },
     });
@@ -100,7 +100,7 @@ export class AuthService {
     });
   }
 
-  async refreshToken(dto: RefreshTokenDto): Promise<AuthTokens> {
+  async refreshToken(dto: RefreshTokenDto): Promise<IAuthTokens> {
     const storedToken = await this.prisma.refreshToken.findUnique({
       where: { token: dto.refreshToken },
       include: { user: true },
@@ -118,13 +118,13 @@ export class AuthService {
     return this.generateTokens(storedToken.user.id, storedToken.user.role);
   }
 
-  async forgotPassword(mobile: string): Promise<{ message: string }> {
+  async forgotPassword(mobile: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
       where: { mobileNumber: mobile },
     });
 
     if (!user) {
-      return { message: "If the mobile number is registered, a verification code will be sent" };
+      return "If the mobile number is registered, a verification code will be sent";
     }
 
     const existingCodes = await this.prisma.passwordReset.findMany({
@@ -150,10 +150,10 @@ export class AuthService {
     // eslint-disable-next-line no-console
     console.log(`Verification code for ${mobile}: ${verificationCode}`);
 
-    return { message: "If the mobile number is registered, a verification code will be sent" };
+    return "If the mobile number is registered, a verification code will be sent";
   }
 
-  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+  async resetPassword(dto: ResetPasswordDto): Promise<string> {
     const user = await this.prisma.user.findUnique({
       where: { mobileNumber: dto.mobile },
     });
@@ -188,7 +188,7 @@ export class AuthService {
       }),
     ]);
 
-    return { message: "Password updated successfully" };
+    return "Password updated successfully";
   }
 
   async getMe(userId: string): Promise<{
@@ -241,8 +241,8 @@ export class AuthService {
     });
   }
 
-  private async generateTokens(userId: string, role: string): Promise<AuthTokens> {
-    const payload: TokenPayload = { sub: userId, role };
+  private async generateTokens(userId: string, role: string): Promise<IAuthTokens> {
+    const payload: ITokenPayload = { sub: userId, role };
 
     const accessToken = this.jwtService.sign(payload, {
       expiresIn: ACCESS_TOKEN_EXPIRY,

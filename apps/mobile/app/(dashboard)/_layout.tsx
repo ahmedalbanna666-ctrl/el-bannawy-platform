@@ -24,6 +24,8 @@ export default function DashboardLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: "Dashboard" }} />
+      <Stack.Screen name="units" options={{ title: "Curriculum" }} />
+      <Stack.Screen name="lessons/[id]" options={{ title: "Lesson" }} />
     </Stack>
   );
 }

@@ -42,6 +42,10 @@ model User {
   achievements   UserAchievement[]
   lessonProgress LessonProgress[]
   attendance     AttendanceRecord[]
+  videoProgress  VideoProgress[]
+  activityProgress ActivityProgress[]
+  homeworkAttempts StudentHomeworkAttempt[]
+  quizAttempts   QuizAttempt[]
 
   @@index([mobileNumber])
   @@index([role])
@@ -154,13 +158,14 @@ model UserAchievement {
 model LessonProgress {
   id           String   @id @default(uuid()) @db.Uuid
   userId      String   @db.Uuid
-  lessonId     String
+  lessonId     String   @db.Uuid
   completed    Boolean  @default(false)
   progress     Float    @default(0)
   startedAt    DateTime @default(now())
   completedAt  DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@unique([userId, lessonId])
   @@index([userId])
@@ -180,4 +185,382 @@ model AttendanceRecord {
   @@index([userId])
   @@index([date])
   @@map("attendance_records")
+}
+
+enum LessonStatus {
+  LOCKED
+  AVAILABLE
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ActivityType {
+  VOCABULARY
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  MATCHING
+  FILL_IN_BLANKS
+  DRAG_DROP
+  READING
+  STORY_QUESTIONS
+  CONVERSATION
+  SPEAKING
+  WRITING
+  PARAGRAPH
+}
+
+model Stage {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  displayOrder Int  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  grades Grade[]
+
+  @@index([displayOrder])
+  @@map("stages")
+}
+
+model Grade {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  stageId   String   @db.Uuid
+  displayOrder Int  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  units Unit[]
+
+  @@index([stageId])
+  @@index([displayOrder])
+  @@map("grades")
+}
+
+model Unit {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String
+  description String?
+  gradeId     String   @db.Uuid
+  displayOrder Int     @default(0)
+  isPremium    Boolean @default(false)
+  published    Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  grade   Grade     @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([gradeId])
+  @@index([displayOrder])
+  @@map("units")
+}
+
+model Lesson {
+  id              String   @id @default(uuid()) @db.Uuid
+  title           String
+  unitId          String   @db.Uuid
+  displayOrder    Int      @default(0)
+  estimatedDuration Int    @default(0)
+  isPremium       Boolean  @default(false)
+  published       Boolean  @default(true)
+  isHidden        Boolean  @default(false)
+  sequentialMode  Boolean  @default(true)
+  homeworkEnabled Boolean  @default(false)
+  quizEnabled     Boolean  @default(false)
+  passingScore    Int      @default(70)
+  maxAttempts     Int      @default(3)
+  xpReward        Int      @default(100)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  unit        Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  videos      LessonVideo[]
+  vocabulary  LessonVocabulary[]
+  homework    Homework?
+  quiz        Quiz?
+  document    LessonDocument?
+  settings    LessonSettings?
+  progress    LessonProgress[]
+
+  @@index([unitId])
+  @@index([displayOrder])
+  @@map("lessons")
+}
+
+model LessonSettings {
+  id        String   @id @default(uuid()) @db.Uuid
+  lessonId  String   @unique @db.Uuid
+  allowRetry Boolean @default(true)
+  showAnswers Boolean @default(true)
+  unlockNextOnComplete Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("lesson_settings")
+}
+
+model LessonDocument {
+  id        String   @id @default(uuid()) @db.Uuid
+  lessonId  String   @unique @db.Uuid
+  fileName  String
+  fileUrl   String
+  fileSize  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("lesson_documents")
+}
+
+model LessonVideo {
+  id          String   @id @default(uuid()) @db.Uuid
+    lessonId     String   @db.Uuid
+  title       String
+  youtubeUrl  String
+  youtubeId   String
+  duration    Int      @default(0)
+  displayOrder Int     @default(0)
+  enabled     Boolean  @default(true)
+  interactiveTimelineEnabled Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lesson          Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  timelineEvents  TimelineEvent[]
+  activities      Activity[]
+
+  @@index([lessonId])
+  @@index([displayOrder])
+  @@map("lesson_videos")
+}
+
+model TimelineEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  videoId   String   @db.Uuid
+  timestamp Int      // seconds into video
+  title     String?
+  required  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  video LessonVideo @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+  @@index([timestamp])
+  @@map("timeline_events")
+}
+
+model Activity {
+  id           String       @id @default(uuid()) @db.Uuid
+  videoId      String       @db.Uuid
+  type         ActivityType
+  title        String
+  instructions String?
+  config       String?      // JSON configuration for dynamic rendering
+  displayOrder Int          @default(0)
+  required     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  video     LessonVideo             @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  questions ActivityQuestion[]
+  progress  ActivityProgress[]
+
+  @@index([videoId])
+  @@index([displayOrder])
+  @@map("activities")
+}
+
+model ActivityQuestion {
+  id             String   @id @default(uuid()) @db.Uuid
+  activityId     String   @db.Uuid
+  question       String
+  options        String?  // JSON array of options
+  correctAnswer  String?
+  displayOrder   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
+  @@map("activity_questions")
+}
+
+model LessonVocabulary {
+  id           String   @id @default(uuid()) @db.Uuid
+  lessonId     String   @db.Uuid
+  word         String
+  translation  String
+  definition   String?
+  example      String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+  @@map("lesson_vocabulary")
+}
+
+model Homework {
+  id             String   @id @default(uuid()) @db.Uuid
+  lessonId       String   @unique @db.Uuid
+  title          String   @default("Homework")
+  passingScore   Int      @default(70)
+  maxAttempts    Int      @default(3)
+  xpReward       Int      @default(50)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  lesson    Lesson               @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions HomeworkQuestion[]
+  attempts  StudentHomeworkAttempt[]
+
+  @@map("homework")
+}
+
+model HomeworkQuestion {
+  id            String   @id @default(uuid()) @db.Uuid
+  homeworkId    String   @db.Uuid
+  question      String
+  options       String?  // JSON array of options
+  correctAnswer String?
+  displayOrder  Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+
+  @@index([homeworkId])
+  @@map("homework_questions")
+}
+
+model Quiz {
+  id           String   @id @default(uuid()) @db.Uuid
+  lessonId     String   @unique @db.Uuid
+  title        String   @default("End Lesson Assessment")
+  passingScore Int      @default(70)
+  maxAttempts  Int      @default(3)
+  xpReward     Int      @default(100)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lesson    Lesson            @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id            String   @id @default(uuid()) @db.Uuid
+  quizId        String   @db.Uuid
+  question      String
+  options       String?  // JSON array of options
+  correctAnswer String?
+  displayOrder  Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  quiz     Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers  QuizAnswer[]
+
+  @@index([quizId])
+  @@map("quiz_questions")
+}
+
+model VideoProgress {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  videoId     String   @db.Uuid
+  watchedSeconds Int   @default(0)
+  completed   Boolean  @default(false)
+  lastPosition Int     @default(0)
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@index([userId])
+  @@index([videoId])
+  @@map("video_progress")
+}
+
+model ActivityProgress {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  activityId  String   @db.Uuid
+  completed   Boolean  @default(false)
+  score       Int?
+  response    String?  // JSON response data
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityId])
+  @@index([userId])
+  @@index([activityId])
+  @@map("activity_progress")
+}
+
+model StudentHomeworkAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  homeworkId String   @db.Uuid
+  score      Int?
+  passed     Boolean?
+  submitted  Boolean  @default(false)
+  attemptNum Int      @default(1)
+  startedAt  DateTime @default(now())
+  submittedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([homeworkId])
+  @@map("student_homework_attempts")
+}
+
+model QuizAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  quizId     String   @db.Uuid
+  score      Int?
+  passed     Boolean?
+  submitted  Boolean  @default(false)
+  attemptNum Int      @default(1)
+  startedAt  DateTime @default(now())
+  submittedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz     Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers  QuizAnswer[]
+
+  @@index([userId])
+  @@index([quizId])
+  @@map("quiz_attempts")
+}
+
+model QuizAnswer {
+  id          String   @id @default(uuid()) @db.Uuid
+  attemptId   String   @db.Uuid
+  questionId  String   @db.Uuid
+  answer      String?
+  isCorrect   Boolean?
+  createdAt   DateTime @default(now())
+
+  attempt  QuizAttempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question QuizQuestion  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("quiz_answers")
 }
