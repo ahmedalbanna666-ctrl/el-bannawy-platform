@@ -2,11 +2,27 @@ import { type ReactNode, useState } from "react";
 import { MultipleChoiceActivity } from "./multiple-choice";
 import { FillInBlankActivity } from "./fill-in-blank";
 import { TrueFalseActivity } from "./true-false";
+import { MatchingActivity } from "./matching";
+import { DragDropActivity } from "./drag-drop";
+import { VocabularyActivity } from "./vocabulary";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HelpCircle } from "lucide-react";
 
-export type ActivityType = "MULTIPLE_CHOICE" | "FILL_IN_BLANK" | "TRUE_FALSE" | "MATCHING" | "DRAG_DROP" | "VOCABULARY";
+export type ActivityType =
+  | "MULTIPLE_CHOICE"
+  | "FILL_IN_BLANK"
+  | "FILL_IN_BLANKS"
+  | "TRUE_FALSE"
+  | "MATCHING"
+  | "DRAG_DROP"
+  | "VOCABULARY"
+  | "READING"
+  | "STORY_QUESTIONS"
+  | "CONVERSATION"
+  | "SPEAKING"
+  | "WRITING"
+  | "PARAGRAPH";
 
 export interface ActivityConfig {
   question?: string;
@@ -25,7 +41,23 @@ export interface ActivityRendererProps {
   onSubmit: (activityId: string, answers: string[], response?: string) => Promise<void>;
 }
 
-export function ActivityRenderer({ id, type, title, config, displayOrder, onSubmit }: ActivityRendererProps): ReactNode {
+const COMING_SOON_TYPES: ActivityType[] = [
+  "READING",
+  "STORY_QUESTIONS",
+  "CONVERSATION",
+  "SPEAKING",
+  "WRITING",
+  "PARAGRAPH",
+];
+
+export function ActivityRenderer({
+  id,
+  type,
+  title,
+  config,
+  displayOrder,
+  onSubmit,
+}: ActivityRendererProps): ReactNode {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +94,7 @@ export function ActivityRenderer({ id, type, title, config, displayOrder, onSubm
           />
         );
       case "FILL_IN_BLANK":
+      case "FILL_IN_BLANKS":
         return (
           <FillInBlankActivity
             config={configParsed}
@@ -79,7 +112,43 @@ export function ActivityRenderer({ id, type, title, config, displayOrder, onSubm
             submitting={submitting}
           />
         );
+      case "MATCHING":
+        return (
+          <MatchingActivity
+            config={configParsed}
+            onSubmit={handleSubmit}
+            submitted={submitted}
+            submitting={submitting}
+          />
+        );
+      case "DRAG_DROP":
+        return (
+          <DragDropActivity
+            config={configParsed}
+            onSubmit={handleSubmit}
+            submitted={submitted}
+            submitting={submitting}
+          />
+        );
+      case "VOCABULARY":
+        return (
+          <VocabularyActivity
+            config={configParsed}
+            onSubmit={handleSubmit}
+            submitted={submitted}
+            submitting={submitting}
+          />
+        );
       default:
+        if ((COMING_SOON_TYPES as string[]).includes(type)) {
+          return (
+            <div className="rounded-lg border border-neutral-200 p-6 text-center dark:border-neutral-700">
+              <p className="text-sm text-neutral-500">
+                {type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} activity is coming soon
+              </p>
+            </div>
+          );
+        }
         return (
           <div className="rounded-lg border border-neutral-200 p-6 text-center dark:border-neutral-700">
             <p className="text-sm text-neutral-500">Activity type &quot;{type}&quot; is coming soon</p>
@@ -108,7 +177,7 @@ export function ActivityRenderer({ id, type, title, config, displayOrder, onSubm
           <HelpCircle className="h-4 w-4 text-primary-500" />
           <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{title}</h3>
           <Badge variant="primary">{type}</Badge>
-          <span className="ml-auto text-xs text-neutral-400">Activity #{displayOrder}</span>
+          <span className="ms-auto text-xs text-neutral-400">Activity #{displayOrder}</span>
         </div>
       </CardHeader>
       <CardContent>

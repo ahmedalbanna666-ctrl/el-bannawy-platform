@@ -65,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
       if (response.data) {
         setAuth(response.data.accessToken, response.data.refreshToken);
+        document.cookie = `auth_token=${response.data.accessToken}; path=/; max-age=${response.data.expiresIn}; SameSite=Lax`;
         await fetchUser();
       }
     },
@@ -91,12 +92,13 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const logout = useCallback(async (): Promise<void> => {
     try {
       if (accessToken) {
-        await api.delete("/auth/logout");
+        await api.post("/auth/logout");
       }
     } catch {
       // ignore errors on logout
     } finally {
       clearStore();
+      document.cookie = "auth_token=; path=/; max-age=0";
     }
   }, [accessToken, clearStore]);
 
@@ -115,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
       if (response.data) {
         setAuth(response.data.accessToken, response.data.refreshToken);
+        document.cookie = `auth_token=${response.data.accessToken}; path=/; max-age=${response.data.expiresIn}; SameSite=Lax`;
       }
     } catch {
       clearStore();

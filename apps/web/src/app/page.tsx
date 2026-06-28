@@ -1,12 +1,27 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/lib/auth-store";
+import { Skeleton } from "@/components/ui/skeleton";
+
 export default function HomePage(): React.ReactNode {
+  const router = useRouter();
+  const { isAuthenticated } = useAuthStore();
+
+  useEffect(() => {
+    const token = document.cookie.includes("auth_token=");
+    if (token || isAuthenticated) {
+      router.push("/dashboard");
+    } else {
+      router.push("/login");
+    }
+  }, [isAuthenticated, router]);
+
   return (
-    <main className="container-page flex min-h-screen flex-col items-center justify-center gap-8 py-16">
-      <h1 className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-        El-bannawy Platform
-      </h1>
-      <p className="text-lg text-neutral-500 dark:text-neutral-400">
-        AI-Powered English Learning Platform
-      </p>
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 py-16">
+      <Skeleton className="h-10 w-48" />
+      <Skeleton className="h-6 w-64" />
     </main>
   );
 }

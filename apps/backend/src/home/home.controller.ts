@@ -8,6 +8,11 @@ import { successResponse } from "../common/helpers/response.helper";
 export class HomeController {
   constructor(private readonly homeService: HomeService) {}
 
+  @Get("health")
+  health(): Record<string, string> {
+    return { status: "ok", timestamp: new Date().toISOString() };
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   async getDashboard(@CurrentUser() userId: string): Promise<ReturnType<typeof successResponse>> {

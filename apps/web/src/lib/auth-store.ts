@@ -28,6 +28,11 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       setAuth: (accessToken: string, refreshToken: string): void => {
         set({ accessToken, refreshToken, isAuthenticated: true });
+        try {
+          localStorage.setItem("accessToken", accessToken);
+        } catch {
+          // SSR guard
+        }
       },
       setUser: (user: AuthUser): void => {
         set({ user });
@@ -39,6 +44,11 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           isAuthenticated: false,
         });
+        try {
+          localStorage.removeItem("accessToken");
+        } catch {
+          // SSR guard
+        }
       },
     }),
     {

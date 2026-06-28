@@ -1,17 +1,60 @@
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "..", "..", ".env") });
+
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Seeding database...");
+  console.log("Seeding database...");
+
+  // Idempotent: clean existing seed data first
+  await prisma.$transaction([
+    prisma.homeworkAnswer.deleteMany(),
+    prisma.quizAnswer.deleteMany(),
+    prisma.studentHomeworkAttempt.deleteMany(),
+    prisma.quizAttempt.deleteMany(),
+    prisma.timelineEvent.deleteMany(),
+    prisma.activityProgress.deleteMany(),
+    prisma.activityQuestion.deleteMany(),
+    prisma.activity.deleteMany(),
+    prisma.videoProgress.deleteMany(),
+    prisma.lessonVocabulary.deleteMany(),
+    prisma.homeworkQuestion.deleteMany(),
+    prisma.quizQuestion.deleteMany(),
+    prisma.homework.deleteMany(),
+    prisma.quiz.deleteMany(),
+    prisma.lessonDocument.deleteMany(),
+    prisma.lessonSettings.deleteMany(),
+    prisma.lessonProgress.deleteMany(),
+    prisma.attendanceRecord.deleteMany(),
+    prisma.lessonVideo.deleteMany(),
+    prisma.lesson.deleteMany(),
+    prisma.unit.deleteMany(),
+    prisma.grade.deleteMany(),
+    prisma.stage.deleteMany(),
+    prisma.xPTransaction.deleteMany(),
+    prisma.userAchievement.deleteMany(),
+    prisma.coinWallet.deleteMany(),
+    prisma.notificationPreference.deleteMany(),
+    prisma.notification.deleteMany(),
+    prisma.conversationMessage.deleteMany(),
+    prisma.conversation.deleteMany(),
+    prisma.loginHistory.deleteMany(),
+    prisma.refreshToken.deleteMany(),
+    prisma.session.deleteMany(),
+    prisma.passwordReset.deleteMany(),
+    prisma.user.deleteMany(),
+  ]);
 
   const hashedPassword = await bcrypt.hash("Test@1234", 12);
 
-  const student = await prisma.user.upsert({
-    where: { mobileNumber: "+201001234567" },
-    update: {},
-    create: {
+  const student = await prisma.user.create({
+    data: {
       fullName: "Ahmed Hassan",
       mobileNumber: "+201001234567",
       passwordHash: hashedPassword,
@@ -20,10 +63,8 @@ async function main() {
     },
   });
 
-  const teacher = await prisma.user.upsert({
-    where: { mobileNumber: "+201009876543" },
-    update: {},
-    create: {
+  const teacher = await prisma.user.create({
+    data: {
       fullName: "Mohamed Ali",
       mobileNumber: "+201009876543",
       passwordHash: hashedPassword,
@@ -32,10 +73,8 @@ async function main() {
     },
   });
 
-  const admin = await prisma.user.upsert({
-    where: { mobileNumber: "+201005555555" },
-    update: {},
-    create: {
+  const admin = await prisma.user.create({
+    data: {
       fullName: "Admin User",
       mobileNumber: "+201005555555",
       passwordHash: hashedPassword,
@@ -44,13 +83,8 @@ async function main() {
     },
   });
 
-  await prisma.coinWallet.upsert({
-    where: { userId: student.id },
-    update: {},
-    create: {
-      userId: student.id,
-      balance: 500,
-    },
+  await prisma.coinWallet.create({
+    data: { userId: student.id, balance: 500 },
   });
 
   const xpSeeds = [
@@ -61,53 +95,29 @@ async function main() {
     { amount: 30, reason: "Daily login bonus" },
   ];
   for (const xp of xpSeeds) {
-    await prisma.xPTransaction.create({
-      data: { userId: student.id, ...xp },
-    });
+    await prisma.xPTransaction.create({ data: { userId: student.id, ...xp } });
   }
 
   const achievementSeeds = [
-    { type: "first_lesson", title: "First Lesson", description: "Completed your first lesson", icon: "🎉" },
-    { type: "week_streak", title: "Week Warrior", description: "7-day learning streak", icon: "🔥" },
-    { type: "quiz_master", title: "Quiz Master", description: "Score 90%+ on 3 quizzes", icon: "🏆" },
+    { type: "first_lesson", title: "First Lesson", description: "Completed your first lesson", icon: "trophy" },
+    { type: "week_streak", title: "Week Warrior", description: "7-day learning streak", icon: "flame" },
+    { type: "quiz_master", title: "Quiz Master", description: "Score 90%+ on 3 quizzes", icon: "award" },
   ];
   for (const ach of achievementSeeds) {
-    await prisma.userAchievement.upsert({
-      where: { userId_type: { userId: student.id, type: ach.type } },
-      update: {},
-      create: { userId: student.id, ...ach },
-    });
+    await prisma.userAchievement.create({ data: { userId: student.id, ...ach } });
   }
 
-  // Education Domain
-  const stage = await prisma.stage.upsert({
-    where: { id: "stage-beginner" },
-    update: {},
-    create: {
-      id: "stage-beginner",
-      name: "Beginner",
-      description: "Start your English learning journey",
-      displayOrder: 1,
-    },
+  const stage = await prisma.stage.create({
+    data: { id: uuidv4(), name: "Beginner", displayOrder: 1 },
   });
 
-  const grade = await prisma.grade.upsert({
-    where: { id: "grade-1" },
-    update: {},
-    create: {
-      id: "grade-1",
-      name: "Grade 1",
-      description: "Foundational English skills",
-      displayOrder: 1,
-      stageId: stage.id,
-    },
+  const grade = await prisma.grade.create({
+    data: { id: uuidv4(), name: "Grade 1", displayOrder: 1, stageId: stage.id },
   });
 
-  const unit = await prisma.unit.upsert({
-    where: { id: "unit-1" },
-    update: {},
-    create: {
-      id: "unit-1",
+  const unit1 = await prisma.unit.create({
+    data: {
+      id: uuidv4(),
       title: "Getting Started",
       description: "Basic greetings and introductions",
       displayOrder: 1,
@@ -116,11 +126,9 @@ async function main() {
     },
   });
 
-  const unit2 = await prisma.unit.upsert({
-    where: { id: "unit-2" },
-    update: {},
-    create: {
-      id: "unit-2",
+  const unit2 = await prisma.unit.create({
+    data: {
+      id: uuidv4(),
       title: "Everyday Conversations",
       description: "Common phrases for daily interactions",
       displayOrder: 2,
@@ -129,75 +137,55 @@ async function main() {
     },
   });
 
-  const lesson1 = await prisma.lesson.upsert({
-    where: { id: "lesson-1" },
-    update: {},
-    create: {
-      id: "lesson-1",
+  const lesson1 = await prisma.lesson.create({
+    data: {
+      id: uuidv4(),
       title: "Hello and Goodbye",
-      description: "Learn basic greetings and farewells",
       displayOrder: 1,
       estimatedDuration: 10,
-      unitId: unit.id,
+      unitId: unit1.id,
       published: true,
       homeworkEnabled: true,
       quizEnabled: true,
     },
   });
 
-  const lesson2 = await prisma.lesson.upsert({
-    where: { id: "lesson-2" },
-    update: {},
-    create: {
-      id: "lesson-2",
+  const lesson2 = await prisma.lesson.create({
+    data: {
+      id: uuidv4(),
       title: "Introducing Yourself",
-      description: "Learn to introduce yourself in English",
       displayOrder: 2,
       estimatedDuration: 15,
-      unitId: unit.id,
+      unitId: unit1.id,
       published: true,
-      homeworkEnabled: true,
-      quizEnabled: true,
-    },
-  });
-
-  const lesson3 = await prisma.lesson.upsert({
-    where: { id: "lesson-3" },
-    update: {},
-    create: {
-      id: "lesson-3",
-      title: "Numbers 1-10",
-      description: "Learn to count from 1 to 10",
-      displayOrder: 3,
-      estimatedDuration: 12,
-      unitId: unit.id,
-      published: true,
-      homeworkEnabled: true,
+      homeworkEnabled: false,
       quizEnabled: false,
     },
   });
 
-  // Lesson Settings
-  await prisma.lessonSettings.upsert({
-    where: { lessonId: lesson1.id },
-    update: {},
-    create: {
-      lessonId: lesson1.id,
-      minScoreToPass: 70,
-      allowSkipping: true,
-      requiresCamera: false,
-      requiresMicrophone: false,
+  const lesson3 = await prisma.lesson.create({
+    data: {
+      id: uuidv4(),
+      title: "Numbers 1-10",
+      displayOrder: 1,
+      estimatedDuration: 12,
+      unitId: unit2.id,
+      published: true,
+      homeworkEnabled: false,
+      quizEnabled: false,
     },
   });
 
-  // Videos
-  const video1 = await prisma.lessonVideo.upsert({
-    where: { id: "video-1" },
-    update: {},
-    create: {
-      id: "video-1",
+  await prisma.lessonSettings.create({
+    data: { lessonId: lesson1.id, allowRetry: true, showAnswers: true, unlockNextOnComplete: true },
+  });
+
+  const video1 = await prisma.lessonVideo.create({
+    data: {
+      id: uuidv4(),
       title: "Greetings Video",
-      url: "https://example.com/videos/greetings.mp4",
+      youtubeUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+      youtubeId: "dQw4w9WgXcQ",
       duration: 180,
       displayOrder: 1,
       lessonId: lesson1.id,
@@ -205,13 +193,12 @@ async function main() {
     },
   });
 
-  const video2 = await prisma.lessonVideo.upsert({
-    where: { id: "video-2" },
-    update: {},
-    create: {
-      id: "video-2",
+  const video2 = await prisma.lessonVideo.create({
+    data: {
+      id: uuidv4(),
       title: "Practice: Say Hello",
-      url: "https://example.com/videos/practice-hello.mp4",
+      youtubeUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+      youtubeId: "dQw4w9WgXcQ",
       duration: 120,
       displayOrder: 2,
       lessonId: lesson1.id,
@@ -219,170 +206,134 @@ async function main() {
     },
   });
 
-  // Timeline Events
-  await prisma.timelineEvent.upsert({
-    where: { id: "event-1" },
-    update: {},
-    create: {
-      id: "event-1",
-      timestamp: 15,
-      title: "Introduction",
-      description: "Watch the introduction to greetings",
-      required: true,
-      videoId: video1.id,
-    },
+  await prisma.timelineEvent.create({
+    data: { id: uuidv4(), timestamp: 15, title: "Introduction", required: true, videoId: video1.id },
+  });
+  await prisma.timelineEvent.create({
+    data: { id: uuidv4(), timestamp: 60, title: "Key Phrases", required: true, videoId: video1.id },
   });
 
-  await prisma.timelineEvent.upsert({
-    where: { id: "event-2" },
-    update: {},
-    create: {
-      id: "event-2",
-      timestamp: 60,
-      title: "Key Phrases",
-      description: "Learn key greeting phrases",
-      required: true,
-      videoId: video1.id,
-    },
-  });
-
-  // Activities
-  await prisma.activity.upsert({
-    where: { id: "activity-1" },
-    update: {},
-    create: {
-      id: "activity-1",
+  await prisma.activity.create({
+    data: {
+      id: uuidv4(),
       type: "MULTIPLE_CHOICE",
       title: "Greeting Match",
-      config: JSON.stringify({
-        question: "How do you say hello?",
-        options: ["Hello", "Goodbye", "Thanks", "Please"],
-        correctAnswer: 0,
-      }),
+      config: JSON.stringify({ question: "How do you say hello?", options: ["Hello", "Goodbye", "Thanks", "Please"], correctAnswer: 0 }),
       displayOrder: 1,
       videoId: video1.id,
     },
   });
 
-  await prisma.activity.upsert({
-    where: { id: "activity-2" },
-    update: {},
-    create: {
-      id: "activity-2",
-      type: "FILL_IN_BLANK",
+  await prisma.activity.create({
+    data: {
+      id: uuidv4(),
+      type: "FILL_IN_BLANKS",
       title: "Complete the Greeting",
-      config: JSON.stringify({
-        question: '___ morning! (Complete with Good)',
-        answer: "Good",
-      }),
+      config: JSON.stringify({ question: "___ morning! (Complete with Good)", answer: "Good" }),
       displayOrder: 2,
       videoId: video1.id,
     },
   });
 
-  // Vocabulary
   const vocabSeeds = [
-    { word: "Hello", translation: "مرحبا", definition: "A greeting", example: "Hello, how are you?", phonetic: "/həˈloʊ/", displayOrder: 1 },
-    { word: "Goodbye", translation: "وداعا", definition: "A farewell", example: "Goodbye, see you later!", phonetic: "/ɡʊdˈbaɪ/", displayOrder: 2 },
-    { word: "Good morning", translation: "صباح الخير", definition: "Morning greeting", example: "Good morning, teacher!", phonetic: "/ɡʊd ˈmɔːrnɪŋ/", displayOrder: 3 },
+    { word: "Hello", translation: "مرحبا", definition: "A greeting", example: "Hello, how are you?" },
+    { word: "Goodbye", translation: "وداعا", definition: "A farewell", example: "Goodbye, see you later!" },
+    { word: "Good morning", translation: "صباح الخير", definition: "Morning greeting", example: "Good morning, teacher!" },
   ];
-  for (const v of vocabSeeds) {
-    await prisma.lessonVocabulary.upsert({
-      where: { id: `vocab-${v.displayOrder}` },
-      update: {},
-      create: { id: `vocab-${v.displayOrder}`, lessonId: lesson1.id, ...v },
+  for (let i = 0; i < vocabSeeds.length; i++) {
+    await prisma.lessonVocabulary.create({
+      data: { id: uuidv4(), lessonId: lesson1.id, displayOrder: i + 1, ...vocabSeeds[i] },
     });
   }
 
-  // Homework
-  const homework = await prisma.homework.upsert({
-    where: { lessonId: lesson1.id },
-    update: {},
-    create: {
-      id: `hw-${lesson1.id}`,
-      lessonId: lesson1.id,
-      title: "Greetings Practice",
-      passingScore: 70,
-    },
+  const homework = await prisma.homework.create({
+    data: { id: uuidv4(), lessonId: lesson1.id, title: "Greetings Practice", passingScore: 70 },
   });
 
-  const hwQuestionSeeds = [
-    { question: "What is the correct response to 'Hello'?", options: JSON.stringify(["Hello", "Goodbye", "Thanks", "Yes"]), correctAnswer: "0", displayOrder: 1 },
-    { question: "How do you say goodbye in English?", options: JSON.stringify(["Hello", "Goodbye", "Please", "Sorry"]), correctAnswer: "1", displayOrder: 2 },
-  ];
-  for (const q of hwQuestionSeeds) {
-    await prisma.homeworkQuestion.upsert({
-      where: { id: `hwq-${lesson1.id}-${q.displayOrder}` },
-      update: {},
-      create: { id: `hwq-${lesson1.id}-${q.displayOrder}`, homeworkId: homework.id, ...q },
-    });
-  }
-
-  // Quiz
-  const quiz = await prisma.quiz.upsert({
-    where: { lessonId: lesson1.id },
-    update: {},
-    create: {
-      id: `quiz-${lesson1.id}`,
-      lessonId: lesson1.id,
-      title: "Greetings Quiz",
-      passingScore: 70,
-    },
-  });
-
-  const quizQuestionSeeds = [
-    { question: "What does 'Goodbye' mean?", options: JSON.stringify(["مرحبا", "وداعا", "شكرا", "من فضلك"]), correctAnswer: "1", displayOrder: 1 },
-    { question: "When do you say 'Good morning'?", options: JSON.stringify(["In the evening", "In the morning", "At night", "In the afternoon"]), correctAnswer: "1", displayOrder: 2 },
-    { question: "What is the opposite of 'Hello'?", options: JSON.stringify(["Hi", "Goodbye", "Thanks", "Yes"]), correctAnswer: "1", displayOrder: 3 },
-  ];
-  for (const q of quizQuestionSeeds) {
-    await prisma.quizQuestion.upsert({
-      where: { id: `quizq-${lesson1.id}-${q.displayOrder}` },
-      update: {},
-      create: { id: `quizq-${lesson1.id}-${q.displayOrder}`, quizId: quiz.id, ...q },
-    });
-  }
-
-  // Lesson Progress
-  await prisma.lessonProgress.upsert({
-    where: { userId_lessonId: { userId: student.id, lessonId: lesson1.id } },
-    update: {},
-    create: {
-      userId: student.id,
-      lessonId: lesson1.id,
-      completed: false,
-      progress: 65,
-    },
-  });
-
-  // Login History & Attendance
-  await prisma.loginHistory.create({
+  await prisma.homeworkQuestion.create({
     data: {
-      userId: student.id,
-      ipAddress: "127.0.0.1",
-      success: true,
+      id: uuidv4(),
+      homeworkId: homework.id,
+      question: "What is the correct response to 'Hello'?",
+      options: JSON.stringify(["Hello", "Goodbye", "Thanks", "Yes"]),
+      correctAnswer: "0",
+      displayOrder: 1,
+      type: "MULTIPLE_CHOICE",
     },
+  });
+  await prisma.homeworkQuestion.create({
+    data: {
+      id: uuidv4(),
+      homeworkId: homework.id,
+      question: "How do you say goodbye in English?",
+      options: JSON.stringify(["Hello", "Goodbye", "Please", "Sorry"]),
+      correctAnswer: "1",
+      displayOrder: 2,
+      type: "MULTIPLE_CHOICE",
+    },
+  });
+
+  const quiz = await prisma.quiz.create({
+    data: { id: uuidv4(), lessonId: lesson1.id, title: "Greetings Quiz", passingScore: 70 },
+  });
+
+  await prisma.quizQuestion.create({
+    data: {
+      id: uuidv4(),
+      quizId: quiz.id,
+      question: "What does 'Goodbye' mean?",
+      options: JSON.stringify(["مرحبا", "وداعا", "شكرا", "من فضلك"]),
+      correctAnswer: "1",
+      displayOrder: 1,
+      type: "MULTIPLE_CHOICE",
+    },
+  });
+  await prisma.quizQuestion.create({
+    data: {
+      id: uuidv4(),
+      quizId: quiz.id,
+      question: "When do you say 'Good morning'?",
+      options: JSON.stringify(["In the evening", "In the morning", "At night", "In the afternoon"]),
+      correctAnswer: "1",
+      displayOrder: 2,
+      type: "MULTIPLE_CHOICE",
+    },
+  });
+  await prisma.quizQuestion.create({
+    data: {
+      id: uuidv4(),
+      quizId: quiz.id,
+      question: "What is the opposite of 'Hello'?",
+      options: JSON.stringify(["Hi", "Goodbye", "Thanks", "Yes"]),
+      correctAnswer: "1",
+      displayOrder: 3,
+      type: "MULTIPLE_CHOICE",
+    },
+  });
+
+  await prisma.lessonProgress.create({
+    data: { userId: student.id, lessonId: lesson1.id, completed: false, progress: 65 },
+  });
+
+  await prisma.loginHistory.create({
+    data: { userId: student.id, ipAddress: "127.0.0.1", success: true },
   });
 
   await prisma.attendanceRecord.create({
-    data: {
-      userId: student.id,
-      present: true,
-    },
+    data: { userId: student.id, present: true },
   });
 
-  console.log(`✅ Created student: ${student.fullName} (+201001234567 / Test@1234)`);
-  console.log(`✅ Created teacher: ${teacher.fullName} (+201009876543 / Test@1234)`);
-  console.log(`✅ Created admin: ${admin.fullName} (+201005555555 / Test@1234)`);
-  console.log("✅ Created education domain: 1 stage, 1 grade, 2 units, 3 lessons");
-  console.log("✅ Created 2 videos, 2 timeline events, 2 activities, 3 vocabulary words");
-  console.log("✅ Created 1 homework, 2 homework questions, 1 quiz, 3 quiz questions");
-  console.log("🌱 Seeding complete!");
+  console.log(`Student: ${student.fullName} (+201001234567 / Test@1234)`);
+  console.log(`Teacher: ${teacher.fullName} (+201009876543 / Test@1234)`);
+  console.log(`Admin: ${admin.fullName} (+201005555555 / Test@1234)`);
+  console.log("Education: 1 stage, 1 grade, 2 units, 3 lessons");
+  console.log("Content: 2 videos, 2 activities, 3 vocab, 1 homework, 1 quiz");
+  console.log("Seeding complete!");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seed error:", e);
+    console.error("Seed error:", e);
     process.exit(1);
   })
   .finally(async () => {

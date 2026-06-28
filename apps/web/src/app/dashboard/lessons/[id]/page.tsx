@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useCallback, type ReactNode } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { api } from "@/lib/api-client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
+import { ActivityRenderer, type ActivityType } from "@/components/activities/activity-renderer";
 import {
   Play,
   CheckCircle,
@@ -25,7 +27,6 @@ import { Button } from "@/components/ui/button";
 interface LessonDetail {
   id: string;
   title: string;
-  description: string;
   displayOrder: number;
   estimatedDuration: number;
   isPremium: boolean;
@@ -42,11 +43,11 @@ interface LessonDetail {
 interface LessonVideo {
   id: string;
   title: string;
-  url: string;
+  youtubeUrl: string;
+  youtubeId: string;
   duration: number;
   displayOrder: number;
-  thumbnailUrl: string | null;
-  timelineEvents: { id: string; timestamp: number; title: string; description: string }[];
+  timelineEvents: { id: string; timestamp: number; title: string; required: boolean }[];
   activities: LessonActivity[];
 }
 
@@ -64,16 +65,14 @@ interface LessonVocabulary {
   translation: string;
   definition: string;
   example: string | null;
-  phonetic: string | null;
   displayOrder: number;
 }
 
 interface LessonSettings {
   id: string;
-  requiresCamera: boolean;
-  requiresMicrophone: boolean;
-  minScoreToPass: number;
-  allowSkipping: boolean;
+  allowRetry: boolean;
+  showAnswers: boolean;
+  unlockNextOnComplete: boolean;
 }
 
 interface VideoProgressData {
@@ -137,7 +136,9 @@ export default function LessonDetailPage(): ReactNode {
   const handleSelectVideo = (videoId: string): void => {
     setActiveVideoId(videoId);
     const vp = videoProgress[videoId];
-    void api.patch(`/videos/${videoId}/progress`, { currentPosition: vp !== undefined ? vp.lastPosition : 0 });
+    void api.patch(`/videos/${videoId}/progress`, {
+      currentPosition: vp !== undefined ? vp.lastPosition : 0,
+    });
   };
 
   const handleCompleteVideo = async (videoId: string): Promise<void> => {
@@ -146,7 +147,6 @@ export default function LessonDetailPage(): ReactNode {
       const response = await api.post<VideoProgressData>(`/videos/${videoId}/complete`);
       if (response.data) {
         setVideoProgress((prev) => ({ ...prev, [videoId]: response.data }));
-        // Refresh lesson data to get updated progress
         void fetchLesson();
       }
     } catch {
@@ -154,6 +154,15 @@ export default function LessonDetailPage(): ReactNode {
     } finally {
       setCompletingVideo(null);
     }
+  };
+
+  const handleActivitySubmit = async (
+    activityId: string,
+    answers: string[],
+    response?: string,
+  ): Promise<void> => {
+    await api.post(`/activities/${activityId}/submit`, { answers, response });
+    void fetchLesson();
   };
 
   if (loading) {
@@ -181,13 +190,13 @@ export default function LessonDetailPage(): ReactNode {
     <div className="flex flex-col gap-6">
       {/* Header */}
       <div>
-        <a
+        <Link
           href="/dashboard/units"
           className="mb-4 flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
         >
           <ChevronLeft className="h-4 w-4" />
           Back to Units
-        </a>
+        </Link>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm text-neutral-500">
@@ -230,7 +239,7 @@ export default function LessonDetailPage(): ReactNode {
       {activeVideo && (
         <Card variant="elevated" padding="md">
           <CardContent>
-            <div className="aspect-video w-full rounded-xl bg-neutral-900 flex items-center justify-center">
+            <div className="flex aspect-video w-full items-center justify-center rounded-xl bg-neutral-900">
               <div className="text-center">
                 <Play className="mx-auto h-16 w-16 text-white/60" />
                 <p className="mt-2 text-sm text-white/60">{activeVideo.title}</p>
@@ -241,9 +250,16 @@ export default function LessonDetailPage(): ReactNode {
                       <CheckCircle className="mr-1 h-3 w-3" />
                       Completed
                     </Badge>
-                  ) : activeProgress !== null && activeProgress !== undefined && activeProgress.watchedSeconds > 0 ? (
+                  ) : activeProgress !== null &&
+                    activeProgress !== undefined &&
+                    activeProgress.watchedSeconds > 0 ? (
                     <span>
-                      {String(Math.round((activeProgress.watchedSeconds / activeVideo.duration) * 100))}% watched
+                      {String(
+                        Math.round(
+                          (activeProgress.watchedSeconds / activeVideo.duration) * 100,
+                        ),
+                      )}
+                      % watched
                     </span>
                   ) : (
                     <span>Not started</span>
@@ -272,16 +288,22 @@ export default function LessonDetailPage(): ReactNode {
                   return (
                     <button
                       key={video.id}
-                      onClick={(): void => { handleSelectVideo(video.id); }}
-                      className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                      onClick={(): void => {
+                        handleSelectVideo(video.id);
+                      }}
+                      className={`w-full rounded-lg border p-3 text-start transition-colors ${
                         activeVideoId === video.id
                           ? "border-primary-500 bg-primary-500/5"
                           : "border-neutral-200 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800/50"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{video.title}</p>
-                        {vp !== undefined && vp.completed && <CheckCircle className="h-4 w-4 text-success-500" />}
+                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                          {video.title}
+                        </p>
+                        {vp !== undefined && vp.completed && (
+                          <CheckCircle className="h-4 w-4 text-success-500" />
+                        )}
                       </div>
                       <div className="mt-1 flex items-center gap-2 text-xs text-neutral-400">
                         <Clock className="h-3 w-3" />
@@ -297,7 +319,17 @@ export default function LessonDetailPage(): ReactNode {
                         <div className="mt-2 h-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                           <div
                             className="h-full rounded-full bg-primary-400"
-                            style={{ width: String(Math.min(100, Math.round((vp.watchedSeconds / video.duration) * 100))) + "%" }}
+                            style={{
+                              width:
+                                String(
+                                  Math.min(
+                                    100,
+                                    Math.round(
+                                      (vp.watchedSeconds / video.duration) * 100,
+                                    ),
+                                  ),
+                                ) + "%",
+                            }}
                           />
                         </div>
                       )}
@@ -319,13 +351,17 @@ export default function LessonDetailPage(): ReactNode {
               <CardContent>
                 <div className="space-y-3">
                   {data.vocabulary.map((word) => (
-                    <div key={word.id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
+                    <div
+                      key={word.id}
+                      className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-700"
+                    >
                       <p className="font-medium text-neutral-900 dark:text-neutral-100">{word.word}</p>
-                      {word.phonetic && <p className="text-xs text-neutral-400">{word.phonetic}</p>}
                       <p className="mt-1 text-sm text-neutral-500">{word.translation}</p>
                       <p className="mt-0.5 text-xs text-neutral-400">{word.definition}</p>
                       {word.example && (
-                        <p className="mt-1 text-xs italic text-neutral-400">&ldquo;{word.example}&rdquo;</p>
+                        <p className="mt-1 text-xs italic text-neutral-400">
+                          &ldquo;{word.example}&rdquo;
+                        </p>
                       )}
                     </div>
                   ))}
@@ -351,7 +387,9 @@ export default function LessonDetailPage(): ReactNode {
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={(): void => { void handleCompleteVideo(activeVideo.id); }}
+                      onClick={(): void => {
+                        void handleCompleteVideo(activeVideo.id);
+                      }}
                       loading={completingVideo === activeVideo.id}
                     >
                       <CheckCircle className="mr-2 h-4 w-4" />
@@ -393,8 +431,12 @@ export default function LessonDetailPage(): ReactNode {
                         {event.timestamp}s
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{event.title}</p>
-                        {event.description && <p className="text-xs text-neutral-500">{event.description}</p>}
+                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                          {event.title}
+                        </p>
+                        <p className="text-xs text-neutral-500">
+                          {event.required ? "Required" : "Optional"}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -415,18 +457,15 @@ export default function LessonDetailPage(): ReactNode {
               <CardContent>
                 <div className="space-y-3">
                   {activeVideo.activities.map((activity) => (
-                    <div
+                    <ActivityRenderer
                       key={activity.id}
-                      className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-700"
-                    >
-                      <div className="mb-2 flex items-center gap-2">
-                        <Badge variant="primary">{activity.type}</Badge>
-                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                          {activity.title}
-                        </p>
-                      </div>
-                      <p className="text-xs text-neutral-400">Activity #{activity.displayOrder}</p>
-                    </div>
+                      id={activity.id}
+                      type={activity.type as ActivityType}
+                      title={activity.title}
+                      config={activity.config}
+                      displayOrder={activity.displayOrder}
+                      onSubmit={handleActivitySubmit}
+                    />
                   ))}
                 </div>
               </CardContent>
@@ -436,16 +475,20 @@ export default function LessonDetailPage(): ReactNode {
           {/* Lesson-level Actions */}
           <div className="flex flex-wrap gap-3">
             {data.homeworkEnabled && (
-              <Button variant="outline" size="md">
-                <ClipboardList className="mr-2 h-4 w-4" />
-                View Homework
-              </Button>
+              <Link href={`/dashboard/homework/${lessonId}`}>
+                <Button variant="outline" size="md">
+                  <ClipboardList className="mr-2 h-4 w-4" />
+                  View Homework
+                </Button>
+              </Link>
             )}
             {data.quizEnabled && (
-              <Button variant="primary" size="md">
-                <GraduationCap className="mr-2 h-4 w-4" />
-                Take Quiz
-              </Button>
+              <Link href={`/dashboard/quiz/${lessonId}`}>
+                <Button variant="primary" size="md">
+                  <GraduationCap className="mr-2 h-4 w-4" />
+                  Take Quiz
+                </Button>
+              </Link>
             )}
           </div>
 
@@ -460,26 +503,22 @@ export default function LessonDetailPage(): ReactNode {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  {data.settings.requiresCamera && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-neutral-500">Camera:</span>
-                      <Badge variant="warning">Required</Badge>
-                    </div>
-                  )}
-                  {data.settings.requiresMicrophone && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-neutral-500">Microphone:</span>
-                      <Badge variant="warning">Required</Badge>
-                    </div>
-                  )}
                   <div className="flex items-center gap-2">
-                    <span className="text-neutral-500">Pass score:</span>
-                    <span className="font-medium text-neutral-900 dark:text-neutral-100">{data.settings.minScoreToPass}%</span>
+                    <span className="text-neutral-500">Retry:</span>
+                    <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                      {data.settings.allowRetry ? "Allowed" : "Disabled"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-neutral-500">Skipping:</span>
+                    <span className="text-neutral-500">Show Answers:</span>
                     <span className="font-medium text-neutral-900 dark:text-neutral-100">
-                      {data.settings.allowSkipping ? "Allowed" : "Disabled"}
+                      {data.settings.showAnswers ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-neutral-500">Unlock Next:</span>
+                    <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                      {data.settings.unlockNextOnComplete ? "On complete" : "Free"}
                     </span>
                   </div>
                 </div>

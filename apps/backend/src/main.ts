@@ -1,5 +1,10 @@
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "..", "..", "..", ".env") });
+
 import { NestFactory } from "@nestjs/core";
-import { ValidationPipe } from "@nestjs/common";
+import { ValidationPipe, Logger } from "@nestjs/common";
 import { AppModule } from "./app.module";
 
 async function bootstrap(): Promise<void> {
@@ -22,8 +27,7 @@ async function bootstrap(): Promise<void> {
 
   const port = process.env.PORT ?? 4000;
   await app.listen(port);
-  // eslint-disable-next-line no-console
-  console.log(`Backend running on http://localhost:${String(port)}`);
+  Logger.log(`Backend running on http://localhost:${String(port)}`, "Bootstrap");
 }
 
 void bootstrap();

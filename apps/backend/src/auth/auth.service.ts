@@ -32,8 +32,8 @@ export class AuthService {
       throw new ConflictException("Passwords do not match");
     }
 
-    const existing = await this.prisma.user.findUnique({
-      where: { mobileNumber: dto.mobile },
+    const existing = await this.prisma.user.findFirst({
+      where: { mobileNumber: dto.mobile, deletedAt: null },
     });
 
     if (existing) {
@@ -63,12 +63,11 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<IAuthTokens> {
-    const user = await this.prisma.user.findUnique({
-      where: { mobileNumber: dto.mobile },
+    const user = await this.prisma.user.findFirst({
+      where: { mobileNumber: dto.mobile, deletedAt: null },
     });
 
     if (!user) {
-      await this.logLoginAttempt(null, ipAddress, userAgent, false, "User not found");
       throw new UnauthorizedException("Invalid mobile number or password");
     }
 
@@ -119,8 +118,8 @@ export class AuthService {
   }
 
   async forgotPassword(mobile: string): Promise<string> {
-    const user = await this.prisma.user.findUnique({
-      where: { mobileNumber: mobile },
+    const user = await this.prisma.user.findFirst({
+      where: { mobileNumber: mobile, deletedAt: null },
     });
 
     if (!user) {
@@ -147,15 +146,14 @@ export class AuthService {
     });
 
     // In production, send SMS with verificationCode
-    // eslint-disable-next-line no-console
-    console.log(`Verification code for ${mobile}: ${verificationCode}`);
+    console.warn(`Development: verification code generated for mobile ending in ${mobile.slice(-4)}`);
 
     return "If the mobile number is registered, a verification code will be sent";
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<string> {
-    const user = await this.prisma.user.findUnique({
-      where: { mobileNumber: dto.mobile },
+    const user = await this.prisma.user.findFirst({
+      where: { mobileNumber: dto.mobile, deletedAt: null },
     });
 
     if (!user) {
@@ -198,8 +196,8 @@ export class AuthService {
     role: string;
     status: string;
   }> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
     });
 
     if (!user) {

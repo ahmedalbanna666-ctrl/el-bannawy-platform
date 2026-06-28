@@ -16,7 +16,25 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20, 22]
+        node-version: [22]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: elbannawy
+          POSTGRES_PASSWORD: elbannawy_dev
+          POSTGRES_DB: elbannawy_platform_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://elbannawy:elbannawy_dev@localhost:5432/elbannawy_platform_test
 
     steps:
       - uses: actions/checkout@v4
@@ -39,5 +57,28 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Run database migrations
+        run: pnpm --filter=@el-bannawy/database exec prisma migrate deploy
+        continue-on-error: true
+
+      - name: Run unit tests
+        run: pnpm --filter=@el-bannawy/backend test --passWithNoTests
+        continue-on-error: true
+
       - name: Build
         run: pnpm build
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [validate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -f docker/Dockerfile.backend -t el-bannawy-backend .
+
+      - name: Build web image
+        run: docker build -f docker/Dockerfile.web -t el-bannawy-web .

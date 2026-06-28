@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 interface HeaderProps {
   title?: string;
   onMenuClick?: () => void;
+  onNotificationClick?: () => void;
   notificationCount?: number;
   className?: string;
 }
@@ -16,6 +17,7 @@ interface HeaderProps {
 export function Header({
   title,
   onMenuClick,
+  onNotificationClick,
   notificationCount,
   className,
 }: HeaderProps): ReactNode {
@@ -59,7 +61,7 @@ export function Header({
           )}
         </Button>
 
-        <Button variant="ghost" size="icon-sm" aria-label="Notifications" className="relative">
+        <Button variant="ghost" size="icon-sm" aria-label="Notifications" className="relative" onClick={onNotificationClick}>
           <Bell className="h-5 w-5" />
           {notificationCount && notificationCount > 0 ? (
             <span className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-500 px-1 text-[10px] font-bold text-white">

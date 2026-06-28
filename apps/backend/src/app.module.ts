@@ -6,9 +6,29 @@ import { CurriculumModule } from "./curriculum/curriculum.module";
 import { LessonModule } from "./lesson/lesson.module";
 import { VideoModule } from "./video/video.module";
 import { ActivityModule } from "./activity/activity.module";
+import { HomeworkModule } from "./homework/homework.module";
+import { QuizModule } from "./quiz/quiz.module";
+import { ReportsModule } from "./reports/reports.module";
+import { PaymentsModule } from "./payments/payments.module";
+import { NotificationsModule } from "./notifications/notifications.module";
+import { AiModule } from "./ai/ai.module";
 
 @Module({
-  imports: [PrismaModule, AuthModule, HomeModule, CurriculumModule, LessonModule, VideoModule, ActivityModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    HomeModule,
+    CurriculumModule,
+    LessonModule,
+    VideoModule,
+    ActivityModule,
+    HomeworkModule,
+    QuizModule,
+    ReportsModule,
+    PaymentsModule,
+    NotificationsModule,
+    AiModule,
+  ],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class AppModule {}

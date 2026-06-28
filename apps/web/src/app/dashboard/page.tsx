@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -42,6 +43,7 @@ interface DashboardData {
 }
 
 export default function DashboardPage(): ReactNode {
+  const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,11 +115,27 @@ export default function DashboardPage(): ReactNode {
 
       {/* Quick Actions */}
       <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Button variant="primary" size="sm" className="flex-col gap-1 py-3" fullWidth>
+        <Button
+          variant="primary"
+          size="sm"
+          className="flex-col gap-1 py-3"
+          fullWidth
+          onClick={() => {
+            if (data?.continueLearning?.lessonId) {
+              router.push(`/dashboard/lessons/${data.continueLearning.lessonId}`);
+            }
+          }}
+        >
           <Play className="h-5 w-5" />
           <span className="text-xs">Continue</span>
         </Button>
-        <Button variant="outline" size="sm" className="flex-col gap-1 py-3" fullWidth>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-col gap-1 py-3"
+          fullWidth
+          onClick={() => router.push("/dashboard/units")}
+        >
           <ClipboardList className="h-5 w-5" />
           <span className="text-xs">Homework</span>
         </Button>
@@ -125,7 +143,13 @@ export default function DashboardPage(): ReactNode {
           <RefreshCw className="h-5 w-5" />
           <span className="text-xs">Mistakes</span>
         </Button>
-        <Button variant="outline" size="sm" className="flex-col gap-1 py-3" fullWidth>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-col gap-1 py-3"
+          fullWidth
+          onClick={() => router.push("/dashboard/ai")}
+        >
           <Sparkles className="h-5 w-5" />
           <span className="text-xs">Ask AI</span>
         </Button>
@@ -229,7 +253,7 @@ export default function DashboardPage(): ReactNode {
                     </div>
                   </div>
                 </div>
-                <Button size="md" className="shrink-0">
+                <Button size="md" className="shrink-0" onClick={() => { const lessonId = data.continueLearning?.lessonId; if (lessonId) router.push(`/dashboard/lessons/${lessonId}`); }}>
                   <Play className="h-5 w-5" />
                   Continue Lesson
                 </Button>
@@ -246,6 +270,7 @@ export default function DashboardPage(): ReactNode {
       )}
 
       {/* Section 1: Ask AI */}
+      <div onClick={() => router.push("/dashboard/ai")} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") router.push("/dashboard/ai"); }}>
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
           <div className="flex items-center gap-4">
@@ -260,6 +285,7 @@ export default function DashboardPage(): ReactNode {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Section 2: Book Live Class */}
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
@@ -278,6 +304,7 @@ export default function DashboardPage(): ReactNode {
       </Card>
 
       {/* Section 4: Curriculum Units */}
+      <div onClick={() => router.push("/dashboard/units")} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") router.push("/dashboard/units"); }}>
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
           <div className="flex items-center gap-4">
@@ -292,6 +319,7 @@ export default function DashboardPage(): ReactNode {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Section 5: Story */}
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">

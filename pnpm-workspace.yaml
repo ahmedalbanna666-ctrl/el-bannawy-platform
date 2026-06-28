@@ -8,4 +8,6 @@ allowBuilds:
   '@prisma/engines': true
   prisma: true
   sharp: true
+  '@firebase/util': true
+  protobufjs: true
 onlyBuiltDependencies: esbuild

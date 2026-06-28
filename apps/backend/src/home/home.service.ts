@@ -45,50 +45,70 @@ export class HomeService {
       attendanceRate: number;
     };
   }> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
     });
 
     if (!user) {
       throw new NotFoundException("User not found");
     }
 
-    const xpTransactions = await this.prisma.xPTransaction.aggregate({
-      where: { userId },
-      _sum: { amount: true },
+    const currentProgress = await this.prisma.lessonProgress.findFirst({
+      where: { userId, completed: false },
+      orderBy: { startedAt: "desc" },
+      include: { lesson: { include: { unit: true } } },
     });
+
+    const [
+      xpTransactions,
+      coinWallet,
+      achievementCount,
+      recentLoginHistory,
+      totalLessons,
+      completedLessons,
+      enrolledLessons,
+      quizPassRateTotal,
+      quizPassedCount,
+      attendanceTotal,
+      attendancePresent,
+    ] = await Promise.all([
+      this.prisma.xPTransaction.aggregate({ where: { userId }, _sum: { amount: true } }),
+      this.prisma.coinWallet.findUnique({ where: { userId } }),
+      this.prisma.userAchievement.count({ where: { userId } }),
+      this.prisma.loginHistory.findMany({ where: { userId, success: true }, orderBy: { createdAt: "desc" }, take: 5 }),
+      this.prisma.lessonProgress.count({ where: { userId } }),
+      this.prisma.lessonProgress.count({ where: { userId, completed: true } }),
+      this.prisma.lessonProgress.findMany({ where: { userId, completed: false }, select: { lessonId: true } }),
+      this.prisma.quizAttempt.count({ where: { userId, submitted: true } }),
+      this.prisma.quizAttempt.count({ where: { userId, submitted: true, passed: true } }),
+      this.prisma.attendanceRecord.count({ where: { userId } }),
+      this.prisma.attendanceRecord.count({ where: { userId, present: true } }),
+    ]);
+
     const totalXp = xpTransactions._sum.amount ?? 0;
     const level = Math.floor(totalXp / 1000) + 1;
     const nextLevelXp = level * 1000;
 
-    const coinWallet = await this.prisma.coinWallet.findUnique({
-      where: { userId },
-    });
+    const enrolledLessonIds = enrolledLessons.map((p) => p.lessonId);
+    const homeworkPending = enrolledLessonIds.length > 0
+      ? await this.prisma.homework.count({
+          where: {
+            lessonId: { in: enrolledLessonIds },
+            deletedAt: null,
+            published: true,
+            lesson: { homeworkEnabled: true },
+            NOT: { attempts: { some: { userId, submitted: true, passed: true } } },
+          },
+        })
+      : 0;
 
-    const achievementCount = await this.prisma.userAchievement.count({
-      where: { userId },
-    });
+    const quizPassRate = quizPassRateTotal > 0
+      ? Math.round((quizPassedCount / quizPassRateTotal) * 100)
+      : 0;
 
-    const currentProgress = await this.prisma.lessonProgress.findFirst({
-      where: {
-        userId,
-        completed: false,
-      },
-      orderBy: { startedAt: "desc" },
-    });
-
-    const recentLoginHistory = await this.prisma.loginHistory.findMany({
-      where: { userId, success: true },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    });
-
-    const totalLessons = await this.prisma.lessonProgress.count({
-      where: { userId },
-    });
-    const completedLessons = await this.prisma.lessonProgress.count({
-      where: { userId, completed: true },
-    });
+    const attendanceRate = attendanceTotal > 0
+      ? Math.round((attendancePresent / attendanceTotal) * 100)
+      : 0;
 
     return {
       user: {
@@ -103,11 +123,11 @@ export class HomeService {
       },
       coins: coinWallet?.balance ?? 0,
       achievements: achievementCount,
-      streak: 3,
+      streak: attendancePresent,
       continueLearning: currentProgress
         ? {
-            unitName: "Unit 1",
-            lessonName: "Current Lesson",
+            unitName: currentProgress.lesson.unit.title,
+            lessonName: currentProgress.lesson.title,
             progress: currentProgress.progress,
             lessonId: currentProgress.lessonId,
           }
@@ -122,9 +142,9 @@ export class HomeService {
       stats: {
         completedLessons,
         totalLessons,
-        homeworkPending: 0,
-        quizPassRate: 0,
-        attendanceRate: 0,
+        homeworkPending,
+        quizPassRate,
+        attendanceRate,
       },
     };
   }
