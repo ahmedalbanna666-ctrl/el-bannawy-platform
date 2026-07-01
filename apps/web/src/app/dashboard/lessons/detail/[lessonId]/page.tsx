@@ -86,7 +86,7 @@ interface VideoProgressData {
 
 export default function LessonDetailPage(): ReactNode {
   const params = useParams();
-  const lessonId = params.id as string;
+  const lessonId = params.lessonId as string;
   const [data, setData] = useState<LessonDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

@@ -316,7 +316,7 @@ export default function QuizPage(): ReactNode {
     <div className="flex flex-col gap-6">
       <div>
         <Link
-          href={`/dashboard/lessons/${lessonId}`}
+href={`/dashboard/lessons/detail/${lessonId}`}
           className="mb-4 flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
         >
           <ChevronLeft className="h-4 w-4" />

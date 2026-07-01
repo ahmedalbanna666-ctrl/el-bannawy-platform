@@ -6,7 +6,7 @@ import { api } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { BookOpen } from "lucide-react";
+import { ScrollText } from "lucide-react";
 
 interface LessonSummary {
   id: string;
@@ -39,19 +39,19 @@ interface Stage {
   }[];
 }
 
-type UnitStatus = "completed" | "current" | "upcoming";
+type ChapterStatus = "completed" | "current" | "upcoming";
 
 interface ConnectorPoint {
   x: number;
   y: number;
 }
 
-function getUnitStatus(index: number, _total: number): UnitStatus {
+function getChapterStatus(index: number, _total: number): ChapterStatus {
   if (index === 0) return "current";
   return "upcoming";
 }
 
-export default function UnitsPage(): ReactNode {
+export default function StoryPage(): ReactNode {
   const router = useRouter();
   const [stages, setStages] = useState<Stage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -63,20 +63,20 @@ export default function UnitsPage(): ReactNode {
   const dotsPathRef = useRef<SVGPathElement>(null);
   const [nodes, setNodes] = useState<ConnectorPoint[]>([]);
 
-  const fetchCurriculum = useCallback(async (): Promise<void> => {
+  const fetchStory = useCallback(async (): Promise<void> => {
     try {
       const response = await api.get<Stage[]>("/curriculum");
       if (response.data) setStages(response.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل تحميل المنهج");
+      setError(err instanceof Error ? err.message : "فشل تحميل القصة");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void fetchCurriculum();
-  }, [fetchCurriculum]);
+    void fetchStory();
+  }, [fetchStory]);
 
   const drawPath = useCallback((): void => {
     const wrapper = wrapperRef.current;
@@ -146,21 +146,21 @@ export default function UnitsPage(): ReactNode {
     };
   }, [loading, stages, drawPath]);
 
-  const allUnits = stages.flatMap((stage) =>
+  const allChapters = stages.flatMap((stage) =>
     stage.grades.flatMap((grade) => grade.units),
   );
 
-  const reversed = [...allUnits].reverse();
+  const reversed = [...allChapters].reverse();
 
-  if (loading) return <UnitsSkeleton />;
-  if (error) return <ErrorState title="فشل تحميل المنهج" description={error} />;
+  if (loading) return <StorySkeleton />;
+  if (error) return <ErrorState title="فشل تحميل القصة" description={error} />;
 
   if (reversed.length === 0) {
     return (
       <EmptyState
-        title="لا يوجد منهج متاح"
-        description="يتم إنشاء محتوى المنهج حالياً"
-        icon={<BookOpen className="h-16 w-16" />}
+        title="قصة المنهج غير متاحة"
+        description="يتم إعداد قصة المنهج حالياً"
+        icon={<ScrollText className="h-16 w-16" />}
       />
     );
   }
@@ -169,9 +169,9 @@ export default function UnitsPage(): ReactNode {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-          الوحدات الدراسية
+          قصة المنهج
         </h1>
-        <p className="mt-1 text-sm text-neutral-500">اختر الوحدة التي تريد دراستها</p>
+        <p className="mt-1 text-sm text-neutral-500">تابع قصة المنهج التعليمي</p>
       </div>
 
       <div ref={wrapperRef} className="relative mx-auto max-w-md pb-4">
@@ -179,13 +179,13 @@ export default function UnitsPage(): ReactNode {
           <path
             ref={bgPathRef}
             d=""
-            className="fill-none stroke-primary-500/12 stroke-[2] [stroke-linecap:round]"
+            className="fill-none stroke-orange-500/12 stroke-[2] [stroke-linecap:round]"
           />
           <path
             ref={dotsPathRef}
             d=""
-            className="fill-none stroke-primary-500/55 stroke-[3] [stroke-dasharray:0_24] [stroke-linecap:round]"
-            style={{ filter: "drop-shadow(0 0 3px rgba(34,211,238,0.25))" }}
+            className="fill-none stroke-orange-500/55 stroke-[3] [stroke-dasharray:0_24] [stroke-linecap:round]"
+            style={{ filter: "drop-shadow(0 0 3px rgba(249,115,22,0.25))" }}
           />
           {nodes.map((pt, i) => (
             <circle
@@ -193,20 +193,20 @@ export default function UnitsPage(): ReactNode {
               cx={pt.x}
               cy={pt.y}
               r="3"
-              className="fill-primary-500"
-              style={{ filter: "drop-shadow(0 0 2px rgba(34,211,238,0.35))" }}
+              className="fill-orange-500"
+              style={{ filter: "drop-shadow(0 0 2px rgba(249,115,22,0.35))" }}
             />
           ))}
         </svg>
 
         <div className="relative z-10 flex flex-col items-center gap-4 md:gap-5">
-          {reversed.map((unit, idx) => {
-            const status = getUnitStatus(idx, reversed.length);
+          {reversed.map((chapter, idx) => {
+            const status = getChapterStatus(idx, reversed.length);
             const isOdd = idx % 2 === 0;
 
             const ringColor =
               status === "completed"
-                ? "border-primary-500/70 bg-primary-500/5"
+                ? "border-orange-500/70 bg-orange-500/5"
                 : status === "current"
                   ? "border-success-500 bg-success-500/5 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
                   : "border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800/50";
@@ -214,11 +214,11 @@ export default function UnitsPage(): ReactNode {
             const hoverColor =
               status === "current"
                 ? "hover:border-success-500 hover:shadow-[0_0_30px_rgba(16,185,129,0.22)]"
-                : "hover:border-primary-500/60 hover:shadow-[0_0_25px_rgba(34,211,238,0.18)]";
+                : "hover:border-orange-500/60 hover:shadow-[0_0_25px_rgba(249,115,22,0.18)]";
 
             return (
               <div
-                key={unit.id}
+                key={chapter.id}
                 className={isOdd ? "flex flex-col items-center md:translate-x-14" : "flex flex-col items-center md:-translate-x-14"}
               >
                 {status === "current" && (
@@ -236,26 +236,26 @@ export default function UnitsPage(): ReactNode {
                   onKeyDown={(e): void => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      if (unit.lessons.length > 0) {
-                        router.push(`/dashboard/lessons/${unit.id}`);
+                      if (chapter.lessons.length > 0) {
+                        router.push(`/dashboard/lessons/${chapter.id}`);
                       }
                     }
                   }}
                   onClick={(): void => {
-                    if (unit.lessons.length > 0) {
-                      router.push(`/dashboard/lessons/${unit.id}`);
+                    if (chapter.lessons.length > 0) {
+                      router.push(`/dashboard/lessons/${chapter.id}`);
                     }
                   }}
                   className={`flex h-[100px] w-[100px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[26px] border-2 transition-all duration-200 hover:scale-[1.02] ${ringColor} ${hoverColor}`}
                 >
-                  <span className="font-cairo text-[9px] font-extrabold uppercase tracking-[0.15em] text-primary-500/60">
-                    UNIT
+                  <span className="font-cairo text-[8px] font-extrabold uppercase tracking-[0.15em] text-orange-500/60">
+                    CHAPTER
                   </span>
                   <span className="font-cairo text-[2.2rem] font-black leading-none text-neutral-900 dark:text-neutral-100">
-                    {unit.displayOrder}
+                    {chapter.displayOrder}
                   </span>
-                  <span className="text-[11px] font-semibold text-neutral-400">
-                    {status === "current" ? `${String(45)}%` : status === "completed" ? "100%" : ""}
+                  <span className="line-clamp-1 max-w-[70px] text-center text-[9px] font-medium text-neutral-400">
+                    {chapter.title}
                   </span>
                 </div>
               </div>
@@ -267,7 +267,7 @@ export default function UnitsPage(): ReactNode {
   );
 }
 
-function UnitsSkeleton(): ReactNode {
+function StorySkeleton(): ReactNode {
   return (
     <div className="flex flex-col gap-6">
       <Skeleton className="h-8 w-48" />

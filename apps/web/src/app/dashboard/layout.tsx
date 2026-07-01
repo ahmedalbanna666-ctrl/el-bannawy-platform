@@ -54,8 +54,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
       // ── Learning ──────────────────────────────────────────────────
       { id: "home", label: "الرئيسية", icon: Home, onClick: (): void => { router.push("/dashboard"); } },
       { id: "units", label: "الوحدات", icon: BookOpen, onClick: (): void => { router.push("/dashboard/units"); } },
-      { id: "story", label: "قصة المنهج", icon: ScrollText },
-      { id: "final-review", label: "المراجعة النهائية", icon: BookMarked },
+      { id: "story", label: "قصة المنهج", icon: ScrollText, onClick: (): void => { router.push("/dashboard/story"); } },
+      { id: "final-review", label: "المراجعة النهائية", icon: BookMarked, onClick: (): void => { router.push("/dashboard/final-review"); } },
       // ── divider ───────────────────────────────────────────────────
       { id: "div-1", label: "", icon: ScrollText, divider: true },
       // ── Interactive ───────────────────────────────────────────────

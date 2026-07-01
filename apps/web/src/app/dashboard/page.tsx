@@ -89,7 +89,7 @@ export default function DashboardPage(): ReactNode {
                   <Button
                     size="xs"
                     className="shrink-0 text-xs font-medium"
-                    onClick={() => { const lessonId = data.continueLearning?.lessonId; if (lessonId) router.push(`/dashboard/lessons/${lessonId}`); }}
+                    onClick={() => { const lessonId = data.continueLearning?.lessonId; if (lessonId) router.push(`/dashboard/lessons/detail/${lessonId}`); }}
                   >
                     <Play className="h-3 w-3" />
                     استكمل
@@ -272,6 +272,7 @@ export default function DashboardPage(): ReactNode {
       </div>
 
       {/* SECTION 5 — Story */}
+      <div onClick={(): void => { router.push("/dashboard/story"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/story"); } }}>
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
           <div className="flex items-center gap-4">
@@ -286,21 +287,25 @@ export default function DashboardPage(): ReactNode {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* SECTION 6 — Final Review */}
-      <Card variant="outline" padding="md" className="cursor-not-allowed opacity-60">
+      <div onClick={(): void => { router.push("/dashboard/final-review"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/final-review"); } }}>
+      <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-200 dark:bg-neutral-700">
-              <BookMarked className="h-6 w-6 text-neutral-400" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
+              <BookMarked className="h-6 w-6 text-amber-500" />
             </div>
             <div className="flex-1">
               <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">المراجعة النهائية</h3>
-              <p className="text-sm text-neutral-400">ستصبح المراجعة النهائية متاحة خلال فترة المراجعة الرسمية</p>
+              <p className="text-sm text-neutral-500">راجع المنهج بالكامل واستعد للاختبارات</p>
             </div>
+            <ChevronRight className="h-5 w-5 text-neutral-400" />
           </div>
         </CardContent>
       </Card>
+      </div>
 
     </div>
   );
