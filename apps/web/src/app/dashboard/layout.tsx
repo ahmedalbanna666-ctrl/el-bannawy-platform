@@ -8,22 +8,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Home,
   BookOpen,
+  ScrollText,
   BookMarked,
+  Sparkles,
+  Users,
+  RefreshCw,
+  Gamepad2,
+  Award,
+  Trophy,
+  LifeBuoy,
+  LogOut,
+  UserCircle,
   ClipboardList,
   GraduationCap,
-  ScrollText,
-  Users,
-  Gamepad2,
-  Trophy,
-  Award,
-  Sparkles,
-  RefreshCw,
-  LifeBuoy,
-  UserCircle,
-  Settings,
-  LogOut,
 } from "lucide-react";
-import { Sidebar, type SidebarItem } from "@/components/ui/sidebar";
+import { Sidebar, type SidebarContent } from "@/components/ui/sidebar";
 import { Header } from "@/components/ui/header";
 import { BottomNav, type BottomNavItem } from "@/components/ui/bottom-nav";
 
@@ -50,35 +49,44 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
     router.push("/login");
   }, [logout, router]);
 
-  const sidebarItems: SidebarItem[] = useMemo(
+  const sidebarItems: SidebarContent = useMemo(
     () => [
-      { id: "home", label: "Home", icon: Home, onClick: (): void => { router.push("/dashboard"); } },
-      { id: "courses", label: "My Courses", icon: BookOpen, onClick: (): void => { router.push("/dashboard/units"); } },
-      { id: "vocabulary", label: "Vocabulary", icon: BookMarked },
-      { id: "homework", label: "Homework", icon: ClipboardList, onClick: (): void => { router.push("/dashboard/units"); } },
-      { id: "quizzes", label: "Quizzes", icon: GraduationCap, onClick: (): void => { router.push("/dashboard/units"); } },
-      { id: "stories", label: "Stories", icon: ScrollText },
-      { id: "live-classes", label: "Live Classes", icon: Users },
-      { id: "games", label: "Games", icon: Gamepad2 },
-      { id: "leaderboard", label: "Leaderboard", icon: Trophy },
-      { id: "achievements", label: "Achievements", icon: Award },
-      { id: "ask-ai", label: "Ask El-bannawy AI", icon: Sparkles, onClick: (): void => { router.push("/dashboard/ai"); } },
-      { id: "mistakes", label: "Learn From Mistakes", icon: RefreshCw },
-      { id: "support", label: "Support", icon: LifeBuoy },
-      { id: "profile", label: "Profile", icon: UserCircle },
-      { id: "settings", label: "Settings", icon: Settings },
-      { id: "logout", label: "Logout", icon: LogOut, onClick: handleLogout },
+      // ── Learning ──────────────────────────────────────────────────
+      { id: "home", label: "الرئيسية", icon: Home, onClick: (): void => { router.push("/dashboard"); } },
+      { id: "units", label: "الوحدات", icon: BookOpen, onClick: (): void => { router.push("/dashboard/units"); } },
+      { id: "story", label: "قصة المنهج", icon: ScrollText },
+      { id: "final-review", label: "المراجعة النهائية", icon: BookMarked },
+      // ── divider ───────────────────────────────────────────────────
+      { id: "div-1", label: "", icon: ScrollText, divider: true },
+      // ── Interactive ───────────────────────────────────────────────
+      { id: "ask-ai", label: "اسأل البنا AI", icon: Sparkles, onClick: (): void => { router.push("/dashboard/ai"); } },
+      { id: "live-classes", label: "احجز حصة مباشرة", icon: Users },
+      { id: "mistakes", label: "تعلم من أخطائك", icon: RefreshCw },
+      { id: "games", label: "الألعاب التعليمية", icon: Gamepad2 },
+      // ── divider ───────────────────────────────────────────────────
+      { id: "div-2", label: "", icon: ScrollText, divider: true },
+      // ── Recognition ───────────────────────────────────────────────
+      { id: "achievements", label: "الإنجازات", icon: Award },
+      { id: "el-abakera", label: "العباقرة", icon: Trophy },
+      // ── divider ───────────────────────────────────────────────────
+      { id: "div-3", label: "", icon: ScrollText, divider: true },
+      // ── Support ───────────────────────────────────────────────────
+      { id: "support", label: "الدعم الفني", icon: LifeBuoy },
+      // ── divider ───────────────────────────────────────────────────
+      { id: "div-4", label: "", icon: ScrollText, divider: true },
+      // ── Logout ────────────────────────────────────────────────────
+      { id: "logout", label: "تسجيل الخروج", icon: LogOut, onClick: handleLogout, danger: true },
     ],
     [router, handleLogout],
   );
 
   const bottomNavItems: BottomNavItem[] = useMemo(
     () => [
-      { id: "home", label: "Home", icon: Home, onClick: (): void => { router.push("/dashboard"); } },
-      { id: "courses", label: "Courses", icon: BookOpen, onClick: (): void => { router.push("/dashboard/units"); } },
-      { id: "homework", label: "Homework", icon: ClipboardList, onClick: (): void => { router.push("/dashboard/units"); } },
-      { id: "quizzes", label: "Quizzes", icon: GraduationCap, onClick: (): void => { router.push("/dashboard/units"); } },
-      { id: "profile", label: "Profile", icon: UserCircle },
+      { id: "home", label: "الرئيسية", icon: Home, onClick: (): void => { router.push("/dashboard"); } },
+      { id: "courses", label: "الكورسات", icon: BookOpen, onClick: (): void => { router.push("/dashboard/units"); } },
+      { id: "homework", label: "الواجبات", icon: ClipboardList, onClick: (): void => { router.push("/dashboard/units"); } },
+      { id: "quizzes", label: "الاختبارات", icon: GraduationCap, onClick: (): void => { router.push("/dashboard/units"); } },
+      { id: "profile", label: "الحساب", icon: UserCircle, onClick: (): void => { router.push("/dashboard/profile"); } },
     ],
     [router],
   );
@@ -96,11 +104,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
       <Sidebar
         items={sidebarItems}
         className="hidden lg:flex"
+        onClose={(): void => { setSidebarOpen(false); }}
+        onProfileClick={(): void => { router.push("/dashboard/profile"); }}
+        profileGrade="الصف الأول الثانوي"
       />
 
       <div className="flex flex-1 flex-col">
         <Header
-          title="Dashboard"
+          title="لوحة التحكم"
           onMenuClick={(): void => { setSidebarOpen(!sidebarOpen); }}
           onNotificationClick={(): void => { router.push("/dashboard/notifications"); }}
         />
