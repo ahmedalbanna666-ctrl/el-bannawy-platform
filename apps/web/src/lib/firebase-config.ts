@@ -15,9 +15,7 @@ let app: FirebaseApp | null = null;
 let database: Database | null = null;
 
 function getFirebaseApp(): FirebaseApp {
-  if (!app) {
-    app = initializeApp(firebaseConfig);
-  }
+  app ??= initializeApp(firebaseConfig);
   return app;
 }
 
@@ -28,9 +26,7 @@ export function getRealtimeDatabase(): Database | null {
     return null;
   }
 
-  if (!database) {
-    database = getDatabase(getFirebaseApp());
-  }
+  database ??= getDatabase(getFirebaseApp());
   return database;
 }
 

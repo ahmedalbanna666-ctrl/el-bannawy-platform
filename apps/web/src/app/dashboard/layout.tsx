@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import { useAuth } from "@/providers/auth-provider";
@@ -45,34 +45,39 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
     }
   }, [isAuthenticated, router]);
 
+  const handleLogout = useCallback((): void => {
+    void logout();
+    router.push("/login");
+  }, [logout, router]);
+
   const sidebarItems: SidebarItem[] = useMemo(
     () => [
-      { id: "home", label: "Home", icon: Home, onClick: () => router.push("/dashboard") },
-      { id: "courses", label: "My Courses", icon: BookOpen, onClick: () => router.push("/dashboard/units") },
+      { id: "home", label: "Home", icon: Home, onClick: (): void => { router.push("/dashboard"); } },
+      { id: "courses", label: "My Courses", icon: BookOpen, onClick: (): void => { router.push("/dashboard/units"); } },
       { id: "vocabulary", label: "Vocabulary", icon: BookMarked },
-      { id: "homework", label: "Homework", icon: ClipboardList, onClick: () => router.push("/dashboard/units") },
-      { id: "quizzes", label: "Quizzes", icon: GraduationCap, onClick: () => router.push("/dashboard/units") },
+      { id: "homework", label: "Homework", icon: ClipboardList, onClick: (): void => { router.push("/dashboard/units"); } },
+      { id: "quizzes", label: "Quizzes", icon: GraduationCap, onClick: (): void => { router.push("/dashboard/units"); } },
       { id: "stories", label: "Stories", icon: ScrollText },
       { id: "live-classes", label: "Live Classes", icon: Users },
       { id: "games", label: "Games", icon: Gamepad2 },
       { id: "leaderboard", label: "Leaderboard", icon: Trophy },
       { id: "achievements", label: "Achievements", icon: Award },
-      { id: "ask-ai", label: "Ask El-bannawy AI", icon: Sparkles, onClick: () => router.push("/dashboard/ai") },
+      { id: "ask-ai", label: "Ask El-bannawy AI", icon: Sparkles, onClick: (): void => { router.push("/dashboard/ai"); } },
       { id: "mistakes", label: "Learn From Mistakes", icon: RefreshCw },
       { id: "support", label: "Support", icon: LifeBuoy },
       { id: "profile", label: "Profile", icon: UserCircle },
       { id: "settings", label: "Settings", icon: Settings },
-      { id: "logout", label: "Logout", icon: LogOut, onClick: () => { void logout(); router.push("/login"); } },
+      { id: "logout", label: "Logout", icon: LogOut, onClick: handleLogout },
     ],
-    [router, logout],
+    [router, handleLogout],
   );
 
   const bottomNavItems: BottomNavItem[] = useMemo(
     () => [
-      { id: "home", label: "Home", icon: Home, onClick: () => router.push("/dashboard") },
-      { id: "courses", label: "Courses", icon: BookOpen, onClick: () => router.push("/dashboard/units") },
-      { id: "homework", label: "Homework", icon: ClipboardList, onClick: () => router.push("/dashboard/units") },
-      { id: "quizzes", label: "Quizzes", icon: GraduationCap, onClick: () => router.push("/dashboard/units") },
+      { id: "home", label: "Home", icon: Home, onClick: (): void => { router.push("/dashboard"); } },
+      { id: "courses", label: "Courses", icon: BookOpen, onClick: (): void => { router.push("/dashboard/units"); } },
+      { id: "homework", label: "Homework", icon: ClipboardList, onClick: (): void => { router.push("/dashboard/units"); } },
+      { id: "quizzes", label: "Quizzes", icon: GraduationCap, onClick: (): void => { router.push("/dashboard/units"); } },
       { id: "profile", label: "Profile", icon: UserCircle },
     ],
     [router],

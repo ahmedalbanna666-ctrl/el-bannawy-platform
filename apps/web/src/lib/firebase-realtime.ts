@@ -10,7 +10,6 @@ import {
   remove,
   onDisconnect,
   serverTimestamp,
-  type DatabaseReference,
   type DataSnapshot,
 } from "firebase/database";
 import { getRealtimeDatabase, isFirebaseConfigured } from "@/lib/firebase-config";
@@ -24,6 +23,8 @@ interface UseRealtimeOptions {
   listen?: boolean;
 }
 
+// T provides return-type inference for callers
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export function useRealtimeValue<T>({
   path,
   listen = true,
@@ -60,7 +61,7 @@ export function useRealtimeValue<T>({
       },
     );
 
-    return () => {
+    return (): void => {
       unsubscribe();
     };
   }, [path, listen]);
@@ -128,7 +129,7 @@ export function usePresence(userId: string): void {
       lastSeen: serverTimestamp(),
     });
 
-    return () => {
+    return (): void => {
       void set(presenceRef, {
         online: false,
         lastSeen: serverTimestamp(),

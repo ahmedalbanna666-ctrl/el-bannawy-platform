@@ -121,7 +121,7 @@ export default function DashboardPage(): ReactNode {
           className="flex-col gap-1 py-3"
           fullWidth
           onClick={() => {
-            if (data?.continueLearning?.lessonId) {
+            if (data.continueLearning?.lessonId) {
               router.push(`/dashboard/lessons/${data.continueLearning.lessonId}`);
             }
           }}
@@ -134,7 +134,7 @@ export default function DashboardPage(): ReactNode {
           size="sm"
           className="flex-col gap-1 py-3"
           fullWidth
-          onClick={() => router.push("/dashboard/units")}
+          onClick={(): void => { router.push("/dashboard/units"); }}
         >
           <ClipboardList className="h-5 w-5" />
           <span className="text-xs">Homework</span>
@@ -148,7 +148,7 @@ export default function DashboardPage(): ReactNode {
           size="sm"
           className="flex-col gap-1 py-3"
           fullWidth
-          onClick={() => router.push("/dashboard/ai")}
+          onClick={(): void => { router.push("/dashboard/ai"); }}
         >
           <Sparkles className="h-5 w-5" />
           <span className="text-xs">Ask AI</span>
@@ -270,7 +270,7 @@ export default function DashboardPage(): ReactNode {
       )}
 
       {/* Section 1: Ask AI */}
-      <div onClick={() => router.push("/dashboard/ai")} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") router.push("/dashboard/ai"); }}>
+      <div onClick={(): void => { router.push("/dashboard/ai"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/ai"); } }}>
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
           <div className="flex items-center gap-4">
@@ -304,7 +304,7 @@ export default function DashboardPage(): ReactNode {
       </Card>
 
       {/* Section 4: Curriculum Units */}
-      <div onClick={() => router.push("/dashboard/units")} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") router.push("/dashboard/units"); }}>
+      <div onClick={(): void => { router.push("/dashboard/units"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/units"); } }}>
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
           <div className="flex items-center gap-4">

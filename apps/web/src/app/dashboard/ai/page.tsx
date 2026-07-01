@@ -129,10 +129,13 @@ export default function AiChatPage(): ReactNode {
         </Button>
         <div className="flex-1 space-y-1 overflow-y-auto">
           {conversations.map((conv) => (
-            <button
+            <div
               key={conv.id}
+              role="button"
+              tabIndex={0}
               onClick={(): void => { void loadConversation(conv.id); }}
-              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors ${
+              onKeyDown={(e): void => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void loadConversation(conv.id); } }}
+              className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors ${
                 activeId === conv.id
                   ? "bg-primary-500/10 text-primary-700 dark:text-primary-300"
                   : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
@@ -147,7 +150,7 @@ export default function AiChatPage(): ReactNode {
               >
                 <Trash2 className="h-3 w-3" />
               </button>
-            </button>
+            </div>
           ))}
         </div>
       </div>
