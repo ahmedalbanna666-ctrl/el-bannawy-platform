@@ -33,7 +33,7 @@ export default function NotificationsPage(): ReactNode {
       const res = await api.get<Notification[]>(`/notifications${q}`);
       if (res.data) setNotifications(res.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load notifications");
+      setError(err instanceof Error ? err.message : "فشل تحميل الإشعارات");
     } finally {
       setLoading(false);
     }
@@ -59,7 +59,7 @@ export default function NotificationsPage(): ReactNode {
   };
 
   if (loading) return <NotificationsSkeleton />;
-  if (error) return <ErrorState title="Failed to load notifications" description={error} />;
+  if (error) return <ErrorState title="فشل تحميل الإشعارات" description={error} />;
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -68,15 +68,15 @@ export default function NotificationsPage(): ReactNode {
       <div>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Notifications</h1>
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">الإشعارات</h1>
             {unreadCount > 0 && (
-              <p className="mt-1 text-sm text-neutral-500">{unreadCount} unread</p>
+              <p className="mt-1 text-sm text-neutral-500">{unreadCount} غير مقروءة</p>
             )}
           </div>
           {unreadCount > 0 && (
             <Button variant="ghost" size="sm" onClick={(): void => { void markAllRead(); }}>
               <CheckCheck className="mr-2 h-4 w-4" />
-              Mark All Read
+              تحديد الكل كمقروء
             </Button>
           )}
         </div>
@@ -89,7 +89,7 @@ export default function NotificationsPage(): ReactNode {
               size="xs"
               onClick={(): void => { setFilter(f); setLoading(true); }}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === "all" ? "الكل" : f === "unread" ? "غير مقروءة" : "مقروءة"}
             </Button>
           ))}
         </div>
@@ -97,8 +97,8 @@ export default function NotificationsPage(): ReactNode {
 
       {notifications.length === 0 ? (
         <EmptyState
-          title="No Notifications"
-          description="You're all caught up!"
+          title="لا توجد إشعارات"
+          description="أنت على اطلاع بكل شيء!"
           icon={<BellOff className="h-16 w-16" />}
         />
       ) : (
@@ -120,7 +120,7 @@ export default function NotificationsPage(): ReactNode {
                       <p className={`text-sm font-medium ${n.isRead ? "text-neutral-500" : "text-neutral-900 dark:text-neutral-100"}`}>
                         {n.title}
                       </p>
-                      <Badge variant={n.isRead ? "secondary" : "primary"}>{n.isRead ? "Read" : "New"}</Badge>
+                      <Badge variant={n.isRead ? "secondary" : "primary"}>{n.isRead ? "مقروءة" : "جديد"}</Badge>
                     </div>
                     <p className="mt-1 text-sm text-neutral-500 line-clamp-2">{n.message}</p>
                     <p className="mt-1 text-xs text-neutral-400">{new Date(n.createdAt).toLocaleString()}</p>
@@ -130,7 +130,7 @@ export default function NotificationsPage(): ReactNode {
                       <button
                         onClick={(): void => { void markRead(n.id); }}
                         className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                        aria-label="Mark as read"
+                        aria-label="تحديد كمقروء"
                       >
                         <CheckCheck className="h-4 w-4" />
                       </button>
@@ -138,7 +138,7 @@ export default function NotificationsPage(): ReactNode {
                     <button
                       onClick={(): void => { void deleteNotification(n.id); }}
                       className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                      aria-label="Delete"
+                      aria-label="حذف"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

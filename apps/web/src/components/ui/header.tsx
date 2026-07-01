@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/providers/theme-provider";
 import { useAuthStore } from "@/lib/auth-store";
 import { api } from "@/lib/api-client";
-import { Moon, Sun, Bell, Menu, Flame, Coins, Zap, Trophy } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Moon, Sun, Bell, Menu, Flame, Coins, Zap, Trophy, History } from "lucide-react";
 import { Button } from "./button";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -31,6 +32,7 @@ export function Header({
 }: HeaderProps): ReactNode {
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuthStore();
+  const router = useRouter();
   const [stats, setStats] = useState<HeaderStats | null>(null);
 
   useEffect(() => {
@@ -96,6 +98,15 @@ export function Header({
             ) : (
               <Moon className="h-5 w-5" />
             )}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="سجل التعلم"
+            onClick={(): void => { router.push("/dashboard/history"); }}
+          >
+            <History className="h-5 w-5" />
           </Button>
 
           <Button variant="ghost" size="icon-sm" aria-label="Notifications" className="relative" onClick={onNotificationClick}>

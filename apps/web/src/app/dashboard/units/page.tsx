@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { BookOpen, ChevronDown, ChevronRight, Lock, Play, Clock, Star } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { BookOpen } from "lucide-react";
 
 interface LessonSummary {
   id: string;
@@ -40,53 +39,127 @@ interface Stage {
   }[];
 }
 
+type UnitStatus = "completed" | "current" | "upcoming";
+
+interface ConnectorPoint {
+  x: number;
+  y: number;
+}
+
+function getUnitStatus(index: number, _total: number): UnitStatus {
+  if (index === 0) return "current";
+  return "upcoming";
+}
+
 export default function UnitsPage(): ReactNode {
+  const router = useRouter();
   const [stages, setStages] = useState<Stage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    async function fetchCurriculum(): Promise<void> {
-      try {
-        const response = await api.get<Stage[]>("/curriculum");
-        if (response.data) {
-          setStages(response.data);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load curriculum");
-      } finally {
-        setLoading(false);
-      }
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const bgPathRef = useRef<SVGPathElement>(null);
+  const dotsPathRef = useRef<SVGPathElement>(null);
+  const [nodes, setNodes] = useState<ConnectorPoint[]>([]);
+
+  const fetchCurriculum = useCallback(async (): Promise<void> => {
+    try {
+      const response = await api.get<Stage[]>("/curriculum");
+      if (response.data) setStages(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل تحميل المنهج");
+    } finally {
+      setLoading(false);
     }
-    void fetchCurriculum();
   }, []);
 
-  const toggleUnit = (unitId: string): void => {
-    setExpandedUnits((prev) => {
-      const next = new Set(prev);
-      if (next.has(unitId)) {
-        next.delete(unitId);
-      } else {
-        next.add(unitId);
-      }
-      return next;
+  useEffect(() => {
+    void fetchCurriculum();
+  }, [fetchCurriculum]);
+
+  const drawPath = useCallback((): void => {
+    const wrapper = wrapperRef.current;
+    const bgPath = bgPathRef.current;
+    const dotsPath = dotsPathRef.current;
+    if (!wrapper || !bgPath || !dotsPath) return;
+
+    const cardNodes = nodeRefs.current.filter(Boolean) as HTMLDivElement[];
+    if (cardNodes.length < 2) {
+      setNodes([]);
+      bgPath.setAttribute("d", "");
+      dotsPath.setAttribute("d", "");
+      return;
+    }
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const points: ConnectorPoint[] = [];
+
+    cardNodes.forEach((node, i) => {
+      const rect = node.getBoundingClientRect();
+      const isOdd = i % 2 === 0;
+      const edgeX = Math.round(
+        isOdd
+          ? rect.left - wrapperRect.left
+          : rect.right - wrapperRect.left,
+      );
+      const cy = Math.round(rect.top + rect.height / 2 - wrapperRect.top);
+      points.push({ x: edgeX, y: cy });
     });
-  };
 
-  if (loading) {
-    return <UnitsSkeleton />;
-  }
+    setNodes(points);
 
-  if (error) {
-    return <ErrorState title="Failed to load curriculum" description={error} />;
-  }
+    let bgD = `M ${String(points[0].x)} ${String(points[0].y)}`;
+    let dotsD = `M ${String(points[0].x)} ${String(points[0].y)}`;
 
-  if (stages.length === 0) {
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const dx = curr.x - prev.x;
+      const dy = curr.y - prev.y;
+      const segLen = Math.max(Math.abs(dx), Math.abs(dy));
+      const cpOffset = segLen * 0.45;
+
+      const cp1x = prev.x + (dx > 0 ? cpOffset : -cpOffset);
+      const cp1y = prev.y + dy * 0.15;
+      const cp2x = curr.x - (dx > 0 ? cpOffset : -cpOffset);
+      const cp2y = curr.y - dy * 0.15;
+
+      const curve = `C ${String(Math.round(cp1x))} ${String(Math.round(cp1y))}, ${String(Math.round(cp2x))} ${String(Math.round(cp2y))}, ${String(curr.x)} ${String(curr.y)}`;
+      bgD += ` ${curve}`;
+      dotsD += ` ${curve}`;
+    }
+
+    bgPath.setAttribute("d", bgD);
+    dotsPath.setAttribute("d", dotsD);
+  }, []);
+
+  useEffect(() => {
+    if (!loading && stages.length > 0) {
+      requestAnimationFrame(() => {
+        drawPath();
+      });
+    }
+    window.addEventListener("resize", drawPath);
+    return (): void => {
+      window.removeEventListener("resize", drawPath);
+    };
+  }, [loading, stages, drawPath]);
+
+  const allUnits = stages.flatMap((stage) =>
+    stage.grades.flatMap((grade) => grade.units),
+  );
+
+  const reversed = [...allUnits].reverse();
+
+  if (loading) return <UnitsSkeleton />;
+  if (error) return <ErrorState title="فشل تحميل المنهج" description={error} />;
+
+  if (reversed.length === 0) {
     return (
       <EmptyState
-        title="No curriculum available"
-        description="Curriculum content is being created."
+        title="لا يوجد منهج متاح"
+        description="يتم إنشاء محتوى المنهج حالياً"
         icon={<BookOpen className="h-16 w-16" />}
       />
     );
@@ -95,95 +168,101 @@ export default function UnitsPage(): ReactNode {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Curriculum</h1>
-        <p className="mt-1 text-sm text-neutral-500">Browse all units and track your progress</p>
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+          الوحدات الدراسية
+        </h1>
+        <p className="mt-1 text-sm text-neutral-500">اختر الوحدة التي تريد دراستها</p>
       </div>
 
-      {stages.map((stage) => (
-        <div key={stage.id}>
-          <h2 className="mb-3 text-lg font-semibold text-neutral-700 dark:text-neutral-300">{stage.name}</h2>
-
-          {stage.grades.map((grade) => (
-            <div key={grade.id} className="mb-6">
-              <h3 className="mb-3 text-sm font-medium text-neutral-500 dark:text-neutral-400">{grade.name}</h3>
-
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {grade.units.map((unit) => {
-                  const isExpanded = expandedUnits.has(unit.id);
-
-                  return (
-                    <Card key={unit.id} variant="elevated" padding="md">
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/10">
-                              <BookOpen className="h-5 w-5 text-primary-500" />
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-neutral-900 dark:text-neutral-100">
-                                Unit {unit.displayOrder}
-                              </h4>
-                              <p className="text-sm text-neutral-500">{unit.title}</p>
-                            </div>
-                          </div>
-                          <span className="text-xs text-neutral-400">{unit.lessons.length} lessons</span>
-                        </div>
-                      </CardHeader>
-
-                      <CardContent>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          fullWidth
-                          onClick={(): void => { toggleUnit(unit.id); }}
-                          className="flex items-center justify-between"
-                        >
-                          <span className="text-sm">{isExpanded ? "Hide Lessons" : "Show Lessons"}</span>
-                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </Button>
-
-                        {isExpanded && (
-                          <div className="mt-3 space-y-2">
-                            {unit.lessons.map((lesson) => (
-                              <a
-                                key={lesson.id}
-                                href={`/dashboard/lessons/${lesson.id}`}
-                                className="flex items-center gap-3 rounded-lg border border-neutral-200 p-3 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800/50"
-                              >
-                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-success-500/10">
-                                  {lesson.isPremium ? (
-                                    <Star className="h-4 w-4 text-yellow-500" />
-                                  ) : (
-                                    <Play className="h-4 w-4 text-success-500" />
-                                  )}
-                                </div>
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                                    {lesson.displayOrder}. {lesson.title}
-                                  </p>
-                                  <div className="flex items-center gap-2 text-xs text-neutral-400">
-                                    <Clock className="h-3 w-3" />
-                                    <span>{lesson.estimatedDuration} min</span>
-                                    {lesson.quizEnabled && <span>• Quiz</span>}
-                                    {lesson.homeworkEnabled && <span>• Homework</span>}
-                                  </div>
-                                </div>
-                                {lesson.isPremium && (
-                                  <Lock className="h-4 w-4 text-yellow-500" />
-                                )}
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
+      <div ref={wrapperRef} className="relative mx-auto max-w-md pb-4">
+        <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full overflow-visible">
+          <path
+            ref={bgPathRef}
+            d=""
+            className="fill-none stroke-primary-500/12 stroke-[2] [stroke-linecap:round]"
+          />
+          <path
+            ref={dotsPathRef}
+            d=""
+            className="fill-none stroke-primary-500/55 stroke-[3] [stroke-dasharray:0_24] [stroke-linecap:round]"
+            style={{ filter: "drop-shadow(0 0 3px rgba(34,211,238,0.25))" }}
+          />
+          {nodes.map((pt, i) => (
+            <circle
+              key={i}
+              cx={pt.x}
+              cy={pt.y}
+              r="3"
+              className="fill-primary-500"
+              style={{ filter: "drop-shadow(0 0 2px rgba(34,211,238,0.35))" }}
+            />
           ))}
+        </svg>
+
+        <div className="relative z-10 flex flex-col items-center gap-4 md:gap-5">
+          {reversed.map((unit, idx) => {
+            const status = getUnitStatus(idx, reversed.length);
+            const isOdd = idx % 2 === 0;
+
+            const ringColor =
+              status === "completed"
+                ? "border-primary-500/70 bg-primary-500/5"
+                : status === "current"
+                  ? "border-success-500 bg-success-500/5 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+                  : "border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800/50";
+
+            const hoverColor =
+              status === "current"
+                ? "hover:border-success-500 hover:shadow-[0_0_30px_rgba(16,185,129,0.22)]"
+                : "hover:border-primary-500/60 hover:shadow-[0_0_25px_rgba(34,211,238,0.18)]";
+
+            return (
+              <div
+                key={unit.id}
+                className={isOdd ? "flex flex-col items-center md:translate-x-14" : "flex flex-col items-center md:-translate-x-14"}
+              >
+                {status === "current" && (
+                  <span className="mb-1.5 rounded-full bg-success-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-[0_0_8px_rgba(16,185,129,0.35)]">
+                    أنت هنا 👇
+                  </span>
+                )}
+
+                <div
+                  ref={(el): void => {
+                    nodeRefs.current[idx] = el;
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e): void => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      if (unit.lessons.length > 0) {
+                        router.push(`/dashboard/lessons/${unit.lessons[0].id}`);
+                      }
+                    }
+                  }}
+                  onClick={(): void => {
+                    if (unit.lessons.length > 0) {
+                      router.push(`/dashboard/lessons/${unit.lessons[0].id}`);
+                    }
+                  }}
+                  className={`flex h-[100px] w-[100px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[26px] border-2 transition-all duration-200 hover:scale-[1.02] ${ringColor} ${hoverColor}`}
+                >
+                  <span className="font-cairo text-[9px] font-extrabold uppercase tracking-[0.15em] text-primary-500/60">
+                    UNIT
+                  </span>
+                  <span className="font-cairo text-[2.2rem] font-black leading-none text-neutral-900 dark:text-neutral-100">
+                    {unit.displayOrder}
+                  </span>
+                  <span className="text-[11px] font-semibold text-neutral-400">
+                    {status === "current" ? `${String(45)}%` : status === "completed" ? "100%" : ""}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      ))}
+      </div>
     </div>
   );
 }
@@ -192,10 +271,12 @@ function UnitsSkeleton(): ReactNode {
   return (
     <div className="flex flex-col gap-6">
       <Skeleton className="h-8 w-48" />
-      <Skeleton className="h-6 w-32" />
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <Skeleton className="h-6 w-64" />
+      <div className="mx-auto flex max-w-md flex-col items-center gap-4">
         {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-48 rounded-xl" />
+          <div key={i} className={i % 2 === 0 ? "md:translate-x-14" : "md:-translate-x-14"}>
+            <Skeleton className="h-[100px] w-[100px] rounded-[26px]" />
+          </div>
         ))}
       </div>
     </div>

@@ -104,7 +104,7 @@ export default function LessonDetailPage(): ReactNode {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load lesson");
+      setError(err instanceof Error ? err.message : "فشل تحميل الدرس");
     } finally {
       setLoading(false);
     }
@@ -170,14 +170,14 @@ export default function LessonDetailPage(): ReactNode {
   }
 
   if (error) {
-    return <ErrorState title="Failed to load lesson" description={error} />;
+    return <ErrorState title="فشل تحميل الدرس" description={error} />;
   }
 
   if (!data) {
     return (
       <EmptyState
-        title="Lesson not found"
-        description="The lesson you are looking for does not exist."
+        title="الدرس غير موجود"
+        description="الدرس الذي تبحث عنه غير موجود"
         icon={<BookOpen className="h-16 w-16" />}
       />
     );
@@ -195,7 +195,7 @@ export default function LessonDetailPage(): ReactNode {
           className="mb-4 flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
         >
           <ChevronLeft className="h-4 w-4" />
-          Back to Units
+          العودة للوحدات
         </Link>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
@@ -212,7 +212,7 @@ export default function LessonDetailPage(): ReactNode {
             {data.progress?.completed && (
               <Badge variant="success">
                 <CheckCircle className="mr-1 h-3 w-3" />
-                Completed
+                مكتمل
               </Badge>
             )}
           </div>
@@ -223,7 +223,7 @@ export default function LessonDetailPage(): ReactNode {
       {(data.progress?.progress ?? 0) > 0 && !data.progress?.completed && (
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs text-neutral-500">
-            <span>Lesson Progress</span>
+            <span>تقدم الدرس</span>
             <span>{Math.round(data.progress?.progress ?? 0)}%</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
@@ -244,11 +244,11 @@ export default function LessonDetailPage(): ReactNode {
                 <Play className="mx-auto h-16 w-16 text-white/60" />
                 <p className="mt-2 text-sm text-white/60">{activeVideo.title}</p>
                 <div className="mt-1 flex items-center justify-center gap-3 text-xs text-white/40">
-                  <span>{activeVideo.duration} seconds</span>
+                  <span>{activeVideo.duration} ثانية</span>
                   {activeProgress?.completed ? (
                     <Badge variant="success">
                       <CheckCircle className="mr-1 h-3 w-3" />
-                      Completed
+                      مكتمل
                     </Badge>
                   ) : activeProgress !== null &&
                     activeProgress !== undefined &&
@@ -259,10 +259,10 @@ export default function LessonDetailPage(): ReactNode {
                           (activeProgress.watchedSeconds / activeVideo.duration) * 100,
                         ),
                       )}
-                      % watched
+                      % تمت مشاهدته
                     </span>
                   ) : (
-                    <span>Not started</span>
+                    <span>لم يبدأ</span>
                   )}
                 </div>
               </div>
@@ -278,7 +278,7 @@ export default function LessonDetailPage(): ReactNode {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Play className="h-4 w-4 text-primary-500" />
-                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Lesson Videos</h3>
+                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">فيديوهات الدرس</h3>
               </div>
             </CardHeader>
             <CardContent>
@@ -311,7 +311,7 @@ export default function LessonDetailPage(): ReactNode {
                         {video.timelineEvents.length > 0 && (
                           <>
                             <span>•</span>
-                            <span>{video.timelineEvents.length} events</span>
+                            <span>{video.timelineEvents.length} أحداث</span>
                           </>
                         )}
                       </div>
@@ -345,7 +345,7 @@ export default function LessonDetailPage(): ReactNode {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <BookOpen className="h-4 w-4 text-primary-500" />
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Vocabulary</h3>
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">المفردات</h3>
                 </div>
               </CardHeader>
               <CardContent>
@@ -381,7 +381,7 @@ export default function LessonDetailPage(): ReactNode {
                   {activeProgress?.completed ? (
                     <Badge variant="success" className="px-4 py-2">
                       <CheckCheck className="mr-2 h-4 w-4" />
-                      Video Completed
+                      تم إكمال الفيديو
                     </Badge>
                   ) : (
                     <Button
@@ -393,7 +393,7 @@ export default function LessonDetailPage(): ReactNode {
                       loading={completingVideo === activeVideo.id}
                     >
                       <CheckCircle className="mr-2 h-4 w-4" />
-                      Mark Video Complete
+                      تحديد الفيديو كمكتمل
                     </Button>
                   )}
                   <Button
@@ -407,7 +407,7 @@ export default function LessonDetailPage(): ReactNode {
                     }}
                   >
                     <Play className="mr-2 h-4 w-4" />
-                    Mark as Watched
+                    تحديد كمشاهد
                   </Button>
                 </div>
               </CardContent>
@@ -420,7 +420,7 @@ export default function LessonDetailPage(): ReactNode {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-primary-500" />
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Timeline</h3>
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الجدول الزمني</h3>
                 </div>
               </CardHeader>
               <CardContent>
@@ -435,7 +435,7 @@ export default function LessonDetailPage(): ReactNode {
                           {event.title}
                         </p>
                         <p className="text-xs text-neutral-500">
-                          {event.required ? "Required" : "Optional"}
+                          {event.required ? "مطلوب" : "اختياري"}
                         </p>
                       </div>
                     </div>
@@ -451,7 +451,7 @@ export default function LessonDetailPage(): ReactNode {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <HelpCircle className="h-4 w-4 text-primary-500" />
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Activities</h3>
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الأنشطة</h3>
                 </div>
               </CardHeader>
               <CardContent>
@@ -478,7 +478,7 @@ export default function LessonDetailPage(): ReactNode {
               <Link href={`/dashboard/homework/${lessonId}`}>
                 <Button variant="outline" size="md">
                   <ClipboardList className="mr-2 h-4 w-4" />
-                  View Homework
+                  عرض الواجب
                 </Button>
               </Link>
             )}
@@ -486,7 +486,7 @@ export default function LessonDetailPage(): ReactNode {
               <Link href={`/dashboard/quiz/${lessonId}`}>
                 <Button variant="primary" size="md">
                   <GraduationCap className="mr-2 h-4 w-4" />
-                  Take Quiz
+                  بدء الاختبار
                 </Button>
               </Link>
             )}
@@ -498,27 +498,27 @@ export default function LessonDetailPage(): ReactNode {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <GraduationCap className="h-4 w-4 text-neutral-400" />
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Lesson Settings</h3>
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">إعدادات الدرس</h3>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="flex items-center gap-2">
-                    <span className="text-neutral-500">Retry:</span>
+                    <span className="text-neutral-500">إعادة المحاولة:</span>
                     <span className="font-medium text-neutral-900 dark:text-neutral-100">
-                      {data.settings.allowRetry ? "Allowed" : "Disabled"}
+                      {data.settings.allowRetry ? "مسموح" : "معطل"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-neutral-500">Show Answers:</span>
+                    <span className="text-neutral-500">عرض الإجابات:</span>
                     <span className="font-medium text-neutral-900 dark:text-neutral-100">
-                      {data.settings.showAnswers ? "Yes" : "No"}
+                      {data.settings.showAnswers ? "نعم" : "لا"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-neutral-500">Unlock Next:</span>
+                    <span className="text-neutral-500">فتح الدرس التالي:</span>
                     <span className="font-medium text-neutral-900 dark:text-neutral-100">
-                      {data.settings.unlockNextOnComplete ? "On complete" : "Free"}
+                      {data.settings.unlockNextOnComplete ? "عند الإكمال" : "حر"}
                     </span>
                   </div>
                 </div>

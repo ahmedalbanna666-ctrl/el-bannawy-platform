@@ -111,7 +111,7 @@ export default function AiChatPage(): ReactNode {
         setMessages((prev) => [...prev, { id: data.messageId, role: "assistant", content: data.reply, createdAt: new Date().toISOString() }]);
       }
     } catch {
-      setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "Sorry, something went wrong. Please try again.", createdAt: new Date().toISOString() }]);
+      setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: "عذراً، حدث خطأ ما. يرجى المحاولة مرة أخرى.", createdAt: new Date().toISOString() }]);
     } finally {
       setSending(false);
     }
@@ -125,7 +125,7 @@ export default function AiChatPage(): ReactNode {
       <div className="hidden w-64 shrink-0 flex-col gap-3 md:flex">
         <Button variant="primary" size="sm" fullWidth onClick={(): void => { void newConversation(); }}>
           <Plus className="mr-2 h-4 w-4" />
-          New Chat
+          محادثة جديدة
         </Button>
         <div className="flex-1 space-y-1 overflow-y-auto">
           {conversations.map((conv) => (
@@ -146,7 +146,7 @@ export default function AiChatPage(): ReactNode {
               <button
                 onClick={(e): void => { e.stopPropagation(); void deleteConversation(conv.id); }}
                 className="shrink-0 rounded p-0.5 text-neutral-400 hover:text-danger-500"
-                aria-label="Delete"
+                aria-label="حذف"
               >
                 <Trash2 className="h-3 w-3" />
               </button>
@@ -160,10 +160,10 @@ export default function AiChatPage(): ReactNode {
         {!activeId ? (
           <div className="flex flex-1 items-center justify-center">
             <EmptyState
-              title="Ask El-bannawy AI"
-              description="Start a new conversation to get help with your English learning."
+              title="اسأل البنا AI"
+              description="ابدأ محادثة جديدة للحصول على مساعدة في تعلم الإنجليزية"
               icon={<Sparkles className="h-16 w-16" />}
-              actionLabel="Start New Chat"
+              actionLabel="ابدأ محادثة جديدة"
               onAction={(): void => { void newConversation(); }}
             />
           </div>
@@ -172,7 +172,7 @@ export default function AiChatPage(): ReactNode {
             <div className="flex-1 space-y-4 overflow-y-auto pb-4">
               {messages.length === 0 && (
                 <div className="flex h-full items-center justify-center">
-                  <p className="text-sm text-neutral-500">Start the conversation by typing a message below.</p>
+                  <p className="text-sm text-neutral-500">ابدأ المحادثة بكتابة رسالة أدناه</p>
                 </div>
               )}
               {messages.map((msg) => (
@@ -218,7 +218,7 @@ export default function AiChatPage(): ReactNode {
                 type="text"
                 value={input}
                 onChange={(e): void => { setInput(e.target.value); }}
-                placeholder="Ask about grammar, vocabulary, or get homework help..."
+                placeholder="اسأل عن القواعد أو المفردات أو احصل على مساعدة في الواجبات..."
                 className="flex-1 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
                 disabled={sending}
               />

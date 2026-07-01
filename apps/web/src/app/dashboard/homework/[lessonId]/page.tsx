@@ -165,7 +165,7 @@ export default function HomeworkPage(): ReactNode {
       setAnswers({});
       void fetchHomework();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start attempt");
+      setError(err instanceof Error ? err.message : "فشل بدء المحاولة");
     }
   };
 
@@ -186,7 +186,7 @@ export default function HomeworkPage(): ReactNode {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit homework");
+      setError(err instanceof Error ? err.message : "فشل تسليم الواجب");
     } finally {
       setSubmitting(false);
     }
@@ -204,7 +204,7 @@ export default function HomeworkPage(): ReactNode {
         setViewingReview(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load review");
+      setError(err instanceof Error ? err.message : "فشل تحميل المراجعة");
     }
   };
 
@@ -214,12 +214,12 @@ export default function HomeworkPage(): ReactNode {
   };
 
   if (loading) return <HomeworkSkeleton />;
-  if (error) return <ErrorState title="Failed to load homework" description={error} />;
+  if (error) return <ErrorState title="فشل تحميل الواجب" description={error} />;
   if (!homework) {
     return (
       <EmptyState
-        title="No Homework"
-        description="This lesson has no homework assigned."
+        title="لا يوجد واجب"
+        description="لا يوجد واجب مخصص لهذا الدرس"
         icon={<ClipboardList className="h-16 w-16" />}
       />
     );
@@ -234,11 +234,11 @@ export default function HomeworkPage(): ReactNode {
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={handleBackToResult}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Results
+            العودة للنتائج
           </Button>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Review Answers</h1>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">مراجعة الإجابات</h1>
           <Badge variant={review.passed ? "success" : "warning"} className="ml-auto">
-            Score: {review.score}%
+            النتيجة: {review.score}%
           </Badge>
         </div>
 
@@ -269,14 +269,14 @@ export default function HomeworkPage(): ReactNode {
                   </div>
                   <div className="ps-8 space-y-1 text-sm">
                     <p>
-                      <span className="text-neutral-500">Your answer: </span>
+                      <span className="text-neutral-500">إجابتك: </span>
                       <span className={q.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
-                        {q.studentAnswer ?? "(empty)"}
+                        {q.studentAnswer ?? "(فارغ)"}
                       </span>
                     </p>
                     {!q.isCorrect && q.correctAnswer && (
                       <p>
-                        <span className="text-neutral-500">Correct answer: </span>
+                        <span className="text-neutral-500">الإجابة الصحيحة: </span>
                         <span className="font-medium text-success-600">{q.correctAnswer}</span>
                       </p>
                     )}
@@ -301,7 +301,7 @@ export default function HomeworkPage(): ReactNode {
           className="mb-4 flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
         >
           <ChevronLeft className="h-4 w-4" />
-          Back to Lesson
+          العودة للدرس
         </Link>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex-1">
@@ -309,18 +309,18 @@ export default function HomeworkPage(): ReactNode {
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-500">
               <span className="flex items-center gap-1">
                 <ClipboardList className="h-4 w-4" />
-                {homework._count.questions} questions
+                {homework._count.questions} سؤال
               </span>
               <span className="flex items-center gap-1">
                 <Trophy className="h-4 w-4" />
-                {homework.passingScore}% to pass
+                نسبة النجاح {homework.passingScore}%
               </span>
-              <span>Max {homework.maxAttempts} attempts</span>
+              <span>الحد الأقصى {homework.maxAttempts} محاولات</span>
               {homework.xpReward > 0 && <span>+{homework.xpReward} XP</span>}
               {lastSaved && (
                 <span className="flex items-center gap-1 text-success-600">
                   <Save className="h-3 w-3" />
-                  Saved
+                  تم الحفظ
                 </span>
               )}
             </div>
@@ -329,14 +329,14 @@ export default function HomeworkPage(): ReactNode {
             {isSubmitted && homework.showAnswers && (
               <Button variant="outline" size="sm" onClick={(): void => { void handleViewReview(); }}>
                 <Eye className="mr-2 h-4 w-4" />
-                Review Answers
+                مراجعة الإجابات
               </Button>
             )}
             {isSubmitted ? (
               homework.allowRetry && (
                 <Button variant="outline" size="sm" onClick={(): void => { void handleRetry(); }}>
                   <RotateCcw className="mr-2 h-4 w-4" />
-                  Retry
+                  إعادة المحاولة
                 </Button>
               )
             ) : (
@@ -347,7 +347,7 @@ export default function HomeworkPage(): ReactNode {
                 disabled={!allAnswered}
                 loading={submitting}
               >
-                Submit Homework
+                تسليم الواجب
               </Button>
             )}
           </div>
@@ -380,14 +380,14 @@ export default function HomeworkPage(): ReactNode {
               )}
               <div>
                 <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-                  Score: {result.score}%
+                  النتيجة: {result.score}%
                 </h2>
                 <p className="text-sm text-neutral-500">
-                  {result.correctAnswers} correct / {result.wrongAnswers} wrong out of{" "}
-                  {result.totalQuestions} questions
+                  {result.correctAnswers} صحيحة / {result.wrongAnswers} خاطئة من أصل{" "}
+                  {result.totalQuestions} سؤال
                 </p>
                 <Badge variant={result.passed ? "success" : "warning"} className="mt-2">
-                  {result.passed ? "Passed" : "Try Again"}
+                  {result.passed ? "ناجح" : "حاول مرة أخرى"}
                 </Badge>
               </div>
             </div>
@@ -419,7 +419,7 @@ export default function HomeworkPage(): ReactNode {
             loading={submitting}
           >
             <Trophy className="mr-2 h-4 w-4" />
-            Submit Homework
+            تسليم الواجب
           </Button>
         </div>
       )}
@@ -480,8 +480,8 @@ function QuestionCard({ question, index, selectedAnswer, isSubmitted, result, on
 
           {question.type === "TRUE_FALSE" ? (
             <div className="flex gap-3 ps-8">
-              {["True", "False"].map((label) => {
-                const optValue = label.toLowerCase();
+              {["صح", "خطأ"].map((label) => {
+                const optValue = label === "صح" ? "true" : "false";
                 const isSelected = selectedAnswer === optValue;
                 const isCorrectOpt = isSubmitted && wrongAnswer?.correctAnswer === optValue;
 
@@ -554,7 +554,7 @@ function QuestionCard({ question, index, selectedAnswer, isSubmitted, result, on
                   if (!isSubmitted) onAnswerChange(index, e.target.value);
                 }}
                 disabled={isSubmitted}
-                placeholder="Type your answer..."
+                placeholder="اكتب إجابتك..."
                 className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 ${
                   isSubmitted
                     ? isWrong
@@ -567,7 +567,7 @@ function QuestionCard({ question, index, selectedAnswer, isSubmitted, result, on
               />
               {isSubmitted && wrongAnswer !== undefined && (
                 <p className="mt-1 text-xs text-danger-500">
-                  Correct answer: {wrongAnswer.correctAnswer}
+                  الإجابة الصحيحة: {wrongAnswer.correctAnswer}
                 </p>
               )}
             </div>

@@ -176,7 +176,7 @@ export default function QuizPage(): ReactNode {
       if (err instanceof Error && err.message.includes("403")) {
         setPrereqError(err.message);
       } else {
-        setError(err instanceof Error ? err.message : "Failed to start attempt");
+        setError(err instanceof Error ? err.message : "فشل بدء المحاولة");
       }
     }
   };
@@ -196,7 +196,7 @@ export default function QuizPage(): ReactNode {
         if (saveTimerRef.current) clearInterval(saveTimerRef.current);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit quiz");
+      setError(err instanceof Error ? err.message : "فشل تسليم الاختبار");
     } finally {
       setSubmitting(false);
     }
@@ -214,7 +214,7 @@ export default function QuizPage(): ReactNode {
         setViewingReview(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load review");
+      setError(err instanceof Error ? err.message : "فشل تحميل المراجعة");
     }
   };
 
@@ -224,12 +224,12 @@ export default function QuizPage(): ReactNode {
   };
 
   if (loading) return <QuizSkeleton />;
-  if (error) return <ErrorState title="Failed to load quiz" description={error} />;
+  if (error) return <ErrorState title="فشل تحميل الاختبار" description={error} />;
   if (!quiz) {
     return (
       <EmptyState
-        title="No Quiz"
-        description="This lesson has no quiz assigned."
+        title="لا يوجد اختبار"
+        description="لا يوجد اختبار مخصص لهذا الدرس"
         icon={<GraduationCap className="h-16 w-16" />}
       />
     );
@@ -239,12 +239,12 @@ export default function QuizPage(): ReactNode {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <Lock className="h-16 w-16 text-warning-500" />
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Quiz Locked</h2>
+        <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">الاختبار مقفل</h2>
         <p className="text-sm text-neutral-500">{prereqError}</p>
         <Link href={`/dashboard/lessons/${lessonId}`}>
           <Button variant="outline" size="sm">
             <ChevronLeft className="mr-2 h-4 w-4" />
-            Back to Lesson
+            العودة للدرس
           </Button>
         </Link>
       </div>
@@ -260,11 +260,11 @@ export default function QuizPage(): ReactNode {
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={handleBackToResult}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Results
+            العودة للنتائج
           </Button>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Review Answers</h1>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">مراجعة الإجابات</h1>
           <Badge variant={review.passed ? "success" : "warning"} className="ml-auto">
-            Score: {review.score}%
+            النتيجة: {review.score}%
           </Badge>
         </div>
         <div className="flex flex-col gap-4">
@@ -290,14 +290,14 @@ export default function QuizPage(): ReactNode {
                   </div>
                   <div className="ps-8 space-y-1 text-sm">
                     <p>
-                      <span className="text-neutral-500">Your answer: </span>
+                      <span className="text-neutral-500">إجابتك: </span>
                       <span className={q.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
-                        {q.studentAnswer ?? "(empty)"}
+                        {q.studentAnswer ?? "(فارغ)"}
                       </span>
                     </p>
                     {!q.isCorrect && q.correctAnswer && (
                       <p>
-                        <span className="text-neutral-500">Correct answer: </span>
+                        <span className="text-neutral-500">الإجابة الصحيحة: </span>
                         <span className="font-medium text-success-600">{q.correctAnswer}</span>
                       </p>
                     )}
@@ -320,7 +320,7 @@ export default function QuizPage(): ReactNode {
           className="mb-4 flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
         >
           <ChevronLeft className="h-4 w-4" />
-          Back to Lesson
+          العودة للدرس
         </Link>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex-1">
@@ -328,13 +328,13 @@ export default function QuizPage(): ReactNode {
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-500">
               <span className="flex items-center gap-1">
                 <GraduationCap className="h-4 w-4" />
-                {quiz._count.questions} questions
+                {quiz._count.questions} سؤال
               </span>
               <span className="flex items-center gap-1">
                 <Trophy className="h-4 w-4" />
-                {quiz.passingScore}% to pass
+                نسبة النجاح {quiz.passingScore}%
               </span>
-              <span>Max {quiz.maxAttempts} attempts</span>
+              <span>الحد الأقصى {quiz.maxAttempts} محاولات</span>
               {quiz.xpReward > 0 && (
                 <span className="flex items-center gap-1">
                   <Zap className="h-4 w-4" />
@@ -344,7 +344,7 @@ export default function QuizPage(): ReactNode {
               {lastSaved && (
                 <span className="flex items-center gap-1 text-success-600">
                   <Save className="h-3 w-3" />
-                  Saved
+                  تم الحفظ
                 </span>
               )}
             </div>
@@ -353,14 +353,14 @@ export default function QuizPage(): ReactNode {
             {isSubmitted && quiz.showAnswers && (
               <Button variant="outline" size="sm" onClick={(): void => { void handleViewReview(); }}>
                 <Eye className="mr-2 h-4 w-4" />
-                Review Answers
+                مراجعة الإجابات
               </Button>
             )}
             {isSubmitted ? (
               quiz.allowRetry && (
                 <Button variant="outline" size="sm" onClick={(): void => { void handleRetry(); }}>
                   <RotateCcw className="mr-2 h-4 w-4" />
-                  Retry
+                  إعادة المحاولة
                 </Button>
               )
             ) : (
@@ -371,7 +371,7 @@ export default function QuizPage(): ReactNode {
                 disabled={!allAnswered}
                 loading={submitting}
               >
-                Submit Quiz
+                تسليم الاختبار
               </Button>
             )}
           </div>
@@ -403,21 +403,21 @@ export default function QuizPage(): ReactNode {
                 <XCircle className="h-12 w-12 text-warning-500" />
               )}
               <div>
-                <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Score: {result.score}%</h2>
+                <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">النتيجة: {result.score}%</h2>
                 <p className="text-sm text-neutral-500">
-                  {result.correctAnswers} correct / {result.wrongAnswers} wrong out of {result.totalQuestions} questions
+                  {result.correctAnswers} صحيحة / {result.wrongAnswers} خاطئة من أصل {result.totalQuestions} سؤال
                 </p>
                 <Badge variant={result.passed ? "success" : "warning"} className="mt-2">
-                  {result.passed ? "Passed" : "Try Again"}
+                  {result.passed ? "ناجح" : "حاول مرة أخرى"}
                 </Badge>
                 {result.xpAwarded !== undefined && result.xpAwarded > 0 && (
                   <p className="mt-2 flex items-center justify-center gap-1 text-sm font-medium text-yellow-600">
-                    <Zap className="h-4 w-4" />+{result.xpAwarded} XP Awarded
+                    <Zap className="h-4 w-4" />+{result.xpAwarded} XP مكتسبة
                   </p>
                 )}
                 {result.nextLessonUnlocked && (
                   <Badge variant="success" className="mt-2">
-                    Next Lesson Unlocked
+                    تم فتح الدرس التالي
                   </Badge>
                 )}
               </div>
@@ -450,7 +450,7 @@ export default function QuizPage(): ReactNode {
             loading={submitting}
           >
             <Trophy className="mr-2 h-4 w-4" />
-            Submit Quiz
+            تسليم الاختبار
           </Button>
         </div>
       )}
@@ -511,8 +511,8 @@ function QuestionCard({ question, index, selectedAnswer, isSubmitted, result, on
 
           {question.type === "TRUE_FALSE" ? (
             <div className="flex gap-3 ps-8">
-              {["True", "False"].map((label) => {
-                const optValue = label.toLowerCase();
+              {["صح", "خطأ"].map((label) => {
+                const optValue = label === "صح" ? "true" : "false";
                 const isSelected = selectedAnswer === optValue;
                 const isCorrectOpt = isSubmitted && wrongAnswer?.correctAnswer === optValue;
                 return (
@@ -583,7 +583,7 @@ function QuestionCard({ question, index, selectedAnswer, isSubmitted, result, on
                   if (!isSubmitted) onAnswerChange(index, e.target.value);
                 }}
                 disabled={isSubmitted}
-                placeholder="Type your answer..."
+                placeholder="اكتب إجابتك..."
                 className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 ${
                   isSubmitted
                     ? isWrong
@@ -595,7 +595,7 @@ function QuestionCard({ question, index, selectedAnswer, isSubmitted, result, on
                 }`}
               />
               {isSubmitted && wrongAnswer !== undefined && (
-                <p className="mt-1 text-xs text-danger-500">Correct answer: {wrongAnswer.correctAnswer}</p>
+                <p className="mt-1 text-xs text-danger-500">الإجابة الصحيحة: {wrongAnswer.correctAnswer}</p>
               )}
             </div>
           )}

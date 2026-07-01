@@ -41,7 +41,7 @@ export default function ReportsPage(): ReactNode {
         const res = await api.get<StudentReport>("/reports/my");
         if (res.data) setReport(res.data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load reports");
+        setError(err instanceof Error ? err.message : "فشل تحميل التقارير");
       } finally {
         setLoading(false);
       }
@@ -50,22 +50,22 @@ export default function ReportsPage(): ReactNode {
   }, []);
 
   if (loading) return <ReportsSkeleton />;
-  if (error) return <ErrorState title="Failed to load reports" description={error} />;
-  if (!report) return <EmptyState title="No Reports" description="No data available" icon={<BarChart3 className="h-16 w-16" />} />;
+  if (error) return <ErrorState title="فشل تحميل التقارير" description={error} />;
+  if (!report) return <EmptyState title="لا توجد تقارير" description="لا توجد بيانات متاحة" icon={<BarChart3 className="h-16 w-16" />} />;
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">My Reports</h1>
-        <p className="mt-1 text-sm text-neutral-500">Your learning progress and performance insights</p>
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">تقاريري</h1>
+        <p className="mt-1 text-sm text-neutral-500">تقدمك التعليمي وتحليلات أدائك</p>
       </div>
 
       {/* Overview Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={BookOpen} label="Lessons Completed" value={`${String(report.overview.completedLessons)}/${String(report.overview.totalLessons)}`} sub={`${String(report.overview.completionRate)}% rate`} variant="primary" />
-        <StatCard icon={Target} label="Homework Score" value={`${String(report.homework.avgScore)}%`} sub={`${String(report.homework.passRate)}% pass rate`} variant="warning" />
-        <StatCard icon={GraduationCap} label="Quiz Score" value={`${String(report.quizzes.avgScore)}%`} sub={`${String(report.quizzes.passRate)}% pass rate`} variant="info" />
-        <StatCard icon={Users} label="Attendance" value={`${String(report.attendance.rate)}%`} sub={`${String(report.attendance.streak)} day streak`} variant="success" />
+        <StatCard icon={BookOpen} label="الدروس المكتملة" value={`${String(report.overview.completedLessons)}/${String(report.overview.totalLessons)}`} sub={`نسبة ${String(report.overview.completionRate)}%`} variant="primary" />
+        <StatCard icon={Target} label="نتيجة الواجبات" value={`${String(report.homework.avgScore)}%`} sub={`نسبة نجاح ${String(report.homework.passRate)}%`} variant="warning" />
+        <StatCard icon={GraduationCap} label="نتيجة الاختبارات" value={`${String(report.quizzes.avgScore)}%`} sub={`نسبة نجاح ${String(report.quizzes.passRate)}%`} variant="info" />
+        <StatCard icon={Users} label="الحضور" value={`${String(report.attendance.rate)}%`} sub={`${String(report.attendance.streak)} يوم متتالي`} variant="success" />
       </div>
 
       {/* XP & Coins */}
@@ -74,36 +74,36 @@ export default function ReportsPage(): ReactNode {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-yellow-500" />
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">XP Progress</h3>
+              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">تقدم XP</h3>
             </div>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{report.xp.total.toLocaleString()}</p>
-            <p className="text-sm text-neutral-500">Level {report.xp.level} • {report.xp.transactionCount} transactions</p>
+            <p className="text-sm text-neutral-500">المستوى {report.xp.level} • {report.xp.transactionCount} عملية</p>
           </CardContent>
         </Card>
         <Card variant="elevated" padding="md">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Coins className="h-5 w-5 text-yellow-500" />
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Coins</h3>
+              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">عملات</h3>
             </div>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{report.coins.balance.toLocaleString()}</p>
-            <p className="text-sm text-neutral-500">Current balance</p>
+            <p className="text-sm text-neutral-500">الرصيد الحالي</p>
           </CardContent>
         </Card>
         <Card variant="elevated" padding="md">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Award className="h-5 w-5 text-purple-500" />
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Achievements</h3>
+              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الإنجازات</h3>
             </div>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{report.achievements.total}</p>
-            <p className="text-sm text-neutral-500">Earned badges</p>
+            <p className="text-sm text-neutral-500">شارات مكتسبة</p>
           </CardContent>
         </Card>
       </div>
@@ -113,12 +113,12 @@ export default function ReportsPage(): ReactNode {
         <CardHeader>
           <div className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5 text-primary-500" />
-            <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Recent Homework</h3>
+            <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الواجبات الأخيرة</h3>
           </div>
         </CardHeader>
         <CardContent>
           {report.homework.recent.length === 0 ? (
-            <p className="text-sm text-neutral-500">No homework attempts yet.</p>
+            <p className="text-sm text-neutral-500">لا توجد محاولات واجبات بعد</p>
           ) : (
             <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {report.homework.recent.map((hw, i) => (
@@ -129,7 +129,7 @@ export default function ReportsPage(): ReactNode {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{hw.score}%</span>
-                    <Badge variant={hw.passed ? "success" : "warning"}>{hw.passed ? "Pass" : "Fail"}</Badge>
+                    <Badge variant={hw.passed ? "success" : "warning"}>{hw.passed ? "ناجح" : "راسب"}</Badge>
                   </div>
                 </div>
               ))}
@@ -143,12 +143,12 @@ export default function ReportsPage(): ReactNode {
         <CardHeader>
           <div className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5 text-primary-500" />
-            <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Recent Quizzes</h3>
+            <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الاختبارات الأخيرة</h3>
           </div>
         </CardHeader>
         <CardContent>
           {report.quizzes.recent.length === 0 ? (
-            <p className="text-sm text-neutral-500">No quiz attempts yet.</p>
+            <p className="text-sm text-neutral-500">لا توجد محاولات اختبارات بعد</p>
           ) : (
             <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {report.quizzes.recent.map((qz, i) => (
@@ -159,7 +159,7 @@ export default function ReportsPage(): ReactNode {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{qz.score}%</span>
-                    <Badge variant={qz.passed ? "success" : "warning"}>{qz.passed ? "Pass" : "Fail"}</Badge>
+                    <Badge variant={qz.passed ? "success" : "warning"}>{qz.passed ? "ناجح" : "راسب"}</Badge>
                   </div>
                 </div>
               ))}
@@ -174,7 +174,7 @@ export default function ReportsPage(): ReactNode {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Award className="h-5 w-5 text-purple-500" />
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Recent Achievements</h3>
+              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الإنجازات الأخيرة</h3>
             </div>
           </CardHeader>
           <CardContent>

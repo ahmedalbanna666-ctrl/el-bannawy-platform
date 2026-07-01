@@ -32,7 +32,7 @@ export default function ProfilePage(): ReactNode {
         <CardHeader>
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-[#22D3EE]" />
-            <h2 className="text-base font-extrabold text-slate-100">Personal Information</h2>
+            <h2 className="text-base font-extrabold text-slate-100">المعلومات الشخصية</h2>
           </div>
         </CardHeader>
         <CardContent>
@@ -60,7 +60,7 @@ export default function ProfilePage(): ReactNode {
                 </span>
                 <span className="flex items-center gap-2 text-sm text-slate-400">
                   <GraduationCap className="h-4 w-4 text-slate-500" />
-                  Active Student
+                  طالب نشط
                 </span>
               </div>
             </div>
@@ -73,13 +73,13 @@ export default function ProfilePage(): ReactNode {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-[#22D3EE]" />
-            <h2 className="text-base font-extrabold text-slate-100">Edit Information</h2>
+            <h2 className="text-base font-extrabold text-slate-100">تعديل المعلومات</h2>
           </div>
         </CardHeader>
         <CardContent>
           <Button variant="outline" size="md" fullWidth className="justify-start gap-3">
             <User className="h-4 w-4" />
-            Edit Profile
+            تعديل الملف الشخصي
           </Button>
         </CardContent>
       </Card>
@@ -89,7 +89,7 @@ export default function ProfilePage(): ReactNode {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Lock className="h-4 w-4 text-[#22D3EE]" />
-            <h2 className="text-base font-extrabold text-slate-100">Security</h2>
+            <h2 className="text-base font-extrabold text-slate-100">الأمان</h2>
           </div>
         </CardHeader>
         <CardContent>
@@ -101,7 +101,7 @@ export default function ProfilePage(): ReactNode {
             onClick={(): void => { router.push("/reset-password"); }}
           >
             <Lock className="h-4 w-4" />
-            Change Password
+            تغيير كلمة المرور
           </Button>
         </CardContent>
       </Card>
@@ -111,22 +111,22 @@ export default function ProfilePage(): ReactNode {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Crown className="h-4 w-4 text-yellow-400" />
-            <h2 className="text-base font-extrabold text-slate-100">Subscription</h2>
+            <h2 className="text-base font-extrabold text-slate-100">الاشتراك</h2>
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-slate-400">Current Plan</span>
-              <span className="text-sm font-extrabold text-[#22D3EE]">Free</span>
+              <span className="text-sm text-slate-400">الخطة الحالية</span>
+              <span className="text-sm font-extrabold text-[#22D3EE]">مجاني</span>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-slate-400">Status</span>
-              <span className="text-sm font-extrabold text-[#10B981]">Active</span>
+              <span className="text-sm text-slate-400">الحالة</span>
+              <span className="text-sm font-extrabold text-[#10B981]">نشط</span>
             </div>
             <Button variant="primary" size="sm" fullWidth className="mt-1">
               <Crown className="h-4 w-4" />
-              Renew Subscription
+              تجديد الاشتراك
             </Button>
           </div>
         </CardContent>
@@ -145,7 +145,7 @@ export default function ProfilePage(): ReactNode {
             }}
           >
             <LogOut className="h-4 w-4" />
-            Logout
+            تسجيل الخروج
           </Button>
         </CardContent>
       </Card>

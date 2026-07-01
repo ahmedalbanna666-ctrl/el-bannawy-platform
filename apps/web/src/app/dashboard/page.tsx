@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -17,14 +17,9 @@ import {
   RefreshCw,
   Gamepad2,
   Trophy,
-  Zap,
-  Coins,
-  Flame,
-  Clock,
   BookMarked,
   ClipboardList,
   ChevronRight,
-  Calendar,
   Users,
   Target,
   BookCheck,
@@ -56,7 +51,7 @@ export default function DashboardPage(): ReactNode {
           setData(response.data);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load dashboard");
+        setError(err instanceof Error ? err.message : "فشل تحميل لوحة التحكم");
       } finally {
         setLoading(false);
       }
@@ -69,97 +64,65 @@ export default function DashboardPage(): ReactNode {
   }
 
   if (error) {
-    return <ErrorState title="Failed to load dashboard" description={error} />;
+    return <ErrorState title="فشل تحميل لوحة التحكم" description={error} />;
   }
 
   if (!data) {
-    return <EmptyState title="No data" description="No dashboard data available" icon={<BookOpen className="h-16 w-16" />} />;
+    return <EmptyState title="لا توجد بيانات" description="لا توجد بيانات متاحة للوحة التحكم" icon={<BookOpen className="h-16 w-16" />} />;
   }
 
   const xpProgress = data.xp.total > 0 ? (data.xp.total % 1000) / 10 : 0;
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Welcome Banner */}
-      <section className="flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 p-6 text-white md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">
-            Welcome back, {data.user.fullName.split(" ")[0]}!
-          </h1>
-          <p className="mt-1 text-primary-100">Ready to continue your learning journey?</p>
-        </div>
-        <div className="flex gap-4">
-          <div className="flex items-center gap-2 rounded-xl bg-white/15 px-4 py-2">
-            <Zap className="h-5 w-5 text-yellow-300" />
-            <div>
-              <p className="text-xs text-primary-100">Level {data.xp.level}</p>
-              <p className="text-sm font-semibold">{data.xp.total} XP</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl bg-white/15 px-4 py-2">
-            <Coins className="h-5 w-5 text-yellow-300" />
-            <div>
-              <p className="text-xs text-primary-100">Coins</p>
-              <p className="text-sm font-semibold">{data.coins}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl bg-white/15 px-4 py-2">
-            <Flame className="h-5 w-5 text-orange-300" />
-            <div>
-              <p className="text-xs text-primary-100">Streak</p>
-              <p className="text-sm font-semibold">{data.streak} days</p>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* Quick Actions */}
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Button
-          variant="primary"
-          size="sm"
-          className="flex-col gap-1 py-3"
-          fullWidth
-          onClick={() => {
-            if (data.continueLearning?.lessonId) {
-              router.push(`/dashboard/lessons/${data.continueLearning.lessonId}`);
-            }
-          }}
-        >
-          <Play className="h-5 w-5" />
-          <span className="text-xs">Continue</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-col gap-1 py-3"
-          fullWidth
-          onClick={(): void => { router.push("/dashboard/units"); }}
-        >
-          <ClipboardList className="h-5 w-5" />
-          <span className="text-xs">Homework</span>
-        </Button>
-        <Button variant="outline" size="sm" className="flex-col gap-1 py-3" fullWidth>
-          <RefreshCw className="h-5 w-5" />
-          <span className="text-xs">Mistakes</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-col gap-1 py-3"
-          fullWidth
-          onClick={(): void => { router.push("/dashboard/ai"); }}
-        >
-          <Sparkles className="h-5 w-5" />
-          <span className="text-xs">Ask AI</span>
-        </Button>
-        <Button variant="outline" size="sm" className="flex-col gap-1 py-3" fullWidth>
-          <Calendar className="h-5 w-5" />
-          <span className="text-xs">Book Live</span>
-        </Button>
-      </section>
+      {/* SECTION 1 — Continue Learning */}
+      {data.continueLearning ? (
+        <section>
+          <Card variant="gradient" padding="none" className="border-primary-500/20 px-4 py-3">
+            <CardContent>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold leading-tight tracking-tight text-neutral-900 dark:text-neutral-100">
+                    {data.continueLearning.unitName}
+                  </h2>
+                  <Button
+                    size="xs"
+                    className="shrink-0 text-xs font-medium"
+                    onClick={() => { const lessonId = data.continueLearning?.lessonId; if (lessonId) router.push(`/dashboard/lessons/${lessonId}`); }}
+                  >
+                    <Play className="h-3 w-3" />
+                    استكمل
+                  </Button>
+                </div>
 
-      {/* Stats */}
+                <div className="border-t border-primary-500/[0.06]" />
+
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-3 w-3 shrink-0 text-yellow-500/70" />
+                  <div className="h-0.5 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all"
+                      style={{ width: `${String(xpProgress)}%` }}
+                    />
+                  </div>
+                  <span className="shrink-0 text-[10px] text-neutral-400">
+                    {data.xp.total % 1000}/{data.xp.nextLevelXp}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      ) : (
+        <EmptyState
+          title="ابدأ رحلتك التعليمية"
+          description="ابدأ بتصفح الوحدات التعليمية أدناه"
+          icon={<GraduationCap className="h-16 w-16" />}
+        />
+      )}
+
+      {/* SECTION 2 — Statistics */}
       <section className="grid gap-4 md:grid-cols-4">
         <Card variant="elevated" padding="sm">
           <CardContent>
@@ -171,7 +134,7 @@ export default function DashboardPage(): ReactNode {
                 <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
                   {data.stats.completedLessons}/{data.stats.totalLessons}
                 </p>
-                <p className="text-xs text-neutral-500">Lessons Done</p>
+                <p className="text-xs text-neutral-500">الدروس المكتملة</p>
               </div>
             </div>
           </CardContent>
@@ -186,7 +149,7 @@ export default function DashboardPage(): ReactNode {
                 <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
                   {data.stats.homeworkPending}
                 </p>
-                <p className="text-xs text-neutral-500">Pending Homework</p>
+                <p className="text-xs text-neutral-500">الواجبات المعلقة</p>
               </div>
             </div>
           </CardContent>
@@ -201,7 +164,7 @@ export default function DashboardPage(): ReactNode {
                 <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
                   {data.stats.quizPassRate}%
                 </p>
-                <p className="text-xs text-neutral-500">Quiz Pass Rate</p>
+                <p className="text-xs text-neutral-500">معدل النجاح</p>
               </div>
             </div>
           </CardContent>
@@ -216,94 +179,81 @@ export default function DashboardPage(): ReactNode {
                 <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
                   {data.stats.attendanceRate}%
                 </p>
-                <p className="text-xs text-neutral-500">Attendance</p>
+                <p className="text-xs text-neutral-500">نسبة الحضور</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </section>
 
-      {/* Continue Learning */}
-      {data.continueLearning ? (
-        <section>
-          <Card variant="gradient" padding="md" className="border-primary-500/20">
+      {/* SECTION 3 — Quick Learning Tools (2×2 Grid) */}
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+        <div onClick={(): void => { router.push("/dashboard/ai"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/ai"); } }}>
+          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
             <CardContent>
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary-500/20">
-                    <Play className="h-7 w-7 text-primary-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-primary-600 dark:text-primary-400">
-                      {data.continueLearning.unitName}
-                    </p>
-                    <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                      {data.continueLearning.lessonName}
-                    </h3>
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="h-2 w-32 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                        <div
-                          className="h-full rounded-full bg-primary-500 transition-all"
-                          style={{ width: `${String(data.continueLearning.progress)}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-neutral-500">
-                        {Math.round(data.continueLearning.progress)}%
-                      </span>
-                    </div>
-                  </div>
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
+                  <Sparkles className="h-6 w-6 text-white" />
                 </div>
-                <Button size="md" className="shrink-0" onClick={() => { const lessonId = data.continueLearning?.lessonId; if (lessonId) router.push(`/dashboard/lessons/${lessonId}`); }}>
-                  <Play className="h-5 w-5" />
-                  Continue Lesson
-                </Button>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">اسأل البنا AI</h3>
+                  <p className="text-sm text-neutral-500">احصل على إجابات فورية وشروحات ومساعدة في تعلمك</p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-neutral-400" />
               </div>
             </CardContent>
           </Card>
-        </section>
-      ) : (
-        <EmptyState
-          title="Start Your Learning Journey"
-          description="Begin by exploring the curriculum units below."
-          icon={<GraduationCap className="h-16 w-16" />}
-        />
-      )}
+        </div>
 
-      {/* Section 1: Ask AI */}
-      <div onClick={(): void => { router.push("/dashboard/ai"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/ai"); } }}>
-      <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
-              <Sparkles className="h-6 w-6 text-white" />
+        <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10">
+                <Users className="h-6 w-6 text-green-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">احجز حصة مباشرة</h3>
+                <p className="text-sm text-neutral-500">احجز مقعدك في حصة مباشرة قادمة</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-neutral-400" />
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Ask El-bannawy AI</h3>
-              <p className="text-sm text-neutral-500">Get instant answers, explanations, and help with your learning</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-neutral-400" />
-          </div>
-        </CardContent>
-      </Card>
-      </div>
+          </CardContent>
+        </Card>
 
-      {/* Section 2: Book Live Class */}
-      <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10">
-              <Users className="h-6 w-6 text-green-500" />
+        <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
+                <RefreshCw className="h-6 w-6 text-red-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">تعلم من أخطائك</h3>
+                <p className="text-sm text-neutral-500">راجع الإجابات الخاطئة وحسن مستواك</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-neutral-400" />
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Book Live Class</h3>
-              <p className="text-sm text-neutral-500">Reserve your spot in an upcoming live session</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-neutral-400" />
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Section 4: Curriculum Units */}
+        <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10">
+                <Gamepad2 className="h-6 w-6 text-purple-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الألعاب التعليمية</h3>
+                <p className="text-sm text-neutral-500">العب ألعاباً لتحسين المفردات والقواعد والقراءة</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-neutral-400" />
+            </div>
+          </CardContent>
+        </Card>
+
+      </section>
+
+      {/* SECTION 4 — Curriculum Units */}
       <div onClick={(): void => { router.push("/dashboard/units"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/units"); } }}>
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
@@ -312,8 +262,8 @@ export default function DashboardPage(): ReactNode {
               <BookOpen className="h-6 w-6 text-blue-500" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Curriculum Units</h3>
-              <p className="text-sm text-neutral-500">Browse all units and track your progress</p>
+              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الوحدات التعليمية</h3>
+              <p className="text-sm text-neutral-500">تصفح جميع الوحدات وتابع تقدمك</p>
             </div>
             <ChevronRight className="h-5 w-5 text-neutral-400" />
           </div>
@@ -321,7 +271,7 @@ export default function DashboardPage(): ReactNode {
       </Card>
       </div>
 
-      {/* Section 5: Story */}
+      {/* SECTION 5 — Story */}
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
           <div className="flex items-center gap-4">
@@ -329,15 +279,15 @@ export default function DashboardPage(): ReactNode {
               <ScrollText className="h-6 w-6 text-orange-500" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Story</h3>
-              <p className="text-sm text-neutral-500">Follow along with the curriculum story</p>
+              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">قصة المنهج</h3>
+              <p className="text-sm text-neutral-500">تابع قصة المنهج التعليمي</p>
             </div>
             <ChevronRight className="h-5 w-5 text-neutral-400" />
           </div>
         </CardContent>
       </Card>
 
-      {/* Section 6: Final Review (locked) */}
+      {/* SECTION 6 — Final Review */}
       <Card variant="outline" padding="md" className="cursor-not-allowed opacity-60">
         <CardContent>
           <div className="flex items-center gap-4">
@@ -345,93 +295,13 @@ export default function DashboardPage(): ReactNode {
               <BookMarked className="h-6 w-6 text-neutral-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Final Review</h3>
-              <p className="text-sm text-neutral-400">Final Review will become available during the official revision period</p>
+              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">المراجعة النهائية</h3>
+              <p className="text-sm text-neutral-400">ستصبح المراجعة النهائية متاحة خلال فترة المراجعة الرسمية</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Section 7: Learn From Mistakes */}
-      <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
-              <RefreshCw className="h-6 w-6 text-red-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Learn From Mistakes</h3>
-              <p className="text-sm text-neutral-500">Review incorrect answers and improve</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-neutral-400" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Section 8: Educational Games */}
-      <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10">
-              <Gamepad2 className="h-6 w-6 text-purple-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Educational Games</h3>
-              <p className="text-sm text-neutral-500">Play games to improve vocabulary, grammar, and reading</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-neutral-400" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* XP Progress */}
-      <Card variant="elevated" padding="md">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-yellow-500" />
-            <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Level {data.xp.level} Progress</h3>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <div className="h-3 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all"
-                  style={{ width: `${String(xpProgress)}%` }}
-                />
-              </div>
-            </div>
-            <span className="shrink-0 text-sm text-neutral-500">
-              {data.xp.total % 1000} / {data.xp.nextLevelXp} XP
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent Activity */}
-      {data.recentActivity.length > 0 && (
-        <Card variant="outline" padding="md">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-neutral-400" />
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">Recent Activity</h3>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-              {data.recentActivity.map((activity) => (
-                <li key={activity.id} className="py-3 first:pt-0 last:pb-0">
-                  <p className="text-sm text-neutral-700 dark:text-neutral-300">{activity.description}</p>
-                  <p className="mt-0.5 text-xs text-neutral-400">
-                    {new Date(activity.createdAt).toLocaleDateString()}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
@@ -439,19 +309,18 @@ export default function DashboardPage(): ReactNode {
 function DashboardSkeleton(): ReactNode {
   return (
     <div className="flex flex-col gap-6">
-      <Skeleton className="h-[120px] w-full rounded-2xl" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => (
-          <Skeleton key={i} className="h-20 rounded-xl" />
-        ))}
-      </div>
+      <Skeleton className="h-24 w-full rounded-xl" />
       <div className="grid gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
           <Skeleton key={i} className="h-20 rounded-xl" />
         ))}
       </div>
-      <Skeleton className="h-24 rounded-xl" />
-      {Array.from({ length: 5 }, (_, i) => (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-20 rounded-xl" />
+        ))}
+      </div>
+      {Array.from({ length: 3 }, (_, i) => (
         <Skeleton key={i} className="h-20 rounded-xl" />
       ))}
     </div>

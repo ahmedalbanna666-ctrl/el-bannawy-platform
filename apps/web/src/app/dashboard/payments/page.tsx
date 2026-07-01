@@ -34,7 +34,7 @@ export default function PaymentsPage(): ReactNode {
         const res = await api.get<Payment[]>("/payments/history");
         if (res.data) setPayments(res.data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load payments");
+        setError(err instanceof Error ? err.message : "فشل تحميل المدفوعات");
       } finally {
         setLoading(false);
       }
@@ -43,16 +43,16 @@ export default function PaymentsPage(): ReactNode {
   }, []);
 
   if (loading) return <PaymentsSkeleton />;
-  if (error) return <ErrorState title="Failed to load payments" description={error} />;
+  if (error) return <ErrorState title="فشل تحميل المدفوعات" description={error} />;
   if (payments.length === 0) {
-    return <EmptyState title="No Payments" description="You don't have any payment history yet." icon={<CreditCard className="h-16 w-16" />} />;
+    return <EmptyState title="لا توجد مدفوعات" description="لا يوجد سجل مدفوعات بعد" icon={<CreditCard className="h-16 w-16" />} />;
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Payment History</h1>
-        <p className="mt-1 text-sm text-neutral-500">Your transaction history and invoices</p>
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">سجل المدفوعات</h1>
+        <p className="mt-1 text-sm text-neutral-500">سجل معاملاتك وفواتيرك</p>
       </div>
 
       <div className="flex flex-col gap-3">
