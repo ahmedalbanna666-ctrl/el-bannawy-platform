@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,24 +19,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-interface LessonSummary {
-  id: string;
-  title: string;
-  displayOrder: number;
-  estimatedDuration: number;
-  isPremium: boolean;
-  sequentialMode: boolean;
-  homeworkEnabled: boolean;
-  quizEnabled: boolean;
-}
-
-interface Unit {
-  id: string;
-  title: string;
-  description: string;
-  displayOrder: number;
-  lessons: LessonSummary[];
-}
+// ── Types ────────────────────────────────────────────────────────────
 
 interface Stage {
   id: string;
@@ -45,81 +29,106 @@ interface Stage {
     id: string;
     name: string;
     displayOrder: number;
-    units: Unit[];
+    units: UnitSummary[];
   }[];
 }
 
-interface ReviewItem {
+interface UnitSummary {
   id: string;
+  title: string;
+  displayOrder: number;
+  lessons: { id: string; title: string; displayOrder: number }[];
+}
+
+interface ReviewItem {
+  index: number;
   label: string;
   coverage: string;
   questionCount: number;
   durationMinutes: number;
+  status: "completed" | "current" | "locked";
 }
 
-type ReviewStatus = "completed" | "current" | "locked";
+// ── Query Hook ───────────────────────────────────────────────────────
 
-function getReviewStatus(index: number, _total: number): ReviewStatus {
+function useCurriculum(): UseQueryResult<Stage[]> {
+  return useQuery({
+    queryKey: ["curriculum"],
+    queryFn: async () => {
+      const res = await api.get<Stage[]>("/curriculum");
+      return res.data ?? [];
+    },
+    staleTime: 300_000,
+  });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function getReviewStatus(index: number, _total: number): "completed" | "current" | "locked" {
   if (index === 0) return "current";
   if (index === 1) return "completed";
   return "locked";
 }
 
-export default function FinalReviewPage(): ReactNode {
-  const router = useRouter();
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchCurriculum = useCallback(async (): Promise<void> => {
-    try {
-      const response = await api.get<Stage[]>("/curriculum");
-      if (response.data) setStages(response.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل تحميل المراجعة النهائية");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchCurriculum();
-  }, [fetchCurriculum]);
-
+function buildReviews(stages: Stage[]): ReviewItem[] {
   const allUnits = stages.flatMap((stage) =>
     stage.grades.flatMap((grade) => grade.units),
   );
 
-  const reviews: ReviewItem[] = ((): ReviewItem[] => {
-    if (allUnits.length === 0) return [];
-    const items: ReviewItem[] = [];
-    for (let i = 0; i < allUnits.length; i += 2) {
-      const unitA = allUnits[i];
-      const hasSecond = i + 1 < allUnits.length;
-      const unitB = hasSecond ? allUnits[i + 1] : null;
-      const coverage = unitB
-        ? `Unit ${String(unitA.displayOrder)} + Unit ${String(unitB.displayOrder)}`
-        : `Unit ${String(unitA.displayOrder)}`;
-      items.push({
-        id: `review-${String(i / 2 + 1)}`,
-        label: `مراجعة رقم ${String(i / 2 + 1)}`,
-        coverage,
-        questionCount: 20 + (unitB ? 5 : 0),
-        durationMinutes: 40 + (unitB ? 10 : 0),
-      });
-    }
-    items.push({
-      id: "review-final",
-      label: "مراجعة شاملة",
-      coverage: "كل المنهج",
-      questionCount: 60,
-      durationMinutes: 90,
-    });
-    return items;
-  })();
+  if (allUnits.length === 0) return [];
 
-  if (loading) return <FinalReviewSkeleton />;
-  if (error) return <ErrorState title="فشل تحميل المراجعة النهائية" description={error} />;
+  const items: ReviewItem[] = [];
+  for (let i = 0; i < allUnits.length; i += 2) {
+    const unitA = allUnits[i];
+    const unitB = i + 1 < allUnits.length ? allUnits[i + 1] : null;
+    const coverage = unitB
+      ? `Unit ${String(unitA.displayOrder)} + Unit ${String(unitB.displayOrder)}`
+      : `Unit ${String(unitA.displayOrder)}`;
+
+    items.push({
+      index: items.length,
+      label: `مراجعة ${String(items.length + 1)}`,
+      coverage,
+      questionCount: 20 + (unitB ? 5 : 0),
+      durationMinutes: 40 + (unitB ? 10 : 0),
+      status: getReviewStatus(items.length, 0),
+    });
+  }
+
+  items.push({
+    index: items.length,
+    label: "مراجعة شاملة",
+    coverage: "كل المنهج",
+    questionCount: 60,
+    durationMinutes: 90,
+    status: "locked",
+  });
+
+  return items;
+}
+
+// ── Main Page ────────────────────────────────────────────────────────
+
+export default function FinalReviewPage(): ReactNode {
+  const router = useRouter();
+
+  // ── All Hooks ──
+  const { data: stages, isLoading, isError, error } = useCurriculum();
+
+  // ── Derived ──
+  const reviews: ReviewItem[] = stages ? buildReviews(stages) : [];
+
+  // ── Guards ──
+  if (isLoading) return <FinalReviewSkeleton />;
+
+  if (isError) {
+    return (
+      <ErrorState
+        title="فشل تحميل المراجعة النهائية"
+        description={error instanceof Error ? error.message : "حدث خطأ غير متوقع"}
+      />
+    );
+  }
 
   if (reviews.length === 0) {
     return (
@@ -131,6 +140,7 @@ export default function FinalReviewPage(): ReactNode {
     );
   }
 
+  // ── Render ──
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -141,52 +151,52 @@ export default function FinalReviewPage(): ReactNode {
       </div>
 
       <div className="flex flex-col gap-3">
-        {reviews.map((review, idx) => {
-          const status = getReviewStatus(idx, reviews.length);
+        {reviews.map((review) => {
+          const isLocked = review.status === "locked";
 
           const borderColor =
-            status === "completed"
+            review.status === "completed"
               ? "border-success-500/60"
-              : status === "current"
+              : review.status === "current"
                 ? "border-primary-500/60"
                 : "border-neutral-200 dark:border-neutral-700";
 
           return (
             <Card
-              key={review.id}
+              key={review.index}
               variant="outline"
               padding="md"
               className={`transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${borderColor} ${
-                status === "locked" ? "opacity-50" : "cursor-pointer"
+                isLocked ? "opacity-50" : "cursor-pointer"
               }`}
               onClick={(): void => {
-                if (status === "locked") return;
-                router.push(`/dashboard/quiz/${allUnits[0]?.id ?? "review"}`);
+                if (isLocked) return;
+                router.push(`/dashboard/final-review/${String(review.index)}`);
               }}
               onKeyDown={(e): void => {
-                if (status === "locked") return;
+                if (isLocked) return;
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  router.push(`/dashboard/quiz/${allUnits[0]?.id ?? "review"}`);
+                  router.push(`/dashboard/final-review/${String(review.index)}`);
                 }
               }}
-              role={status === "locked" ? undefined : "button"}
-              tabIndex={status === "locked" ? undefined : 0}
+              role={isLocked ? undefined : "button"}
+              tabIndex={isLocked ? undefined : 0}
             >
               <CardContent>
                 <div className="flex items-center gap-4">
                   <div
                     className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                      status === "completed"
+                      review.status === "completed"
                         ? "bg-success-500/10"
-                        : status === "current"
+                        : review.status === "current"
                           ? "bg-primary-500/10"
                           : "bg-neutral-200 dark:bg-neutral-700"
                     }`}
                   >
-                    {status === "completed" ? (
+                    {review.status === "completed" ? (
                       <CheckCircle2 className="h-6 w-6 text-success-500" />
-                    ) : status === "locked" ? (
+                    ) : isLocked ? (
                       <Lock className="h-6 w-6 text-neutral-400" />
                     ) : (
                       <BookMarked className="h-6 w-6 text-primary-500" />
@@ -198,7 +208,7 @@ export default function FinalReviewPage(): ReactNode {
                       <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                         {review.label}
                       </h3>
-                      {status === "completed" && (
+                      {review.status === "completed" && (
                         <Badge variant="success" className="text-[10px]">مكتملة</Badge>
                       )}
                     </div>
@@ -217,12 +227,12 @@ export default function FinalReviewPage(): ReactNode {
 
                   <Button
                     size="sm"
-                    variant={status === "current" ? "primary" : "outline"}
-                    disabled={status === "locked"}
+                    variant={review.status === "current" ? "primary" : "outline"}
+                    disabled={isLocked}
                     className="shrink-0"
                   >
                     <Play className="h-4 w-4" />
-                    {status === "completed" ? "إعادة" : "ابدأ المراجعة"}
+                    {review.status === "completed" ? "إعادة" : "ابدأ المراجعة"}
                   </Button>
                 </div>
               </CardContent>
@@ -233,6 +243,8 @@ export default function FinalReviewPage(): ReactNode {
     </div>
   );
 }
+
+// ── Skeleton ─────────────────────────────────────────────────────────
 
 function FinalReviewSkeleton(): ReactNode {
   return (
