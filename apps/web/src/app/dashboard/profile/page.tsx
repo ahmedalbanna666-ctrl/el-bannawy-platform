@@ -9,6 +9,15 @@ import { useAuth } from "@/providers/auth-provider";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, type SelectOption } from "@/components/ui/select";
+import { GovernorateSelect } from "@/components/ui/governorate-select";
+import { normalizeEgyptMobile } from "@/lib/phone";
+import {
+  SYSTEM_OPTIONS,
+  STAGE_OPTIONS,
+  TERM_OPTIONS,
+  getGradeOptions,
+} from "@/lib/education-options";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
 import {
@@ -52,14 +61,15 @@ interface ProfileData {
 
 // ── Query Hooks ──────────────────────────────────────────────────────
 
-function useProfile(): UseQueryResult<ProfileData> {
+function useProfile(userId: string | undefined): UseQueryResult<ProfileData> {
   return useQuery({
-    queryKey: ["profile"],
+    queryKey: ["profile", userId],
     queryFn: async () => {
       const res = await api.get<ProfileData>("/profile");
       if (!res.data) throw new Error("Profile not found");
       return res.data;
     },
+    enabled: !!userId,
     staleTime: 60_000,
   });
 }
@@ -75,6 +85,8 @@ interface EditableFieldProps {
   type?: string;
   placeholder?: string;
   readOnly?: boolean;
+  renderEditor?: (draft: string, setDraft: (value: string) => void, disabled: boolean) => ReactNode;
+  normalizeOnSave?: (value: string) => string;
 }
 
 function EditableField({
@@ -86,6 +98,8 @@ function EditableField({
   type = "text",
   placeholder,
   readOnly = false,
+  renderEditor,
+  normalizeOnSave,
 }: EditableFieldProps): ReactNode {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -101,21 +115,22 @@ function EditableField({
     setDraft(value);
   }, [value]);
 
-  const handleSave = useCallback(async () => {
-    if (draft === value) {
+  const handleSave = useCallback(async (): Promise<void> => {
+    const finalValue = normalizeOnSave ? normalizeOnSave(draft) : draft;
+    if (finalValue === value) {
       setEditing(false);
       return;
     }
     setSaving(true);
     try {
-      await onSave(fieldKey, draft);
+      await onSave(fieldKey, finalValue);
       setEditing(false);
     } catch {
       // keep editing on error
     } finally {
       setSaving(false);
     }
-  }, [draft, value, fieldKey, onSave]);
+  }, [draft, value, fieldKey, onSave, normalizeOnSave]);
 
   return (
     <div className="flex items-center justify-between rounded-xl border border-white/10 p-3 transition-colors hover:border-white/20">
@@ -124,14 +139,20 @@ function EditableField({
         <div className="min-w-0 flex-1">
           <p className="text-xs text-slate-500">{label}</p>
           {editing ? (
-            <Input
-              type={type}
-              value={draft}
-              onChange={(e): void => { setDraft(e.target.value); }}
-              placeholder={placeholder}
-              className="mt-1"
-              disabled={saving}
-            />
+            renderEditor ? (
+              <div className="mt-1">
+                {renderEditor(draft, setDraft, saving)}
+              </div>
+            ) : (
+              <Input
+                type={type}
+                value={draft}
+                onChange={(e): void => { setDraft(e.target.value); }}
+                placeholder={placeholder}
+                className="mt-1"
+                disabled={saving}
+              />
+            )
           ) : (
             <p className="truncate text-sm font-medium text-slate-200">
               {value || <span className="text-slate-600">غير محدد</span>}
@@ -184,16 +205,17 @@ export default function ProfilePage(): ReactNode {
   const { setUser } = useAuthStore();
   const { logout } = useAuth();
 
-  const { data: profile, isLoading, isError, error } = useProfile();
+  const { data: profile, isLoading, isError, error } = useProfile(authUser?.id);
 
   const updateMutation = useMutation({
     mutationFn: async (payload: Record<string, string>) => {
       const res = await api.patch<ProfileData>("/profile", payload);
       return res.data;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data) {
-        queryClient.setQueryData(["profile"], data);
+        queryClient.setQueryData(["profile", data.id], data);
+        await queryClient.invalidateQueries({ queryKey: ["sidebar-profile", data.id] });
         setUser({
           id: data.id,
           fullName: data.fullName,
@@ -207,6 +229,10 @@ export default function ProfilePage(): ReactNode {
 
   const handleFieldSave = useCallback(
     async (key: string, value: string) => {
+      if (key === "educationalStage") {
+        await updateMutation.mutateAsync({ educationalStage: value, grade: "" });
+        return;
+      }
       await updateMutation.mutateAsync({ [key]: value });
     },
     [updateMutation],
@@ -300,7 +326,8 @@ export default function ProfilePage(): ReactNode {
                   icon={<Phone className="h-4 w-4" />}
                   onSave={handleFieldSave}
                   type="tel"
-                  placeholder="+201234567890"
+                  placeholder="01234567890"
+                  normalizeOnSave={normalizeEgyptMobile}
                 />
               </div>
             </div>
@@ -324,7 +351,16 @@ export default function ProfilePage(): ReactNode {
               fieldKey="educationalSystem"
               icon={<Layers className="h-4 w-4" />}
               onSave={handleFieldSave}
-              placeholder="ثانوي عام / أزهري"
+              renderEditor={(draft, setDraft, disabled): ReactNode => (
+                <Select
+                  label=""
+                  value={draft}
+                  onChange={(e): void => { setDraft(e.target.value); }}
+                  options={SYSTEM_OPTIONS}
+                  placeholder="اختر النظام التعليمي"
+                  disabled={disabled}
+                />
+              )}
             />
             <EditableField
               label="المرحلة التعليمية"
@@ -332,7 +368,16 @@ export default function ProfilePage(): ReactNode {
               fieldKey="educationalStage"
               icon={<GraduationCap className="h-4 w-4" />}
               onSave={handleFieldSave}
-              placeholder="إعدادي / ثانوي"
+              renderEditor={(draft, setDraft, disabled): ReactNode => (
+                <Select
+                  label=""
+                  value={draft}
+                  onChange={(e): void => { setDraft(e.target.value); }}
+                  options={STAGE_OPTIONS}
+                  placeholder="اختر المرحلة التعليمية"
+                  disabled={disabled}
+                />
+              )}
             />
             <EditableField
               label="الصف الدراسي"
@@ -340,7 +385,20 @@ export default function ProfilePage(): ReactNode {
               fieldKey="grade"
               icon={<BookOpen className="h-4 w-4" />}
               onSave={handleFieldSave}
-              placeholder="الصف الأول الثانوي"
+              renderEditor={(draft, setDraft, disabled): ReactNode => {
+                const stageId = p.educationalStage ?? "";
+                const gradeOpts: SelectOption[] = stageId ? getGradeOptions(stageId) : [];
+                return (
+                  <Select
+                    label=""
+                    value={draft}
+                    onChange={(e): void => { setDraft(e.target.value); }}
+                    options={gradeOpts}
+                    placeholder={stageId ? "اختر الصف الدراسي" : "يرجى اختيار المرحلة أولاً"}
+                    disabled={disabled || !stageId}
+                  />
+                );
+              }}
             />
             <EditableField
               label="الفصل الدراسي"
@@ -348,7 +406,16 @@ export default function ProfilePage(): ReactNode {
               fieldKey="academicTerm"
               icon={<Calendar className="h-4 w-4" />}
               onSave={handleFieldSave}
-              placeholder="ترم أول / ترم ثاني"
+              renderEditor={(draft, setDraft, disabled): ReactNode => (
+                <Select
+                  label=""
+                  value={draft}
+                  onChange={(e): void => { setDraft(e.target.value); }}
+                  options={TERM_OPTIONS}
+                  placeholder="اختر الفصل الدراسي"
+                  disabled={disabled}
+                />
+              )}
             />
           </div>
         </CardContent>
@@ -370,7 +437,14 @@ export default function ProfilePage(): ReactNode {
               fieldKey="governorate"
               icon={<MapPin className="h-4 w-4" />}
               onSave={handleFieldSave}
-              placeholder="القاهرة / الجيزة ..."
+              renderEditor={(draft, setDraft, disabled): ReactNode => (
+                <GovernorateSelect
+                  value={draft}
+                  onChange={setDraft}
+                  label=""
+                  disabled={disabled}
+                />
+              )}
             />
             <EditableField
               label="المدرسة"

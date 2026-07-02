@@ -1,10 +1,11 @@
-import { Controller, Post, Get, Delete, Body, Param, Req, UseGuards, HttpCode, HttpStatus } from "@nestjs/common";
+import { Controller, Post, Get, Delete, Body, Param, Req, UseGuards, HttpCode, HttpStatus, Res } from "@nestjs/common";
 import { AuthService, type IAuthTokens } from "./auth.service";
-import { RegisterDto, LoginDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto } from "./dto/auth.dto";
+import { LoginDto, RegisterDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto, CompleteOAuthRegistrationDto } from "./dto/auth.dto";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
+import { GoogleAuthGuard } from "./guards/google-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 
 @Controller("auth")
 export class AuthController {
@@ -22,6 +23,46 @@ export class AuthController {
     const userAgent = req.headers["user-agent"];
     const result = await this.authService.login(dto, ipAddress, userAgent);
     return successResponse(result, "Login successful");
+  }
+
+  @Get("google")
+  @UseGuards(GoogleAuthGuard)
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  googleAuth(): void {}
+
+  @Get("google/callback")
+  @UseGuards(GoogleAuthGuard)
+  async googleAuthCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const googleProfile = req.user as { email: string | null; googleId: string } | undefined;
+
+    if (!googleProfile?.email) {
+      res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/login?error=google_no_email`);
+      return;
+    }
+
+    const result = await this.authService.oauthLogin({
+      email: googleProfile.email,
+      providerId: googleProfile.googleId,
+      provider: "google",
+    });
+
+    if (result.type === "existing") {
+      res.redirect(
+        `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/dashboard?token=${result.accessToken}&refreshToken=${result.refreshToken}&expiresIn=${String(result.expiresIn)}`,
+      );
+    } else {
+      res.redirect(
+        `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/register?oauth=google&token=${result.accessToken}&email=${encodeURIComponent(googleProfile.email)}&expiresIn=${String(result.expiresIn)}`,
+      );
+    }
+  }
+
+  @Post("complete-oauth-registration")
+  async completeOAuthRegistration(
+    @Body() dto: CompleteOAuthRegistrationDto,
+  ): Promise<ISuccessResponse<IAuthTokens>> {
+    const result = await this.authService.completeOAuthRegistration(dto);
+    return successResponse(result, "Google account linked. Registration complete.");
   }
 
   @Post("logout")
@@ -56,7 +97,7 @@ export class AuthController {
   async getMe(@CurrentUser() userId: string): Promise<ISuccessResponse<{
     id: string;
     fullName: string;
-    mobileNumber: string;
+    mobileNumber: string | null;
     role: string;
     status: string;
   }>> {

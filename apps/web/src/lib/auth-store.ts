@@ -4,7 +4,7 @@ import { persist } from "zustand/middleware";
 interface AuthUser {
   id: string;
   fullName: string;
-  mobileNumber: string;
+  mobileNumber: string | null;
   role: string;
   status: string;
 }

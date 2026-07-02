@@ -79,12 +79,15 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
   return (
     <aside
       className={cn(
-        "hidden h-screen flex-col border-l border-white/10 bg-transparent transition-all duration-300 dark:bg-transparent light:border-slate-200 lg:flex",
+        "hidden h-screen flex-col border-l border-white/10 bg-transparent transition-[width] duration-300 dark:bg-transparent light:border-slate-200 lg:flex",
         "overflow-y-auto pb-24 pt-8",
+        "[scrollbar-width:thin]",
+        "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
+        "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20",
+        "hover:[&::-webkit-scrollbar-thumb]:bg-white/40",
         collapsed ? "w-[72px] px-3" : "w-[280px] px-5",
         className,
       )}
-      style={{ scrollbarWidth: "none" }}
     >
       {/* Brand + Collapse Toggle */}
       <div className="mb-10 flex items-center justify-between">

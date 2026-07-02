@@ -11,9 +11,13 @@ model User {
   id                      String                   @id @default(uuid()) @db.Uuid
   fullName                String
   englishName             String?
-  mobileNumber            String                   @unique
+  email                   String?                  @unique
+  mobileNumber            String?                  @unique
   parentMobile            String?
-  passwordHash            String
+  passwordHash            String?
+  googleId                String?                  @unique
+  appleId                 String?                  @unique
+  oauthProvider           String?
   role                    UserRole
   status                  AccountStatus            @default(PENDING_VERIFICATION)
   educationalSystem       String?

@@ -1,11 +1,12 @@
 import { Injectable, ConflictException, UnauthorizedException, NotFoundException, HttpException, HttpStatus } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
-import { RegisterDto, LoginDto, RefreshTokenDto, ResetPasswordDto } from "./dto/auth.dto";
+import { RegisterDto, LoginDto, RefreshTokenDto, ResetPasswordDto, CompleteOAuthRegistrationDto } from "./dto/auth.dto";
 import * as bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 
 const ACCESS_TOKEN_EXPIRY = 3600; // 1 hour
+const ACCESS_TOKEN_REMEMBER_ME_EXPIRY = 30 * 24 * 3600; // 30 days
 const REFRESH_TOKEN_EXPIRY = 7 * 24 * 3600; // 7 days
 const SALT_ROUNDS = 12;
 
@@ -81,6 +82,11 @@ export class AuthService {
       throw new UnauthorizedException("Account is not active");
     }
 
+    if (!user.passwordHash) {
+      await this.logLoginAttempt(user.id, ipAddress, userAgent, false, "No password set");
+      throw new UnauthorizedException("This account uses Google or Apple sign-in. Please sign in with that provider.");
+    }
+
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
 
     if (!passwordValid) {
@@ -90,7 +96,8 @@ export class AuthService {
 
     await this.logLoginAttempt(user.id, ipAddress, userAgent, true, null);
 
-    return this.generateTokens(user.id, user.role);
+    const tokenExpiry = dto.rememberMe ? ACCESS_TOKEN_REMEMBER_ME_EXPIRY : ACCESS_TOKEN_EXPIRY;
+    return this.generateTokens(user.id, user.role, tokenExpiry);
   }
 
   async logout(userId: string, _token: string): Promise<void> {
@@ -197,7 +204,7 @@ export class AuthService {
   async getMe(userId: string): Promise<{
     id: string;
     fullName: string;
-    mobileNumber: string;
+    mobileNumber: string | null;
     role: string;
     status: string;
   }> {
@@ -244,11 +251,98 @@ export class AuthService {
     });
   }
 
-  private async generateTokens(userId: string, role: string): Promise<IAuthTokens> {
+  async oauthLogin(params: {
+    email: string;
+    providerId: string;
+    provider: string;
+  }): Promise<IAuthTokens & { type: "existing" | "new" }> {
+    const { email, providerId, provider } = params;
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: { email, deletedAt: null },
+    });
+
+    if (existingUser) {
+      await this.linkOAuthProvider(existingUser.id, provider, providerId);
+      const tokens = await this.generateTokens(existingUser.id, existingUser.role);
+      return { ...tokens, type: "existing" };
+    }
+
+    const user = await this.prisma.user.create({
+      data: {
+        fullName: "",
+        email,
+        [provider === "google" ? "googleId" : "appleId"]: providerId,
+        oauthProvider: provider,
+        role: "STUDENT",
+        status: "PENDING_VERIFICATION",
+      },
+    });
+
+    const tokens = await this.generateTokens(user.id, user.role);
+    return { ...tokens, type: "new" };
+  }
+
+  async completeOAuthRegistration(dto: CompleteOAuthRegistrationDto): Promise<IAuthTokens> {
+    const user = await this.prisma.user.findFirst({
+      where: { email: dto.email, deletedAt: null },
+    });
+
+    if (!user) {
+      throw new NotFoundException("OAuth session not found. Please sign in with Google or Apple first.");
+    }
+
+    let passwordHash: string | null = null;
+    if (dto.password) {
+      passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        fullName: dto.fullName,
+        englishName: dto.englishName ?? null,
+        mobileNumber: dto.mobile,
+        parentMobile: dto.parentMobile ?? null,
+        passwordHash: passwordHash ?? undefined,
+        status: "ACTIVE",
+        governorate: dto.governorate ?? null,
+        school: dto.school ?? null,
+        educationalSystem: dto.educationalSystem ?? null,
+        educationalStage: dto.educationalStage ?? null,
+        grade: dto.grade ?? null,
+        academicTerm: dto.academicTerm ?? null,
+      },
+    });
+
+    return this.generateTokens(user.id, user.role);
+  }
+
+  private async linkOAuthProvider(
+    userId: string,
+    provider: string,
+    providerId: string,
+  ): Promise<void> {
+    const data =
+      provider === "google"
+        ? { googleId: providerId, oauthProvider: "google" }
+        : { appleId: providerId, oauthProvider: "apple" };
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+  }
+
+  private async generateTokens(
+    userId: string,
+    role: string,
+    accessTokenExpiry: number = ACCESS_TOKEN_EXPIRY,
+  ): Promise<IAuthTokens> {
     const payload: ITokenPayload = { sub: userId, role };
 
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: ACCESS_TOKEN_EXPIRY,
+      expiresIn: accessTokenExpiry,
     });
 
     const refreshTokenValue = uuidv4();
@@ -279,7 +373,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: refreshTokenValue,
-      expiresIn: ACCESS_TOKEN_EXPIRY,
+      expiresIn: accessTokenExpiry,
     };
   }
 

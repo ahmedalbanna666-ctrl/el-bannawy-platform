@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/auth-store";
 import { useAuth } from "@/providers/auth-provider";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,8 +36,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const userId = useAuthStore((s) => s.user?.id);
   const { logout } = useAuth();
   const [mounted, setMounted] = useState(false);
+
+  const { data: profile } = useQuery({
+    queryKey: ["sidebar-profile", userId],
+    queryFn: async () => {
+      const res = await api.get<{
+        grade: string | null;
+        educationalStage: string | null;
+      }>("/profile");
+      return res.data ?? null;
+    },
+    enabled: isAuthenticated && !!userId,
+    staleTime: 120_000,
+  });
+
+  const profileGrade = profile?.grade ?? profile?.educationalStage ?? "طالب";
 
   useEffect(() => {
     setMounted(true);
@@ -106,7 +124,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
         className="hidden lg:flex"
         onClose={(): void => { setSidebarOpen(false); }}
         onProfileClick={(): void => { router.push("/dashboard/profile"); }}
-        profileGrade="الصف الأول الثانوي"
+        profileGrade={profileGrade}
       />
 
       <div className="flex flex-1 flex-col">

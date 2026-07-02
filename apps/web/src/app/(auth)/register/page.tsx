@@ -1,13 +1,21 @@
 "use client";
 
 import { useState, useCallback, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { GovernorateSelect } from "@/components/ui/governorate-select";
+import { normalizeEgyptMobile, validateEgyptMobile } from "@/lib/phone";
+import {
+  EDUCATIONAL_SYSTEMS,
+  EDUCATIONAL_STAGES,
+  GRADES,
+  ACADEMIC_TERMS,
+} from "@/lib/education-options";
 import {
   School,
   Phone,
@@ -16,7 +24,6 @@ import {
   Eye,
   EyeOff,
   Globe,
-  MapPin,
   Building2,
   GraduationCap,
   BookOpen,
@@ -46,29 +53,6 @@ interface RegisterPayload {
 type Step = 1 | 2 | 3 | 4 | 5;
 
 const TOTAL_STEPS = 5;
-
-const SYSTEMS = [
-  { id: "GENERAL", label: "عام", icon: BookOpen },
-  { id: "LANGUAGE", label: "لغات", icon: Globe },
-  { id: "INTERNATIONAL", label: "دولي", icon: Globe },
-];
-
-const STAGES = [
-  { id: "PRIMARY", label: "ابتدائي" },
-  { id: "PREPARATORY", label: "إعدادي" },
-  { id: "SECONDARY", label: "ثانوي" },
-];
-
-const GRADES: Record<string, string[]> = {
-  PRIMARY: ["الصف الأول الابتدائي", "الصف الثاني الابتدائي", "الصف الثالث الابتدائي", "الصف الرابع الابتدائي", "الصف الخامس الابتدائي", "الصف السادس الابتدائي"],
-  PREPARATORY: ["الصف الأول الإعدادي", "الصف الثاني الإعدادي", "الصف الثالث الإعدادي"],
-  SECONDARY: ["الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"],
-};
-
-const TERMS = [
-  { id: "FIRST_TERM", label: "ترم أول" },
-  { id: "SECOND_TERM", label: "ترم ثاني" },
-];
 
 // ── Preparing Screen ─────────────────────────────────────────────────
 
@@ -146,8 +130,15 @@ function StepProgress({ current, total }: { current: number; total: number }): R
 
 export default function RegisterPage(): ReactNode {
   const router = useRouter();
-  const { register } = useAuth();
-  const [step, setStep] = useState<Step>(1);
+  const searchParams = useSearchParams();
+  const { register, oauthRegister } = useAuth();
+
+  // OAuth detection
+  const oauthProvider = searchParams.get("oauth");
+  const verifiedEmail = searchParams.get("email");
+  const isOAuth = oauthProvider === "google" || oauthProvider === "apple";
+
+  const [step, setStep] = useState<Step>(isOAuth ? 1 : 1);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -177,11 +168,23 @@ export default function RegisterPage(): ReactNode {
 
   const validateStep1 = useCallback((): boolean => {
     if (!fullName || fullName.length < 2) { setError("الاسم العربي مطلوب"); return false; }
-    if (!mobile) { setError("رقم الهاتف مطلوب"); return false; }
-    if (!password || password.length < 8) { setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل"); return false; }
-    if (password !== confirmPassword) { setError("كلمات المرور غير متطابقة"); return false; }
+
+    const mobileResult = validateEgyptMobile(mobile);
+    if (!mobileResult.valid) { setError(mobileResult.message ?? "رقم هاتف غير صحيح"); return false; }
+
+    if (parentMobile) {
+      const parentResult = validateEgyptMobile(parentMobile);
+      if (!parentResult.valid) { setError(parentResult.message ?? "رقم ولي الأمر غير صحيح"); return false; }
+    }
+
+    if (!isOAuth) {
+      if (!password || password.length < 8) { setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل"); return false; }
+      if (password !== confirmPassword) { setError("كلمات المرور غير متطابقة"); return false; }
+    }
+
+    if (!governorate) { setError("يرجى اختيار المحافظة"); return false; }
     return true;
-  }, [fullName, mobile, password, confirmPassword]);
+  }, [fullName, mobile, parentMobile, password, confirmPassword, governorate, isOAuth]);
 
   const validateStep2 = useCallback((): boolean => {
     if (!educationalSystem) { setError("يرجى اختيار النظام التعليمي"); return false; }
@@ -230,28 +233,45 @@ export default function RegisterPage(): ReactNode {
     setError(null);
 
     try {
-      const payload: RegisterPayload = {
-        fullName,
-        englishName: englishName || undefined,
-        mobile,
-        parentMobile: parentMobile || undefined,
-        password,
-        confirmPassword,
-        governorate: governorate || undefined,
-        school: school || undefined,
-        educationalSystem,
-        educationalStage,
-        grade,
-        academicTerm,
-      };
+      if (isOAuth && verifiedEmail) {
+        await oauthRegister({
+          email: verifiedEmail,
+          fullName,
+          englishName: englishName || undefined,
+          mobile: normalizeEgyptMobile(mobile),
+          parentMobile: parentMobile ? normalizeEgyptMobile(parentMobile) : undefined,
+          password: password || undefined,
+          governorate: governorate || undefined,
+          school: school || undefined,
+          educationalSystem,
+          educationalStage,
+          grade,
+          academicTerm,
+        });
+      } else {
+        const payload: RegisterPayload = {
+          fullName,
+          englishName: englishName || undefined,
+          mobile: normalizeEgyptMobile(mobile),
+          parentMobile: parentMobile ? normalizeEgyptMobile(parentMobile) : undefined,
+          password,
+          confirmPassword,
+          governorate: governorate || undefined,
+          school: school || undefined,
+          educationalSystem,
+          educationalStage,
+          grade,
+          academicTerm,
+        };
 
-      await register(payload);
+        await register(payload);
+      }
       setRegistered(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
       setLoading(false);
     }
-  }, [fullName, englishName, mobile, parentMobile, password, confirmPassword, governorate, school, educationalSystem, educationalStage, grade, academicTerm, register, validateStep5]);
+  }, [fullName, englishName, mobile, parentMobile, password, confirmPassword, governorate, school, educationalSystem, educationalStage, grade, academicTerm, register, oauthRegister, validateStep5, isOAuth, verifiedEmail]);
 
   const handlePreparingDone = useCallback((): void => {
     router.push("/dashboard");
@@ -274,10 +294,40 @@ export default function RegisterPage(): ReactNode {
       case 1:
         return (
           <div className="flex flex-col gap-4">
+            {isOAuth && verifiedEmail && (
+              <div className="flex items-center gap-3 rounded-xl border-2 border-success-500/40 bg-success-500/5 px-4 py-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-success-500/10">
+                  <Check className="h-5 w-5 text-success-500" />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium text-neutral-200 break-all">{verifiedEmail}</span>
+                  <span className="text-xs text-success-400">
+                    {oauthProvider === "google" ? "✓ تم التحقق بواسطة Google" : "✓ تم التحقق بواسطة Apple"}
+                  </span>
+                </div>
+              </div>
+            )}
             <Input label="الاسم بالعربية" placeholder="أحمد حسن" value={fullName} onChange={(e): void => { setFullName(e.target.value); }} required />
             <Input label="الاسم بالإنجليزية" placeholder="Ahmed Hassan" value={englishName} onChange={(e): void => { setEnglishName(e.target.value); }} leftIcon={<Globe className="h-5 w-5" />} />
-            <Input label="رقم الهاتف" type="tel" placeholder="+201234567890" value={mobile} onChange={(e): void => { setMobile(e.target.value); }} leftIcon={<Phone className="h-5 w-5" />} required />
-            <Input label="رقم ولي الأمر" type="tel" placeholder="+201234567890" value={parentMobile} onChange={(e): void => { setParentMobile(e.target.value); }} leftIcon={<Phone className="h-5 w-5" />} />
+            <Input
+              label="رقم الهاتف"
+              type="tel"
+              placeholder="01234567890"
+              value={mobile}
+              onChange={(e): void => { setMobile(e.target.value); }}
+              onBlur={(): void => { setMobile(normalizeEgyptMobile(mobile)); }}
+              leftIcon={<Phone className="h-5 w-5" />}
+              required
+            />
+            <Input
+              label="رقم ولي الأمر"
+              type="tel"
+              placeholder="01234567890"
+              value={parentMobile}
+              onChange={(e): void => { setParentMobile(e.target.value); }}
+              onBlur={(): void => { setParentMobile(parentMobile ? normalizeEgyptMobile(parentMobile) : ""); }}
+              leftIcon={<Phone className="h-5 w-5" />}
+            />
             <Input
               label="كلمة المرور"
               type={showPassword ? "text" : "password"}
@@ -293,7 +343,7 @@ export default function RegisterPage(): ReactNode {
               required
             />
             <Input label="تأكيد كلمة المرور" type={showPassword ? "text" : "password"} placeholder="أعد كتابة كلمة المرور" value={confirmPassword} onChange={(e): void => { setConfirmPassword(e.target.value); }} leftIcon={<Lock className="h-5 w-5" />} required />
-            <Input label="المحافظة" placeholder="القاهرة / الجيزة ..." value={governorate} onChange={(e): void => { setGovernorate(e.target.value); }} leftIcon={<MapPin className="h-5 w-5" />} />
+            <GovernorateSelect value={governorate} onChange={setGovernorate} required />
             <Input label="المدرسة" placeholder="اسم المدرسة" value={school} onChange={(e): void => { setSchool(e.target.value); }} leftIcon={<Building2 className="h-5 w-5" />} />
           </div>
         );
@@ -301,7 +351,9 @@ export default function RegisterPage(): ReactNode {
       case 2:
         return (
           <div className="flex flex-col gap-3">
-            {SYSTEMS.map((sys) => (
+            {EDUCATIONAL_SYSTEMS.map((sys) => {
+              const Icon = sys.icon;
+              return (
               <button
                 key={sys.id}
                 type="button"
@@ -312,17 +364,18 @@ export default function RegisterPage(): ReactNode {
                     : "border-neutral-200 text-neutral-700 hover:border-primary-500/50 dark:border-neutral-700 dark:text-neutral-300"
                 }`}
               >
-                <sys.icon className="h-5 w-5 shrink-0" />
+                {Icon && <Icon className="h-5 w-5 shrink-0" />}
                 <span className="text-sm font-bold">{sys.label}</span>
               </button>
-            ))}
+              );
+            })}
           </div>
         );
 
       case 3:
         return (
           <div className="flex flex-col gap-3">
-            {STAGES.map((st) => (
+            {EDUCATIONAL_STAGES.map((st) => (
               <button
                 key={st.id}
                 type="button"
@@ -367,7 +420,7 @@ export default function RegisterPage(): ReactNode {
       case 5:
         return (
           <div className="flex flex-col gap-3">
-            {TERMS.map((term) => (
+            {ACADEMIC_TERMS.map((term) => (
               <button
                 key={term.id}
                 type="button"
