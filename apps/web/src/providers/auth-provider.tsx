@@ -14,9 +14,24 @@ interface AuthContextValue {
     status: string;
   } | null;
   login: (mobile: string, password: string) => Promise<void>;
-  register: (fullName: string, mobile: string, password: string, confirmPassword: string) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
+}
+
+interface RegisterPayload {
+  fullName: string;
+  englishName?: string;
+  mobile: string;
+  parentMobile?: string;
+  password: string;
+  confirmPassword: string;
+  governorate?: string;
+  school?: string;
+  educationalSystem?: string;
+  educationalStage?: string;
+  grade?: string;
+  academicTerm?: string;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -73,20 +88,20 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   );
 
   const register = useCallback(
-    async (
-      fullName: string,
-      mobile: string,
-      password: string,
-      confirmPassword: string,
-    ): Promise<void> => {
-      await api.post("/auth/register", {
-        fullName,
-        mobile,
-        password,
-        confirmPassword,
-      });
+    async (payload: RegisterPayload): Promise<void> => {
+      const response = await api.post<{
+        accessToken: string;
+        refreshToken: string;
+        expiresIn: number;
+      }>("/auth/register", payload);
+
+      if (response.data) {
+        setAuth(response.data.accessToken, response.data.refreshToken);
+        document.cookie = `auth_token=${response.data.accessToken}; path=/; max-age=${String(response.data.expiresIn)}; SameSite=Lax`;
+        await fetchUser();
+      }
     },
-    [],
+    [setAuth, fetchUser],
   );
 
   const logout = useCallback(async (): Promise<void> => {

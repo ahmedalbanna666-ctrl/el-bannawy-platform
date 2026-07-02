@@ -1,4 +1,4 @@
-import { IsString, MinLength, MaxLength, Matches } from "class-validator";
+import { IsString, IsOptional, MinLength, MaxLength, Matches } from "class-validator";
 
 export class RegisterDto {
   @IsString()
@@ -6,11 +6,23 @@ export class RegisterDto {
   @MaxLength(100)
   fullName!: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  englishName?: string;
+
   @IsString()
   @Matches(/^\+?[1-9]\d{6,14}$/, {
     message: "Invalid mobile number format",
   })
   mobile!: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+?[1-9]\d{6,14}$/, {
+    message: "Invalid mobile number format",
+  })
+  parentMobile?: string;
 
   @IsString()
   @MinLength(8)
@@ -23,6 +35,36 @@ export class RegisterDto {
   @IsString()
   @MinLength(8)
   confirmPassword!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  governorate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  school?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  educationalSystem?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  educationalStage?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  grade?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  academicTerm?: string;
 }
 
 export class LoginDto {

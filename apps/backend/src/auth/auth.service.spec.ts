@@ -93,7 +93,7 @@ describe("AuthService", () => {
         id: "new-user-id",
         fullName: "Test User",
         role: "STUDENT",
-        status: "PENDING_VERIFICATION",
+        status: "ACTIVE",
       });
 
       const result = await service.register({
@@ -103,8 +103,9 @@ describe("AuthService", () => {
         confirmPassword: "Password123",
       });
 
-      expect(result).toHaveProperty("userId");
-      expect(result.status).toBe("pending_verification");
+      expect(result).toHaveProperty("accessToken");
+      expect(result).toHaveProperty("refreshToken");
+      expect(result).toHaveProperty("expiresIn");
     });
   });
 

@@ -60,7 +60,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
       { id: "div-1", label: "", icon: ScrollText, divider: true },
       // ── Interactive ───────────────────────────────────────────────
       { id: "ask-ai", label: "اسأل البنا AI", icon: Sparkles, onClick: (): void => { router.push("/dashboard/ai"); } },
-      { id: "live-classes", label: "احجز حصة مباشرة", icon: Users },
+      { id: "live-classes", label: "احجز حصة مباشرة", icon: Users, onClick: (): void => { router.push("/dashboard/live"); } },
       { id: "mistakes", label: "تعلم من أخطائك", icon: RefreshCw },
       { id: "games", label: "الألعاب التعليمية", icon: Gamepad2 },
       // ── divider ───────────────────────────────────────────────────

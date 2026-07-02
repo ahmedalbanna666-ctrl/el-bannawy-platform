@@ -27,7 +27,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<{ userId: string; status: string }> {
+  async register(dto: RegisterDto): Promise<IAuthTokens> {
     if (dto.password !== dto.confirmPassword) {
       throw new ConflictException("Passwords do not match");
     }
@@ -45,17 +45,22 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: {
         fullName: dto.fullName,
+        englishName: dto.englishName ?? null,
         mobileNumber: dto.mobile,
+        parentMobile: dto.parentMobile ?? null,
         passwordHash,
         role: "STUDENT",
-        status: "PENDING_VERIFICATION",
+        status: "ACTIVE",
+        governorate: dto.governorate ?? null,
+        school: dto.school ?? null,
+        educationalSystem: dto.educationalSystem ?? null,
+        educationalStage: dto.educationalStage ?? null,
+        grade: dto.grade ?? null,
+        academicTerm: dto.academicTerm ?? null,
       },
     });
 
-    return {
-      userId: user.id,
-      status: "pending_verification",
-    };
+    return this.generateTokens(user.id, user.role);
   }
 
   async login(
@@ -88,9 +93,9 @@ export class AuthService {
     return this.generateTokens(user.id, user.role);
   }
 
-  async logout(userId: string, token: string): Promise<void> {
+  async logout(userId: string, _token: string): Promise<void> {
     await this.prisma.session.deleteMany({
-      where: { userId, token },
+      where: { userId },
     });
 
     await this.prisma.refreshToken.updateMany({
@@ -279,7 +284,7 @@ export class AuthService {
   }
 
   private async logLoginAttempt(
-    userId: string | null,
+    userId: string,
     ipAddress: string | undefined,
     userAgent: string | undefined,
     success: boolean,
@@ -287,7 +292,7 @@ export class AuthService {
   ): Promise<void> {
     await this.prisma.loginHistory.create({
       data: {
-        userId: userId ?? "",
+        userId,
         ipAddress: ipAddress ?? null,
         userAgent: userAgent ?? null,
         success,

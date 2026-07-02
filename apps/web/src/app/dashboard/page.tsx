@@ -206,20 +206,22 @@ export default function DashboardPage(): ReactNode {
           </Card>
         </div>
 
-        <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10">
-                <Users className="h-6 w-6 text-green-500" />
+        <div onClick={(): void => { router.push("/dashboard/live"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/live"); } }}>
+          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10">
+                  <Users className="h-6 w-6 text-green-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">احجز حصة مباشرة</h3>
+                  <p className="text-sm text-neutral-500">احجز مقعدك في حصة مباشرة قادمة</p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-neutral-400" />
               </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">احجز حصة مباشرة</h3>
-                <p className="text-sm text-neutral-500">احجز مقعدك في حصة مباشرة قادمة</p>
-              </div>
-              <ChevronRight className="h-5 w-5 text-neutral-400" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
           <CardContent>

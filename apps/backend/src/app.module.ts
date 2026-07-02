@@ -12,6 +12,7 @@ import { ReportsModule } from "./reports/reports.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { AiModule } from "./ai/ai.module";
+import { ProfileModule } from "./profile/profile.module";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AiModule } from "./ai/ai.module";
     PaymentsModule,
     NotificationsModule,
     AiModule,
+    ProfileModule,
   ],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
