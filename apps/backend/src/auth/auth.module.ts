@@ -5,6 +5,11 @@ import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { GoogleStrategy } from "./strategies/google.strategy";
+import { BootstrapService } from "../common/services/bootstrap.service";
+
+const googleOAuthConfigured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+
+const oauthProviders = googleOAuthConfigured ? [GoogleStrategy] : [];
 
 @Module({
   imports: [
@@ -15,7 +20,7 @@ import { GoogleStrategy } from "./strategies/google.strategy";
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, GoogleStrategy],
+  providers: [AuthService, JwtStrategy, BootstrapService, ...oauthProviders],
   exports: [AuthService],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class

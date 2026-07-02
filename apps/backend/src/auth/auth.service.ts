@@ -1,6 +1,7 @@
 import { Injectable, ConflictException, UnauthorizedException, NotFoundException, HttpException, HttpStatus } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
+import { BootstrapService } from "../common/services/bootstrap.service";
 import { RegisterDto, LoginDto, RefreshTokenDto, ResetPasswordDto, CompleteOAuthRegistrationDto } from "./dto/auth.dto";
 import * as bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
@@ -26,6 +27,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly bootstrapService: BootstrapService,
   ) {}
 
   async register(dto: RegisterDto): Promise<IAuthTokens> {
@@ -60,6 +62,8 @@ export class AuthService {
         academicTerm: dto.academicTerm ?? null,
       },
     });
+
+    await this.bootstrapService.bootstrapNewStudent(user.id);
 
     return this.generateTokens(user.id, user.role);
   }
@@ -279,6 +283,8 @@ export class AuthService {
       },
     });
 
+    await this.bootstrapService.bootstrapNewStudent(user.id);
+
     const tokens = await this.generateTokens(user.id, user.role);
     return { ...tokens, type: "new" };
   }
@@ -314,6 +320,8 @@ export class AuthService {
         academicTerm: dto.academicTerm ?? null,
       },
     });
+
+    await this.bootstrapService.bootstrapNewStudent(user.id);
 
     return this.generateTokens(user.id, user.role);
   }

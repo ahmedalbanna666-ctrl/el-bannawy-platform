@@ -13,6 +13,7 @@ import { PaymentsModule } from "./payments/payments.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { AiModule } from "./ai/ai.module";
 import { ProfileModule } from "./profile/profile.module";
+import { BootstrapService } from "./common/services/bootstrap.service";
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { ProfileModule } from "./profile/profile.module";
     AiModule,
     ProfileModule,
   ],
+  providers: [BootstrapService],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class AppModule {}
