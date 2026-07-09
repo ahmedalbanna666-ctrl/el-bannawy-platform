@@ -267,6 +267,7 @@ model Grade {
   teacherGrades TeacherGrade[]
   users         User[]
   stories       Story[]
+  finalReviews  FinalReview[]
 
   @@index([stageId])
   @@index([displayOrder])
@@ -283,6 +284,7 @@ model AcademicYear {
   units     Unit[]
   users     User[]
   stories   Story[]
+  finalReviews FinalReview[]
 
   @@map("academic_years")
 }
@@ -299,6 +301,7 @@ model Term {
   units          Unit[]
   users          User[]
   stories        Story[]
+  finalReviews   FinalReview[]
 
   @@index([academicYearId])
   @@map("terms")
@@ -835,6 +838,53 @@ model StoryChapter {
   @@index([displayOrder])
   @@index([storyId, displayOrder])
   @@map("story_chapters")
+}
+
+model FinalReview {
+  id                String              @id @default(uuid()) @db.Uuid
+  title             String
+  description       String?
+  coverImageUrl     String?
+  gradeId           String              @db.Uuid
+  academicYearId    String              @db.Uuid
+  termId            String              @db.Uuid
+  educationalSystem String
+  displayOrder      Int                 @default(0)
+  published         Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+  grade             Grade               @relation(fields: [gradeId], references: [id])
+  academicYear      AcademicYear        @relation(fields: [academicYearId], references: [id])
+  term              Term                @relation(fields: [termId], references: [id])
+  sections          FinalReviewSection[]
+
+  @@index([gradeId])
+  @@index([academicYearId])
+  @@index([termId])
+  @@index([educationalSystem])
+  @@index([displayOrder])
+  @@index([gradeId, academicYearId, termId, educationalSystem])
+  @@map("final_reviews")
+}
+
+model FinalReviewSection {
+  id              String       @id @default(uuid()) @db.Uuid
+  finalReviewId   String       @db.Uuid
+  title           String
+  description     String?
+  questionCount   Int          @default(0)
+  durationMinutes Int          @default(0)
+  displayOrder    Int          @default(0)
+  published       Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  finalReview     FinalReview  @relation(fields: [finalReviewId], references: [id], onDelete: Cascade)
+
+  @@index([finalReviewId])
+  @@index([displayOrder])
+  @@index([finalReviewId, displayOrder])
+  @@map("final_review_sections")
 }
 
 enum UserRole {
