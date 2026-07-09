@@ -21,15 +21,10 @@ interface AcademicYearLookup {
   readonly terms: { readonly id: string; readonly name: string }[];
 }
 
-interface AdminGrade {
+interface StageLookup {
   readonly id: string;
   readonly name: string;
-  readonly stage: { readonly id: string; readonly name: string };
-}
-
-interface GradeApiResponse {
-  readonly gradeIds: string[];
-  readonly grades: AdminGrade[];
+  readonly grades: { readonly id: string; readonly name: string }[];
 }
 
 interface UnitEditData {
@@ -87,6 +82,7 @@ export function UnitFormDialog({
 
   const academicYearFromStore = useAcademicContextStore((s) => s.academicYear);
   const termFromStore = useAcademicContextStore((s) => s.term);
+  const gradeFromStore = useAcademicContextStore((s) => s.grade);
   const ctx = useAcademicContext();
   const educationalSystem = ctx.educationalSystem;
 
@@ -94,6 +90,16 @@ export function UnitFormDialog({
     queryKey: ["admin-academic-years"],
     queryFn: async () => {
       const res = await api.get<AcademicYearLookup[]>("/admin/academic-years");
+      return res.data ?? [];
+    },
+    enabled: open && !isEdit,
+    staleTime: 300_000,
+  });
+
+  const { data: stages, isLoading: stagesLoading } = useQuery({
+    queryKey: ["admin-stages"],
+    queryFn: async () => {
+      const res = await api.get<StageLookup[]>("/admin/stages");
       return res.data ?? [];
     },
     enabled: open && !isEdit,
@@ -116,15 +122,21 @@ export function UnitFormDialog({
   }, [academicYears, academicYearFromStore, termFromStore]);
 
   const resolvedGradeId = useMemo(() => {
-    if (!ctx.grade) return null;
-    return ctx.grade;
-  }, [ctx.grade]);
+    if (!stages || !gradeFromStore) return null;
+    for (const stage of stages) {
+      const grade = stage.grades.find((g) => g.name === gradeFromStore);
+      if (grade) return grade.id;
+    }
+    return null;
+  }, [stages, gradeFromStore]);
 
   const academicContextResolved =
     isEdit ||
     (resolvedAcademicYearId !== null &&
      resolvedTermId !== null &&
      resolvedGradeId !== null);
+
+  const contextLoading = academicYearsLoading || stagesLoading;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -206,10 +218,10 @@ export function UnitFormDialog({
               onChange={(e): void => { update("published", e.target.checked); }}
             />
           )}
-          {!isEdit && academicYearsLoading && (
+          {!isEdit && contextLoading && (
             <p className="text-sm text-neutral-500">جاري تحميل السياق الأكاديمي...</p>
           )}
-          {!isEdit && !academicYearsLoading && !academicContextResolved && (
+          {!isEdit && !contextLoading && !academicContextResolved && (
             <p className="text-sm text-danger-500" role="alert">
               تعذر تحميل السياق الأكاديمي. يرجى التأكد من اختيار السنة الدراسية والترم والصف من الشريط العلوي.
             </p>
@@ -236,7 +248,7 @@ export function UnitFormDialog({
             loading={mutation.isPending}
             disabled={
               !formData.title.trim()
-              || (!isEdit && academicYearsLoading)
+              || (!isEdit && contextLoading)
               || (!isEdit && !academicContextResolved)
               || (isEdit && !unit?.gradeId)
             }
