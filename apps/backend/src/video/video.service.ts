@@ -1,11 +1,25 @@
 import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { AcademicContextService } from "../common/services/academic-context.service";
 
 @Injectable()
 export class VideoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly academicContext: AcademicContextService,
+  ) {}
 
-  async getVideo(videoId: string): Promise<unknown> {
+  private async verifyVideoAccess(userId: string, videoId: string): Promise<void> {
+    const video = await this.prisma.lessonVideo.findUnique({
+      where: { id: videoId },
+      select: { lessonId: true },
+    });
+    if (!video) throw new NotFoundException("Video not found");
+    await this.academicContext.verifyStudentLessonAccess(userId, video.lessonId);
+  }
+
+  async getVideo(videoId: string, userId: string): Promise<unknown> {
+    await this.verifyVideoAccess(userId, videoId);
     const video = await this.prisma.lessonVideo.findUnique({
       where: { id: videoId },
       include: {
@@ -24,6 +38,7 @@ export class VideoService {
   }
 
   async getVideoProgress(videoId: string, userId: string): Promise<unknown> {
+    await this.verifyVideoAccess(userId, videoId);
     const video = await this.prisma.lessonVideo.findUnique({ where: { id: videoId } });
     if (!video) throw new NotFoundException("Video not found");
 
@@ -35,6 +50,7 @@ export class VideoService {
   }
 
   async updateProgress(videoId: string, userId: string, currentPosition: number, watchedSeconds?: number): Promise<unknown> {
+    await this.verifyVideoAccess(userId, videoId);
     const video = await this.prisma.lessonVideo.findUnique({ where: { id: videoId } });
     if (!video) throw new NotFoundException("Video not found");
 
@@ -54,6 +70,7 @@ export class VideoService {
   }
 
   async completeVideo(videoId: string, userId: string): Promise<unknown> {
+    await this.verifyVideoAccess(userId, videoId);
     const video = await this.prisma.lessonVideo.findUnique({ where: { id: videoId } });
     if (!video) throw new NotFoundException("Video not found");
 
@@ -102,6 +119,7 @@ export class VideoService {
   }
 
   async getResumeData(videoId: string, userId: string): Promise<unknown> {
+    await this.verifyVideoAccess(userId, videoId);
     const video = await this.prisma.lessonVideo.findUnique({ where: { id: videoId } });
     if (!video) throw new NotFoundException("Video not found");
 
@@ -138,7 +156,8 @@ export class VideoService {
     };
   }
 
-  async getTimelineEvents(videoId: string): Promise<unknown[]> {
+  async getTimelineEvents(videoId: string, userId: string): Promise<unknown[]> {
+    await this.verifyVideoAccess(userId, videoId);
     const video = await this.prisma.lessonVideo.findUnique({ where: { id: videoId } });
     if (!video) throw new NotFoundException("Video not found");
 
@@ -148,9 +167,10 @@ export class VideoService {
     });
   }
 
-  async completeTimelineEvent(eventId: string, _userId: string): Promise<unknown> {
+  async completeTimelineEvent(eventId: string, userId: string): Promise<unknown> {
     const event = await this.prisma.timelineEvent.findUnique({ where: { id: eventId } });
     if (!event) throw new NotFoundException("Timeline event not found");
+    await this.verifyVideoAccess(userId, event.videoId);
 
     return { completed: true, eventId, resumeVideo: true };
   }

@@ -1,11 +1,25 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { AcademicContextService } from "../common/services/academic-context.service";
 
 @Injectable()
 export class ActivityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly academicContext: AcademicContextService,
+  ) {}
 
-  async getActivity(activityId: string): Promise<unknown> {
+  private async verifyActivityAccess(userId: string, activityId: string): Promise<void> {
+    const activity = await this.prisma.activity.findUnique({
+      where: { id: activityId },
+      select: { video: { select: { lessonId: true } } },
+    });
+    if (!activity) throw new NotFoundException("Activity not found");
+    await this.academicContext.verifyStudentLessonAccess(userId, activity.video.lessonId);
+  }
+
+  async getActivity(activityId: string, userId: string): Promise<unknown> {
+    await this.verifyActivityAccess(userId, activityId);
     const activity = await this.prisma.activity.findUnique({
       where: { id: activityId },
       include: {
@@ -26,6 +40,7 @@ export class ActivityService {
   }
 
   async startActivity(activityId: string, userId: string): Promise<unknown> {
+    await this.verifyActivityAccess(userId, activityId);
     const activity = await this.prisma.activity.findUnique({ where: { id: activityId } });
     if (!activity) throw new NotFoundException("Activity not found");
 
@@ -43,6 +58,7 @@ export class ActivityService {
     answers?: string[],
     clientScore?: number,
   ): Promise<unknown> {
+    await this.verifyActivityAccess(userId, activityId);
     const activity = await this.prisma.activity.findUnique({
       where: { id: activityId },
       include: { questions: { orderBy: { displayOrder: "asc" } } },
@@ -115,6 +131,7 @@ export class ActivityService {
   }
 
   async getActivityProgress(activityId: string, userId: string): Promise<unknown> {
+    await this.verifyActivityAccess(userId, activityId);
     const activity = await this.prisma.activity.findUnique({ where: { id: activityId } });
     if (!activity) throw new NotFoundException("Activity not found");
 

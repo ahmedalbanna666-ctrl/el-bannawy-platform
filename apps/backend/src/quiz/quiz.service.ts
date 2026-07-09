@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { AcademicContextService } from "../common/services/academic-context.service";
 import type { CreateQuizDto } from "./dto/create-quiz.dto";
 import type { UpdateQuizDto } from "./dto/update-quiz.dto";
 import type { SaveQuizAnswerDto } from "./dto/save-quiz.dto";
@@ -20,9 +21,13 @@ interface QuizSummary {
 
 @Injectable()
 export class QuizService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly academicContext: AcademicContextService,
+  ) {}
 
-  async getQuiz(lessonId: string): Promise<QuizSummary | null> {
+  async getQuiz(lessonId: string, userId?: string): Promise<QuizSummary | null> {
+    if (userId) await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException("Lesson not found");
     if (!lesson.quizEnabled) return null;
@@ -48,8 +53,9 @@ export class QuizService {
     return quiz;
   }
 
-  async getQuestions(lessonId: string): Promise<unknown> {
-    const quiz = await this.getQuiz(lessonId);
+  async getQuestions(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    const quiz = await this.getQuiz(lessonId, userId);
     if (!quiz) throw new NotFoundException("Quiz not found");
 
     const questions = await this.prisma.quizQuestion.findMany({
@@ -68,7 +74,8 @@ export class QuizService {
   }
 
   async startAttempt(lessonId: string, userId: string): Promise<unknown> {
-    const quiz = await this.getQuiz(lessonId);
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    const quiz = await this.getQuiz(lessonId, userId);
     if (!quiz) throw new NotFoundException("Quiz not found");
 
     // Validate prerequisites: videos completed and homework submitted (if enabled)
@@ -105,6 +112,7 @@ export class QuizService {
     answers: string[],
     _response?: string,
   ): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const quiz = await this.prisma.quiz.findFirst({
       where: { lessonId, deletedAt: null },
       include: {
@@ -208,6 +216,7 @@ export class QuizService {
   }
 
   async getResult(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const quiz = await this.prisma.quiz.findFirst({
       where: { lessonId, deletedAt: null },
     });
@@ -232,6 +241,7 @@ export class QuizService {
   }
 
   async getHistory(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const quiz = await this.prisma.quiz.findFirst({
       where: { lessonId, deletedAt: null },
     });
@@ -254,6 +264,7 @@ export class QuizService {
   }
 
   async reviewAnswers(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const quiz = await this.prisma.quiz.findFirst({
       where: { lessonId, deletedAt: null },
       include: {
@@ -312,6 +323,7 @@ export class QuizService {
   }
 
   async getUnlockStatus(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const lesson = await this.prisma.lesson.findUnique({
       where: { id: lessonId },
       select: { id: true, unitId: true, displayOrder: true },
@@ -348,7 +360,8 @@ export class QuizService {
 
   // --- Teacher / Admin Management ---
 
-  async createQuiz(dto: CreateQuizDto): Promise<unknown> {
+  async createQuiz(dto: CreateQuizDto, userId: string): Promise<unknown> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, dto.lessonId);
     const lesson = await this.prisma.lesson.findUnique({ where: { id: dto.lessonId } });
     if (!lesson) throw new NotFoundException("Lesson not found");
 
@@ -395,9 +408,10 @@ export class QuizService {
     return quiz;
   }
 
-  async updateQuiz(quizId: string, dto: UpdateQuizDto): Promise<unknown> {
+  async updateQuiz(quizId: string, dto: UpdateQuizDto, userId: string): Promise<unknown> {
     const quiz = await this.prisma.quiz.findFirst({ where: { id: quizId, deletedAt: null } });
     if (!quiz) throw new NotFoundException("Quiz not found");
+    await this.academicContext.verifyTeacherLessonAccess(userId, quiz.lessonId);
 
     if (dto.questions) {
       await this.prisma.quizAnswer.deleteMany({ where: { question: { quizId } } });
@@ -441,9 +455,10 @@ export class QuizService {
     return updated;
   }
 
-  async deleteQuiz(quizId: string): Promise<unknown> {
+  async deleteQuiz(quizId: string, userId: string): Promise<unknown> {
     const quiz = await this.prisma.quiz.findFirst({ where: { id: quizId, deletedAt: null } });
     if (!quiz) throw new NotFoundException("Quiz not found");
+    await this.academicContext.verifyTeacherLessonAccess(userId, quiz.lessonId);
 
     await this.prisma.quiz.update({
       where: { id: quizId },
@@ -461,6 +476,7 @@ export class QuizService {
   // --- Save Progress ---
 
   async saveProgress(lessonId: string, userId: string, answers: SaveQuizAnswerDto[]): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const quiz = await this.prisma.quiz.findFirst({
       where: { lessonId, deletedAt: null },
     });
@@ -498,7 +514,8 @@ export class QuizService {
 
   // --- Analytics ---
 
-  async getAnalytics(lessonId: string): Promise<unknown> {
+  async getAnalytics(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
     const quiz = await this.prisma.quiz.findFirst({
       where: { lessonId, deletedAt: null },
     });

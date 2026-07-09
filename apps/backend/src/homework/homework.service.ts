@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { AcademicContextService } from "../common/services/academic-context.service";
 import type { CreateHomeworkDto } from "./dto/create-homework.dto";
 import type { UpdateHomeworkDto } from "./dto/update-homework.dto";
 import type { SaveAnswerDto } from "./dto/save-homework.dto";
@@ -20,9 +21,13 @@ interface HomeworkSummary {
 
 @Injectable()
 export class HomeworkService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly academicContext: AcademicContextService,
+  ) {}
 
-  async getHomework(lessonId: string): Promise<HomeworkSummary | null> {
+  async getHomework(lessonId: string, userId: string): Promise<HomeworkSummary | null> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException("Lesson not found");
     if (!lesson.homeworkEnabled) return null;
@@ -48,8 +53,9 @@ export class HomeworkService {
     return homework;
   }
 
-  async getQuestions(lessonId: string): Promise<unknown> {
-    const homework = await this.getHomework(lessonId);
+  async getQuestions(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    const homework = await this.getHomework(lessonId, userId);
     if (!homework) throw new NotFoundException("Homework not found");
 
     const questions = await this.prisma.homeworkQuestion.findMany({
@@ -68,7 +74,8 @@ export class HomeworkService {
   }
 
   async startAttempt(lessonId: string, userId: string): Promise<unknown> {
-    const homework = await this.getHomework(lessonId);
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    const homework = await this.getHomework(lessonId, userId);
     if (!homework) throw new NotFoundException("Homework not found");
 
     const totalAttempts = await this.prisma.studentHomeworkAttempt.count({
@@ -102,6 +109,7 @@ export class HomeworkService {
     answers: string[],
     _response?: string,
   ): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const homework = await this.prisma.homework.findFirst({
       where: { lessonId, deletedAt: null },
       include: {
@@ -185,6 +193,7 @@ export class HomeworkService {
   }
 
   async getResult(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const homework = await this.prisma.homework.findFirst({
       where: { lessonId, deletedAt: null },
     });
@@ -209,6 +218,7 @@ export class HomeworkService {
   }
 
   async getHistory(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const homework = await this.prisma.homework.findFirst({
       where: { lessonId, deletedAt: null },
     });
@@ -231,6 +241,7 @@ export class HomeworkService {
   }
 
   async reviewAnswers(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const homework = await this.prisma.homework.findFirst({
       where: { lessonId, deletedAt: null },
       include: {
@@ -293,6 +304,7 @@ export class HomeworkService {
   }
 
   async getStatus(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const homework = await this.prisma.homework.findFirst({
       where: { lessonId, deletedAt: null },
       select: {
@@ -357,8 +369,8 @@ export class HomeworkService {
 
   // --- Teacher / Admin Management ---
 
-  async createHomework(dto: CreateHomeworkDto): Promise<unknown> {
-    // Verify lesson exists
+  async createHomework(dto: CreateHomeworkDto, userId: string): Promise<unknown> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, dto.lessonId);
     const lesson = await this.prisma.lesson.findUnique({ where: { id: dto.lessonId } });
     if (!lesson) throw new NotFoundException("Lesson not found");
 
@@ -407,9 +419,10 @@ export class HomeworkService {
     return homework;
   }
 
-  async updateHomework(homeworkId: string, dto: UpdateHomeworkDto): Promise<unknown> {
+  async updateHomework(homeworkId: string, dto: UpdateHomeworkDto, userId: string): Promise<unknown> {
     const homework = await this.prisma.homework.findFirst({ where: { id: homeworkId, deletedAt: null } });
     if (!homework) throw new NotFoundException("Homework not found");
+    await this.academicContext.verifyTeacherLessonAccess(userId, homework.lessonId);
 
     if (dto.questions) {
       await this.prisma.homeworkQuestion.deleteMany({ where: { homeworkId } });
@@ -452,9 +465,10 @@ export class HomeworkService {
     return updated;
   }
 
-  async deleteHomework(homeworkId: string): Promise<unknown> {
+  async deleteHomework(homeworkId: string, userId: string): Promise<unknown> {
     const homework = await this.prisma.homework.findFirst({ where: { id: homeworkId, deletedAt: null } });
     if (!homework) throw new NotFoundException("Homework not found");
+    await this.academicContext.verifyTeacherLessonAccess(userId, homework.lessonId);
 
     // Soft delete
     await this.prisma.homework.update({
@@ -474,6 +488,7 @@ export class HomeworkService {
   // --- Save Progress ---
 
   async saveProgress(lessonId: string, userId: string, answers: SaveAnswerDto[]): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const homework = await this.prisma.homework.findFirst({
       where: { lessonId, deletedAt: null },
     });
@@ -512,7 +527,8 @@ export class HomeworkService {
 
   // --- Analytics ---
 
-  async getAnalytics(lessonId: string): Promise<unknown> {
+  async getAnalytics(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
     const homework = await this.prisma.homework.findFirst({
       where: { lessonId, deletedAt: null },
     });

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Delete, Param, ParseUUIDPipe, Body, UseGuards } from "@nestjs/common";
 import { AiService } from "./ai.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
@@ -31,7 +31,7 @@ export class AiController {
   @Get("conversations/:conversationId")
   @UseGuards(JwtAuthGuard)
   async getConversation(
-    @Param("conversationId") conversationId: string,
+    @Param("conversationId", ParseUUIDPipe) conversationId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.aiService.getConversation(conversationId, userId);
@@ -41,7 +41,7 @@ export class AiController {
   @Delete("conversations/:conversationId")
   @UseGuards(JwtAuthGuard)
   async deleteConversation(
-    @Param("conversationId") conversationId: string,
+    @Param("conversationId", ParseUUIDPipe) conversationId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.aiService.deleteConversation(conversationId, userId);

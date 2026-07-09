@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, ParseUUIDPipe, UseGuards } from "@nestjs/common";
 import { ReportsService } from "./reports.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -22,7 +22,7 @@ export class ReportsController {
   @Get("student/:studentId")
   @UseGuards(JwtAuthGuard)
   async getStudentReport(
-    @Param("studentId") studentId: string,
+    @Param("studentId", ParseUUIDPipe) studentId: string,
     @CurrentUser() _userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.reportsService.getStudentReport(studentId);

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, UseGuards } from "@nestjs/common";
 import { HomeworkService } from "./homework.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -21,8 +21,9 @@ export class HomeworkController {
   @Roles("TEACHER", "ADMINISTRATOR")
   async createHomework(
     @Body() dto: CreateHomeworkDto,
+    @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.homeworkService.createHomework(dto);
+    const data = await this.homeworkService.createHomework(dto, userId);
     return successResponse(data, "Homework created successfully");
   }
 
@@ -30,18 +31,22 @@ export class HomeworkController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
   async updateHomework(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateHomeworkDto,
+    @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.homeworkService.updateHomework(id, dto);
+    const data = await this.homeworkService.updateHomework(id, dto, userId);
     return successResponse(data, "Homework updated successfully");
   }
 
   @Delete(":id")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
-  async deleteHomework(@Param("id") id: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.homeworkService.deleteHomework(id);
+  async deleteHomework(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.homeworkService.deleteHomework(id, userId);
     return successResponse(data, "Homework deleted successfully");
   }
 
@@ -51,9 +56,10 @@ export class HomeworkController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
   async getAnalytics(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.homeworkService.getAnalytics(lessonId);
+    const data = await this.homeworkService.getAnalytics(lessonId, userId);
     return successResponse(data, "Analytics retrieved successfully");
   }
 
@@ -61,22 +67,28 @@ export class HomeworkController {
 
   @Get(":lessonId")
   @UseGuards(JwtAuthGuard)
-  async getHomework(@Param("lessonId") lessonId: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.homeworkService.getHomework(lessonId);
+  async getHomework(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.homeworkService.getHomework(lessonId, userId);
     return successResponse(data, "Homework retrieved successfully");
   }
 
   @Get(":lessonId/questions")
   @UseGuards(JwtAuthGuard)
-  async getQuestions(@Param("lessonId") lessonId: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.homeworkService.getQuestions(lessonId);
+  async getQuestions(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.homeworkService.getQuestions(lessonId, userId);
     return successResponse(data, "Questions retrieved successfully");
   }
 
   @Get(":lessonId/status")
   @UseGuards(JwtAuthGuard)
   async getStatus(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.homeworkService.getStatus(lessonId, userId);
@@ -86,7 +98,7 @@ export class HomeworkController {
   @Patch(":lessonId/save")
   @UseGuards(JwtAuthGuard)
   async saveProgress(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
     @Body() dto: SaveHomeworkDto,
   ): Promise<ISuccessResponse<unknown>> {
@@ -97,7 +109,7 @@ export class HomeworkController {
   @Post(":lessonId/start")
   @UseGuards(JwtAuthGuard)
   async startAttempt(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.homeworkService.startAttempt(lessonId, userId);
@@ -107,7 +119,7 @@ export class HomeworkController {
   @Post(":lessonId/submit")
   @UseGuards(JwtAuthGuard)
   async submitHomework(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
     @Body() dto: SubmitHomeworkDto,
   ): Promise<ISuccessResponse<unknown>> {
@@ -118,7 +130,7 @@ export class HomeworkController {
   @Get(":lessonId/result")
   @UseGuards(JwtAuthGuard)
   async getResult(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.homeworkService.getResult(lessonId, userId);
@@ -128,7 +140,7 @@ export class HomeworkController {
   @Get(":lessonId/history")
   @UseGuards(JwtAuthGuard)
   async getHistory(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.homeworkService.getHistory(lessonId, userId);
@@ -138,7 +150,7 @@ export class HomeworkController {
   @Get(":lessonId/review")
   @UseGuards(JwtAuthGuard)
   async reviewAnswers(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.homeworkService.reviewAnswers(lessonId, userId);

@@ -13,6 +13,10 @@ import { PaymentsModule } from "./payments/payments.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { AiModule } from "./ai/ai.module";
 import { ProfileModule } from "./profile/profile.module";
+import { AcademicTermModule } from "./academic-term/academic-term.module";
+import { CommonModule } from "./common/common.module";
+import { StudentsModule } from "./students/students.module";
+import { TeachersModule } from "./teachers/teachers.module";
 import { BootstrapService } from "./common/services/bootstrap.service";
 
 @Module({
@@ -31,6 +35,10 @@ import { BootstrapService } from "./common/services/bootstrap.service";
     NotificationsModule,
     AiModule,
     ProfileModule,
+    CommonModule,
+    AcademicTermModule,
+    StudentsModule,
+    TeachersModule,
   ],
   providers: [BootstrapService],
 })

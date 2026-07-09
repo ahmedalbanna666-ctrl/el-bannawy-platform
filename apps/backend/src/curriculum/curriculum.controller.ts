@@ -1,9 +1,17 @@
-import { Controller, Get, Param, Patch, UseGuards, Body } from "@nestjs/common";
+import { Controller, Get, Param, ParseUUIDPipe, Patch, Post, Delete, UseGuards, Body, Query } from "@nestjs/common";
 import { CurriculumService } from "./curriculum.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
+import { RolesGuard } from "../common/guards/roles.guard";
+import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
 import { IsInt, Min } from "class-validator";
+import {
+  CreateUnitDto,
+  UpdateUnitDto,
+  CreateLessonDto,
+  UpdateLessonDto,
+} from "./dto/curriculum.dto";
 
 class UpdateProgressDto {
   @IsInt()
@@ -17,8 +25,8 @@ export class CurriculumController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  async getCurriculum(): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.curriculumService.getCurriculum();
+  async getCurriculum(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown[]>> {
+    const data = await this.curriculumService.getCurriculum(userId);
     return successResponse(data, "Curriculum retrieved successfully");
   }
 
@@ -39,7 +47,7 @@ export class CurriculumController {
   @Get("progress/:lessonId")
   @UseGuards(JwtAuthGuard)
   async getLessonProgress(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.curriculumService.getLessonProgress(lessonId, userId);
@@ -49,11 +57,108 @@ export class CurriculumController {
   @Patch("progress/:lessonId")
   @UseGuards(JwtAuthGuard)
   async updateLessonProgress(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
     @Body() dto: UpdateProgressDto,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.curriculumService.updateLessonProgress(lessonId, userId, dto.progress);
     return successResponse(data, "Lesson progress updated successfully");
+  }
+
+  // ── Unit Management ─────────────────────────────────────────────
+
+  @Get("units")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async getUnitsForManagement(
+    @CurrentUser() userId: string,
+    @Query("academicYearId") academicYearId?: string,
+    @Query("termId") termId?: string,
+    @Query("gradeId") gradeId?: string,
+    @Query("educationalSystem") educationalSystem?: string,
+  ): Promise<ISuccessResponse<unknown[]>> {
+    const data = await this.curriculumService.getUnitsForManagement(userId, academicYearId, termId, gradeId, educationalSystem);
+    return successResponse(data, "Units retrieved successfully");
+  }
+
+  @Get("units/:id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async getUnitForManagement(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.curriculumService.getUnitForManagement(id, userId);
+    return successResponse(data, "Unit retrieved successfully");
+  }
+
+  @Post("units")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async createUnit(
+    @Body() dto: CreateUnitDto,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.curriculumService.createUnit(dto, userId);
+    return successResponse(data, "Unit created successfully");
+  }
+
+  @Patch("units/:id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async updateUnit(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUnitDto,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.curriculumService.updateUnit(id, dto, userId);
+    return successResponse(data, "Unit updated successfully");
+  }
+
+  @Delete("units/:id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async deleteUnit(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.curriculumService.deleteUnit(id, userId);
+    return successResponse(data, "Unit deleted successfully");
+  }
+
+  // ── Lesson Management ───────────────────────────────────────────
+
+  @Post("lessons")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async createLesson(
+    @Body() dto: CreateLessonDto,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.curriculumService.createLesson(dto, userId);
+    return successResponse(data, "Lesson created successfully");
+  }
+
+  @Patch("lessons/:id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async updateLesson(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: UpdateLessonDto,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.curriculumService.updateLesson(id, dto, userId);
+    return successResponse(data, "Lesson updated successfully");
+  }
+
+  @Delete("lessons/:id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async deleteLesson(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.curriculumService.deleteLesson(id, userId);
+    return successResponse(data, "Lesson deleted successfully");
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, UseGuards } from "@nestjs/common";
 import { QuizService } from "./quiz.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -19,8 +19,11 @@ export class QuizController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
-  async createQuiz(@Body() dto: CreateQuizDto): Promise<ISuccessResponse<unknown>> {
-    const data = await this.quizService.createQuiz(dto);
+  async createQuiz(
+    @Body() dto: CreateQuizDto,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.quizService.createQuiz(dto, userId);
     return successResponse(data, "Quiz created successfully");
   }
 
@@ -28,18 +31,22 @@ export class QuizController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
   async updateQuiz(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateQuizDto,
+    @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.quizService.updateQuiz(id, dto);
+    const data = await this.quizService.updateQuiz(id, dto, userId);
     return successResponse(data, "Quiz updated successfully");
   }
 
   @Delete(":id")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
-  async deleteQuiz(@Param("id") id: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.quizService.deleteQuiz(id);
+  async deleteQuiz(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.quizService.deleteQuiz(id, userId);
     return successResponse(data, "Quiz deleted successfully");
   }
 
@@ -48,8 +55,11 @@ export class QuizController {
   @Get(":lessonId/analytics")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
-  async getAnalytics(@Param("lessonId") lessonId: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.quizService.getAnalytics(lessonId);
+  async getAnalytics(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.quizService.getAnalytics(lessonId, userId);
     return successResponse(data, "Analytics retrieved successfully");
   }
 
@@ -57,22 +67,28 @@ export class QuizController {
 
   @Get(":lessonId")
   @UseGuards(JwtAuthGuard)
-  async getQuiz(@Param("lessonId") lessonId: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.quizService.getQuiz(lessonId);
+  async getQuiz(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.quizService.getQuiz(lessonId, userId);
     return successResponse(data, "Quiz retrieved successfully");
   }
 
   @Get(":lessonId/questions")
   @UseGuards(JwtAuthGuard)
-  async getQuestions(@Param("lessonId") lessonId: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.quizService.getQuestions(lessonId);
+  async getQuestions(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.quizService.getQuestions(lessonId, userId);
     return successResponse(data, "Questions retrieved successfully");
   }
 
   @Get(":lessonId/unlock-status")
   @UseGuards(JwtAuthGuard)
   async getUnlockStatus(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.quizService.getUnlockStatus(lessonId, userId);
@@ -82,7 +98,7 @@ export class QuizController {
   @Patch(":lessonId/save")
   @UseGuards(JwtAuthGuard)
   async saveProgress(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
     @Body() dto: SaveQuizDto,
   ): Promise<ISuccessResponse<unknown>> {
@@ -93,7 +109,7 @@ export class QuizController {
   @Post(":lessonId/start")
   @UseGuards(JwtAuthGuard)
   async startAttempt(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.quizService.startAttempt(lessonId, userId);
@@ -103,7 +119,7 @@ export class QuizController {
   @Post(":lessonId/submit")
   @UseGuards(JwtAuthGuard)
   async submitQuiz(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
     @Body() dto: SubmitQuizDto,
   ): Promise<ISuccessResponse<unknown>> {
@@ -114,7 +130,7 @@ export class QuizController {
   @Get(":lessonId/result")
   @UseGuards(JwtAuthGuard)
   async getResult(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.quizService.getResult(lessonId, userId);
@@ -124,7 +140,7 @@ export class QuizController {
   @Get(":lessonId/history")
   @UseGuards(JwtAuthGuard)
   async getHistory(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.quizService.getHistory(lessonId, userId);
@@ -134,7 +150,7 @@ export class QuizController {
   @Get(":lessonId/review")
   @UseGuards(JwtAuthGuard)
   async reviewAnswers(
-    @Param("lessonId") lessonId: string,
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.quizService.reviewAnswers(lessonId, userId);

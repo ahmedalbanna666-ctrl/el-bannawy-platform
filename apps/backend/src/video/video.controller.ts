@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Post, UseGuards, Body } from "@nestjs/common";
+import { Controller, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, Body } from "@nestjs/common";
 import { VideoService } from "./video.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
@@ -11,14 +11,17 @@ export class VideoController {
 
   @Get(":id")
   @UseGuards(JwtAuthGuard)
-  async getVideo(@Param("id") id: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.videoService.getVideo(id);
+  async getVideo(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.videoService.getVideo(id, userId);
     return successResponse(data, "Video retrieved successfully");
   }
 
   @Get(":id/progress")
   @UseGuards(JwtAuthGuard)
-  async getVideoProgress(@Param("id") id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
+  async getVideoProgress(@Param("id", ParseUUIDPipe) id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.videoService.getVideoProgress(id, userId);
     return successResponse(data, "Video progress retrieved successfully");
   }
@@ -26,7 +29,7 @@ export class VideoController {
   @Patch(":id/progress")
   @UseGuards(JwtAuthGuard)
   async updateProgress(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() userId: string,
     @Body() dto: UpdateVideoProgressDto,
   ): Promise<ISuccessResponse<unknown>> {
@@ -36,29 +39,32 @@ export class VideoController {
 
   @Post(":id/complete")
   @UseGuards(JwtAuthGuard)
-  async completeVideo(@Param("id") id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
+  async completeVideo(@Param("id", ParseUUIDPipe) id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.videoService.completeVideo(id, userId);
     return successResponse(data, "Video completed successfully");
   }
 
   @Get(":id/resume")
   @UseGuards(JwtAuthGuard)
-  async getResumeData(@Param("id") id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
+  async getResumeData(@Param("id", ParseUUIDPipe) id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.videoService.getResumeData(id, userId);
     return successResponse(data, "Resume data retrieved successfully");
   }
 
   @Get(":id/timeline-events")
   @UseGuards(JwtAuthGuard)
-  async getTimelineEvents(@Param("id") id: string): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.videoService.getTimelineEvents(id);
+  async getTimelineEvents(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown[]>> {
+    const data = await this.videoService.getTimelineEvents(id, userId);
     return successResponse(data, "Timeline events retrieved successfully");
   }
 
   @Post("timeline-events/:eventId/complete")
   @UseGuards(JwtAuthGuard)
   async completeTimelineEvent(
-    @Param("eventId") eventId: string,
+    @Param("eventId", ParseUUIDPipe) eventId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.videoService.completeTimelineEvent(eventId, userId);

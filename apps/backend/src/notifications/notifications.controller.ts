@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, Query, UseGuards } from "@nestjs/common";
 import { NotificationsService } from "./notifications.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -77,7 +77,7 @@ export class NotificationsController {
 
   @Get(":notificationId")
   @UseGuards(JwtAuthGuard)
-  async getNotification(@Param("notificationId") notificationId: string): Promise<ISuccessResponse<unknown>> {
+  async getNotification(@Param("notificationId", ParseUUIDPipe) notificationId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.notificationsService.getNotification(notificationId);
     return successResponse(data, "Notification retrieved");
   }
@@ -85,7 +85,7 @@ export class NotificationsController {
   @Patch(":notificationId/read")
   @UseGuards(JwtAuthGuard)
   async markRead(
-    @Param("notificationId") notificationId: string,
+    @Param("notificationId", ParseUUIDPipe) notificationId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.notificationsService.markRead(notificationId, userId);
@@ -95,7 +95,7 @@ export class NotificationsController {
   @Delete(":notificationId")
   @UseGuards(JwtAuthGuard)
   async deleteNotification(
-    @Param("notificationId") notificationId: string,
+    @Param("notificationId", ParseUUIDPipe) notificationId: string,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.notificationsService.deleteNotification(notificationId, userId);

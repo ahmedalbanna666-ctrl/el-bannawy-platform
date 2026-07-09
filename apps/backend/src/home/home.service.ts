@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { AcademicContextService } from "../common/services/academic-context.service";
 
 @Injectable()
 export class HomeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly academicContext: AcademicContextService,
+  ) {}
 
   async getDashboard(userId: string): Promise<{
     user: {
@@ -53,8 +57,37 @@ export class HomeService {
       throw new NotFoundException("User not found");
     }
 
+    const ctx = await this.academicContext.getStudentContext(userId);
+    const academicFilter = ctx?.gradeId && ctx.academicYearId && ctx.termId
+      ? {
+          lesson: {
+            unit: {
+              gradeId: ctx.gradeId,
+              academicYearId: ctx.academicYearId,
+              termId: ctx.termId,
+              ...(ctx.educationalSystem ? { educationalSystem: ctx.educationalSystem } : {}),
+            },
+          },
+        }
+      : {};
+
+    const quizAcademicFilter = ctx?.gradeId && ctx.academicYearId && ctx.termId
+      ? {
+          quiz: {
+            lesson: {
+              unit: {
+                gradeId: ctx.gradeId,
+                academicYearId: ctx.academicYearId,
+                termId: ctx.termId,
+                ...(ctx.educationalSystem ? { educationalSystem: ctx.educationalSystem } : {}),
+              },
+            },
+          },
+        }
+      : {};
+
     const currentProgress = await this.prisma.lessonProgress.findFirst({
-      where: { userId, completed: false },
+      where: { userId, completed: false, ...academicFilter },
       orderBy: { startedAt: "desc" },
       include: { lesson: { include: { unit: true } } },
     });
@@ -76,11 +109,14 @@ export class HomeService {
       this.prisma.coinWallet.findUnique({ where: { userId } }),
       this.prisma.userAchievement.count({ where: { userId } }),
       this.prisma.loginHistory.findMany({ where: { userId, success: true }, orderBy: { createdAt: "desc" }, take: 5 }),
-      this.prisma.lessonProgress.count({ where: { userId } }),
-      this.prisma.lessonProgress.count({ where: { userId, completed: true } }),
-      this.prisma.lessonProgress.findMany({ where: { userId, completed: false }, select: { lessonId: true } }),
-      this.prisma.quizAttempt.count({ where: { userId, submitted: true } }),
-      this.prisma.quizAttempt.count({ where: { userId, submitted: true, passed: true } }),
+      this.prisma.lessonProgress.count({ where: { userId, ...academicFilter } }),
+      this.prisma.lessonProgress.count({ where: { userId, completed: true, ...academicFilter } }),
+      this.prisma.lessonProgress.findMany({
+        where: { userId, completed: false, ...academicFilter },
+        select: { lessonId: true },
+      }),
+      this.prisma.quizAttempt.count({ where: { userId, submitted: true, ...quizAcademicFilter } }),
+      this.prisma.quizAttempt.count({ where: { userId, submitted: true, passed: true, ...quizAcademicFilter } }),
       this.prisma.attendanceRecord.count({ where: { userId } }),
       this.prisma.attendanceRecord.count({ where: { userId, present: true } }),
     ]);

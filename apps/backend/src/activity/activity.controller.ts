@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, UseGuards, Body } from "@nestjs/common";
+import { Controller, Get, Param, ParseUUIDPipe, Post, UseGuards, Body } from "@nestjs/common";
 import { ActivityService } from "./activity.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
@@ -11,14 +11,17 @@ export class ActivityController {
 
   @Get(":id")
   @UseGuards(JwtAuthGuard)
-  async getActivity(@Param("id") id: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.activityService.getActivity(id);
+  async getActivity(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.activityService.getActivity(id, userId);
     return successResponse(data, "Activity retrieved successfully");
   }
 
   @Post(":id/start")
   @UseGuards(JwtAuthGuard)
-  async startActivity(@Param("id") id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
+  async startActivity(@Param("id", ParseUUIDPipe) id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.activityService.startActivity(id, userId);
     return successResponse(data, "Activity started successfully");
   }
@@ -26,7 +29,7 @@ export class ActivityController {
   @Post(":id/submit")
   @UseGuards(JwtAuthGuard)
   async submitActivity(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() userId: string,
     @Body() dto: SubmitActivityDto,
   ): Promise<ISuccessResponse<unknown>> {
@@ -36,7 +39,7 @@ export class ActivityController {
 
   @Get(":id/progress")
   @UseGuards(JwtAuthGuard)
-  async getActivityProgress(@Param("id") id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
+  async getActivityProgress(@Param("id", ParseUUIDPipe) id: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.activityService.getActivityProgress(id, userId);
     return successResponse(data, "Activity progress retrieved successfully");
   }

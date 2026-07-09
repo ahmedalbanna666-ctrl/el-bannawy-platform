@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, UseGuards } from "@nestjs/common";
 import { PaymentsService } from "./payments.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -49,7 +49,7 @@ export class PaymentsController {
 
   @Get(":paymentId")
   @UseGuards(JwtAuthGuard)
-  async getPayment(@Param("paymentId") paymentId: string): Promise<ISuccessResponse<unknown>> {
+  async getPayment(@Param("paymentId", ParseUUIDPipe) paymentId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.paymentsService.getPayment(paymentId);
     return successResponse(data, "Payment details retrieved");
   }
@@ -65,7 +65,7 @@ export class PaymentsController {
 
   @Get("invoices/:invoiceId")
   @UseGuards(JwtAuthGuard)
-  async getInvoice(@Param("invoiceId") invoiceId: string): Promise<ISuccessResponse<unknown>> {
+  async getInvoice(@Param("invoiceId", ParseUUIDPipe) invoiceId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.paymentsService.getInvoice(invoiceId);
     return successResponse(data, "Invoice retrieved");
   }
@@ -73,7 +73,7 @@ export class PaymentsController {
   @Post(":paymentId/refund")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("ADMINISTRATOR")
-  async refundPayment(@Param("paymentId") paymentId: string): Promise<ISuccessResponse<unknown>> {
+  async refundPayment(@Param("paymentId", ParseUUIDPipe) paymentId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.paymentsService.refundPayment(paymentId);
     return successResponse(data, "Refund processed");
   }
@@ -115,7 +115,7 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("ADMINISTRATOR")
   async updateCoupon(
-    @Param("couponId") couponId: string,
+    @Param("couponId", ParseUUIDPipe) couponId: string,
     @Body() dto: UpdateCouponDto,
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.paymentsService.updateCoupon(couponId, dto);
@@ -125,7 +125,7 @@ export class PaymentsController {
   @Delete("coupons/:couponId")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("ADMINISTRATOR")
-  async deleteCoupon(@Param("couponId") couponId: string): Promise<ISuccessResponse<unknown>> {
+  async deleteCoupon(@Param("couponId", ParseUUIDPipe) couponId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.paymentsService.deleteCoupon(couponId);
     return successResponse(data, "Coupon deleted");
   }

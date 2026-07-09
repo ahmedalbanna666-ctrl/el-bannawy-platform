@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { AcademicContextService } from "../common/services/academic-context.service";
 
 @Injectable()
 export class LessonService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly academicContext: AcademicContextService,
+  ) {}
 
   async getLesson(id: string, userId: string): Promise<unknown> {
     const lesson = await this.prisma.lesson.findUnique({
@@ -26,6 +30,7 @@ export class LessonService {
           orderBy: { displayOrder: "asc" },
         },
         settings: true,
+        document: true,
         unit: {
           select: {
             id: true,
@@ -40,6 +45,16 @@ export class LessonService {
       throw new NotFoundException("Lesson not found");
     }
 
+    await this.academicContext.verifyStudentLessonAccess(userId, id);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === "TEACHER") {
+      await this.academicContext.verifyTeacherLessonAccess(userId, id);
+    }
+
     const progress = await this.prisma.lessonProgress.findUnique({
       where: { userId_lessonId: { userId, lessonId: id } },
     });
@@ -50,9 +65,19 @@ export class LessonService {
     };
   }
 
-  async getLessonVideos(lessonId: string): Promise<unknown[]> {
+  async getLessonVideos(lessonId: string, userId: string): Promise<unknown[]> {
     const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException("Lesson not found");
+
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === "TEACHER") {
+      await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    }
 
     return this.prisma.lessonVideo.findMany({
       where: { lessonId, enabled: true },
@@ -71,9 +96,19 @@ export class LessonService {
     });
   }
 
-  async getLessonVocabulary(lessonId: string): Promise<unknown[]> {
+  async getLessonVocabulary(lessonId: string, userId: string): Promise<unknown[]> {
     const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException("Lesson not found");
+
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === "TEACHER") {
+      await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    }
 
     return this.prisma.lessonVocabulary.findMany({
       where: { lessonId },
@@ -81,10 +116,20 @@ export class LessonService {
     });
   }
 
-  async getLessonHomework(lessonId: string): Promise<unknown> {
+  async getLessonHomework(lessonId: string, userId: string): Promise<unknown> {
     const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException("Lesson not found");
     if (!lesson.homeworkEnabled) return null;
+
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === "TEACHER") {
+      await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    }
 
     const homework = await this.prisma.homework.findUnique({
       where: { lessonId },
@@ -104,10 +149,20 @@ export class LessonService {
     return homework;
   }
 
-  async getLessonQuiz(lessonId: string): Promise<unknown> {
+  async getLessonQuiz(lessonId: string, userId: string): Promise<unknown> {
     const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException("Lesson not found");
     if (!lesson.quizEnabled) return null;
+
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === "TEACHER") {
+      await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    }
 
     const quiz = await this.prisma.quiz.findUnique({
       where: { lessonId },
