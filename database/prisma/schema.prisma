@@ -54,10 +54,16 @@ model User {
   assignedGrade           Grade?                   @relation(fields: [gradeId], references: [id])
   teacherGrades           TeacherGrade[]
   auditLogs               AuditLog[]
+  managedByTeacherId      String?                  @db.Uuid
+  managedByTeacher        User?                    @relation("TeacherManagesStaff", fields: [managedByTeacherId], references: [id])
+  managedStaff            User[]                   @relation("TeacherManagesStaff")
+  permissionGrants        UserPermissionGrant[]    @relation("PermissionHolder")
+  grantedPermissions      UserPermissionGrant[]    @relation("PermissionGrantor")
 
   @@index([mobileNumber])
   @@index([role])
   @@index([status])
+  @@index([managedByTeacherId])
   @@map("users")
 }
 
@@ -764,6 +770,22 @@ model AuditLog {
   @@index([entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model UserPermissionGrant {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  permission      String
+  grantedByUserId String   @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation("PermissionHolder", fields: [userId], references: [id])
+  grantedBy       User     @relation("PermissionGrantor", fields: [grantedByUserId], references: [id])
+
+  @@unique([userId, permission])
+  @@index([userId])
+  @@index([grantedByUserId])
+  @@map("user_permission_grants")
 }
 
 enum UserRole {
