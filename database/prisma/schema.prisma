@@ -266,6 +266,7 @@ model Grade {
   books         Book[]
   teacherGrades TeacherGrade[]
   users         User[]
+  stories       Story[]
 
   @@index([stageId])
   @@index([displayOrder])
@@ -281,6 +282,7 @@ model AcademicYear {
   terms     Term[]
   units     Unit[]
   users     User[]
+  stories   Story[]
 
   @@map("academic_years")
 }
@@ -296,6 +298,7 @@ model Term {
   books          Book[]
   units          Unit[]
   users          User[]
+  stories        Story[]
 
   @@index([academicYearId])
   @@map("terms")
@@ -786,6 +789,52 @@ model UserPermissionGrant {
   @@index([userId])
   @@index([grantedByUserId])
   @@map("user_permission_grants")
+}
+
+model Story {
+  id                String         @id @default(uuid()) @db.Uuid
+  title             String
+  description       String?
+  coverImageUrl     String?
+  gradeId           String         @db.Uuid
+  academicYearId    String         @db.Uuid
+  termId            String         @db.Uuid
+  educationalSystem String
+  displayOrder      Int            @default(0)
+  published         Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+  grade             Grade          @relation(fields: [gradeId], references: [id])
+  academicYear      AcademicYear   @relation(fields: [academicYearId], references: [id])
+  term              Term           @relation(fields: [termId], references: [id])
+  chapters          StoryChapter[]
+
+  @@index([gradeId])
+  @@index([academicYearId])
+  @@index([termId])
+  @@index([educationalSystem])
+  @@index([displayOrder])
+  @@index([gradeId, academicYearId, termId, educationalSystem])
+  @@map("stories")
+}
+
+model StoryChapter {
+  id           String   @id @default(uuid()) @db.Uuid
+  storyId      String   @db.Uuid
+  title        String
+  content      Json?
+  imageUrl     String?
+  displayOrder Int      @default(0)
+  published    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  story        Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([storyId])
+  @@index([displayOrder])
+  @@index([storyId, displayOrder])
+  @@map("story_chapters")
 }
 
 enum UserRole {
