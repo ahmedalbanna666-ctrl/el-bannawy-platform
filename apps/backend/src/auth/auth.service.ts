@@ -2,7 +2,9 @@ import { Injectable, ConflictException, UnauthorizedException, NotFoundException
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import { BootstrapService } from "../common/services/bootstrap.service";
+import { DelegatedPermissionService } from "./delegated/delegated-permission.service";
 import { RegisterDto, LoginDto, RefreshTokenDto, ResetPasswordDto, CompleteOAuthRegistrationDto } from "./dto/auth.dto";
+import { normalizeEgyptMobile } from "./phone.util";
 import * as bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 
@@ -28,6 +30,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly bootstrapService: BootstrapService,
+    private readonly delegatedPermissionService: DelegatedPermissionService,
   ) {}
 
   async register(dto: RegisterDto): Promise<IAuthTokens> {
@@ -45,6 +48,12 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
 
+    const resolved = await this.resolveAcademicContext(
+      dto.educationalSystem,
+      dto.educationalStage,
+      dto.grade,
+    );
+
     const user = await this.prisma.user.create({
       data: {
         fullName: dto.fullName,
@@ -57,9 +66,9 @@ export class AuthService {
         governorate: dto.governorate ?? null,
         school: dto.school ?? null,
         educationalSystem: dto.educationalSystem ?? null,
-        educationalStage: dto.educationalStage ?? null,
-        grade: dto.grade ?? null,
-        academicTerm: dto.academicTerm ?? null,
+        academicYearId: resolved.academicYearId,
+        termId: resolved.termId,
+        gradeId: resolved.gradeId,
       },
     });
 
@@ -73,12 +82,26 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<IAuthTokens> {
+    const identifier = dto.identity ?? dto.mobile;
+
+    if (!identifier) {
+      throw new UnauthorizedException("Email or mobile number is required");
+    }
+
+    const isEmail = identifier.includes("@");
+    const normalizedMobile = isEmail ? null : normalizeEgyptMobile(identifier);
+
     const user = await this.prisma.user.findFirst({
-      where: { mobileNumber: dto.mobile, deletedAt: null },
+      where: {
+        deletedAt: null,
+        ...(isEmail
+          ? { email: identifier }
+          : { mobileNumber: normalizedMobile ?? identifier }),
+      },
     });
 
     if (!user) {
-      throw new UnauthorizedException("Invalid mobile number or password");
+      throw new UnauthorizedException("Invalid email/phone or password");
     }
 
     if (user.status !== "ACTIVE") {
@@ -95,7 +118,7 @@ export class AuthService {
 
     if (!passwordValid) {
       await this.logLoginAttempt(user.id, ipAddress, userAgent, false, "Invalid password");
-      throw new UnauthorizedException("Invalid mobile number or password");
+      throw new UnauthorizedException("Invalid email/phone or password");
     }
 
     await this.logLoginAttempt(user.id, ipAddress, userAgent, true, null);
@@ -211,6 +234,12 @@ export class AuthService {
     mobileNumber: string | null;
     role: string;
     status: string;
+    academicYearId: string | null;
+    termId: string | null;
+    gradeId: string | null;
+    educationalSystem: string | null;
+    effectivePermissions: string[];
+    managedByTeacherId: string | null;
   }> {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
@@ -226,6 +255,12 @@ export class AuthService {
       mobileNumber: user.mobileNumber,
       role: user.role,
       status: user.status,
+      academicYearId: user.academicYearId,
+      termId: user.termId,
+      gradeId: user.gradeId,
+      educationalSystem: user.educationalSystem,
+      effectivePermissions: await this.delegatedPermissionService.getEffectivePermissions(userId) as string[],
+      managedByTeacherId: user.managedByTeacherId,
     };
   }
 
@@ -303,6 +338,12 @@ export class AuthService {
       passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
     }
 
+    const resolved = await this.resolveAcademicContext(
+      dto.educationalSystem,
+      dto.educationalStage,
+      dto.grade,
+    );
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -315,9 +356,9 @@ export class AuthService {
         governorate: dto.governorate ?? null,
         school: dto.school ?? null,
         educationalSystem: dto.educationalSystem ?? null,
-        educationalStage: dto.educationalStage ?? null,
-        grade: dto.grade ?? null,
-        academicTerm: dto.academicTerm ?? null,
+        academicYearId: resolved.academicYearId,
+        termId: resolved.termId,
+        gradeId: resolved.gradeId,
       },
     });
 
@@ -401,5 +442,36 @@ export class AuthService {
         failureReason,
       },
     });
+  }
+
+  private async resolveAcademicContext(
+    educationalSystem?: string,
+    educationalStage?: string,
+    grade?: string,
+  ): Promise<{ academicYearId: string | null; termId: string | null; gradeId: string | null }> {
+    const [activeYearId, activeTermId] = await Promise.all([
+      this.prisma.systemSetting.findUnique({ where: { key: "active_academic_year_id" } }),
+      this.prisma.systemSetting.findUnique({ where: { key: "active_term_id" } }),
+    ]);
+
+    const academicYearId = activeYearId?.value ?? null;
+    const termId = activeTermId?.value ?? null;
+
+    let gradeId: string | null = null;
+    if (educationalStage && grade) {
+      const stage = await this.prisma.stage.findFirst({
+        where: { name: { equals: educationalStage, mode: "insensitive" } },
+        select: { id: true },
+      });
+      if (stage) {
+        const matched = await this.prisma.grade.findFirst({
+          where: { name: { equals: grade, mode: "insensitive" }, stageId: stage.id },
+          select: { id: true },
+        });
+        gradeId = matched?.id ?? null;
+      }
+    }
+
+    return { academicYearId, termId, gradeId };
   }
 }

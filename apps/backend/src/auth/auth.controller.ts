@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Body, Param, Req, UseGuards, HttpCode, HttpStatus, Res } from "@nestjs/common";
+import { Controller, Post, Get, Delete, Body, Param, ParseUUIDPipe, Req, UseGuards, HttpCode, HttpStatus, Res } from "@nestjs/common";
 import { AuthService, type IAuthTokens } from "./auth.service";
 import { LoginDto, RegisterDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto, CompleteOAuthRegistrationDto } from "./dto/auth.dto";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
@@ -100,6 +100,12 @@ export class AuthController {
     mobileNumber: string | null;
     role: string;
     status: string;
+    academicYearId: string | null;
+    termId: string | null;
+    gradeId: string | null;
+    educationalSystem: string | null;
+    effectivePermissions: string[];
+    managedByTeacherId: string | null;
   }>> {
     const user = await this.authService.getMe(userId);
     return successResponse(user, "User profile retrieved");
@@ -119,7 +125,7 @@ export class AuthController {
   @Delete("sessions/:id")
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteSession(@CurrentUser() userId: string, @Param("id") sessionId: string): Promise<void> {
+  async deleteSession(@CurrentUser() userId: string, @Param("id", ParseUUIDPipe) sessionId: string): Promise<void> {
     await this.authService.deleteSession(userId, sessionId);
   }
 }

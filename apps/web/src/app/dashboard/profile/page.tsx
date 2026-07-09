@@ -9,14 +9,11 @@ import { useAuth } from "@/providers/auth-provider";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, type SelectOption } from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { GovernorateSelect } from "@/components/ui/governorate-select";
 import { normalizeEgyptMobile } from "@/lib/phone";
 import {
   SYSTEM_OPTIONS,
-  STAGE_OPTIONS,
-  TERM_OPTIONS,
-  getGradeOptions,
 } from "@/lib/education-options";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
@@ -50,11 +47,14 @@ interface ProfileData {
   role: string;
   status: string;
   educationalSystem: string | null;
-  educationalStage: string | null;
-  grade: string | null;
-  academicTerm: string | null;
   governorate: string | null;
   school: string | null;
+  gradeId: string | null;
+  academicYearId: string | null;
+  termId: string | null;
+  assignedGrade: { id: string; name: string; stage: { name: string } } | null;
+  academicYear: { id: string; name: string } | null;
+  term: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -229,10 +229,6 @@ export default function ProfilePage(): ReactNode {
 
   const handleFieldSave = useCallback(
     async (key: string, value: string) => {
-      if (key === "educationalStage") {
-        await updateMutation.mutateAsync({ educationalStage: value, grade: "" });
-        return;
-      }
       await updateMutation.mutateAsync({ [key]: value });
     },
     [updateMutation],
@@ -257,11 +253,14 @@ export default function ProfilePage(): ReactNode {
     role: authUser?.role ?? "STUDENT",
     status: authUser?.status ?? "ACTIVE",
     educationalSystem: null,
-    educationalStage: null,
-    grade: null,
-    academicTerm: null,
     governorate: null,
     school: null,
+    gradeId: null,
+    academicYearId: null,
+    termId: null,
+    assignedGrade: null,
+    academicYear: null,
+    term: null,
     createdAt: "",
     updatedAt: "",
   };
@@ -364,58 +363,35 @@ export default function ProfilePage(): ReactNode {
             />
             <EditableField
               label="المرحلة التعليمية"
-              value={p.educationalStage ?? ""}
+              value={p.assignedGrade?.stage?.name ?? ""}
               fieldKey="educationalStage"
               icon={<GraduationCap className="h-4 w-4" />}
               onSave={handleFieldSave}
-              renderEditor={(draft, setDraft, disabled): ReactNode => (
-                <Select
-                  label=""
-                  value={draft}
-                  onChange={(e): void => { setDraft(e.target.value); }}
-                  options={STAGE_OPTIONS}
-                  placeholder="اختر المرحلة التعليمية"
-                  disabled={disabled}
-                />
-              )}
+              readOnly
             />
             <EditableField
               label="الصف الدراسي"
-              value={p.grade ?? ""}
+              value={p.assignedGrade?.name ?? ""}
               fieldKey="grade"
               icon={<BookOpen className="h-4 w-4" />}
               onSave={handleFieldSave}
-              renderEditor={(draft, setDraft, disabled): ReactNode => {
-                const stageId = p.educationalStage ?? "";
-                const gradeOpts: SelectOption[] = stageId ? getGradeOptions(stageId) : [];
-                return (
-                  <Select
-                    label=""
-                    value={draft}
-                    onChange={(e): void => { setDraft(e.target.value); }}
-                    options={gradeOpts}
-                    placeholder={stageId ? "اختر الصف الدراسي" : "يرجى اختيار المرحلة أولاً"}
-                    disabled={disabled || !stageId}
-                  />
-                );
-              }}
+              readOnly
+            />
+            <EditableField
+              label="السنة الدراسية"
+              value={p.academicYear?.name ?? ""}
+              fieldKey="academicYearId"
+              icon={<Calendar className="h-4 w-4" />}
+              onSave={handleFieldSave}
+              readOnly
             />
             <EditableField
               label="الفصل الدراسي"
-              value={p.academicTerm ?? ""}
-              fieldKey="academicTerm"
+              value={p.term?.name ?? ""}
+              fieldKey="termId"
               icon={<Calendar className="h-4 w-4" />}
               onSave={handleFieldSave}
-              renderEditor={(draft, setDraft, disabled): ReactNode => (
-                <Select
-                  label=""
-                  value={draft}
-                  onChange={(e): void => { setDraft(e.target.value); }}
-                  options={TERM_OPTIONS}
-                  placeholder="اختر الفصل الدراسي"
-                  disabled={disabled}
-                />
-              )}
+              readOnly
             />
           </div>
         </CardContent>

@@ -18,14 +18,35 @@ export class BootstrapService {
       return;
     }
 
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        gradeId: true,
+        academicYearId: true,
+        termId: true,
+        educationalSystem: true,
+      },
+    });
+
+    const lessonFilter: Record<string, unknown> = { published: true };
+
+    if (user?.gradeId && user.academicYearId && user.termId) {
+      lessonFilter.unit = {
+        gradeId: user.gradeId,
+        academicYearId: user.academicYearId,
+        termId: user.termId,
+        ...(user.educationalSystem ? { educationalSystem: user.educationalSystem } : {}),
+      };
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.coinWallet.create({
         data: { userId, balance: 0 },
       });
 
       const firstLesson = await tx.lesson.findFirst({
-        where: { published: true },
-        orderBy: { displayOrder: "asc" },
+        where: lessonFilter,
+        orderBy: [{ unit: { displayOrder: "asc" } }, { displayOrder: "asc" }],
         select: { id: true },
       });
 

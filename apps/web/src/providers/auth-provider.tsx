@@ -34,7 +34,6 @@ interface RegisterPayload {
   educationalSystem?: string;
   educationalStage?: string;
   grade?: string;
-  academicTerm?: string;
 }
 
 interface OAuthRegisterPayload {
@@ -49,7 +48,6 @@ interface OAuthRegisterPayload {
   educationalSystem?: string;
   educationalStage?: string;
   grade?: string;
-  academicTerm?: string;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -117,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         accessToken: string;
         refreshToken: string;
         expiresIn: number;
-      }>("/auth/login", { mobile, password, rememberMe });
+      }>("/auth/login", { identity: mobile, password, rememberMe });
 
       if (response.data) {
         setAuth(response.data.accessToken, response.data.refreshToken);

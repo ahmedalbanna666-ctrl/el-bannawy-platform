@@ -55,9 +55,9 @@ export default function LoginPage(): ReactNode {
       <CardContent>
         <form onSubmit={(e): void => { void handleSubmit(e); }} className="flex flex-col gap-5">
           <Input
-            label="Mobile Number"
-            type="tel"
-            placeholder="+201234567890"
+            label="Email or Mobile Number"
+            type="text"
+            placeholder="Enter your email or mobile number"
             value={mobile}
             onChange={(e): void => { setMobile(e.target.value); }}
             leftIcon={<Phone className="h-5 w-5" />}

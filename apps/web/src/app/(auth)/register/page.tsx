@@ -14,7 +14,6 @@ import {
   EDUCATIONAL_SYSTEMS,
   EDUCATIONAL_STAGES,
   GRADES,
-  ACADEMIC_TERMS,
 } from "@/lib/education-options";
 import {
   School,
@@ -27,7 +26,6 @@ import {
   Building2,
   GraduationCap,
   BookOpen,
-  Calendar,
   ChevronRight,
   ChevronLeft,
   Check,
@@ -47,12 +45,11 @@ interface RegisterPayload {
   educationalSystem?: string;
   educationalStage?: string;
   grade?: string;
-  academicTerm?: string;
 }
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4;
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 // ── Preparing Screen ─────────────────────────────────────────────────
 
@@ -163,9 +160,6 @@ export default function RegisterPage(): ReactNode {
   // Step 4
   const [grade, setGrade] = useState("");
 
-  // Step 5
-  const [academicTerm, setAcademicTerm] = useState("");
-
   const validateStep1 = useCallback((): boolean => {
     if (!fullName || fullName.length < 2) { setError("الاسم العربي مطلوب"); return false; }
 
@@ -201,20 +195,15 @@ export default function RegisterPage(): ReactNode {
     return true;
   }, [grade]);
 
-  const validateStep5 = useCallback((): boolean => {
-    if (!academicTerm) { setError("يرجى اختيار الفصل الدراسي"); return false; }
-    return true;
-  }, [academicTerm]);
-
   const handleNext = useCallback((): void => {
     setError(null);
     let valid = true;
     if (step === 1) valid = validateStep1();
     else if (step === 2) valid = validateStep2();
     else if (step === 3) valid = validateStep3();
-    else if (step === 4) valid = validateStep4();
+    else valid = validateStep4();
 
-    if (valid && step < 5) {
+    if (valid && step < 4) {
       setStep((prev) => (prev + 1) as Step);
     }
   }, [step, validateStep1, validateStep2, validateStep3, validateStep4]);
@@ -227,8 +216,6 @@ export default function RegisterPage(): ReactNode {
   }, [step]);
 
   const handleSubmit = useCallback(async (): Promise<void> => {
-    if (!validateStep5()) return;
-
     setLoading(true);
     setError(null);
 
@@ -246,7 +233,6 @@ export default function RegisterPage(): ReactNode {
           educationalSystem,
           educationalStage,
           grade,
-          academicTerm,
         });
       } else {
         const payload: RegisterPayload = {
@@ -261,7 +247,6 @@ export default function RegisterPage(): ReactNode {
           educationalSystem,
           educationalStage,
           grade,
-          academicTerm,
         };
 
         await register(payload);
@@ -271,7 +256,7 @@ export default function RegisterPage(): ReactNode {
       setError(err instanceof Error ? err.message : "Registration failed");
       setLoading(false);
     }
-  }, [fullName, englishName, mobile, parentMobile, password, confirmPassword, governorate, school, educationalSystem, educationalStage, grade, academicTerm, register, oauthRegister, validateStep5, isOAuth, verifiedEmail]);
+  }, [fullName, englishName, mobile, parentMobile, password, confirmPassword, governorate, school, educationalSystem, educationalStage, grade, register, oauthRegister, isOAuth, verifiedEmail]);
 
   const handlePreparingDone = useCallback((): void => {
     router.push("/dashboard");
@@ -286,7 +271,6 @@ export default function RegisterPage(): ReactNode {
     "النظام التعليمي",
     "المرحلة التعليمية",
     "الصف الدراسي",
-    "الفصل الدراسي",
   ];
 
   const renderStep = (): ReactNode => {
@@ -417,26 +401,6 @@ export default function RegisterPage(): ReactNode {
           </div>
         );
 
-      case 5:
-        return (
-          <div className="flex flex-col gap-3">
-            {ACADEMIC_TERMS.map((term) => (
-              <button
-                key={term.id}
-                type="button"
-                onClick={(): void => { setAcademicTerm(term.id); }}
-                className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all ${
-                  academicTerm === term.id
-                    ? "border-primary-500 bg-primary-500/10 text-primary-600 dark:text-primary-400"
-                    : "border-neutral-200 text-neutral-700 hover:border-primary-500/50 dark:border-neutral-700 dark:text-neutral-300"
-                }`}
-              >
-                <Calendar className="h-5 w-5 shrink-0" />
-                <span className="text-sm font-bold">{term.label}</span>
-              </button>
-            ))}
-          </div>
-        );
     }
   };
 
@@ -480,7 +444,7 @@ export default function RegisterPage(): ReactNode {
                   السابق
                 </Button>
               )}
-              {step < 5 ? (
+              {step < 4 ? (
                 <Button variant="primary" size="md" onClick={handleNext} fullWidth={step === 1}>
                   التالي
                   <ChevronLeft className="h-5 w-5" />

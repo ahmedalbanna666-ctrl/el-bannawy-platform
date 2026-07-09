@@ -60,16 +60,16 @@ export class RegisterDto {
   @IsString()
   @MaxLength(50)
   grade?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  academicTerm?: string;
 }
 
 export class LoginDto {
+  @IsOptional()
   @IsString()
-  mobile!: string;
+  identity?: string;
+
+  @IsOptional()
+  @IsString()
+  mobile?: string;
 
   @IsString()
   password!: string;
@@ -140,11 +140,6 @@ export class CompleteOAuthRegistrationDto {
   @IsString()
   @MaxLength(50)
   grade?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  academicTerm?: string;
 }
 
 export class RefreshTokenDto {

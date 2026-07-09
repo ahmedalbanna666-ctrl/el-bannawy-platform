@@ -24,17 +24,17 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(50)
-  educationalStage?: string;
+  gradeId?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(50)
-  grade?: string;
+  academicYearId?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(50)
-  academicTerm?: string;
+  termId?: string;
 
   @IsOptional()
   @IsString()
