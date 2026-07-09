@@ -23,7 +23,10 @@ export class CurriculumService {
     });
 
     // Students with assigned grade: filter by academic context
-    if (user?.role === "STUDENT" && ctx?.gradeId && ctx.academicYearId && ctx.termId) {
+    if (user?.role === "STUDENT") {
+      if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) {
+        return [];
+      }
       const grade = await this.prisma.grade.findUnique({
         where: { id: ctx.gradeId },
         select: { stageId: true },
