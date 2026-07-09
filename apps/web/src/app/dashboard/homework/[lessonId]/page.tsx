@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
+import { TeacherContextBanner } from "@/components/ui/teacher-context-banner";
 import {
   ClipboardList,
   ChevronLeft,
@@ -231,6 +232,7 @@ export default function HomeworkPage(): ReactNode {
   if (viewingReview && review) {
     return (
       <div className="flex flex-col gap-6">
+        <TeacherContextBanner />
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={handleBackToResult}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -295,6 +297,7 @@ export default function HomeworkPage(): ReactNode {
 
   return (
     <div className="flex flex-col gap-6">
+      <TeacherContextBanner />
       <div>
         <Link
           href={`/dashboard/lessons/detail/${lessonId}`}

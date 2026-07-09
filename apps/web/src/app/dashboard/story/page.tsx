@@ -1,42 +1,32 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
+import { useCallback, useRef, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { ScrollText } from "lucide-react";
+import { TeacherContextBanner } from "@/components/ui/teacher-context-banner";
+import { ScrollText, ArrowLeft } from "lucide-react";
 
-interface LessonSummary {
+interface StoryChapter {
   id: string;
   title: string;
+  content: unknown;
+  imageUrl: string | null;
   displayOrder: number;
-  estimatedDuration: number;
-  isPremium: boolean;
-  sequentialMode: boolean;
-  homeworkEnabled: boolean;
-  quizEnabled: boolean;
+  published: boolean;
 }
 
-interface Unit {
+interface Story {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
+  coverImageUrl: string | null;
   displayOrder: number;
-  lessons: LessonSummary[];
-}
-
-interface Stage {
-  id: string;
-  name: string;
-  displayOrder: number;
-  grades: {
-    id: string;
-    name: string;
-    displayOrder: number;
-    units: Unit[];
-  }[];
+  published: boolean;
+  chapters: StoryChapter[];
 }
 
 type ChapterStatus = "completed" | "current" | "upcoming";
@@ -53,30 +43,23 @@ function getChapterStatus(index: number, _total: number): ChapterStatus {
 
 export default function StoryPage(): ReactNode {
   const router = useRouter();
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const { data: stories, isLoading, isError, error } = useQuery({
+    queryKey: ["stories", "student"],
+    queryFn: async () => {
+      const res = await api.get<Story[]>("/stories");
+      return res.data ?? [];
+    },
+    staleTime: 300_000,
+  });
+
+  const allChapters = (stories ?? []).flatMap((story) => story.chapters);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
   const bgPathRef = useRef<SVGPathElement>(null);
   const dotsPathRef = useRef<SVGPathElement>(null);
   const [nodes, setNodes] = useState<ConnectorPoint[]>([]);
-
-  const fetchStory = useCallback(async (): Promise<void> => {
-    try {
-      const response = await api.get<Stage[]>("/curriculum");
-      if (response.data) setStages(response.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل تحميل القصة");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchStory();
-  }, [fetchStory]);
 
   const drawPath = useCallback((): void => {
     const wrapper = wrapperRef.current;
@@ -135,7 +118,7 @@ export default function StoryPage(): ReactNode {
   }, []);
 
   useEffect(() => {
-    if (!loading && stages.length > 0) {
+    if (!isLoading && allChapters.length > 0) {
       requestAnimationFrame(() => {
         drawPath();
       });
@@ -144,16 +127,12 @@ export default function StoryPage(): ReactNode {
     return (): void => {
       window.removeEventListener("resize", drawPath);
     };
-  }, [loading, stages, drawPath]);
-
-  const allChapters = stages.flatMap((stage) =>
-    stage.grades.flatMap((grade) => grade.units),
-  );
+  }, [isLoading, allChapters, drawPath]);
 
   const reversed = [...allChapters].reverse();
 
-  if (loading) return <StorySkeleton />;
-  if (error) return <ErrorState title="فشل تحميل القصة" description={error} />;
+  if (isLoading) return <StorySkeleton />;
+  if (isError) return <ErrorState title="فشل تحميل القصة" description={error instanceof Error ? error.message : "حدث خطأ غير متوقع"} />;
 
   if (reversed.length === 0) {
     return (
@@ -167,6 +146,14 @@ export default function StoryPage(): ReactNode {
 
   return (
     <div className="flex flex-col gap-6">
+      <TeacherContextBanner />
+      <button
+        onClick={(): void => { router.push("/dashboard"); }}
+        className="flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600 w-fit"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        العودة للرئيسية
+      </button>
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
           قصة المنهج
@@ -230,21 +217,6 @@ export default function StoryPage(): ReactNode {
                 <div
                   ref={(el): void => {
                     nodeRefs.current[idx] = el;
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e): void => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      if (chapter.lessons.length > 0) {
-                        router.push(`/dashboard/lessons/${chapter.id}`);
-                      }
-                    }
-                  }}
-                  onClick={(): void => {
-                    if (chapter.lessons.length > 0) {
-                      router.push(`/dashboard/lessons/${chapter.id}`);
-                    }
                   }}
                   className={`flex h-[100px] w-[100px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[26px] border-2 transition-all duration-200 hover:scale-[1.02] ${ringColor} ${hoverColor}`}
                 >

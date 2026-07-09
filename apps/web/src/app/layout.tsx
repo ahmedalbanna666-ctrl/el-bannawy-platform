@@ -18,6 +18,9 @@ const cairo = Cairo({
 export const metadata: Metadata = {
   title: "El-bannawy Platform",
   description: "AI-Powered English Learning Platform",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
@@ -26,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }): React.ReactNode {
   return (
-    <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning data-scroll-behavior="smooth">
       <body className={`${inter.variable} ${cairo.variable}`}>
         <Providers>{children}</Providers>
       </body>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +26,7 @@ import {
   CreditCard,
   LogIn,
   LogOut,
+  ArrowLeft,
 } from "lucide-react";
 
 interface ActivityRecord {
@@ -165,6 +167,7 @@ function groupByDay(records: ActivityRecord[]): ActivityGroup[] {
 }
 
 export default function HistoryPage(): ReactNode {
+  const router = useRouter();
   const [activities, setActivities] = useState<ActivityRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -201,6 +204,13 @@ export default function HistoryPage(): ReactNode {
 
   return (
     <div className="flex flex-col gap-6">
+      <button
+        onClick={(): void => { router.push("/dashboard"); }}
+        className="flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600 w-fit"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        العودة للرئيسية
+      </button>
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">سجل التعلم</h1>
         <p className="mt-1 text-sm text-neutral-500">سجل كامل لأنشطتك التعليمية</p>

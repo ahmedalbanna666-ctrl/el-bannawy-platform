@@ -17,6 +17,7 @@ import {
   HelpCircle,
   Lock,
   CheckCircle2,
+  ArrowLeft,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -143,6 +144,13 @@ export default function FinalReviewPage(): ReactNode {
   // ── Render ──
   return (
     <div className="flex flex-col gap-6">
+      <button
+        onClick={(): void => { router.push("/dashboard"); }}
+        className="flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600 w-fit"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        العودة للرئيسية
+      </button>
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
           المراجعة النهائية

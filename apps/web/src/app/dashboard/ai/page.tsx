@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, type ReactNode, type SyntheticEvent } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +14,7 @@ import {
   MessageSquare,
   Bot,
   User,
+  ArrowLeft,
 } from "lucide-react";
 
 interface Conversation {
@@ -35,6 +37,7 @@ interface ChatResponse {
 }
 
 export default function AiChatPage(): ReactNode {
+  const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -120,7 +123,15 @@ export default function AiChatPage(): ReactNode {
   if (loading) return <AiSkeleton />;
 
   return (
-    <div className="flex gap-6" style={{ minHeight: "calc(100vh - 120px)" }}>
+    <div className="flex flex-col gap-4">
+      <button
+        onClick={(): void => { router.push("/dashboard"); }}
+        className="flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600 w-fit"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        العودة للرئيسية
+      </button>
+      <div className="flex gap-6" style={{ minHeight: "calc(100vh - 180px)" }}>
       {/* Sidebar */}
       <div className="hidden w-64 shrink-0 flex-col gap-3 md:flex">
         <Button variant="primary" size="sm" fullWidth onClick={(): void => { void newConversation(); }}>
@@ -229,6 +240,7 @@ export default function AiChatPage(): ReactNode {
           </>
         )}
       </div>
+    </div>
     </div>
   );
 }
