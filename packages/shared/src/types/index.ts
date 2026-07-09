@@ -1,4 +1,4 @@
-export type IUserRole = "student" | "teacher" | "secretary" | "support" | "administrator";
+export type IUserRole = "student" | "teacher" | "staff" | "secretary" | "support" | "administrator";
 
 export interface IUser {
   readonly id: string;

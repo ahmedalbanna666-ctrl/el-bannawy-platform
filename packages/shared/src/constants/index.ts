@@ -33,6 +33,7 @@ export const RESPONSE_TIME_DATABASE_MS = 100;
 export enum UserRoleEnum {
   STUDENT = "student",
   TEACHER = "teacher",
+  STAFF = "staff",
   SECRETARY = "secretary",
   SUPPORT = "support",
   ADMINISTRATOR = "administrator",
