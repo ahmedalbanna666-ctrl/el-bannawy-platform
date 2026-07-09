@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, type SyntheticEvent, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import { useAcademicContextStore } from "@/lib/academic-context-store";
+import { useAcademicContextStore, useAcademicContext } from "@/lib/academic-context-store";
 import { ACADEMIC_TERMS } from "@/lib/education-options";
 import {
   Dialog,
@@ -13,27 +13,23 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-
-interface GradeOption {
-  readonly value: string;
-  readonly label: string;
-}
-
-interface CurriculumStage {
-  readonly id: string;
-  readonly name: string;
-  readonly grades: readonly {
-    readonly id: string;
-    readonly name: string;
-  }[];
-}
 
 interface AcademicYearLookup {
   readonly id: string;
   readonly name: string;
   readonly terms: { readonly id: string; readonly name: string }[];
+}
+
+interface AdminGrade {
+  readonly id: string;
+  readonly name: string;
+  readonly stage: { readonly id: string; readonly name: string };
+}
+
+interface GradeApiResponse {
+  readonly gradeIds: string[];
+  readonly grades: AdminGrade[];
 }
 
 interface UnitEditData {
@@ -54,7 +50,6 @@ interface UnitFormDialogProps {
 interface UnitFormData {
   title: string;
   description: string;
-  gradeId: string;
   displayOrder: string;
   published: boolean;
 }
@@ -62,7 +57,6 @@ interface UnitFormData {
 const EMPTY_FORM: UnitFormData = {
   title: "",
   description: "",
-  gradeId: "",
   displayOrder: "",
   published: true,
 };
@@ -82,7 +76,6 @@ export function UnitFormDialog({
       setFormData({
         title: unit?.title ?? "",
         description: unit?.description ?? "",
-        gradeId: unit?.gradeId ?? "",
         displayOrder:
           unit !== null && unit !== undefined
             ? String(unit.displayOrder)
@@ -92,26 +85,10 @@ export function UnitFormDialog({
     }
   }, [open, unit]);
 
-  const { data: stages } = useQuery({
-    queryKey: ["curriculum"],
-    queryFn: async () => {
-      const res = await api.get<CurriculumStage[]>("/curriculum");
-      return res.data ?? [];
-    },
-    enabled: open,
-    staleTime: 300_000,
-  });
-
-  const gradeOptions: readonly GradeOption[] = (stages ?? []).flatMap(
-    (stage) =>
-      stage.grades.map((grade) => ({
-        value: grade.id,
-        label: `${stage.name} — ${grade.name}`,
-      })),
-  );
-
   const academicYearFromStore = useAcademicContextStore((s) => s.academicYear);
   const termFromStore = useAcademicContextStore((s) => s.term);
+  const ctx = useAcademicContext();
+  const educationalSystem = ctx.educationalSystem;
 
   const { data: academicYears, isLoading: academicYearsLoading } = useQuery({
     queryKey: ["admin-academic-years"],
@@ -138,22 +115,34 @@ export function UnitFormDialog({
     return term?.id ?? null;
   }, [academicYears, academicYearFromStore, termFromStore]);
 
-  const academicContextResolved = isEdit || (resolvedAcademicYearId !== null && resolvedTermId !== null);
+  const resolvedGradeId = useMemo(() => {
+    if (!ctx.grade) return null;
+    return ctx.grade;
+  }, [ctx.grade]);
+
+  const academicContextResolved =
+    isEdit ||
+    (resolvedAcademicYearId !== null &&
+     resolvedTermId !== null &&
+     resolvedGradeId !== null);
 
   const mutation = useMutation({
     mutationFn: async () => {
       const payload: Record<string, unknown> = {
         title: formData.title.trim(),
         description: formData.description.trim() || undefined,
-        gradeId: formData.gradeId,
         displayOrder: formData.displayOrder
           ? Number(formData.displayOrder)
           : undefined,
       };
 
       if (!unit) {
+        payload.gradeId = resolvedGradeId;
         payload.academicYearId = resolvedAcademicYearId;
         payload.termId = resolvedTermId;
+        payload.educationalSystem = educationalSystem;
+      } else {
+        payload.gradeId = unit.gradeId;
       }
 
       if (unit) {
@@ -170,7 +159,9 @@ export function UnitFormDialog({
 
   const handleSubmit = (e: SyntheticEvent): void => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.gradeId) return;
+    if (!formData.title.trim()) return;
+    if (!isEdit && !academicContextResolved) return;
+    if (isEdit && !unit?.gradeId) return;
     mutation.mutate();
   };
 
@@ -189,13 +180,6 @@ export function UnitFormDialog({
     >
       <form onSubmit={handleSubmit}>
         <DialogContent className="flex flex-col gap-4">
-          <Select
-            label="المرحلة / الصف"
-            placeholder="اختر المرحلة والصف"
-            options={gradeOptions as GradeOption[]}
-            value={formData.gradeId}
-            onChange={(e): void => { update("gradeId", e.target.value); }}
-          />
           <Input
             label="عنوان الوحدة"
             placeholder="مثال: Unit 1 - Greetings"
@@ -222,9 +206,12 @@ export function UnitFormDialog({
               onChange={(e): void => { update("published", e.target.checked); }}
             />
           )}
+          {!isEdit && academicYearsLoading && (
+            <p className="text-sm text-neutral-500">جاري تحميل السياق الأكاديمي...</p>
+          )}
           {!isEdit && !academicYearsLoading && !academicContextResolved && (
             <p className="text-sm text-danger-500" role="alert">
-              تعذر تحميل السياق الأكاديمي. يرجى التأكد من اختيار السنة الدراسية والترم.
+              تعذر تحميل السياق الأكاديمي. يرجى التأكد من اختيار السنة الدراسية والترم والصف من الشريط العلوي.
             </p>
           )}
           {mutation.isError && (
@@ -249,9 +236,9 @@ export function UnitFormDialog({
             loading={mutation.isPending}
             disabled={
               !formData.title.trim()
-              || !formData.gradeId
               || (!isEdit && academicYearsLoading)
-              || !academicContextResolved
+              || (!isEdit && !academicContextResolved)
+              || (isEdit && !unit?.gradeId)
             }
           >
             {isEdit ? "حفظ التغييرات" : "إنشاء"}
