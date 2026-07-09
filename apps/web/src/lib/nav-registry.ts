@@ -1,0 +1,227 @@
+import { PERMISSIONS, type Permission } from "@el-bannawy/shared";
+import {
+  Home,
+  BookOpen,
+  ScrollText,
+  BookMarked,
+  Users,
+  Sparkles,
+  GraduationCap,
+  BarChart3,
+  Settings,
+  Gamepad2,
+  Trophy,
+  Award,
+  LifeBuoy,
+  RefreshCw,
+  UserCog,
+  type LucideIcon,
+} from "lucide-react";
+
+export interface NavModule {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly icon: LucideIcon;
+  readonly route: string;
+  readonly permission: Permission | null;
+  readonly sidebar: boolean;
+  readonly dashboard: boolean;
+  readonly order: number;
+  readonly category: "content" | "management" | "student" | "settings" | null;
+}
+
+export const NAV_REGISTRY: readonly NavModule[] = [
+  {
+    id: "home",
+    title: "الرئيسية",
+    description: "لوحة التحكم الرئيسية",
+    icon: Home,
+    route: "/dashboard",
+    permission: null,
+    sidebar: true,
+    dashboard: false,
+    order: 1,
+    category: null,
+  },
+  {
+    id: "units",
+    title: "الوحدات التعليمية",
+    description: "إنشاء وإدارة الوحدات التعليمية والدروس ومحتوى الدروس",
+    icon: BookOpen,
+    route: "/dashboard/units",
+    permission: PERMISSIONS.UNITS_VIEW,
+    sidebar: true,
+    dashboard: true,
+    order: 10,
+    category: "content",
+  },
+  {
+    id: "story",
+    title: "قصة المنهج",
+    description: "إدارة قصص المنهج والفصول",
+    icon: ScrollText,
+    route: "/dashboard/story",
+    permission: PERMISSIONS.STORY_VIEW,
+    sidebar: true,
+    dashboard: true,
+    order: 20,
+    category: "content",
+  },
+  {
+    id: "final-review",
+    title: "المراجعة النهائية",
+    description: "إدارة محتوى المراجعة النهائية لكل صف دراسي",
+    icon: BookMarked,
+    route: "/dashboard/final-review",
+    permission: PERMISSIONS.FINAL_REVIEW_VIEW,
+    sidebar: true,
+    dashboard: true,
+    order: 30,
+    category: "content",
+  },
+  {
+    id: "live",
+    title: "الحصص المباشرة",
+    description: "إنشاء وإدارة الحصص المباشرة",
+    icon: Users,
+    route: "/dashboard/live",
+    permission: PERMISSIONS.LIVE_VIEW,
+    sidebar: true,
+    dashboard: true,
+    order: 40,
+    category: "content",
+  },
+  {
+    id: "ai",
+    title: "اسأل البنا AI",
+    description: "احصل على إجابات فورية وشروحات ومساعدة",
+    icon: Sparkles,
+    route: "/dashboard/ai",
+    permission: PERMISSIONS.AI_MANAGE,
+    sidebar: true,
+    dashboard: true,
+    order: 50,
+    category: "management",
+  },
+  {
+    id: "students",
+    title: "الطلاب",
+    description: "عرض وإدارة الطلاب المسجلين",
+    icon: GraduationCap,
+    route: "/dashboard/students",
+    permission: PERMISSIONS.STUDENTS_VIEW,
+    sidebar: true,
+    dashboard: true,
+    order: 60,
+    category: "management",
+  },
+  {
+    id: "teachers",
+    title: "المعلمون",
+    description: "إدارة المعلمين والصلاحيات الدراسية",
+    icon: UserCog,
+    route: "/dashboard/teachers",
+    permission: PERMISSIONS.USERS_VIEW,
+    sidebar: true,
+    dashboard: true,
+    order: 65,
+    category: "management",
+  },
+  {
+    id: "reports",
+    title: "التقارير",
+    description: "إنشاء تقارير الأداء والتقدم",
+    icon: BarChart3,
+    route: "/dashboard/reports",
+    permission: PERMISSIONS.REPORTS_VIEW,
+    sidebar: true,
+    dashboard: true,
+    order: 70,
+    category: "management",
+  },
+  {
+    id: "settings",
+    title: "الإعدادات",
+    description: "تعديل الإعدادات والتفضيلات",
+    icon: Settings,
+    route: "/dashboard/admin/settings",
+    permission: PERMISSIONS.SETTINGS_MANAGE,
+    sidebar: true,
+    dashboard: true,
+    order: 80,
+    category: "settings",
+  },
+  {
+    id: "mistakes",
+    title: "تعلم من أخطائك",
+    description: "راجع الإجابات الخاطئة وحسن مستواك",
+    icon: RefreshCw,
+    route: "",
+    permission: null,
+    sidebar: true,
+    dashboard: false,
+    order: 90,
+    category: "student",
+  },
+  {
+    id: "games",
+    title: "الألعاب التعليمية",
+    description: "العب ألعاباً لتحسين المفردات والقواعد والقراءة",
+    icon: Gamepad2,
+    route: "",
+    permission: null,
+    sidebar: true,
+    dashboard: false,
+    order: 100,
+    category: "student",
+  },
+  {
+    id: "achievements",
+    title: "الإنجازات",
+    description: "تابع إنجازاتك التعليمية",
+    icon: Award,
+    route: "",
+    permission: null,
+    sidebar: true,
+    dashboard: false,
+    order: 110,
+    category: "student",
+  },
+  {
+    id: "leaderboard",
+    title: "العباقرة",
+    description: "قائمة المتصدرين",
+    icon: Trophy,
+    route: "",
+    permission: null,
+    sidebar: true,
+    dashboard: false,
+    order: 120,
+    category: "student",
+  },
+  {
+    id: "support",
+    title: "الدعم الفني",
+    description: "تواصل مع فريق الدعم",
+    icon: LifeBuoy,
+    route: "",
+    permission: null,
+    sidebar: true,
+    dashboard: false,
+    order: 130,
+    category: "student",
+  },
+] as const;
+
+export function getSidebarModules(can: (p: Permission) => boolean): readonly NavModule[] {
+  return NAV_REGISTRY.filter(
+    (m) => m.sidebar && (m.permission === null || can(m.permission)),
+  );
+}
+
+export function getDashboardModules(can: (p: Permission) => boolean): readonly NavModule[] {
+  return NAV_REGISTRY.filter(
+    (m) => m.dashboard && m.permission !== null && can(m.permission),
+  );
+}

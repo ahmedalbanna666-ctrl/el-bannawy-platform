@@ -12,6 +12,7 @@
     "clean": "rimraf .next dist"
   },
   "dependencies": {
+    "@el-bannawy/shared": "workspace:*",
     "@tanstack/react-query": "^5.20.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",

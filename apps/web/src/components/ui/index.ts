@@ -43,3 +43,8 @@ export type { TextareaProps } from "./textarea";
 
 export { Switch } from "./switch";
 export type { SwitchProps } from "./switch";
+
+export { AcademicContextBar } from "./academic-context-bar";
+export type { AcademicContextBarProps } from "./academic-context-bar";
+
+export { TeacherContextBanner } from "./teacher-context-banner";

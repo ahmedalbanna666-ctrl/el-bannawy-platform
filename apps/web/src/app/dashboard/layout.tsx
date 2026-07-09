@@ -6,19 +6,15 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/auth-store";
 import { useAuth } from "@/providers/auth-provider";
+import { usePermissions } from "@/lib/use-permissions";
+import { PERMISSIONS } from "@el-bannawy/shared";
+import { getSidebarModules, type NavModule } from "@/lib/nav-registry";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AcademicSettings } from "@/components/ui/academic-settings";
 import {
   Home,
   BookOpen,
   ScrollText,
-  BookMarked,
-  Sparkles,
-  Users,
-  RefreshCw,
-  Gamepad2,
-  Award,
-  Trophy,
-  LifeBuoy,
   LogOut,
   UserCircle,
   ClipboardList,
@@ -44,8 +40,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
     queryKey: ["sidebar-profile", userId],
     queryFn: async () => {
       const res = await api.get<{
-        grade: string | null;
-        educationalStage: string | null;
+        assignedGrade: { name: string; stage: { name: string } } | null;
       }>("/profile");
       return res.data ?? null;
     },
@@ -53,7 +48,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
     staleTime: 120_000,
   });
 
-  const profileGrade = profile?.grade ?? profile?.educationalStage ?? "طالب";
+  const profileGrade = profile?.assignedGrade?.name ?? profile?.assignedGrade?.stage?.name ?? "طالب";
 
   useEffect(() => {
     setMounted(true);
@@ -62,40 +57,60 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
     }
   }, [isAuthenticated, router]);
 
+  const userRole = useAuthStore((s) => s.user?.role);
+  const isTeacher = userRole === "TEACHER" || userRole === "STAFF";
+
   const handleLogout = useCallback((): void => {
     void logout();
     router.push("/login");
   }, [logout, router]);
 
+  const { can } = usePermissions();
+
   const sidebarItems: SidebarContent = useMemo(
-    () => [
-      // ── Learning ──────────────────────────────────────────────────
-      { id: "home", label: "الرئيسية", icon: Home, onClick: (): void => { router.push("/dashboard"); } },
-      { id: "units", label: "الوحدات", icon: BookOpen, onClick: (): void => { router.push("/dashboard/units"); } },
-      { id: "story", label: "قصة المنهج", icon: ScrollText, onClick: (): void => { router.push("/dashboard/story"); } },
-      { id: "final-review", label: "المراجعة النهائية", icon: BookMarked, onClick: (): void => { router.push("/dashboard/final-review"); } },
-      // ── divider ───────────────────────────────────────────────────
-      { id: "div-1", label: "", icon: ScrollText, divider: true },
-      // ── Interactive ───────────────────────────────────────────────
-      { id: "ask-ai", label: "اسأل البنا AI", icon: Sparkles, onClick: (): void => { router.push("/dashboard/ai"); } },
-      { id: "live-classes", label: "احجز حصة مباشرة", icon: Users, onClick: (): void => { router.push("/dashboard/live"); } },
-      { id: "mistakes", label: "تعلم من أخطائك", icon: RefreshCw },
-      { id: "games", label: "الألعاب التعليمية", icon: Gamepad2 },
-      // ── divider ───────────────────────────────────────────────────
-      { id: "div-2", label: "", icon: ScrollText, divider: true },
-      // ── Recognition ───────────────────────────────────────────────
-      { id: "achievements", label: "الإنجازات", icon: Award },
-      { id: "el-abakera", label: "العباقرة", icon: Trophy },
-      // ── divider ───────────────────────────────────────────────────
-      { id: "div-3", label: "", icon: ScrollText, divider: true },
-      // ── Support ───────────────────────────────────────────────────
-      { id: "support", label: "الدعم الفني", icon: LifeBuoy },
-      // ── divider ───────────────────────────────────────────────────
-      { id: "div-4", label: "", icon: ScrollText, divider: true },
-      // ── Logout ────────────────────────────────────────────────────
-      { id: "logout", label: "تسجيل الخروج", icon: LogOut, onClick: handleLogout, danger: true },
-    ],
-    [router, handleLogout],
+    () => {
+      const modules = getSidebarModules(can);
+      const items: SidebarContent = [];
+      let lastCategory: NavModule["category"] = null;
+
+      for (const m of modules) {
+        if (m.id === "home") {
+          items.push({ id: m.id, label: m.title, icon: m.icon, onClick: (): void => { router.push(m.route); } });
+          lastCategory = null;
+          continue;
+        }
+
+        if (m.category === "student" && lastCategory !== "student") {
+          items.push({ id: "div-student", label: "", icon: ScrollText, divider: true });
+        } else if (m.category === "management" && lastCategory !== "management" && lastCategory !== "content") {
+          items.push({ id: "div-management", label: "", icon: ScrollText, divider: true });
+        } else if (m.category === "settings" && lastCategory !== "settings") {
+          items.push({ id: "div-settings", label: "", icon: ScrollText, divider: true });
+        }
+
+        const hasEditPermission = m.id === "units" ? can(PERMISSIONS.UNITS_CREATE)
+          : m.id === "story" ? can(PERMISSIONS.STORY_EDIT)
+          : m.id === "final-review" ? can(PERMISSIONS.FINAL_REVIEW_EDIT)
+          : m.id === "live" ? can(PERMISSIONS.LIVE_CREATE)
+          : false;
+        const label = hasEditPermission ? m.title.replace("الوحدات التعليمية", "إدارة الوحدات").replace("قصة المنهج", "إدارة القصة").replace("المراجعة النهائية", "المراجعة النهائية").replace("الحصص المباشرة", "الحصص المباشرة") : m.title;
+
+        items.push({
+          id: m.id,
+          label,
+          icon: m.icon,
+          onClick: m.route ? (): void => { router.push(m.route); } : undefined,
+        });
+
+        lastCategory = m.category;
+      }
+
+      items.push({ id: "div-logout", label: "", icon: ScrollText, divider: true });
+      items.push({ id: "logout", label: "تسجيل الخروج", icon: LogOut, onClick: handleLogout, danger: true });
+
+      return items;
+    },
+    [router, handleLogout, can],
   );
 
   const bottomNavItems: BottomNavItem[] = useMemo(
@@ -125,7 +140,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
         onClose={(): void => { setSidebarOpen(false); }}
         onProfileClick={(): void => { router.push("/dashboard/profile"); }}
         profileGrade={profileGrade}
-      />
+      >
+        {isTeacher && <AcademicSettings />}
+      </Sidebar>
 
       <div className="flex flex-1 flex-col">
         <Header

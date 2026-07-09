@@ -3,10 +3,12 @@
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/providers/theme-provider";
 import { useAuthStore } from "@/lib/auth-store";
+import { usePermissions } from "@/lib/use-permissions";
 import { api } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 import { Moon, Sun, Bell, Menu, Flame, Coins, Zap, Trophy, History } from "lucide-react";
 import { Button } from "./button";
+import { AcademicContextBar } from "./academic-context-bar";
 import { useEffect, useState, type ReactNode } from "react";
 
 interface HeaderStats {
@@ -32,10 +34,12 @@ export function Header({
 }: HeaderProps): ReactNode {
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuthStore();
+  const { isStudent } = usePermissions();
   const router = useRouter();
   const [stats, setStats] = useState<HeaderStats | null>(null);
 
   useEffect(() => {
+    if (!isStudent) return;
     async function fetchStats(): Promise<void> {
       try {
         const response = await api.get<{
@@ -56,7 +60,7 @@ export function Header({
       }
     }
     void fetchStats();
-  }, []);
+  }, [isStudent]);
 
   const fullName = user?.fullName ?? "";
   const firstName = fullName ? fullName.split(" ")[0] : "";
@@ -120,7 +124,9 @@ export function Header({
         </div>
       </div>
 
-      {stats && (
+      {!isStudent && <AcademicContextBar />}
+
+      {stats && isStudent && (
         <div
           className="flex items-center gap-2 overflow-x-auto pb-2"
           style={{ scrollbarWidth: "none" }}

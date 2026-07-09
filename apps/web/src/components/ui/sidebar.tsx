@@ -29,6 +29,7 @@ interface SidebarProps {
   onClose?: () => void;
   onProfileClick?: () => void;
   profileGrade?: string;
+  children?: ReactNode;
 }
 
 function isSection(item: SidebarItem | SidebarSection): item is SidebarSection {
@@ -39,7 +40,7 @@ function isDivider(item: SidebarItem): boolean {
   return item.divider === true;
 }
 
-export function Sidebar({ items, className, onClose, onProfileClick, profileGrade }: SidebarProps): ReactNode {
+export function Sidebar({ items, className, onClose, onProfileClick, profileGrade, children }: SidebarProps): ReactNode {
   const [collapsed, setCollapsed] = useState(false);
   const { user } = useAuthStore();
 
@@ -217,6 +218,13 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
           );
         })}
       </nav>
+
+      {/* Bottom slot */}
+      {!collapsed && children && (
+        <div className="border-t border-white/5 pt-4 light:border-slate-200">
+          {children}
+        </div>
+      )}
     </aside>
   );
 }
