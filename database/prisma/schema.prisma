@@ -26,6 +26,9 @@ model User {
   academicTerm            String?
   governorate             String?
   school                  String?
+  academicYearId          String?                  @db.Uuid
+  termId                  String?                  @db.Uuid
+  gradeId                 String?                  @db.Uuid
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   deletedAt               DateTime?
@@ -46,6 +49,11 @@ model User {
   achievements            UserAchievement[]
   videoProgress           VideoProgress[]
   xpTransactions          XPTransaction[]
+  academicYear            AcademicYear?            @relation(fields: [academicYearId], references: [id])
+  term                    Term?                    @relation(fields: [termId], references: [id])
+  assignedGrade           Grade?                   @relation(fields: [gradeId], references: [id])
+  teacherGrades           TeacherGrade[]
+  auditLogs               AuditLog[]
 
   @@index([mobileNumber])
   @@index([role])
@@ -241,35 +249,106 @@ model Stage {
 }
 
 model Grade {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String
-  stageId      String   @db.Uuid
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  stage        Stage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  units        Unit[]
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String
+  stageId       String         @db.Uuid
+  displayOrder  Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  stage         Stage          @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  units         Unit[]
+  books         Book[]
+  teacherGrades TeacherGrade[]
+  users         User[]
 
   @@index([stageId])
   @@index([displayOrder])
   @@map("grades")
 }
 
+model AcademicYear {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  terms     Term[]
+  units     Unit[]
+  users     User[]
+
+  @@map("academic_years")
+}
+
+model Term {
+  id             String       @id @default(uuid()) @db.Uuid
+  name           String
+  academicYearId String       @db.Uuid
+  displayOrder   Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  books          Book[]
+  units          Unit[]
+  users          User[]
+
+  @@index([academicYearId])
+  @@map("terms")
+}
+
+model Book {
+  id        String   @id @default(uuid()) @db.Uuid
+  title     String
+  gradeId   String   @db.Uuid
+  termId    String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  grade     Grade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  term      Term     @relation(fields: [termId], references: [id], onDelete: Cascade)
+  units     Unit[]
+
+  @@index([gradeId])
+  @@index([termId])
+  @@map("books")
+}
+
+model TeacherGrade {
+  userId    String   @db.Uuid
+  gradeId   String   @db.Uuid
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grade     Grade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, gradeId])
+  @@index([gradeId])
+  @@map("teacher_grades")
+}
+
 model Unit {
-  id           String   @id @default(uuid()) @db.Uuid
-  title        String
-  description  String?
-  gradeId      String   @db.Uuid
-  displayOrder Int      @default(0)
-  isPremium    Boolean  @default(false)
-  published    Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  lessons      Lesson[]
-  grade        Grade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  id                String        @id @default(uuid()) @db.Uuid
+  title             String
+  description       String?
+  gradeId           String        @db.Uuid
+  displayOrder      Int           @default(0)
+  isPremium         Boolean       @default(false)
+  published         Boolean       @default(true)
+  academicYearId    String?       @db.Uuid
+  termId            String?       @db.Uuid
+  educationalSystem String?
+  bookId            String?       @db.Uuid
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  lessons           Lesson[]
+  grade             Grade         @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  academicYear      AcademicYear? @relation(fields: [academicYearId], references: [id])
+  term              Term?         @relation(fields: [termId], references: [id])
+  book              Book?         @relation(fields: [bookId], references: [id])
 
   @@index([gradeId])
   @@index([displayOrder])
+  @@index([academicYearId])
+  @@index([termId])
+  @@index([educationalSystem])
+  @@index([bookId])
   @@map("units")
 }
 
@@ -659,9 +738,38 @@ model ConversationMessage {
   @@map("conversation_messages")
 }
 
+model SystemSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String   @db.Uuid
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  actor     User     @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
 enum UserRole {
   STUDENT
   TEACHER
+  STAFF
   SECRETARY
   SUPPORT
   ADMINISTRATOR
@@ -671,6 +779,7 @@ enum AccountStatus {
   ACTIVE
   PENDING_VERIFICATION
   SUSPENDED
+  BANNED
   DELETED
 }
 
