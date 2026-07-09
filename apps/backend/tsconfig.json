@@ -20,8 +20,8 @@
     "paths": {
       "@el-bannawy/database": ["../../database"],
       "@el-bannawy/database/*": ["../../database/*"],
-      "@el-bannawy/shared": ["../../packages/shared/src"],
-      "@el-bannawy/shared/*": ["../../packages/shared/src/*"]
+      "@el-bannawy/shared": ["../../packages/shared/dist"],
+      "@el-bannawy/shared/*": ["../../packages/shared/dist/*"]
     }
   },
   "include": ["src/**/*", "test/**/*"]
