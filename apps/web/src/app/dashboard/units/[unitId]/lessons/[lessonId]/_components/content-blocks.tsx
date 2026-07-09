@@ -132,7 +132,7 @@ function VideoBlock({
 
   const addMutation = useMutation({
     mutationFn: async () =>
-      api.post(`/teacher/lessons/${lessonId}/videos`, {
+      api.post(`/lessons/${lessonId}/videos`, {
         youtubeUrl: url.trim(),
       }),
     onSuccess: () => {
@@ -143,7 +143,7 @@ function VideoBlock({
 
   const deleteMutation = useMutation({
     mutationFn: async (videoId: string) =>
-      api.delete(`/teacher/lessons/${lessonId}/videos/${videoId}`),
+      api.delete(`/lessons/${lessonId}/videos/${videoId}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
     },
@@ -363,14 +363,14 @@ function PdfBlock({
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) =>
-      uploadFile(`/teacher/lessons/${lessonId}/upload/document`, file),
+      uploadFile(`/lessons/${lessonId}/upload/document`, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => api.delete(`/teacher/lessons/${lessonId}/document`),
+    mutationFn: async () => api.delete(`/lessons/${lessonId}/document`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
     },
@@ -413,14 +413,14 @@ function QuizBlock({
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) =>
-      uploadFile(`/teacher/lessons/${lessonId}/quiz/upload`, file),
+      uploadFile(`/lessons/${lessonId}/quiz/upload`, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["quiz", lessonId] });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => api.delete(`/teacher/lessons/${lessonId}/quiz`),
+    mutationFn: async () => api.delete(`/lessons/${lessonId}/quiz`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["quiz", lessonId] });
     },
@@ -462,7 +462,7 @@ function HomeworkBlock({
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) =>
-      uploadFile(`/teacher/lessons/${lessonId}/homework/upload`, file),
+      uploadFile(`/lessons/${lessonId}/homework/upload`, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["homework", lessonId] });
     },
@@ -470,7 +470,7 @@ function HomeworkBlock({
 
   const deleteMutation = useMutation({
     mutationFn: async () =>
-      api.delete(`/teacher/lessons/${lessonId}/homework`),
+      api.delete(`/lessons/${lessonId}/homework`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["homework", lessonId] });
     },
