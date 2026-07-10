@@ -19,6 +19,7 @@ import { StudentsModule } from "./students/students.module";
 import { TeachersModule } from "./teachers/teachers.module";
 import { StoryModule } from "./story/story.module";
 import { FinalReviewModule } from "./final-review/final-review.module";
+import { DocumentImportModule } from "./document-import/document-import.module";
 import { BootstrapService } from "./common/services/bootstrap.service";
 
 @Module({
@@ -43,6 +44,7 @@ import { BootstrapService } from "./common/services/bootstrap.service";
     TeachersModule,
     StoryModule,
     FinalReviewModule,
+    DocumentImportModule,
   ],
   providers: [BootstrapService],
 })
