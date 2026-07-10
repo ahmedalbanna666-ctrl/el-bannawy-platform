@@ -204,15 +204,64 @@ export class LessonService {
     await this.prisma.lessonVideo.delete({ where: { id: videoId } });
   }
 
-  async addVocabulary(lessonId: string, word: string, translation: string, userId: string): Promise<unknown> {
+  async addVocabulary(lessonId: string, dto: { word: string; translation: string; definition?: string; example?: string }, userId: string): Promise<unknown> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    const defTrimmed = dto.definition?.trim();
+    const exTrimmed = dto.example?.trim();
     return this.prisma.lessonVocabulary.create({
-      data: { lessonId, word, translation, displayOrder: 0 },
+      data: {
+        lessonId,
+        word: dto.word.trim(),
+        translation: dto.translation.trim(),
+        definition: defTrimmed !== undefined && defTrimmed.length > 0 ? defTrimmed : null,
+        example: exTrimmed !== undefined && exTrimmed.length > 0 ? exTrimmed : null,
+        displayOrder: 0,
+      },
+    });
+  }
+
+  async updateVocabulary(lessonId: string, vocabId: string, dto: { word?: string; translation?: string; definition?: string; example?: string }, userId: string): Promise<unknown> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+
+    const existing = await this.prisma.lessonVocabulary.findFirst({
+      where: { id: vocabId, lessonId },
+    });
+    if (!existing) {
+      throw new NotFoundException("Vocabulary item not found");
+    }
+
+    const data: Record<string, string | null> = {};
+    if (dto.word !== undefined) data.word = dto.word.trim();
+    if (dto.translation !== undefined) data.translation = dto.translation.trim();
+    if (dto.definition !== undefined) {
+      const trimmed = dto.definition.trim();
+      data.definition = trimmed.length > 0 ? trimmed : null;
+    }
+    if (dto.example !== undefined) {
+      const trimmed = dto.example.trim();
+      data.example = trimmed.length > 0 ? trimmed : null;
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException("No fields provided for update");
+    }
+
+    return this.prisma.lessonVocabulary.update({
+      where: { id: vocabId },
+      data,
     });
   }
 
   async deleteVocabulary(lessonId: string, vocabId: string, userId: string): Promise<void> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+
+    const existing = await this.prisma.lessonVocabulary.findFirst({
+      where: { id: vocabId, lessonId },
+    });
+    if (!existing) {
+      throw new NotFoundException("Vocabulary item not found");
+    }
+
     await this.prisma.lessonVocabulary.delete({ where: { id: vocabId } });
   }
 

@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Post, Delete, Param, ParseUUIDPipe, UseGuards, Body, UseInterceptors, UploadedFile, HttpCode, HttpStatus } from "@nestjs/common";
+﻿import { Controller, Get, Post, Delete, Patch, Param, ParseUUIDPipe, UseGuards, Body, UseInterceptors, UploadedFile, HttpCode, HttpStatus } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { LessonService } from "./lesson.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
@@ -6,6 +6,7 @@ import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
+import { CreateVocabularyDto, UpdateVocabularyDto } from "./dto/vocabulary.dto";
 
 @Controller("lessons")
 export class LessonController {
@@ -47,8 +48,13 @@ export class LessonController {
   }
 
   @Post(":id/vocabulary") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR")
-  async addVocabulary(@Param("id", ParseUUIDPipe) lessonId: string, @Body("word") word: string, @Body("translation") translation: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
-    return successResponse(await this.lessonService.addVocabulary(lessonId, word, translation, userId), "Added");
+  async addVocabulary(@Param("id", ParseUUIDPipe) lessonId: string, @Body() dto: CreateVocabularyDto, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
+    return successResponse(await this.lessonService.addVocabulary(lessonId, dto, userId), "Added");
+  }
+
+  @Patch(":id/vocabulary/:vocabId") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR")
+  async updateVocabulary(@Param("id", ParseUUIDPipe) lessonId: string, @Param("vocabId", ParseUUIDPipe) vocabId: string, @Body() dto: UpdateVocabularyDto, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
+    return successResponse(await this.lessonService.updateVocabulary(lessonId, vocabId, dto, userId), "Updated");
   }
 
   @Delete(":id/vocabulary/:vocabId") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR") @HttpCode(HttpStatus.NO_CONTENT)

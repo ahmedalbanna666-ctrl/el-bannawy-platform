@@ -17,6 +17,9 @@ import {
   Plus,
   Trash2,
   Film,
+  Pencil,
+  Check,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -238,17 +241,42 @@ function VocabularyBlock({
   const queryClient = useQueryClient();
   const [word, setWord] = useState("");
   const [translation, setTranslation] = useState("");
+  const [definition, setDefinition] = useState("");
+  const [example, setExample] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editWord, setEditWord] = useState("");
+  const [editTranslation, setEditTranslation] = useState("");
+  const [editDefinition, setEditDefinition] = useState("");
+  const [editExample, setEditExample] = useState("");
 
   const addMutation = useMutation({
     mutationFn: async () =>
       api.post(`/lessons/${lessonId}/vocabulary`, {
         word: word.trim(),
         translation: translation.trim(),
+        definition: definition.trim() || undefined,
+        example: example.trim() || undefined,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
       setWord("");
       setTranslation("");
+      setDefinition("");
+      setExample("");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () =>
+      api.patch(`/lessons/${lessonId}/vocabulary/${editingId ?? ""}`, {
+        word: editWord.trim(),
+        translation: editTranslation.trim(),
+        definition: editDefinition.trim() || undefined,
+        example: editExample.trim() || undefined,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      setEditingId(null);
     },
   });
 
@@ -259,6 +287,18 @@ function VocabularyBlock({
       void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
     },
   });
+
+  const startEdit = (vocab: LessonVocabulary): void => {
+    setEditingId(vocab.id);
+    setEditWord(vocab.word);
+    setEditTranslation(vocab.translation);
+    setEditDefinition(vocab.definition ?? "");
+    setEditExample(vocab.example ?? "");
+  };
+
+  const cancelEdit = (): void => {
+    setEditingId(null);
+  };
 
   return (
     <ContentBlock
@@ -284,65 +324,166 @@ function VocabularyBlock({
               key={vocab.id}
               className="flex items-center gap-3 rounded-xl bg-neutral-50 p-3 dark:bg-neutral-800/50"
             >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-primary-500">
-                    {vocab.word}
-                  </span>
-                  <span className="text-sm text-neutral-500">—</span>
-                  <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                    {vocab.translation}
-                  </span>
+              {editingId === vocab.id ? (
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editWord}
+                      onChange={(e): void => { setEditWord(e.target.value); }}
+                      className="flex-1"
+                      placeholder="كلمة"
+                    />
+                    <Input
+                      value={editTranslation}
+                      onChange={(e): void => { setEditTranslation(e.target.value); }}
+                      className="flex-1"
+                      placeholder="ترجمة"
+                    />
+                  </div>
+                  <Input
+                    value={editDefinition}
+                    onChange={(e): void => { setEditDefinition(e.target.value); }}
+                    placeholder="تعريف (اختياري)"
+                    className="text-xs"
+                  />
+                  <Input
+                    value={editExample}
+                    onChange={(e): void => { setEditExample(e.target.value); }}
+                    placeholder="مثال (اختياري)"
+                    className="text-xs"
+                  />
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="primary"
+                      size="icon-sm"
+                      aria-label="حفظ"
+                      loading={updateMutation.isPending}
+                      disabled={!editWord.trim() || !editTranslation.trim()}
+                      onClick={(): void => { updateMutation.mutate(); }}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="إلغاء"
+                      onClick={cancelEdit}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-                {vocab.definition && (
-                  <p className="mt-0.5 text-xs text-neutral-400">
-                    {vocab.definition}
-                  </p>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="حذف الكلمة"
-                className="text-danger-500 hover:bg-danger-500/10"
-                loading={deleteMutation.isPending}
-                onClick={(): void => { deleteMutation.mutate(vocab.id); }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              ) : (
+                <>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-primary-500">
+                        {vocab.word}
+                      </span>
+                      <span className="text-sm text-neutral-500">—</span>
+                      <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                        {vocab.translation}
+                      </span>
+                    </div>
+                    {vocab.definition && (
+                      <p className="mt-0.5 text-xs text-neutral-400">
+                        {vocab.definition}
+                      </p>
+                    )}
+                    {vocab.example && (
+                      <p className="mt-0.5 text-xs italic text-neutral-400">
+                        &quot;{vocab.example}&quot;
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="تعديل الكلمة"
+                    className="text-neutral-400 hover:text-primary-500"
+                    disabled={editingId !== null}
+                    onClick={(): void => { startEdit(vocab); }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="حذف الكلمة"
+                    className="text-danger-500 hover:bg-danger-500/10"
+                    loading={deleteMutation.isPending}
+                    disabled={editingId !== null}
+                    onClick={(): void => { deleteMutation.mutate(vocab.id); }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
             </div>
           ))
         )}
 
-        <div className="flex items-center gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-700">
-          <Input
-            placeholder="كلمة"
-            value={word}
-            onChange={(e): void => { setWord(e.target.value); }}
-            className="flex-1"
-          />
-          <Input
-            placeholder="ترجمة"
-            value={translation}
-            onChange={(e): void => { setTranslation(e.target.value); }}
-            className="flex-1"
-          />
-          <Button
-            variant="primary"
-            size="sm"
-            loading={addMutation.isPending}
-            disabled={!word.trim() || !translation.trim()}
-            onClick={(): void => { addMutation.mutate(); }}
-          >
-            <Plus className="h-4 w-4" />
-            إضافة
-          </Button>
-        </div>
+        {editingId === null && (
+          <div className="flex flex-col gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-700">
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="كلمة"
+                value={word}
+                onChange={(e): void => { setWord(e.target.value); }}
+                className="flex-1"
+              />
+              <Input
+                placeholder="ترجمة"
+                value={translation}
+                onChange={(e): void => { setTranslation(e.target.value); }}
+                className="flex-1"
+              />
+            </div>
+            <Input
+              placeholder="تعريف (اختياري)"
+              value={definition}
+              onChange={(e): void => { setDefinition(e.target.value); }}
+              className="text-xs"
+            />
+            <Input
+              placeholder="مثال (اختياري)"
+              value={example}
+              onChange={(e): void => { setExample(e.target.value); }}
+              className="text-xs"
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                loading={addMutation.isPending}
+                disabled={!word.trim() || !translation.trim()}
+                onClick={(): void => { addMutation.mutate(); }}
+              >
+                <Plus className="h-4 w-4" />
+                إضافة
+              </Button>
+            </div>
+          </div>
+        )}
         {addMutation.isError && (
           <p className="text-sm text-danger-500" role="alert">
             {addMutation.error instanceof Error
               ? addMutation.error.message
               : "فشل إضافة المفردة"}
+          </p>
+        )}
+        {updateMutation.isError && (
+          <p className="text-sm text-danger-500" role="alert">
+            {updateMutation.error instanceof Error
+              ? updateMutation.error.message
+              : "فشل تعديل المفردة"}
+          </p>
+        )}
+        {deleteMutation.isError && (
+          <p className="text-sm text-danger-500" role="alert">
+            {deleteMutation.error instanceof Error
+              ? deleteMutation.error.message
+              : "فشل حذف المفردة"}
           </p>
         )}
       </div>
