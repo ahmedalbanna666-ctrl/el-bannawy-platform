@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ContentBlock } from "@/components/units/content-block";
 import { UploadCard } from "@/components/units/upload-card";
+import { VocabularyImportDialog } from "./vocabulary-import-dialog";
 import {
   MonitorPlay,
   Languages,
@@ -20,6 +21,7 @@ import {
   Pencil,
   Check,
   X,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 
@@ -239,6 +241,7 @@ function VocabularyBlock({
   vocabulary: readonly LessonVocabulary[];
 }): ReactNode {
   const queryClient = useQueryClient();
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [word, setWord] = useState("");
   const [translation, setTranslation] = useState("");
   const [definition, setDefinition] = useState("");
@@ -312,7 +315,24 @@ function VocabularyBlock({
           </Badge>
         ) : undefined
       }
+      actions={
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(): void => { setShowImportDialog(true); }}
+        >
+          <Upload className="h-4 w-4" />
+          استيراد
+        </Button>
+      }
     >
+      {showImportDialog && (
+        <VocabularyImportDialog
+          lessonId={lessonId}
+          existingVocab={vocabulary as readonly { id: string; word: string; translation: string; definition: string | null; example: string | null; displayOrder: number }[]}
+          onClose={(): void => { setShowImportDialog(false); }}
+        />
+      )}
       <div className="flex flex-col gap-2">
         {vocabulary.length === 0 ? (
           <p className="py-4 text-center text-sm text-neutral-400">

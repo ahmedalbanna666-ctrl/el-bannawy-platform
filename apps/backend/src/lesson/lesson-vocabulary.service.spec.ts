@@ -10,6 +10,7 @@ type MockPrismaService = {
     create: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
+    deleteMany: jest.Mock;
     findFirst: jest.Mock;
     findMany: jest.Mock;
   };
@@ -22,6 +23,7 @@ type MockPrismaService = {
   lessonProgress: {
     findUnique: jest.Mock;
   };
+  $transaction: jest.Mock;
 };
 
 type MockAcademicContext = {
@@ -35,6 +37,7 @@ function createMockPrisma(): MockPrismaService {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
     },
@@ -47,6 +50,7 @@ function createMockPrisma(): MockPrismaService {
     lessonProgress: {
       findUnique: jest.fn(),
     },
+    $transaction: jest.fn(),
   };
 }
 
@@ -253,6 +257,95 @@ describe("LessonService — Vocabulary", () => {
       ).rejects.toThrow(ForbiddenException);
       expect(prisma.lessonVocabulary.findFirst).not.toHaveBeenCalled();
       expect(prisma.lessonVocabulary.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── COMMIT ──────────────────────────────────────────────────────────
+
+  describe("commitVocabularyImport", () => {
+    const commitItem = { word: "hello", translation: "مرحبا" };
+    const commitItem2 = { word: "world", translation: "عالم" };
+
+    it("verifies teacher lesson access", async () => {
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
+      prisma.lessonVocabulary.findMany.mockResolvedValue([]);
+      await service.commitVocabularyImport(lessonId, { items: [commitItem] }, userId);
+      expect(academic.verifyTeacherLessonAccess).toHaveBeenCalledWith(userId, lessonId);
+    });
+
+    it("creates items in a transaction", async () => {
+      const txSpy = jest.fn();
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+        txSpy();
+        return fn(prisma);
+      });
+      prisma.lessonVocabulary.findMany.mockResolvedValue([]);
+      await service.commitVocabularyImport(lessonId, { items: [commitItem] }, userId);
+      expect(txSpy).toHaveBeenCalled();
+    });
+
+    it("deletes specified existing items", async () => {
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
+      prisma.lessonVocabulary.findMany.mockResolvedValue([]);
+      await service.commitVocabularyImport(
+        lessonId,
+        { items: [commitItem], removeVocabIds: [vocabId] },
+        userId,
+      );
+      expect(prisma.lessonVocabulary.deleteMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: [vocabId] }, lessonId } }),
+      );
+    });
+
+    it("replaces existing item when replaceVocabId is set", async () => {
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
+      prisma.lessonVocabulary.findMany.mockResolvedValue([]);
+      await service.commitVocabularyImport(
+        lessonId,
+        { items: [{ ...commitItem, replaceVocabId: vocabId }] },
+        userId,
+      );
+      expect(prisma.lessonVocabulary.delete).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: vocabId } }),
+      );
+    });
+
+    it("creates all new items with displayOrder", async () => {
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
+      prisma.lessonVocabulary.findMany.mockResolvedValue([]);
+      await service.commitVocabularyImport(
+        lessonId,
+        { items: [commitItem, commitItem2] },
+        userId,
+      );
+      expect(prisma.lessonVocabulary.create).toHaveBeenCalledTimes(2);
+      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ word: "hello", displayOrder: 0 }),
+        }),
+      );
+      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ word: "world", displayOrder: 1 }),
+        }),
+      );
+    });
+
+    it("returns the final vocabulary list", async () => {
+      const finalList = [{ id: "new-id", lessonId, word: "hello", translation: "مرحبا", definition: null, example: null, displayOrder: 0, createdAt: new Date() }];
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
+      prisma.lessonVocabulary.findMany.mockResolvedValue(finalList);
+      const result = await service.commitVocabularyImport(lessonId, { items: [commitItem] }, userId);
+      expect(result).toEqual(finalList);
+    });
+
+    it("performs zero mutation on access failure", async () => {
+      academic.verifyTeacherLessonAccess.mockRejectedValue(new ForbiddenException());
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
+      await expect(
+        service.commitVocabularyImport(lessonId, { items: [commitItem] }, userId),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 });

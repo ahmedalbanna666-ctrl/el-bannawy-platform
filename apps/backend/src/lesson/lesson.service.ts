@@ -273,6 +273,47 @@ export class LessonService {
     return this.vocabularyPreview.preview(buffer, originalName);
   }
 
+  async commitVocabularyImport(
+    lessonId: string,
+    dto: { items: Array<{ word: string; translation: string; definition?: string; example?: string; displayOrder?: number; replaceVocabId?: string }>; removeVocabIds?: string[] },
+    userId: string,
+  ): Promise<unknown> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.removeVocabIds && dto.removeVocabIds.length > 0) {
+        await tx.lessonVocabulary.deleteMany({
+          where: { id: { in: dto.removeVocabIds }, lessonId },
+        });
+      }
+
+      for (let i = 0; i < dto.items.length; i++) {
+        const item = dto.items[i];
+        if (item.replaceVocabId) {
+          await tx.lessonVocabulary.delete({
+            where: { id: item.replaceVocabId },
+          });
+        }
+
+        await tx.lessonVocabulary.create({
+          data: {
+            lessonId,
+            word: item.word.trim(),
+            translation: item.translation.trim(),
+            definition: item.definition?.trim() || null,
+            example: item.example?.trim() || null,
+            displayOrder: item.displayOrder ?? i,
+          },
+        });
+      }
+
+      return tx.lessonVocabulary.findMany({
+        where: { lessonId },
+        orderBy: { displayOrder: "asc" },
+      });
+    });
+  }
+
   async uploadDocument(lessonId: string, fileName: string, fileUrl: string, fileSize: number, userId: string): Promise<unknown> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
     return this.prisma.lessonDocument.upsert({

@@ -6,7 +6,7 @@ import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
-import { CreateVocabularyDto, UpdateVocabularyDto } from "./dto/vocabulary.dto";
+import { CreateVocabularyDto, UpdateVocabularyDto, CommitVocabularyImportDto } from "./dto/vocabulary.dto";
 import type { VocabularyImportPreview } from "../document-import/types/vocabulary-preview.types";
 
 @Controller("lessons")
@@ -77,6 +77,18 @@ export class LessonController {
     return successResponse(
       await this.lessonService.previewVocabularyImport(lessonId, buffer, originalName, userId),
       "Preview generated",
+    );
+  }
+
+  @Post(":id/vocabulary/import/commit") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR")
+  async commitVocabularyImport(
+    @Param("id", ParseUUIDPipe) lessonId: string,
+    @Body() dto: CommitVocabularyImportDto,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    return successResponse(
+      await this.lessonService.commitVocabularyImport(lessonId, dto, userId),
+      "Vocabulary imported",
     );
   }
 
