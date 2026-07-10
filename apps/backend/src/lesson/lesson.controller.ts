@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Post, Delete, Patch, Param, ParseUUIDPipe, UseGuards, Body, UseInterceptors, UploadedFile, HttpCode, HttpStatus } from "@nestjs/common";
+﻿import { Controller, Get, Post, Delete, Patch, Param, ParseUUIDPipe, UseGuards, Body, UseInterceptors, UploadedFile, HttpCode, HttpStatus, BadRequestException } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { LessonService } from "./lesson.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
@@ -7,6 +7,7 @@ import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
 import { CreateVocabularyDto, UpdateVocabularyDto } from "./dto/vocabulary.dto";
+import type { VocabularyImportPreview } from "../document-import/types/vocabulary-preview.types";
 
 @Controller("lessons")
 export class LessonController {
@@ -60,6 +61,23 @@ export class LessonController {
   @Delete(":id/vocabulary/:vocabId") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR") @HttpCode(HttpStatus.NO_CONTENT)
   async deleteVocabulary(@Param("id", ParseUUIDPipe) lessonId: string, @Param("vocabId", ParseUUIDPipe) vocabId: string, @CurrentUser() userId: string): Promise<void> {
     await this.lessonService.deleteVocabulary(lessonId, vocabId, userId);
+  }
+
+  @Post(":id/vocabulary/import/preview") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR") @UseInterceptors(FileInterceptor("file"))
+  async previewVocabularyImport(
+    @Param("id", ParseUUIDPipe) lessonId: string,
+    @UploadedFile() file: Record<string, unknown>,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<VocabularyImportPreview>> {
+    const buffer = (file?.["buffer"] as Buffer | undefined);
+    const originalName = (file?.["originalname"] as string) ?? "unknown.docx";
+    if (!Buffer.isBuffer(buffer)) {
+      throw new BadRequestException("File is required");
+    }
+    return successResponse(
+      await this.lessonService.previewVocabularyImport(lessonId, buffer, originalName, userId),
+      "Preview generated",
+    );
   }
 
   @Post(":id/upload/document") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR") @UseInterceptors(FileInterceptor("file"))

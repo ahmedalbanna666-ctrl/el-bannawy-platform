@@ -3,6 +3,7 @@ import { NotFoundException, ForbiddenException, BadRequestException } from "@nes
 import { LessonService } from "./lesson.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
+import { VocabularyPreviewService } from "../document-import/services/vocabulary-preview.service";
 
 type MockPrismaService = {
   lessonVocabulary: {
@@ -85,6 +86,7 @@ describe("LessonService — Vocabulary", () => {
         LessonService,
         { provide: PrismaService, useValue: prisma },
         { provide: AcademicContextService, useValue: academic },
+        { provide: VocabularyPreviewService, useValue: { preview: jest.fn() } },
       ],
     }).compile();
 

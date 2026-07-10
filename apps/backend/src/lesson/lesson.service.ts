@@ -1,12 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
+import { VocabularyPreviewService } from "../document-import/services/vocabulary-preview.service";
+import type { VocabularyImportPreview } from "../document-import/types/vocabulary-preview.types";
 
 @Injectable()
 export class LessonService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
+    private readonly vocabularyPreview: VocabularyPreviewService,
   ) {}
 
   async getLesson(id: string, userId: string): Promise<unknown> {
@@ -263,6 +266,11 @@ export class LessonService {
     }
 
     await this.prisma.lessonVocabulary.delete({ where: { id: vocabId } });
+  }
+
+  async previewVocabularyImport(lessonId: string, buffer: Buffer, originalName: string, userId: string): Promise<VocabularyImportPreview> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    return this.vocabularyPreview.preview(buffer, originalName);
   }
 
   async uploadDocument(lessonId: string, fileName: string, fileUrl: string, fileSize: number, userId: string): Promise<unknown> {
