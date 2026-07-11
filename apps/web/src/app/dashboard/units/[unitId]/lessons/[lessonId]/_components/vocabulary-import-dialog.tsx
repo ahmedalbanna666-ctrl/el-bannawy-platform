@@ -213,6 +213,7 @@ export function VocabularyImportDialog({
         translation: item.translation,
         definition: item.definition || undefined,
         example: item.example || undefined,
+        partOfSpeech: item.partOfSpeech || undefined,
         displayOrder: existingVocab.length + idx,
       }));
 

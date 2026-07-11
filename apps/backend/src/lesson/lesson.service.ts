@@ -207,10 +207,11 @@ export class LessonService {
     await this.prisma.lessonVideo.delete({ where: { id: videoId } });
   }
 
-  async addVocabulary(lessonId: string, dto: { word: string; translation: string; definition?: string; example?: string }, userId: string): Promise<unknown> {
+  async addVocabulary(lessonId: string, dto: { word: string; translation: string; definition?: string; example?: string; partOfSpeech?: string }, userId: string): Promise<unknown> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
     const defTrimmed = dto.definition?.trim();
     const exTrimmed = dto.example?.trim();
+    const posTrimmed = dto.partOfSpeech?.trim();
     return this.prisma.lessonVocabulary.create({
       data: {
         lessonId,
@@ -218,12 +219,13 @@ export class LessonService {
         translation: dto.translation.trim(),
         definition: defTrimmed !== undefined && defTrimmed.length > 0 ? defTrimmed : null,
         example: exTrimmed !== undefined && exTrimmed.length > 0 ? exTrimmed : null,
+        partOfSpeech: posTrimmed !== undefined && posTrimmed.length > 0 ? posTrimmed : null,
         displayOrder: 0,
       },
     });
   }
 
-  async updateVocabulary(lessonId: string, vocabId: string, dto: { word?: string; translation?: string; definition?: string; example?: string }, userId: string): Promise<unknown> {
+  async updateVocabulary(lessonId: string, vocabId: string, dto: { word?: string; translation?: string; definition?: string; example?: string; partOfSpeech?: string }, userId: string): Promise<unknown> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
 
     const existing = await this.prisma.lessonVocabulary.findFirst({
@@ -243,6 +245,10 @@ export class LessonService {
     if (dto.example !== undefined) {
       const trimmed = dto.example.trim();
       data.example = trimmed.length > 0 ? trimmed : null;
+    }
+    if (dto.partOfSpeech !== undefined) {
+      const trimmed = dto.partOfSpeech.trim();
+      data.partOfSpeech = trimmed.length > 0 ? trimmed : null;
     }
 
     if (Object.keys(data).length === 0) {
@@ -275,7 +281,7 @@ export class LessonService {
 
   async commitVocabularyImport(
     lessonId: string,
-    dto: { items: Array<{ word: string; translation: string; definition?: string; example?: string; displayOrder?: number; replaceVocabId?: string }>; removeVocabIds?: string[] },
+    dto: { items: Array<{ word: string; translation: string; definition?: string; example?: string; displayOrder?: number; replaceVocabId?: string; partOfSpeech?: string }>; removeVocabIds?: string[] },
     userId: string,
   ): Promise<unknown> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
@@ -302,6 +308,7 @@ export class LessonService {
             translation: item.translation.trim(),
             definition: item.definition?.trim() || null,
             example: item.example?.trim() || null,
+            partOfSpeech: item.partOfSpeech?.trim() || null,
             displayOrder: item.displayOrder ?? i,
           },
         });

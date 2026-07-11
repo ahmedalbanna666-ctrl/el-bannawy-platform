@@ -60,6 +60,7 @@ interface LessonVocabulary {
   readonly translation: string;
   readonly definition: string | null;
   readonly example: string | null;
+  readonly partOfSpeech: string | null;
   readonly displayOrder: number;
 }
 
@@ -246,11 +247,13 @@ function VocabularyBlock({
   const [translation, setTranslation] = useState("");
   const [definition, setDefinition] = useState("");
   const [example, setExample] = useState("");
+  const [partOfSpeech, setPartOfSpeech] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editWord, setEditWord] = useState("");
   const [editTranslation, setEditTranslation] = useState("");
   const [editDefinition, setEditDefinition] = useState("");
   const [editExample, setEditExample] = useState("");
+  const [editPartOfSpeech, setEditPartOfSpeech] = useState("");
 
   const addMutation = useMutation({
     mutationFn: async () =>
@@ -259,6 +262,7 @@ function VocabularyBlock({
         translation: translation.trim(),
         definition: definition.trim() || undefined,
         example: example.trim() || undefined,
+        partOfSpeech: partOfSpeech.trim() || undefined,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
@@ -266,6 +270,7 @@ function VocabularyBlock({
       setTranslation("");
       setDefinition("");
       setExample("");
+      setPartOfSpeech("");
     },
   });
 
@@ -276,6 +281,7 @@ function VocabularyBlock({
         translation: editTranslation.trim(),
         definition: editDefinition.trim() || undefined,
         example: editExample.trim() || undefined,
+        partOfSpeech: editPartOfSpeech.trim() || undefined,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
@@ -297,6 +303,7 @@ function VocabularyBlock({
     setEditTranslation(vocab.translation);
     setEditDefinition(vocab.definition ?? "");
     setEditExample(vocab.example ?? "");
+    setEditPartOfSpeech(vocab.partOfSpeech ?? "");
   };
 
   const cancelEdit = (): void => {
@@ -370,6 +377,12 @@ function VocabularyBlock({
                     value={editExample}
                     onChange={(e): void => { setEditExample(e.target.value); }}
                     placeholder="مثال (اختياري)"
+                    className="text-xs"
+                  />
+                  <Input
+                    value={editPartOfSpeech}
+                    onChange={(e): void => { setEditPartOfSpeech(e.target.value); }}
+                    placeholder="نوع الكلمة n, v, adj (اختياري)"
                     className="text-xs"
                   />
                   <div className="flex items-center gap-1">
@@ -469,6 +482,12 @@ function VocabularyBlock({
               placeholder="مثال (اختياري)"
               value={example}
               onChange={(e): void => { setExample(e.target.value); }}
+              className="text-xs"
+            />
+            <Input
+              placeholder="نوع الكلمة n, v, adj (اختياري)"
+              value={partOfSpeech}
+              onChange={(e): void => { setPartOfSpeech(e.target.value); }}
               className="text-xs"
             />
             <div className="flex items-center gap-2">

@@ -498,6 +498,7 @@ model LessonVocabulary {
   translation  String
   definition   String?
   example      String?
+  partOfSpeech String?
   displayOrder Int      @default(0)
   createdAt    DateTime @default(now())
   lesson       Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)

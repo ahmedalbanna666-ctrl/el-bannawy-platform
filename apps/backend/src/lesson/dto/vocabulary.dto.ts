@@ -19,6 +19,11 @@ export class CreateVocabularyDto {
   @IsString()
   @MaxLength(1000)
   example?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  partOfSpeech?: string;
 }
 
 export class UpdateVocabularyDto {
@@ -41,6 +46,11 @@ export class UpdateVocabularyDto {
   @IsString()
   @MaxLength(1000)
   example?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  partOfSpeech?: string;
 }
 
 export class CommitVocabularyItemDto {
@@ -70,6 +80,11 @@ export class CommitVocabularyItemDto {
   @IsOptional()
   @IsUUID()
   replaceVocabId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  partOfSpeech?: string;
 }
 
 export class CommitVocabularyImportDto {

@@ -78,8 +78,8 @@ describe("LessonService — Vocabulary", () => {
     definition: "to succeed in doing something",
     example: "She worked hard to achieve her goal.",
   };
-  const baseVocab = { id: vocabId, lessonId, ...baseDto, definition: null, example: null, displayOrder: 0, createdAt: new Date() };
-  const fullVocab = { id: vocabId, lessonId, ...fullDto, displayOrder: 0, createdAt: new Date() };
+  const baseVocab = { id: vocabId, lessonId, ...baseDto, definition: null, example: null, partOfSpeech: null, displayOrder: 0, createdAt: new Date() };
+  const fullVocab = { id: vocabId, lessonId, ...fullDto, partOfSpeech: null, displayOrder: 0, createdAt: new Date() };
 
   beforeEach(async () => {
     prisma = createMockPrisma();
@@ -135,6 +135,36 @@ describe("LessonService — Vocabulary", () => {
       expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ definition: null, example: null }),
+        }),
+      );
+    });
+
+    it("persists partOfSpeech when provided", async () => {
+      prisma.lessonVocabulary.create.mockResolvedValue({ ...baseVocab, partOfSpeech: "n" });
+      await service.addVocabulary(lessonId, { ...baseDto, partOfSpeech: " n " }, userId);
+      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ partOfSpeech: "n" }),
+        }),
+      );
+    });
+
+    it("persists null partOfSpeech when omitted", async () => {
+      prisma.lessonVocabulary.create.mockResolvedValue(baseVocab);
+      await service.addVocabulary(lessonId, baseDto, userId);
+      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ partOfSpeech: null }),
+        }),
+      );
+    });
+
+    it("persists null for empty partOfSpeech", async () => {
+      prisma.lessonVocabulary.create.mockResolvedValue(baseVocab);
+      await service.addVocabulary(lessonId, { ...baseDto, partOfSpeech: "" }, userId);
+      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ partOfSpeech: null }),
         }),
       );
     });
@@ -202,6 +232,39 @@ describe("LessonService — Vocabulary", () => {
       expect(prisma.lessonVocabulary.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ definition: null, example: null }),
+        }),
+      );
+    });
+
+    it("preserves partOfSpeech when updating other fields", async () => {
+      prisma.lessonVocabulary.findFirst.mockResolvedValue({ ...baseVocab, partOfSpeech: "n" });
+      prisma.lessonVocabulary.update.mockResolvedValue({ ...baseVocab, partOfSpeech: "n", translation: "new" });
+      await service.updateVocabulary(lessonId, vocabId, { translation: "new" }, userId);
+      expect(prisma.lessonVocabulary.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { translation: "new" },
+        }),
+      );
+    });
+
+    it("clears partOfSpeech when sent as empty string", async () => {
+      prisma.lessonVocabulary.findFirst.mockResolvedValue({ ...baseVocab, partOfSpeech: "n" });
+      prisma.lessonVocabulary.update.mockResolvedValue({ ...baseVocab, partOfSpeech: null });
+      await service.updateVocabulary(lessonId, vocabId, { partOfSpeech: "" }, userId);
+      expect(prisma.lessonVocabulary.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ partOfSpeech: null }),
+        }),
+      );
+    });
+
+    it("trims partOfSpeech before persistence", async () => {
+      prisma.lessonVocabulary.findFirst.mockResolvedValue(baseVocab);
+      prisma.lessonVocabulary.update.mockResolvedValue({ ...baseVocab, partOfSpeech: "n" });
+      await service.updateVocabulary(lessonId, vocabId, { partOfSpeech: "  n  " }, userId);
+      expect(prisma.lessonVocabulary.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ partOfSpeech: "n" }),
         }),
       );
     });
@@ -346,6 +409,36 @@ describe("LessonService — Vocabulary", () => {
         service.commitVocabularyImport(lessonId, { items: [commitItem] }, userId),
       ).rejects.toThrow(ForbiddenException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("persists partOfSpeech during commit", async () => {
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
+      prisma.lessonVocabulary.findMany.mockResolvedValue([]);
+      await service.commitVocabularyImport(
+        lessonId,
+        { items: [{ ...commitItem, partOfSpeech: "n" }] },
+        userId,
+      );
+      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ partOfSpeech: "n" }),
+        }),
+      );
+    });
+
+    it("persists null partOfSpeech when omitted in commit", async () => {
+      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
+      prisma.lessonVocabulary.findMany.mockResolvedValue([]);
+      await service.commitVocabularyImport(
+        lessonId,
+        { items: [commitItem] },
+        userId,
+      );
+      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ partOfSpeech: null }),
+        }),
+      );
     });
   });
 });

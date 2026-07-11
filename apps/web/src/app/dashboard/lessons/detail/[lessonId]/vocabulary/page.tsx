@@ -30,6 +30,7 @@ interface VocabWord {
   readonly translation: string;
   readonly definition: string | null;
   readonly example: string | null;
+  readonly partOfSpeech: string | null;
   readonly displayOrder: number;
 }
 
@@ -296,7 +297,8 @@ function VocabCell({
   expanded: boolean;
   onToggleExpand: () => void;
 }): ReactNode {
-  const { displayWord, pronunciationText, partOfSpeech } = parseDisplayWord(vocab.word);
+  const { displayWord, pronunciationText, partOfSpeech: legacyPos } = parseDisplayWord(vocab.word);
+  const displayPos = vocab.partOfSpeech ?? legacyPos;
   const speaking = isSpeaking(vocab.id);
   const hasDetails = (vocab.definition?.length ?? 0) > 0 || (vocab.example?.length ?? 0) > 0;
 
@@ -329,8 +331,8 @@ function VocabCell({
             <span className="text-sm font-bold text-primary-600 dark:text-primary-400" dir="ltr">
               {displayWord}
             </span>
-            {partOfSpeech && (
-              <span className="text-xs text-neutral-400">({partOfSpeech})</span>
+            {displayPos && (
+              <span className="text-xs text-neutral-400">({displayPos})</span>
             )}
           </div>
           {hasDetails && (
