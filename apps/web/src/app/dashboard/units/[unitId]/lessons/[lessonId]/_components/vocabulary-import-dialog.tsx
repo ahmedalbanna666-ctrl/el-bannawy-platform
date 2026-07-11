@@ -52,8 +52,8 @@ interface LessonVocabularyItem {
   readonly id: string;
   readonly word: string;
   readonly translation: string;
-  readonly definition: string | null;
-  readonly example: string | null;
+  readonly definition?: string | null;
+  readonly example?: string | null;
   readonly displayOrder: number;
 }
 
@@ -107,8 +107,16 @@ export function VocabularyImportDialog({
       );
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({ message: "Upload failed" }));
-        throw new Error(typeof err.message === "string" ? err.message : "Upload failed");
+        let errMsg = "Upload failed";
+        try {
+          const errBody: unknown = await response.json();
+          if (typeof errBody === "object" && errBody !== null && "message" in errBody) {
+            errMsg = String((errBody as Record<string, unknown>).message);
+          }
+        } catch {
+          // use default message
+        }
+        throw new Error(errMsg);
       }
 
       const result = (await response.json()) as { data: PreviewResult };
@@ -187,9 +195,8 @@ export function VocabularyImportDialog({
     setNewExample("");
   };
 
-  const commitMutation = useMutation({
+      const commitMutation = useMutation({
     mutationFn: async () => {
-      const existingIds = existingVocab.map((v) => v.id);
       const incomingWords = new Set(
         previewItems.map((i) => i.word.trim().normalize("NFC").toLowerCase().replace(/\s+/g, " ")),
       );

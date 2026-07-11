@@ -348,7 +348,7 @@ function LearningCards({
       label: "المفردات",
       icon: Languages,
       detail: vocabulary.length > 0 ? `${String(vocabulary.length)} كلمة` : "لا توجد مفردات",
-      href: null,
+      href: `/dashboard/lessons/detail/${lessonId}/vocabulary`,
       enabled: vocabulary.length > 0,
     },
     {

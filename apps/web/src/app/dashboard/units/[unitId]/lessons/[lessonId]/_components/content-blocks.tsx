@@ -329,7 +329,7 @@ function VocabularyBlock({
       {showImportDialog && (
         <VocabularyImportDialog
           lessonId={lessonId}
-          existingVocab={vocabulary as readonly { id: string; word: string; translation: string; definition: string | null; example: string | null; displayOrder: number }[]}
+          existingVocab={vocabulary}
           onClose={(): void => { setShowImportDialog(false); }}
         />
       )}
