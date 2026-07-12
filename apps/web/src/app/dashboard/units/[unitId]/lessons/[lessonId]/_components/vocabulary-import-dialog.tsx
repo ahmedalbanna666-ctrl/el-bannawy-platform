@@ -79,10 +79,12 @@ export function VocabularyImportDialog({
   const [editTranslation, setEditTranslation] = useState("");
   const [editDefinition, setEditDefinition] = useState("");
   const [editExample, setEditExample] = useState("");
+  const [editPartOfSpeech, setEditPartOfSpeech] = useState("");
   const [newWord, setNewWord] = useState("");
   const [newTranslation, setNewTranslation] = useState("");
   const [newDefinition, setNewDefinition] = useState("");
   const [newExample, setNewExample] = useState("");
+  const [newPartOfSpeech, setNewPartOfSpeech] = useState("");
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
@@ -107,16 +109,22 @@ export function VocabularyImportDialog({
       );
 
       if (!response.ok) {
-        let errMsg = "Upload failed";
+        let errMsg: string | null = null;
         try {
           const errBody: unknown = await response.json();
           if (typeof errBody === "object" && errBody !== null && "message" in errBody) {
             errMsg = String((errBody as Record<string, unknown>).message);
           }
         } catch {
-          // use default message
+          // ignore parse failures
         }
-        throw new Error(errMsg);
+        const statusMessages: Record<number, string> = {
+          401: "Authentication failed. Please log in again.",
+          403: "You don't have access to this lesson.",
+          413: "File is too large. Maximum size is 10MB.",
+        };
+        const statusBase = response.status >= 500 ? "Server error. Please try again later." : null;
+        throw new Error(errMsg ?? statusMessages[response.status] ?? statusBase ?? "Upload failed");
       }
 
       const result = (await response.json()) as { data: PreviewResult };
@@ -138,7 +146,11 @@ export function VocabularyImportDialog({
       setPreviewItems(items);
       setPreviewWarnings(preview.counts.total > 0 ? [] : ["No vocabulary items found in document"]);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Failed to parse document");
+      if (err instanceof TypeError && err.message === "Failed to fetch") {
+        setUploadError("Cannot reach the server. Check your connection and try again.");
+      } else {
+        setUploadError(err instanceof Error ? err.message : "Failed to parse document");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -150,14 +162,16 @@ export function VocabularyImportDialog({
     setEditTranslation(item.translation);
     setEditDefinition(item.definition);
     setEditExample(item.example);
+    setEditPartOfSpeech(item.partOfSpeech ?? "");
   };
 
   const saveEdit = (): void => {
     if (!editingId) return;
+    const posValue = editPartOfSpeech.trim();
     setPreviewItems((prev) =>
       prev.map((item) =>
         item.clientDraftId === editingId
-          ? { ...item, word: editWord.trim(), translation: editTranslation.trim(), definition: editDefinition.trim(), example: editExample.trim(), status: "VALID" as const }
+          ? { ...item, word: editWord.trim(), translation: editTranslation.trim(), definition: editDefinition.trim(), example: editExample.trim(), partOfSpeech: posValue.length > 0 ? posValue : null, status: "VALID" as const }
           : item,
       ),
     );
@@ -174,6 +188,7 @@ export function VocabularyImportDialog({
 
   const addManualItem = (): void => {
     if (!newWord.trim() || !newTranslation.trim()) return;
+    const posValue = newPartOfSpeech.trim();
     setPreviewItems((prev) => [
       ...prev,
       {
@@ -184,7 +199,7 @@ export function VocabularyImportDialog({
         example: newExample.trim(),
         status: "VALID",
         isManual: true,
-        partOfSpeech: null,
+        partOfSpeech: posValue.length > 0 ? posValue : null,
         warnings: [],
         errors: [],
       },
@@ -193,6 +208,7 @@ export function VocabularyImportDialog({
     setNewTranslation("");
     setNewDefinition("");
     setNewExample("");
+    setNewPartOfSpeech("");
   };
 
       const commitMutation = useMutation({
@@ -353,6 +369,12 @@ export function VocabularyImportDialog({
                           placeholder="مثال (اختياري)"
                           className="text-xs"
                         />
+                        <Input
+                          value={editPartOfSpeech}
+                          onChange={(e): void => { setEditPartOfSpeech(e.target.value); }}
+                          placeholder="نوع الكلمة n, v, adj (اختياري)"
+                          className="text-xs"
+                        />
                         <div className="flex items-center gap-1">
                           <Button
                             variant="primary"
@@ -463,6 +485,12 @@ export function VocabularyImportDialog({
                     placeholder="مثال (اختياري)"
                     value={newExample}
                     onChange={(e): void => { setNewExample(e.target.value); }}
+                    className="text-xs"
+                  />
+                  <Input
+                    placeholder="نوع الكلمة n, v, adj (اختياري)"
+                    value={newPartOfSpeech}
+                    onChange={(e): void => { setNewPartOfSpeech(e.target.value); }}
                     className="text-xs"
                   />
                   <Button
