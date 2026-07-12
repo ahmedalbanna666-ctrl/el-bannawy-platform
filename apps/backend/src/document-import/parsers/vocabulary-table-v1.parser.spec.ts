@@ -315,15 +315,16 @@ describe("VocabularyTableV1Parser", () => {
       expect(result.warnings.some((w) => w.includes("unsupported"))).toBe(true);
     });
 
-    it("warns on inconsistent row widths", () => {
+    it("processes mixed row widths per-row — valid rows are not discarded", () => {
       const input = doc([
         table(0, [
-          row(0, ["a", "b"]),
-          row(1, ["a", "b", "c"]),
+          row(0, ["hello", "مرحبا"]),
+          row(1, ["x", "y", "z"]),
         ]),
       ]);
       const result = parser.parse(input);
-      expect(result.items.length).toBe(0);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("hello");
       expect(result.warnings.some((w) => w.includes("unsupported"))).toBe(true);
     });
   });
@@ -449,6 +450,279 @@ describe("VocabularyTableV1Parser", () => {
       const input = doc([]);
       const result = parser.parse(input);
       expect(result.parserProfile).toBe("VOCABULARY_TABLE_V1");
+    });
+  });
+
+  describe("section title row handling", () => {
+    it("single-cell Key vocabularies section row does not reject table", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Key vocabularies المفردات الرئيسيه"]),
+          row(1, ["hello", "مرحبا"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("hello");
+    });
+
+    it("bilingual Extra vocabularies section row does not reject table", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["communicate", "يتواصل"]),
+          row(1, ["Extra vocabularies المفردات الاضافيه"]),
+          row(2, ["text", "نص"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(2);
+    });
+
+    it("Collocations/Prepositions/Expressions section row does not reject table", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Collocations, Prepositions & Expressionsحروف الجر والمصطلحات"]),
+          row(1, ["make time", "يخصص وقت", "have a look", "يلقي نظرة"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(2);
+    });
+
+    it("section title row does not produce a draft", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Extra vocabularies المفردات الاضافيه"]),
+          row(1, ["hello", "مرحبا"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      const titleDraft = result.items.find((i) => i.word.includes("Extra"));
+      expect(titleDraft).toBeUndefined();
+    });
+
+    it("section title row does not consume displayOrder", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["a", "أ"]),
+          row(1, ["Extra vocabularies المفردات الاضافيه"]),
+          row(2, ["b", "ب"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items[0].displayOrder).toBe(0);
+      expect(result.items[1].displayOrder).toBe(1);
+      expect(result.items[0].word).toBe("a");
+      expect(result.items[1].word).toBe("b");
+    });
+
+    it("mixed 1-cell section row + 4-cell data rows imports all valid pairs", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["a (n)", "أ", "b (n)", "ب"]),
+          row(1, ["Extra vocabularies المفردات الاضافيه"]),
+          row(2, ["c (n)", "ت", "d (n)", "ث"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(4);
+      expect(result.items[0].word).toBe("a");
+      expect(result.items[2].word).toBe("c");
+    });
+
+    it("mixed 1-cell section row + 2-cell data rows imports all valid pairs", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Key vocabularies المفردات الرئيسيه"]),
+          row(1, ["hello", "مرحبا"]),
+          row(2, ["world", "عالم"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(2);
+    });
+  });
+
+  describe("6-cell synonym/antonym table", () => {
+    it("6-cell Word/Synonym/Antonym header is detected and skipped", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["care", "يهتم", "concern", "اهتمام", "ignore", "يتجاهل"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("care");
+      expect(result.items[0].translation).toBe("يهتم");
+    });
+
+    it("6-cell data row imports only primary word + primary Arabic meaning", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["stay in touch", "يظل على اتصال", "keep in touch", "يبقى على اتصال", "lose touch with", "يفقد التواصل"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("stay in touch");
+      expect(result.items[0].translation).toBe("يظل على اتصال");
+    });
+
+    it("synonym is NOT emitted as canonical vocabulary", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["care", "يهتم", "concern", "اهتمام", "ignore", "يتجاهل"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      const words = result.items.map((i) => i.word);
+      expect(words).not.toContain("concern");
+      expect(words).not.toContain("ignore");
+    });
+
+    it("antonym is NOT emitted as canonical vocabulary", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["polite", "مهذب", "", "", "rude", "وقح"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("polite");
+    });
+
+    it("ignored synonym/antonym warning is returned", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["care", "يهتم", "concern", "اهتمام", "ignore", "يتجاهل"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      const hasSynAntWarning = result.warnings.some(
+        (w) => w.includes("Synonym") && w.includes("antonym"),
+      );
+      expect(hasSynAntWarning).toBe(true);
+    });
+
+    it("concatenation in ignored synonym cell does not block valid primary import", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["care", "يهتم", "concernregard", "اهتماماعتبار", "ignore", "يتجاهل"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("care");
+      expect(result.items[0].translation).toBe("يهتم");
+      expect(result.items[0].status).toBe("VALID");
+    });
+
+    it("concatenation in ignored antonym cell does not block valid primary import", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["care", "يهتم", "concern", "اهتمام", "ignorerude", "يتجاهلوقح"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].status).toBe("VALID");
+    });
+
+    it("primary word with empty translation is INVALID — not guessed", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["conflict", "", "disagreement", "خلاف", "agreement", "اتفاق"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("conflict");
+      expect(result.items[0].status).toBe("INVALID");
+      expect(result.items[0].errors).toContain("MISSING_TRANSLATION");
+    });
+
+    it("merged Arabic in primary translation preserved raw — no guessing applied", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["conflict", "خلافصراع", "disagreement", "خلاف", "agreement", "اتفاق"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("conflict");
+      expect(result.items[0].translation).toBe("خلافصراع");
+      expect(result.items[0].status).toBe("VALID");
+    });
+  });
+
+  describe("display order across mixed layouts", () => {
+    it("stable displayOrder across multiple tables and mixed row layouts", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["a", "أ", "b", "ب"]),
+          row(1, ["Extra vocabularies المفردات الاضافيه"]),
+          row(2, ["c", "ت", "d", "ث"]),
+        ]),
+        table(1, [
+          row(0, ["Collocations, Prepositions & Expressionsحروف الجر والمصطلحات"]),
+          row(1, ["e", "ج"]),
+        ]),
+        table(2, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["f", "ح"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      const orders = result.items.map((i) => ({ word: i.word, order: i.displayOrder }));
+      expect(orders).toEqual([
+        { word: "a", order: 0 },
+        { word: "b", order: 1 },
+        { word: "c", order: 2 },
+        { word: "d", order: 3 },
+        { word: "e", order: 4 },
+        { word: "f", order: 5 },
+      ]);
+    });
+  });
+
+  describe("full phrase preservation", () => {
+    it("preserves multi-word English phrases", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["communicate with", "يتواصل مع", "sibling", "اخ"]),
+          row(1, ["social media", "وسائل التواصل", "blend into", "يندمج في"]),
+          row(2, ["stay in mind", "يبقى في الذهن", "stand out", "يبرز"]),
+          row(3, ["make time", "يخصص وقت", "have a look", "يلقي نظرة"]),
+          row(4, ["take time to", "يستغرق وقت", "tell the truth", "يقول الصدق"]),
+          row(5, ["to sum up", "خلاصة القول", "tone of voice", "نبرة الصوت"]),
+          row(6, ["flip through", "يقلب", "express regret", "يعبر عن الندم"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      const phrases = result.items.map((i) => i.word);
+      expect(phrases).toContain("communicate with");
+      expect(phrases).toContain("social media");
+      expect(phrases).toContain("blend into");
+      expect(phrases).toContain("stay in mind");
+      expect(phrases).toContain("stand out");
+      expect(phrases).toContain("make time");
+      expect(phrases).toContain("have a look");
+      expect(phrases).toContain("take time to");
+      expect(phrases).toContain("tell the truth");
+      expect(phrases).toContain("to sum up");
+      expect(phrases).toContain("tone of voice");
+      expect(phrases).toContain("flip through");
+      expect(phrases).toContain("express regret");
+      expect(result.items.length).toBe(14);
     });
   });
 });

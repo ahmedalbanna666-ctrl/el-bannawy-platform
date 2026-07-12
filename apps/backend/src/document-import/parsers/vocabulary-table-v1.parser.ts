@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { NormalizedDocument } from "../types/normalized-document.types";
+import type { NormalizedDocument, NormalizedRow, NormalizedTable } from "../types/normalized-document.types";
 import type {
   VocabularyImportPreview,
   VocabularyPreviewItem,
   VocabularyPreviewStatus,
 } from "../types/vocabulary-preview.types";
 import { parseWord } from "../utils/word-normalizer";
-import { detectAndSkipHeaders } from "../utils/vocabulary-header";
+import { detectAndSkipHeaders, isHeaderCell } from "../utils/vocabulary-header";
+import { isSectionTitleRow } from "../utils/vocabulary-section-title";
 
 const MAX_VOCABULARY_ITEMS = 500;
 
@@ -29,6 +30,7 @@ export class VocabularyTableV1Parser {
     }
 
     for (const table of document.tables) {
+      const isSynAntTable = VocabularyTableV1Parser.isSynonymAntonymTable(table);
       const dataRows = detectAndSkipHeaders(table.rows);
 
       if (dataRows.length === 0) {
@@ -36,78 +38,109 @@ export class VocabularyTableV1Parser {
         continue;
       }
 
-      const cellCounts = new Set(dataRows.map((r) => r.cells.length));
-      const uniqueCounts = [...cellCounts];
-
-      if (uniqueCounts.length !== 1 || (uniqueCounts[0] !== 2 && uniqueCounts[0] !== 4)) {
-        warnings.push(
-          `Table ${String(table.tableIndex)}: unsupported layout — every data row must have exactly 2 or 4 cells (found: ${uniqueCounts.join(", ")})`,
-        );
-        continue;
-      }
-
-      const cellCount = uniqueCounts[0];
+      let synAntWarningEmitted = false;
 
       for (const row of dataRows) {
-        const pairs = cellCount === 2
-          ? [{ cells: [row.cells[0], row.cells[1]], pairIndex: 0 as const }]
-          : [
-              { cells: [row.cells[0], row.cells[1]], pairIndex: 0 as const },
-              { cells: [row.cells[2], row.cells[3]], pairIndex: 1 as const },
-            ];
+        if (isSectionTitleRow(row)) {
+          continue;
+        }
 
-        for (const pair of pairs) {
-          const wordText = pair.cells[0]?.text ?? "";
-          const translationText = pair.cells[1]?.text ?? "";
+        const hasAnyContent = row.cells.some((c) => c.text.trim().length > 0);
+        if (!hasAnyContent) {
+          continue;
+        }
 
-          const hasWord = wordText.length > 0;
-          const hasTranslation = translationText.length > 0;
+        const cellCount = row.cells.length;
 
-          if (!hasWord && !hasTranslation) {
-            continue;
-          }
-
-          if (items.length >= MAX_VOCABULARY_ITEMS) {
-            errors.push(
-              `Maximum vocabulary item count exceeded (${String(MAX_VOCABULARY_ITEMS)})`,
+        if (cellCount === 2) {
+          displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
+        } else if (cellCount === 4) {
+          displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
+          displayOrder = this.processPair(row, table.tableIndex, 2, 3, 1, items, displayOrder, warnings, errors);
+        } else if (cellCount === 6 && isSynAntTable) {
+          if (!synAntWarningEmitted) {
+            warnings.push(
+              `Synonym and antonym columns detected (table ${String(table.tableIndex)}): ` +
+              "these were not imported because the current vocabulary model does not store vocabulary relationships.",
             );
-            return this.buildResult(items, warnings, errors);
+            synAntWarningEmitted = true;
           }
-
-          const parsed = parseWord(wordText);
-          const itemWarnings: string[] = [];
-          const itemErrors: string[] = [];
-
-          if (!hasWord) {
-            itemErrors.push("MISSING_WORD");
-          }
-          if (!hasTranslation) {
-            itemErrors.push("MISSING_TRANSLATION");
-          }
-
-          const status = this.resolveStatus(itemWarnings, itemErrors);
-
-          items.push({
-            clientDraftId: randomUUID(),
-            sourceTableIndex: table.tableIndex,
-            sourceRowIndex: row.rowIndex,
-            sourcePairIndex: pair.pairIndex,
-            displayOrder,
-            word: parsed.word,
-            translation: hasTranslation ? translationText : "",
-            partOfSpeech: parsed.partOfSpeech,
-            status,
-            warnings: itemWarnings,
-            errors: itemErrors,
-          });
-
-          displayOrder += 1;
+          displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
+        } else {
+          warnings.push(
+            `Table ${String(table.tableIndex)} row ${String(row.rowIndex)}: unsupported layout (${String(cellCount)} cells)`,
+          );
         }
       }
     }
 
     const deduped = this.detectDuplicates(items);
     return this.buildResult(deduped, warnings, errors);
+  }
+
+  private processPair(
+    row: NormalizedRow,
+    tableIndex: number,
+    wordCol: number,
+    transCol: number,
+    pairIndex: 0 | 1,
+    items: VocabularyPreviewItem[],
+    displayOrder: number,
+    warnings: string[],
+    errors: string[],
+  ): number {
+    const wordText = wordCol < row.cells.length ? row.cells[wordCol].text : "";
+    const translationText = transCol < row.cells.length ? row.cells[transCol].text : "";
+
+    const hasWord = wordText.length > 0;
+    const hasTranslation = translationText.length > 0;
+
+    if (!hasWord && !hasTranslation) {
+      return displayOrder;
+    }
+
+    if (items.length >= MAX_VOCABULARY_ITEMS) {
+      errors.push(
+        `Maximum vocabulary item count exceeded (${String(MAX_VOCABULARY_ITEMS)})`,
+      );
+      return displayOrder;
+    }
+
+    const parsed = parseWord(wordText);
+    const itemWarnings: string[] = [];
+    const itemErrors: string[] = [];
+
+    if (!hasWord) {
+      itemErrors.push("MISSING_WORD");
+    }
+    if (!hasTranslation) {
+      itemErrors.push("MISSING_TRANSLATION");
+    }
+
+    const status = this.resolveStatus(itemWarnings, itemErrors);
+
+    items.push({
+      clientDraftId: randomUUID(),
+      sourceTableIndex: tableIndex,
+      sourceRowIndex: row.rowIndex,
+      sourcePairIndex: pairIndex,
+      displayOrder,
+      word: parsed.word,
+      translation: hasTranslation ? translationText : "",
+      partOfSpeech: parsed.partOfSpeech,
+      status,
+      warnings: itemWarnings,
+      errors: itemErrors,
+    });
+
+    return displayOrder + 1;
+  }
+
+  private static isSynonymAntonymTable(table: NormalizedTable): boolean {
+    if (table.rows.length === 0) return false;
+    const firstRow = table.rows[0];
+    if (firstRow.cells.length !== 6) return false;
+    return firstRow.cells.every((c) => isHeaderCell(c.text));
   }
 
   private resolveStatus(warnings: readonly string[], errors: readonly string[]): VocabularyPreviewStatus {

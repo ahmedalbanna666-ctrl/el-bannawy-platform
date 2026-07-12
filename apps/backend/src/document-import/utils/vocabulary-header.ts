@@ -1,7 +1,7 @@
 import type { NormalizedRow } from "../types/normalized-document.types";
 
-const ENGLISH_HEADERS = new Set(["word", "meaning", "vocabulary", "translation"]);
-const ARABIC_HEADERS = new Set(["الكلمة", "المعنى", "الترجمة", "كلمة", "معنى"]);
+const ENGLISH_HEADERS = new Set(["word", "meaning", "vocabulary", "translation", "synonym", "antonym"]);
+const ARABIC_HEADERS = new Set(["الكلمة", "المعنى", "الترجمة", "كلمة", "معنى", "المرادف", "المضاد"]);
 
 const HEADERS_WORD = new Set(["word", "vocabulary", "الكلمة", "كلمة"]);
 const HEADERS_MEANING = new Set(["meaning", "translation", "المعنى", "الترجمة", "معنى"]);
