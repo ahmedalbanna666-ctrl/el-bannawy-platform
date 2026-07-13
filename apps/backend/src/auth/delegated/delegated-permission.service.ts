@@ -1,7 +1,6 @@
 import { Injectable, ForbiddenException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
-import { PERMISSIONS, type Permission } from "@el-bannawy/shared";
-import type { UserRole } from "@el-bannawy/shared";
+import { PERMISSIONS, type Permission, type UserRole } from "@el-bannawy/shared";
 
 const CEILINGS: Record<UserRole, readonly Permission[]> = {
   ADMINISTRATOR: Object.values(PERMISSIONS),
@@ -47,6 +46,8 @@ export class DelegatedPermissionService {
   constructor(private readonly prisma: PrismaService) {}
 
   isWithinCeiling(role: UserRole, permission: Permission): boolean {
+    // Defensive: an unrecognized role must fail closed rather than throw.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     return CEILINGS[role]?.includes(permission) ?? false;
   }
 
@@ -57,7 +58,7 @@ export class DelegatedPermissionService {
     });
     if (!user) return [];
 
-    const ceiling = CEILINGS[user.role as UserRole] ?? [];
+    const ceiling = CEILINGS[user.role as UserRole];
 
     if (user.role === "ADMINISTRATOR") return [...ceiling];
     if (user.role === "STUDENT") return [...ceiling];
@@ -139,6 +140,13 @@ export class DelegatedPermissionService {
       update: { grantedByUserId: actorId },
     });
 
+    if (target.role === "TEACHER") {
+      await this.prisma.user.update({
+        where: { id: targetUserId },
+        data: { permissionsInitialized: true },
+      });
+    }
+
     await this.prisma.auditLog.create({
       data: {
         actorId,
@@ -179,6 +187,13 @@ export class DelegatedPermissionService {
       where: { userId: targetUserId, permission },
     });
 
+    if (target.role === "TEACHER") {
+      await this.prisma.user.update({
+        where: { id: targetUserId },
+        data: { permissionsInitialized: true },
+      });
+    }
+
     await this.prisma.auditLog.create({
       data: {
         actorId,
@@ -188,5 +203,57 @@ export class DelegatedPermissionService {
         details: JSON.stringify({ permission, targetRole: target.role }),
       },
     });
+  }
+
+  /**
+   * Explicitly initialize a teacher's delegated permissions by persisting the
+   * default Teacher capability ceiling as grants.
+   *
+   * Idempotent: if the teacher is already initialized, this is a no-op and
+   * therefore never overwrites an administrator's explicit configuration.
+   */
+  async initializeTeacherPermissions(teacherId: string, actorId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { role: true, permissionsInitialized: true },
+    });
+    if (user?.role !== "TEACHER") return;
+    if (user.permissionsInitialized) return;
+
+    const ceiling = CEILINGS.TEACHER;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userPermissionGrant.createMany({
+        data: ceiling.map((permission) => ({
+          userId: teacherId,
+          permission,
+          grantedByUserId: actorId,
+        })),
+        skipDuplicates: true,
+      });
+      await tx.user.update({
+        where: { id: teacherId },
+        data: { permissionsInitialized: true },
+      });
+    });
+  }
+
+  /**
+   * One-time, idempotent backfill for legacy teachers that were created before
+   * explicit permission initialization existed. Only seeds teachers that are
+   * not yet initialized, so it never overwrites explicit administrator config.
+   *
+   * @returns the number of teachers initialized.
+   */
+  async backfillLegacyTeachers(actorId: string): Promise<number> {
+    const teachers = await this.prisma.user.findMany({
+      where: { role: "TEACHER", permissionsInitialized: false, deletedAt: null },
+      select: { id: true },
+    });
+
+    for (const teacher of teachers) {
+      await this.initializeTeacherPermissions(teacher.id, actorId);
+    }
+
+    return teachers.length;
   }
 }
