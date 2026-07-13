@@ -7,7 +7,6 @@ import { api } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/auth-store";
 import { useAuth } from "@/providers/auth-provider";
 import { usePermissions } from "@/lib/use-permissions";
-import { PERMISSIONS } from "@el-bannawy/shared";
 import { getSidebarModules, type NavModule } from "@/lib/nav-registry";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AcademicSettings } from "@/components/ui/academic-settings";
@@ -48,7 +47,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
     staleTime: 120_000,
   });
 
-  const profileGrade = profile?.assignedGrade?.name ?? profile?.assignedGrade?.stage?.name ?? "طالب";
+  const profileGrade = profile?.assignedGrade?.name ?? profile?.assignedGrade?.stage.name ?? "طالب";
 
   useEffect(() => {
     setMounted(true);
@@ -58,7 +57,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
   }, [isAuthenticated, router]);
 
   const userRole = useAuthStore((s) => s.user?.role);
-  const isTeacher = userRole === "TEACHER" || userRole === "STAFF";
+  const isAdmin = userRole === "ADMINISTRATOR";
+  const isTeacherOrStaff = userRole === "TEACHER" || userRole === "STAFF";
 
   const handleLogout = useCallback((): void => {
     void logout();
@@ -66,6 +66,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
   }, [logout, router]);
 
   const { can } = usePermissions();
+  const canEdit = isAdmin || userRole === "TEACHER";
 
   const sidebarItems: SidebarContent = useMemo(
     () => {
@@ -88,11 +89,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
           items.push({ id: "div-settings", label: "", icon: ScrollText, divider: true });
         }
 
-        const hasEditPermission = m.id === "units" ? can(PERMISSIONS.UNITS_CREATE)
-          : m.id === "story" ? can(PERMISSIONS.STORY_EDIT)
-          : m.id === "final-review" ? can(PERMISSIONS.FINAL_REVIEW_EDIT)
-          : m.id === "live" ? can(PERMISSIONS.LIVE_CREATE)
-          : false;
+        const hasEditPermission = canEdit;
         const label = hasEditPermission ? m.title.replace("الوحدات التعليمية", "إدارة الوحدات").replace("قصة المنهج", "إدارة القصة").replace("المراجعة النهائية", "المراجعة النهائية").replace("الحصص المباشرة", "الحصص المباشرة") : m.title;
 
         items.push({
@@ -141,7 +138,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
         onProfileClick={(): void => { router.push("/dashboard/profile"); }}
         profileGrade={profileGrade}
       >
-        {isTeacher && <AcademicSettings />}
+        {isTeacherOrStaff && <AcademicSettings />}
       </Sidebar>
 
       <div className="flex flex-1 flex-col">

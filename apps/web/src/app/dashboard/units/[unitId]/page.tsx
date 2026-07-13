@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { usePermissions } from "@/lib/use-permissions";
+import { useAuthStore } from "@/lib/auth-store";
 import { PERMISSIONS } from "@el-bannawy/shared";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -85,19 +86,28 @@ function getLessonProgress(lesson: LessonManagement): {
 export default function UnitDetailPage(): ReactNode {
   const params = useParams();
   const router = useRouter();
-  const { can } = usePermissions();
+  const user = useAuthStore((s) => s.user);
+  const rawRole = user?.role;
+  const { isAdmin, isTeacher, can } = usePermissions();
+  const isManagement = isAdmin || isTeacher;
   const unitId = params.unitId as string;
   const queryClient = useQueryClient();
+
+  const canCreateLesson = can(PERMISSIONS.LESSONS_CREATE);
+  const canEditLesson = can(PERMISSIONS.LESSONS_EDIT);
+  const canDeleteLesson = can(PERMISSIONS.LESSONS_DELETE);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<LessonEditData | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LessonManagement | null>(null);
 
+  const hydrated = typeof rawRole === "string";
+
   useEffect(() => {
-    if (!can(PERMISSIONS.UNITS_CREATE)) {
+    if (hydrated && !isManagement) {
       router.replace(`/dashboard/lessons/${unitId}`);
     }
-  }, [can, router, unitId]);
+  }, [hydrated, isManagement, router, unitId]);
 
   const { data: unit, isLoading, isError, error } = useQuery({
     queryKey: ["management-unit", unitId],
@@ -108,7 +118,7 @@ export default function UnitDetailPage(): ReactNode {
       return res.data ?? null;
     },
     staleTime: 30_000,
-    enabled: can(PERMISSIONS.UNITS_CREATE),
+    enabled: hydrated && isManagement,
   });
 
   const deleteMutation = useMutation({
@@ -140,7 +150,7 @@ export default function UnitDetailPage(): ReactNode {
     [unit],
   );
 
-  if (!can(PERMISSIONS.UNITS_CREATE)) {
+  if (!hydrated || !isManagement) {
     return null;
   }
 
@@ -224,8 +234,8 @@ export default function UnitDetailPage(): ReactNode {
           title="لا توجد دروس"
           description="ابدأ بإنشاء درس جديد في هذه الوحدة"
           icon={<BookOpen className="h-16 w-16" />}
-          actionLabel="إنشاء درس"
-          onAction={(): void => { setCreateDialogOpen(true); }}
+          actionLabel={canCreateLesson ? "إنشاء درس" : undefined}
+          onAction={canCreateLesson ? ((): void => { setCreateDialogOpen(true); }) : undefined}
         />
       ) : (
         <div className="flex flex-col gap-3">
@@ -289,32 +299,38 @@ export default function UnitDetailPage(): ReactNode {
                         <ArrowRight className="h-4 w-4" />
                         فتح
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="تعديل"
-                        onClick={(): void => { handleEditClick(lesson); }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="نسخ"
-                        loading={duplicateMutation.isPending}
-                        onClick={(): void => { duplicateMutation.mutate(lesson); }}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="حذف"
-                        className="text-danger-500 hover:bg-danger-500/10"
-                        onClick={(): void => { setDeleteTarget(lesson); }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canEditLesson && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="تعديل"
+                          onClick={(): void => { handleEditClick(lesson); }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canCreateLesson && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="نسخ"
+                          loading={duplicateMutation.isPending}
+                          onClick={(): void => { duplicateMutation.mutate(lesson); }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canDeleteLesson && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="حذف"
+                          className="text-danger-500 hover:bg-danger-500/10"
+                          onClick={(): void => { setDeleteTarget(lesson); }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -324,27 +340,33 @@ export default function UnitDetailPage(): ReactNode {
         </div>
       )}
 
-      <Button
-        variant="primary"
-        className="fixed bottom-20 left-4 z-20 shadow-lg lg:bottom-6 lg:left-6"
-        onClick={(): void => { setCreateDialogOpen(true); }}
-      >
-        <Plus className="h-5 w-5" />
-        درس جديد
-      </Button>
+      {canCreateLesson && (
+        <Button
+          variant="primary"
+          className="fixed bottom-20 left-4 z-20 shadow-lg lg:bottom-6 lg:left-6"
+          onClick={(): void => { setCreateDialogOpen(true); }}
+        >
+          <Plus className="h-5 w-5" />
+          درس جديد
+        </Button>
+      )}
 
-      <LessonFormDialog
-        open={createDialogOpen}
-        onClose={(): void => { setCreateDialogOpen(false); }}
-        unitId={unitId}
-      />
+      {canCreateLesson && (
+        <LessonFormDialog
+          open={createDialogOpen}
+          onClose={(): void => { setCreateDialogOpen(false); }}
+          unitId={unitId}
+        />
+      )}
 
-      <LessonFormDialog
-        open={editTarget !== null}
-        onClose={(): void => { setEditTarget(null); }}
-        unitId={unitId}
-        lesson={editTarget}
-      />
+      {canEditLesson && (
+        <LessonFormDialog
+          open={editTarget !== null}
+          onClose={(): void => { setEditTarget(null); }}
+          unitId={unitId}
+          lesson={editTarget}
+        />
+      )}
 
       <Dialog
         open={deleteTarget !== null}

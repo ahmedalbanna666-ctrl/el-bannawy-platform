@@ -7,7 +7,6 @@ import { api } from "@/lib/api-client";
 import { usePermissions } from "@/lib/use-permissions";
 import { PERMISSIONS } from "@el-bannawy/shared";
 import { useAcademicContext } from "@/lib/academic-context-store";
-import { useAuthStore } from "@/lib/auth-store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +19,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { UnitFormDialog, type UnitEditData } from "./unit-form-dialog";
-import { TeacherContextBanner } from "@/components/ui/teacher-context-banner";
 import {
   BookOpen,
   Plus,
@@ -30,7 +28,6 @@ import {
   GripVertical,
   Clock,
   Layers,
-  GraduationCap,
 } from "lucide-react";
 
 interface UnitManagement {
@@ -59,16 +56,10 @@ function formatRelativeDate(dateStr: string): string {
   });
 }
 
-interface MyGradesResponse {
-  gradeIds: string[];
-  grades: { id: string; name: string; stage: { id: string; name: string } }[];
-}
-
-export function TeacherUnitsView(): ReactNode {
+export function AdminUnitsView(): ReactNode {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
-  const userId = useAuthStore((s) => s.user?.id);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<UnitEditData | null>(null);
@@ -78,45 +69,18 @@ export function TeacherUnitsView(): ReactNode {
   const canEdit = can(PERMISSIONS.UNITS_EDIT);
   const canDelete = can(PERMISSIONS.UNITS_DELETE);
 
-  const { data: myGrades } = useQuery({
-    queryKey: ["my-grades", userId],
-    queryFn: async () => {
-      const res = await api.get<MyGradesResponse>("/teachers/my-grades");
-      return res.data ?? null;
-    },
-    enabled: !!userId,
-    staleTime: 30_000,
-  });
-
-  const hasAssignedGrades = (myGrades?.grades.length ?? 0) > 0;
-
   const academicContext = useAcademicContext();
-
-  const academicFilterIds = useMemo(() => {
-    const teacherGrades = myGrades?.grades ?? [];
-    const grade = academicContext.grade
-      ? teacherGrades.find((g) => g.name === academicContext.grade)
-      : undefined;
-
-    return {
-      gradeId: grade?.id,
-      academicYearId: academicContext.academicYearId,
-      termId: academicContext.termId,
-      educationalSystem: academicContext.educationalSystem,
-    };
-  }, [myGrades, academicContext]);
 
   const filterParams = useMemo(() => {
     const params = new URLSearchParams();
-    if (academicFilterIds.gradeId) params.set("gradeId", academicFilterIds.gradeId);
-    if (academicFilterIds.academicYearId) params.set("academicYearId", academicFilterIds.academicYearId);
-    if (academicFilterIds.termId) params.set("termId", academicFilterIds.termId);
-    if (academicFilterIds.educationalSystem) params.set("educationalSystem", academicFilterIds.educationalSystem);
+    if (academicContext.academicYearId) params.set("academicYearId", academicContext.academicYearId);
+    if (academicContext.termId) params.set("termId", academicContext.termId);
+    if (academicContext.educationalSystem) params.set("educationalSystem", academicContext.educationalSystem);
     return params.toString();
-  }, [academicFilterIds]);
+  }, [academicContext]);
 
   const { data: units, isLoading, isError, error } = useQuery({
-    queryKey: ["management-units", academicFilterIds],
+    queryKey: ["management-units", filterParams],
     queryFn: async () => {
       const endpoint = `/curriculum/units${filterParams ? `?${filterParams}` : ""}`;
       const res = await api.get<UnitManagement[]>(endpoint);
@@ -166,25 +130,18 @@ export function TeacherUnitsView(): ReactNode {
 
   return (
     <div className="flex flex-col gap-6">
-      <TeacherContextBanner />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
             إدارة الوحدات
           </h1>
           <p className="mt-1 text-sm text-neutral-500">
-            إنشاء وإدارة الوحدات التعليمية والدروس
+            إدارة جميع الوحدات التعليمية على المنصة
           </p>
         </div>
       </div>
 
-      {!hasAssignedGrades ? (
-        <EmptyState
-          title="لم يتم إسناد أي صف دراسي لك حتى الآن."
-          description="يرجى التواصل مع الإدارة لتحديد الصفوف الدراسية الخاصة بك."
-          icon={<GraduationCap className="h-16 w-16" />}
-        />
-      ) : sortedUnits.length === 0 ? (
+      {sortedUnits.length === 0 ? (
         <EmptyState
           title="لا توجد وحدات"
           description="ابدأ بإنشاء وحدة تعليمية جديدة"
@@ -288,7 +245,7 @@ export function TeacherUnitsView(): ReactNode {
         </div>
       )}
 
-      {hasAssignedGrades && canCreate && (
+      {canCreate && (
         <Button
           variant="primary"
           className="fixed bottom-20 left-4 z-20 shadow-lg lg:bottom-6 lg:left-6"

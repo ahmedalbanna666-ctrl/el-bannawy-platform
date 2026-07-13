@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { usePermissions } from "@/lib/use-permissions";
-import { PERMISSIONS } from "@el-bannawy/shared";
+import { useAuthStore } from "@/lib/auth-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -43,15 +43,20 @@ interface LessonDetail {
 export default function LessonContentPage(): ReactNode {
   const params = useParams();
   const router = useRouter();
-  const { can } = usePermissions();
+  const user = useAuthStore((s) => s.user);
+  const rawRole = user?.role;
+  const { isAdmin, isTeacher } = usePermissions();
+  const isManagement = isAdmin || isTeacher;
   const unitId = params.unitId as string;
   const lessonId = params.lessonId as string;
 
+  const hydrated = typeof rawRole === "string";
+
   useEffect(() => {
-    if (!can(PERMISSIONS.UNITS_CREATE)) {
+    if (hydrated && !isManagement) {
       router.replace(`/dashboard/lessons/detail/${lessonId}`);
     }
-  }, [can, router, lessonId]);
+  }, [hydrated, isManagement, router, lessonId]);
 
   const {
     data: lesson,
@@ -66,7 +71,7 @@ export default function LessonContentPage(): ReactNode {
       return res.data;
     },
     staleTime: 30_000,
-    enabled: can(PERMISSIONS.UNITS_CREATE),
+    enabled: hydrated && isManagement,
   });
 
   const { data: quiz } = useQuery({
@@ -77,7 +82,7 @@ export default function LessonContentPage(): ReactNode {
     },
     retry: false,
     staleTime: 30_000,
-    enabled: can(PERMISSIONS.UNITS_CREATE),
+    enabled: hydrated && isManagement,
   });
 
   const { data: homework } = useQuery({
@@ -90,10 +95,10 @@ export default function LessonContentPage(): ReactNode {
     },
     retry: false,
     staleTime: 30_000,
-    enabled: can(PERMISSIONS.UNITS_CREATE),
+    enabled: hydrated && isManagement,
   });
 
-  if (!can(PERMISSIONS.UNITS_CREATE)) {
+  if (!hydrated || !isManagement) {
     return null;
   }
 

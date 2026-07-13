@@ -13,13 +13,12 @@ import { PaymentsModule } from "./payments/payments.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { AiModule } from "./ai/ai.module";
 import { ProfileModule } from "./profile/profile.module";
-import { AcademicTermModule } from "./academic-term/academic-term.module";
 import { CommonModule } from "./common/common.module";
-import { StudentsModule } from "./students/students.module";
-import { TeachersModule } from "./teachers/teachers.module";
 import { StoryModule } from "./story/story.module";
 import { FinalReviewModule } from "./final-review/final-review.module";
 import { DocumentImportModule } from "./document-import/document-import.module";
+import { AdminModule } from "./admin/admin.module";
+import { TeachersModule } from "./teachers/teachers.module";
 import { BootstrapService } from "./common/services/bootstrap.service";
 
 @Module({
@@ -39,12 +38,11 @@ import { BootstrapService } from "./common/services/bootstrap.service";
     AiModule,
     ProfileModule,
     CommonModule,
-    AcademicTermModule,
-    StudentsModule,
-    TeachersModule,
     StoryModule,
     FinalReviewModule,
     DocumentImportModule,
+    AdminModule,
+    TeachersModule,
   ],
   providers: [BootstrapService],
 })
