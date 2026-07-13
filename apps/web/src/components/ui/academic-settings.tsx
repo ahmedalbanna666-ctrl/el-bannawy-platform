@@ -99,22 +99,22 @@ export function AcademicSettings(): ReactNode {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 light:text-neutral-500">
-          ╪د┘╪ح╪╣╪»╪د╪»╪د╪ز ╪د┘╪ث┘â╪د╪»┘è┘à┘è╪ر
+          الإعدادات الأكاديمية
         </span>
         <div className="h-px bg-white/5 light:bg-neutral-200" />
       </div>
 
       <div className="flex flex-col gap-2 text-xs">
         <div className="flex items-center justify-between">
-          <span className="text-neutral-400 light:text-neutral-500">╪د┘╪│┘╪ر ╪د┘╪»╪▒╪د╪│┘è╪ر</span>
+          <span className="text-neutral-400 light:text-neutral-500">السنة الدراسية</span>
           <span className="font-semibold text-neutral-100 light:text-neutral-900">
-            {activeCtx?.academicYear?.name ?? "ظ¤"}
+            {activeCtx?.academicYear?.name ?? "—"}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-neutral-400 light:text-neutral-500">╪د┘╪ز╪▒┘à ╪د┘╪ص╪د┘┘è</span>
+          <span className="text-neutral-400 light:text-neutral-500">الترم الحالي</span>
           <span className="font-semibold text-neutral-100 light:text-neutral-900">
-            {activeCtx?.term?.name ?? "ظ¤"}
+            {activeCtx?.term?.name ?? "—"}
           </span>
         </div>
       </div>
@@ -123,7 +123,7 @@ export function AcademicSettings(): ReactNode {
 
       <div className="flex flex-col gap-1">
         <span className="text-[10px] font-bold text-warning-400 light:text-warning-600">
-          ┘à╪╣╪د┘è┘╪ر ╪د┘┘à╪╣┘┘à ┘┘é╪╖
+          معاينة المعلم فقط
         </span>
 
         {gradesLoading ? (
@@ -132,7 +132,7 @@ export function AcademicSettings(): ReactNode {
           <div className="flex flex-col gap-2">
             {myGrades.grades.length === 0 && (
               <p className="text-[10px] text-neutral-500">
-                ┘┘à ┘è╪ز┘à ╪ح╪│┘╪د╪» ╪ث┘è ╪╡┘┘ê┘ ╪»╪▒╪د╪│┘è╪ر. ┘è╪▒╪ش┘ë ╪د┘╪ز┘ê╪د╪╡┘ ┘à╪╣ ╪د┘╪ح╪»╪د╪▒╪ر.
+                لم يتم إسناد أي صفوف دراسية. يرجى التواصل مع الإدارة.
               </p>
             )}
 
@@ -141,7 +141,7 @@ export function AcademicSettings(): ReactNode {
                 <Select
                   size="sm"
                   options={SYSTEM_OPTIONS}
-                  placeholder="╪د┘┘╪╕╪د┘à ╪د┘╪ز╪╣┘┘è┘à┘è"
+                  placeholder="النظام التعليمي"
                   value={educationalSystem ?? ""}
                   onChange={(e) => { setEducationalSystem(e.target.value); }}
                 />
@@ -149,7 +149,7 @@ export function AcademicSettings(): ReactNode {
                 <Select
                   size="sm"
                   options={filteredStageOptions.length > 0 ? filteredStageOptions : STAGE_OPTIONS}
-                  placeholder="╪د┘┘à╪▒╪ص┘╪ر ╪د┘╪ز╪╣┘┘è┘à┘è╪ر"
+                  placeholder="المرحلة التعليمية"
                   value={stage ?? ""}
                   onChange={(e) => { setStage(e.target.value); }}
                 />
@@ -158,13 +158,13 @@ export function AcademicSettings(): ReactNode {
                   <Select
                     size="sm"
                     options={filteredGradeOptions.length > 0 ? filteredGradeOptions : gradeOptions}
-                    placeholder="╪د┘╪╡┘ ╪د┘╪»╪▒╪د╪│┘è"
+                    placeholder="الصف الدراسي"
                     value={grade ?? ""}
                     onChange={(e) => { setGrade(e.target.value); }}
                   />
                 ) : (
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-neutral-400">╪د┘╪╡┘ ╪د┘╪»╪▒╪د╪│┘è</span>
+                    <span className="text-[10px] text-neutral-400">الصف الدراسي</span>
                     <div className="flex flex-wrap gap-1.5">
                       {myGrades.grades.map((g) => {
                         const isActive = grade === g.name;
@@ -197,21 +197,21 @@ export function AcademicSettings(): ReactNode {
                 <Select
                   size="sm"
                   options={TERM_OPTIONS}
-                  placeholder="╪د╪«╪ز╪▒ ╪ز╪▒┘à ╪د┘┘à╪╣╪د┘è┘╪ر"
+                  placeholder="اختر ترم المعاينة"
                   value={term ?? ""}
                   onChange={(e) => { setTerm(e.target.value); }}
                 />
 
                 {myGrades.grades.length === 1 && (
                   <span className="text-[10px] text-primary-400">
-                    ╪ز┘à ╪ز╪ص╪»┘è╪» ╪د┘╪╡┘ ╪د┘┘ê╪ص┘è╪» ╪د┘┘à╪│┘╪» ╪ز┘┘é╪د╪خ┘è╪د┘ï
+                    تم تحديد الصف الوحيد المسند تلقائياً
                   </span>
                 )}
               </>
             )}
 
             <span className="text-[10px] leading-relaxed text-neutral-500 light:text-neutral-400">
-              ╪ز╪║┘è┘è╪▒ ┘ç╪░┘ç ╪د┘┘é┘è┘à ┘è╪ج╪س╪▒ ┘┘é╪╖ ╪╣┘┘ë ┘┘ê╪ص╪ر ╪د┘╪ز╪ص┘â┘à ╪د┘╪«╪د╪╡╪ر ╪ذ┘â ┘ê┘╪د ┘è╪║┘è╪▒ ╪د┘╪ذ┘è╪د┘╪د╪ز ╪د┘┘╪╣┘┘è╪ر ┘┘╪╖┘╪د╪ذ ╪ث╪ذ╪»╪د┘ï.
+              تغيير هذه القيم يؤثر فقط على لوحة التحكم الخاصة بك ولا يغير البيانات الفعلية للطلاب أبداً.
             </span>
           </div>
         ) : (
@@ -219,12 +219,12 @@ export function AcademicSettings(): ReactNode {
             <Select
               size="sm"
               options={TERM_OPTIONS}
-              placeholder="╪د╪«╪ز╪▒ ╪ز╪▒┘à ╪د┘┘à╪╣╪د┘è┘╪ر"
+              placeholder="اختر ترم المعاينة"
               value={term ?? ""}
               onChange={(e) => { setTerm(e.target.value); }}
             />
             <span className="text-[10px] leading-relaxed text-neutral-500 light:text-neutral-400">
-              ╪ز╪║┘è┘è╪▒ ┘ç╪░┘ç ╪د┘┘é┘è┘à╪ر ┘è╪ج╪س╪▒ ┘┘é╪╖ ╪╣┘┘ë ┘┘ê╪ص╪ر ╪د┘╪ز╪ص┘â┘à ╪د┘╪«╪د╪╡╪ر ╪ذ┘â ┘ê┘╪د ┘è╪║┘è╪▒ ╪د┘╪ز╪▒┘à ╪د┘┘╪┤╪╖ ┘┘╪╖┘╪د╪ذ ╪ث╪ذ╪»╪د┘ï.
+              تغيير هذه القيمة يؤثر فقط على لوحة التحكم الخاصة بك ولا يغير الترم النشط للطلاب أبداً.
             </span>
           </>
         )}
@@ -232,4 +232,3 @@ export function AcademicSettings(): ReactNode {
     </div>
   );
 }
-
