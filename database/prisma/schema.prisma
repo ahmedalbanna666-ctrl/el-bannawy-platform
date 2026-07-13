@@ -59,6 +59,7 @@ model User {
   managedStaff            User[]                   @relation("TeacherManagesStaff")
   permissionGrants        UserPermissionGrant[]    @relation("PermissionHolder")
   grantedPermissions      UserPermissionGrant[]    @relation("PermissionGrantor")
+  permissionsInitialized  Boolean                   @default(false)
 
   @@index([mobileNumber])
   @@index([role])
