@@ -14,18 +14,6 @@ ALTER TABLE "books" DROP CONSTRAINT "books_gradeId_fkey";
 ALTER TABLE "books" DROP CONSTRAINT "books_termId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "final_review_sections" DROP CONSTRAINT "final_review_sections_finalReviewId_fkey";
-
--- DropForeignKey
-ALTER TABLE "final_reviews" DROP CONSTRAINT "final_reviews_academicYearId_fkey";
-
--- DropForeignKey
-ALTER TABLE "final_reviews" DROP CONSTRAINT "final_reviews_gradeId_fkey";
-
--- DropForeignKey
-ALTER TABLE "final_reviews" DROP CONSTRAINT "final_reviews_termId_fkey";
-
--- DropForeignKey
 ALTER TABLE "stories" DROP CONSTRAINT "stories_academicYearId_fkey";
 
 -- DropForeignKey
@@ -82,12 +70,6 @@ ALTER COLUMN "entityId" SET DATA TYPE TEXT;
 
 -- AlterTable
 ALTER TABLE "books" ALTER COLUMN "id" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "final_review_sections" ALTER COLUMN "id" DROP DEFAULT;
-
--- AlterTable
-ALTER TABLE "final_reviews" ALTER COLUMN "id" DROP DEFAULT;
 
 -- AlterTable
 ALTER TABLE "stories" ALTER COLUMN "id" DROP DEFAULT;
@@ -161,17 +143,4 @@ ALTER TABLE "stories" ADD CONSTRAINT "stories_termId_fkey" FOREIGN KEY ("termId"
 -- AddForeignKey
 ALTER TABLE "story_chapters" ADD CONSTRAINT "story_chapters_storyId_fkey" FOREIGN KEY ("storyId") REFERENCES "stories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "final_reviews" ADD CONSTRAINT "final_reviews_gradeId_fkey" FOREIGN KEY ("gradeId") REFERENCES "grades"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "final_reviews" ADD CONSTRAINT "final_reviews_academicYearId_fkey" FOREIGN KEY ("academicYearId") REFERENCES "academic_years"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "final_reviews" ADD CONSTRAINT "final_reviews_termId_fkey" FOREIGN KEY ("termId") REFERENCES "terms"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "final_review_sections" ADD CONSTRAINT "final_review_sections_finalReviewId_fkey" FOREIGN KEY ("finalReviewId") REFERENCES "final_reviews"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- RenameIndex
-ALTER INDEX "final_reviews_gradeId_academicYearId_termId_educationalSystem_i" RENAME TO "final_reviews_gradeId_academicYearId_termId_educationalSyst_idx";
