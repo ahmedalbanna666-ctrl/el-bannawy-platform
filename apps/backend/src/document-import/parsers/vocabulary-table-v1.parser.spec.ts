@@ -65,7 +65,8 @@ describe("VocabularyTableV1Parser", () => {
     it("works with no header row", () => {
       const input = doc([
         table(0, [
-          row(0, ["learn", "يتعلم"]),
+          row(0, [""]),
+          row(1, ["learn", "يتعلم"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -104,7 +105,8 @@ describe("VocabularyTableV1Parser", () => {
     it("emits pair 1 before pair 2 in same row", () => {
       const input = doc([
         table(0, [
-          row(0, ["a (n)", "أ", "b (n)", "ب"]),
+          row(0, [""]),
+          row(1, ["a (n)", "أ", "b (n)", "ب"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -139,9 +141,10 @@ describe("VocabularyTableV1Parser", () => {
     it("extracts part of speech from word cell", () => {
       const input = doc([
         table(0, [
-          row(0, ["parade (n)", "عرض"]),
-          row(1, ["bury (v)", "يدفن"]),
-          row(2, ["royal (adj)", "ملكي"]),
+          row(0, [""]),
+          row(1, ["parade (n)", "عرض"]),
+          row(2, ["bury (v)", "يدفن"]),
+          row(3, ["royal (adj)", "ملكي"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -153,7 +156,8 @@ describe("VocabularyTableV1Parser", () => {
     it("returns null for words without POS", () => {
       const input = doc([
         table(0, [
-          row(0, ["hello", "مرحبا"]),
+          row(0, [""]),
+          row(1, ["hello", "مرحبا"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -165,7 +169,8 @@ describe("VocabularyTableV1Parser", () => {
     it("preserves English word casing", () => {
       const input = doc([
         table(0, [
-          row(0, ["Hello", "مرحبا"]),
+          row(0, [""]),
+          row(1, ["Hello", "مرحبا"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -175,7 +180,8 @@ describe("VocabularyTableV1Parser", () => {
     it("preserves Arabic translation", () => {
       const input = doc([
         table(0, [
-          row(0, ["learn", "يتعلم"]),
+          row(0, [""]),
+          row(1, ["learn", "يتعلم"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -185,7 +191,8 @@ describe("VocabularyTableV1Parser", () => {
     it("preserves mixed Unicode", () => {
       const input = doc([
         table(0, [
-          row(0, ["café (n)", "قهوة ☕"]),
+          row(0, [""]),
+          row(1, ["café (n)", "قهوة ☕"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -198,7 +205,8 @@ describe("VocabularyTableV1Parser", () => {
     it("marks missing translation as INVALID", () => {
       const input = doc([
         table(0, [
-          row(0, ["hello", ""]),
+          row(0, [""]),
+          row(1, ["hello", ""]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -209,7 +217,8 @@ describe("VocabularyTableV1Parser", () => {
     it("marks missing word as INVALID", () => {
       const input = doc([
         table(0, [
-          row(0, ["", "مرحبا"]),
+          row(0, [""]),
+          row(1, ["", "مرحبا"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -246,11 +255,13 @@ describe("VocabularyTableV1Parser", () => {
     it("detects duplicate words in same document", () => {
       const input = doc([
         table(0, [
-          row(0, ["hello", "مرحبا"]),
-          row(1, ["hello", "اهلا"]),
+          row(0, [""]),
+          row(1, ["hello", "مرحبا"]),
+          row(2, ["hello", "اهلا"]),
         ]),
       ]);
       const result = parser.parse(input);
+      expect(result.items.length).toBe(2);
       expect(result.items[0].status).toBe("VALID");
       expect(result.items[1].status).toBe("WARNING");
       expect(result.items[1].warnings).toContain("DUPLICATE_IN_DOCUMENT");
@@ -259,8 +270,9 @@ describe("VocabularyTableV1Parser", () => {
     it("comparison is case-insensitive", () => {
       const input = doc([
         table(0, [
-          row(0, ["Hello", "مرحبا"]),
-          row(1, ["hello", "اهلا"]),
+          row(0, [""]),
+          row(1, ["Hello", "مرحبا"]),
+          row(2, ["hello", "اهلا"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -270,8 +282,9 @@ describe("VocabularyTableV1Parser", () => {
     it("comparison normalizes whitespace", () => {
       const input = doc([
         table(0, [
-          row(0, ["look after", "يعتني"]),
-          row(1, ["look  after", "يهتم"]),
+          row(0, [""]),
+          row(1, ["look after", "يعتني"]),
+          row(2, ["look  after", "يهتم"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -281,12 +294,14 @@ describe("VocabularyTableV1Parser", () => {
     it("first occurrence remains VALID, later becomes WARNING", () => {
       const input = doc([
         table(0, [
-          row(0, ["hello", "مرحبا"]),
-          row(1, ["world", "عالم"]),
-          row(2, ["hello", "اهلا"]),
+          row(0, [""]),
+          row(1, ["hello", "مرحبا"]),
+          row(2, ["world", "عالم"]),
+          row(3, ["hello", "اهلا"]),
         ]),
       ]);
       const result = parser.parse(input);
+      expect(result.items.length).toBe(3);
       expect(result.items[0].status).toBe("VALID");
       expect(result.items[2].status).toBe("WARNING");
     });
@@ -296,7 +311,8 @@ describe("VocabularyTableV1Parser", () => {
     it("warns on 3-column table", () => {
       const input = doc([
         table(0, [
-          row(0, ["a", "b", "c"]),
+          row(0, [""]),
+          row(1, ["a", "b", "c"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -307,7 +323,8 @@ describe("VocabularyTableV1Parser", () => {
     it("warns on 5-column table", () => {
       const input = doc([
         table(0, [
-          row(0, ["a", "b", "c", "d", "e"]),
+          row(0, [""]),
+          row(1, ["a", "b", "c", "d", "e"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -318,8 +335,9 @@ describe("VocabularyTableV1Parser", () => {
     it("processes mixed row widths per-row — valid rows are not discarded", () => {
       const input = doc([
         table(0, [
-          row(0, ["hello", "مرحبا"]),
-          row(1, ["x", "y", "z"]),
+          row(0, [""]),
+          row(1, ["hello", "مرحبا"]),
+          row(2, ["x", "y", "z"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -341,8 +359,8 @@ describe("VocabularyTableV1Parser", () => {
 
   describe("item limit", () => {
     it("enforces maximum item count", () => {
-      const rows: NormalizedRow[] = [];
-      for (let i = 0; i < 510; i++) {
+      const rows: NormalizedRow[] = [row(0, [""])];
+      for (let i = 1; i <= 510; i++) {
         rows.push(row(i, [`word${String(i)}`, `trans${String(i)}`]));
       }
       const input = doc([table(0, rows)]);
@@ -355,8 +373,8 @@ describe("VocabularyTableV1Parser", () => {
   describe("source coordinates", () => {
     it("records correct sourceTableIndex", () => {
       const input = doc([
-        table(0, [row(0, ["hello", "مرحبا"])]),
-        table(1, [row(0, ["world", "عالم"])]),
+        table(0, [row(0, [""]), row(1, ["hello", "مرحبا"])]),
+        table(1, [row(0, [""]), row(1, ["world", "عالم"])]),
       ]);
       const result = parser.parse(input);
       expect(result.items[0].sourceTableIndex).toBe(0);
@@ -379,7 +397,8 @@ describe("VocabularyTableV1Parser", () => {
     it("records correct sourcePairIndex", () => {
       const input = doc([
         table(0, [
-          row(0, ["a (n)", "أ", "b (n)", "ب"]),
+          row(0, [""]),
+          row(1, ["a (n)", "أ", "b (n)", "ب"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -408,10 +427,11 @@ describe("VocabularyTableV1Parser", () => {
     it("computes total, valid, warning, invalid counts", () => {
       const input = doc([
         table(0, [
-          row(0, ["hello", "مرحبا"]),
-          row(1, ["hello", "اهلا"]),
-          row(2, ["", "x"]),
-          row(3, ["y", ""]),
+          row(0, [""]),
+          row(1, ["hello", "مرحبا"]),
+          row(2, ["hello", "اهلا"]),
+          row(3, ["", "x"]),
+          row(4, ["y", ""]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -426,9 +446,10 @@ describe("VocabularyTableV1Parser", () => {
     it("generates unique IDs for all items", () => {
       const input = doc([
         table(0, [
-          row(0, ["a", "أ"]),
-          row(1, ["b", "ب"]),
-          row(2, ["c", "ت"]),
+          row(0, [""]),
+          row(1, ["a", "أ"]),
+          row(2, ["b", "ب"]),
+          row(3, ["c", "ت"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -437,7 +458,7 @@ describe("VocabularyTableV1Parser", () => {
     });
 
     it("generates non-empty UUID strings", () => {
-      const input = doc([table(0, [row(0, ["hello", "مرحبا"])])]);
+      const input = doc([table(0, [row(0, [""]), row(1, ["hello", "مرحبا"])])]);
       const result = parser.parse(input);
       expect(result.items[0].clientDraftId).toBeTruthy();
       expect(typeof result.items[0].clientDraftId).toBe("string");
@@ -469,9 +490,10 @@ describe("VocabularyTableV1Parser", () => {
     it("bilingual Extra vocabularies section row does not reject table", () => {
       const input = doc([
         table(0, [
-          row(0, ["communicate", "يتواصل"]),
-          row(1, ["Extra vocabularies المفردات الاضافيه"]),
-          row(2, ["text", "نص"]),
+          row(0, [""]),
+          row(1, ["communicate", "يتواصل"]),
+          row(2, ["Extra vocabularies المفردات الاضافيه"]),
+          row(3, ["text", "نص"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -504,9 +526,10 @@ describe("VocabularyTableV1Parser", () => {
     it("section title row does not consume displayOrder", () => {
       const input = doc([
         table(0, [
-          row(0, ["a", "أ"]),
-          row(1, ["Extra vocabularies المفردات الاضافيه"]),
-          row(2, ["b", "ب"]),
+          row(0, [""]),
+          row(1, ["a", "أ"]),
+          row(2, ["Extra vocabularies المفردات الاضافيه"]),
+          row(3, ["b", "ب"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -519,9 +542,10 @@ describe("VocabularyTableV1Parser", () => {
     it("mixed 1-cell section row + 4-cell data rows imports all valid pairs", () => {
       const input = doc([
         table(0, [
-          row(0, ["a (n)", "أ", "b (n)", "ب"]),
-          row(1, ["Extra vocabularies المفردات الاضافيه"]),
-          row(2, ["c (n)", "ت", "d (n)", "ث"]),
+          row(0, [""]),
+          row(1, ["a (n)", "أ", "b (n)", "ب"]),
+          row(2, ["Extra vocabularies المفردات الاضافيه"]),
+          row(3, ["c (n)", "ت", "d (n)", "ث"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -668,9 +692,10 @@ describe("VocabularyTableV1Parser", () => {
     it("stable displayOrder across multiple tables and mixed row layouts", () => {
       const input = doc([
         table(0, [
-          row(0, ["a", "أ", "b", "ب"]),
-          row(1, ["Extra vocabularies المفردات الاضافيه"]),
-          row(2, ["c", "ت", "d", "ث"]),
+          row(0, [""]),
+          row(1, ["a", "أ", "b", "ب"]),
+          row(2, ["Extra vocabularies المفردات الاضافيه"]),
+          row(3, ["c", "ت", "d", "ث"]),
         ]),
         table(1, [
           row(0, ["Collocations, Prepositions & Expressionsحروف الجر والمصطلحات"]),
@@ -698,13 +723,14 @@ describe("VocabularyTableV1Parser", () => {
     it("preserves multi-word English phrases", () => {
       const input = doc([
         table(0, [
-          row(0, ["communicate with", "يتواصل مع", "sibling", "اخ"]),
-          row(1, ["social media", "وسائل التواصل", "blend into", "يندمج في"]),
-          row(2, ["stay in mind", "يبقى في الذهن", "stand out", "يبرز"]),
-          row(3, ["make time", "يخصص وقت", "have a look", "يلقي نظرة"]),
-          row(4, ["take time to", "يستغرق وقت", "tell the truth", "يقول الصدق"]),
-          row(5, ["to sum up", "خلاصة القول", "tone of voice", "نبرة الصوت"]),
-          row(6, ["flip through", "يقلب", "express regret", "يعبر عن الندم"]),
+          row(0, [""]),
+          row(1, ["communicate with", "يتواصل مع", "sibling", "اخ"]),
+          row(2, ["social media", "وسائل التواصل", "blend into", "يندمج في"]),
+          row(3, ["stay in mind", "يبقى في الذهن", "stand out", "يبرز"]),
+          row(4, ["make time", "يخصص وقت", "have a look", "يلقي نظرة"]),
+          row(5, ["take time to", "يستغرق وقت", "tell the truth", "يقول الصدق"]),
+          row(6, ["to sum up", "خلاصة القول", "tone of voice", "نبرة الصوت"]),
+          row(7, ["flip through", "يقلب", "express regret", "يعبر عن الندم"]),
         ]),
       ]);
       const result = parser.parse(input);
@@ -723,6 +749,174 @@ describe("VocabularyTableV1Parser", () => {
       expect(phrases).toContain("flip through");
       expect(phrases).toContain("express regret");
       expect(result.items.length).toBe(14);
+    });
+  });
+
+  describe("semantic table classifier", () => {
+    it("A: SYNONYM_ANTONYM as first table — detected semantically", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["care", "يهتم", "concern", "اهتمام", "ignore", "يتجاهل"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("care");
+      expect(result.warnings.some((w) => w.includes("Synonym"))).toBe(true);
+    });
+
+    it("B: SYNONYM_ANTONYM in middle — standard tables before and after still skip row 0", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Key vocabularies المفردات الرئيسيه"]),
+          row(1, ["hello", "مرحبا"]),
+        ]),
+        table(1, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["care", "يهتم", "concern", "اهتمام", "ignore", "يتجاهل"]),
+        ]),
+        table(2, [
+          row(0, ["Extra vocabularies المفردات الاضافيه"]),
+          row(1, ["world", "عالم"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(3);
+      expect(result.items[0].word).toBe("hello");
+      expect(result.items[0].sourceTableIndex).toBe(0);
+      expect(result.items[1].word).toBe("care");
+      expect(result.items[1].sourceTableIndex).toBe(1);
+      expect(result.items[2].word).toBe("world");
+      expect(result.items[2].sourceTableIndex).toBe(2);
+    });
+
+    it("C: SYNONYM_ANTONYM as final table — detected semantically", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Key vocabularies المفردات الرئيسيه"]),
+          row(1, ["hello", "مرحبا"]),
+        ]),
+        table(1, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["care", "يهتم", "concern", "اهتمام", "ignore", "يتجاهل"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(2);
+      expect(result.items[0].word).toBe("hello");
+      expect(result.items[1].word).toBe("care");
+    });
+
+    it("D: No SYNONYM_ANTONYM table — all standard tables work normally", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Key vocabularies المفردات الرئيسيه"]),
+          row(1, ["hello", "مرحبا"]),
+        ]),
+        table(1, [
+          row(0, ["Extra vocabularies المفردات الاضافيه"]),
+          row(1, ["world", "عالم"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(2);
+      expect(result.warnings.some((w) => w.includes("Synonym"))).toBe(false);
+    });
+
+    it("E: More than one SYNONYM_ANTONYM table — each detected with independent warning", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["care", "يهتم", "concern", "اهتمام", "ignore", "يتجاهل"]),
+        ]),
+        table(1, [
+          row(0, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(1, ["polite", "مهذب", "", "", "rude", "وقح"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(2);
+      expect(result.items[0].word).toBe("care");
+      expect(result.items[1].word).toBe("polite");
+      const synAntWarnings = result.warnings.filter((w) => w.includes("Synonym"));
+      expect(synAntWarnings.length).toBe(2);
+    });
+
+    it("F: 6-cell non-synonym table — NOT classified as SYNONYM_ANTONYM", () => {
+      const input = doc([
+        table(0, [
+          row(0, [""]),
+          row(1, ["a", "b", "c", "d", "e", "f"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(0);
+      expect(result.warnings.some((w) => w.includes("unsupported"))).toBe(true);
+      expect(result.warnings.some((w) => w.includes("Synonym"))).toBe(false);
+    });
+
+    it("G: Table containing only Synonym — NOT classified as SYNONYM_ANTONYM", () => {
+      const input = doc([
+        table(0, [
+          row(0, [""]),
+          row(1, ["Synonym"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(0);
+      expect(result.warnings.some((w) => w.includes("Synonym"))).toBe(false);
+    });
+
+    it("H: Word + Synonym but no Antonym — NOT classified as SYNONYM_ANTONYM", () => {
+      const input = doc([
+        table(0, [
+          row(0, [""]),
+          row(1, ["Word", "الكلمة", "Synonym", "المرادف"]),
+          row(2, ["hello", "مرحبا", "hi", "اهلا"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.warnings.some((w) => w.includes("Synonym"))).toBe(false);
+      expect(result.items.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it("I: Arabic-only semantic header classified as SYNONYM_ANTONYM", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["الكلمة", "المرادف", "المضاد"]),
+          row(1, ["word1", "syn1", "ant1"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.warnings.some((w) => w.includes("Synonym"))).toBe(true);
+    });
+
+    it("J: Mixed-language semantic header classified correctly", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Word", "المعنى", "مرادف", "الترجمة", "Antonym", "المعنى"]),
+          row(1, ["care", "يهتم", "concern", "اهتمام", "ignore", "يتجاهل"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("care");
+      expect(result.warnings.some((w) => w.includes("Synonym"))).toBe(true);
+    });
+
+    it("K: Semantic header after section-title row — found within bounded scan", () => {
+      const input = doc([
+        table(0, [
+          row(0, ["Key vocabularies المفردات الرئيسيه"]),
+          row(1, ["Word", "الكلمة", "Synonym", "المرادف", "Antonym", "المضاد"]),
+          row(2, ["care", "يهتم", "concern", "اهتمام", "ignore", "يتجاهل"]),
+        ]),
+      ]);
+      const result = parser.parse(input);
+      expect(result.items.length).toBe(1);
+      expect(result.items[0].word).toBe("care");
+      expect(result.warnings.some((w) => w.includes("Synonym"))).toBe(true);
     });
   });
 });

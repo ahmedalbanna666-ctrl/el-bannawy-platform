@@ -8,6 +8,7 @@ import type {
 import { parseWord } from "../utils/word-normalizer";
 import { detectAndSkipHeaders, isHeaderCell } from "../utils/vocabulary-header";
 import { isSectionTitleRow } from "../utils/vocabulary-section-title";
+import { classifyVocabularyTable } from "../utils/vocabulary-table-classifier";
 
 const MAX_VOCABULARY_ITEMS = 500;
 
@@ -30,52 +31,98 @@ export class VocabularyTableV1Parser {
     }
 
     for (const table of document.tables) {
-      const isSynAntTable = VocabularyTableV1Parser.isSynonymAntonymTable(table);
-      const dataRows = detectAndSkipHeaders(table.rows);
+      const classification = classifyVocabularyTable(table);
 
-      if (dataRows.length === 0) {
-        warnings.push(`Table ${String(table.tableIndex)}: no data rows after header detection`);
-        continue;
-      }
-
-      let synAntWarningEmitted = false;
-
-      for (const row of dataRows) {
-        if (isSectionTitleRow(row)) {
-          continue;
-        }
-
-        const hasAnyContent = row.cells.some((c) => c.text.trim().length > 0);
-        if (!hasAnyContent) {
-          continue;
-        }
-
-        const cellCount = row.cells.length;
-
-        if (cellCount === 2) {
-          displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
-        } else if (cellCount === 4) {
-          displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
-          displayOrder = this.processPair(row, table.tableIndex, 2, 3, 1, items, displayOrder, warnings, errors);
-        } else if (cellCount === 6 && isSynAntTable) {
-          if (!synAntWarningEmitted) {
-            warnings.push(
-              `Synonym and antonym columns detected (table ${String(table.tableIndex)}): ` +
-              "these were not imported because the current vocabulary model does not store vocabulary relationships.",
-            );
-            synAntWarningEmitted = true;
-          }
-          displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
-        } else {
-          warnings.push(
-            `Table ${String(table.tableIndex)} row ${String(row.rowIndex)}: unsupported layout (${String(cellCount)} cells)`,
-          );
-        }
+      if (classification.kind === "SYNONYM_ANTONYM") {
+        displayOrder = this.processSynonymAntonymTable(table, classification, items, displayOrder, warnings, errors);
+      } else {
+        displayOrder = this.processStandardTable(table, items, displayOrder, warnings, errors);
       }
     }
 
     const deduped = this.detectDuplicates(items);
     return this.buildResult(deduped, warnings, errors);
+  }
+
+  private processStandardTable(
+    table: NormalizedTable,
+    items: VocabularyPreviewItem[],
+    displayOrder: number,
+    warnings: string[],
+    errors: string[],
+  ): number {
+    const rowsAfterFirst = table.rows.filter((r) => r.rowIndex > 0);
+    const dataRows = detectAndSkipHeaders(rowsAfterFirst);
+
+    if (dataRows.length === 0) {
+      warnings.push(`Table ${String(table.tableIndex)}: no data rows after header detection`);
+      return displayOrder;
+    }
+
+    for (const row of dataRows) {
+      if (isSectionTitleRow(row)) {
+        continue;
+      }
+
+      const hasAnyContent = row.cells.some((c) => c.text.trim().length > 0);
+      if (!hasAnyContent) {
+        continue;
+      }
+
+      const cellCount = row.cells.length;
+
+      if (cellCount === 2) {
+        displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
+      } else if (cellCount === 4) {
+        displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
+        displayOrder = this.processPair(row, table.tableIndex, 2, 3, 1, items, displayOrder, warnings, errors);
+      } else {
+        warnings.push(
+          `Table ${String(table.tableIndex)} row ${String(row.rowIndex)}: unsupported layout (${String(cellCount)} cells)`,
+        );
+      }
+    }
+
+    return displayOrder;
+  }
+
+  private processSynonymAntonymTable(
+    table: NormalizedTable,
+    classification: { readonly headerRowIndex: number | null },
+    items: VocabularyPreviewItem[],
+    displayOrder: number,
+    warnings: string[],
+    errors: string[],
+  ): number {
+    let synAntWarningEmitted = false;
+
+    for (const row of table.rows) {
+      const hasAnyContent = row.cells.some((c) => c.text.trim().length > 0);
+      if (!hasAnyContent) continue;
+
+      if (classification.headerRowIndex !== null && row.rowIndex === classification.headerRowIndex) continue;
+
+      if (isSectionTitleRow(row)) continue;
+
+      if (!synAntWarningEmitted) {
+        warnings.push(
+          `Synonym and antonym columns detected (table ${String(table.tableIndex)}): ` +
+          "these were not imported because the current vocabulary model does not store vocabulary relationships.",
+        );
+        synAntWarningEmitted = true;
+      }
+
+      displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
+    }
+
+    return displayOrder;
+  }
+
+  static isSynonymAntonymTable(table: NormalizedTable): boolean {
+    if (table.rows.length === 0) return false;
+    const firstRow = table.rows[0];
+    if (firstRow.cells.length !== 6) return false;
+    return firstRow.cells.every((c) => isHeaderCell(c.text));
   }
 
   private processPair(
@@ -134,13 +181,6 @@ export class VocabularyTableV1Parser {
     });
 
     return displayOrder + 1;
-  }
-
-  private static isSynonymAntonymTable(table: NormalizedTable): boolean {
-    if (table.rows.length === 0) return false;
-    const firstRow = table.rows[0];
-    if (firstRow.cells.length !== 6) return false;
-    return firstRow.cells.every((c) => isHeaderCell(c.text));
   }
 
   private resolveStatus(warnings: readonly string[], errors: readonly string[]): VocabularyPreviewStatus {
