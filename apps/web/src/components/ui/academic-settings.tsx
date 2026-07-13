@@ -98,28 +98,28 @@ export function AcademicSettings(): ReactNode {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 light:text-slate-500">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 light:text-neutral-500">
           ╪د┘╪ح╪╣╪»╪د╪»╪د╪ز ╪د┘╪ث┘â╪د╪»┘è┘à┘è╪ر
         </span>
-        <div className="h-px bg-white/5 light:bg-slate-200" />
+        <div className="h-px bg-white/5 light:bg-neutral-200" />
       </div>
 
       <div className="flex flex-col gap-2 text-xs">
         <div className="flex items-center justify-between">
-          <span className="text-slate-400 light:text-slate-500">╪د┘╪│┘╪ر ╪د┘╪»╪▒╪د╪│┘è╪ر</span>
-          <span className="font-semibold text-slate-100 light:text-slate-900">
+          <span className="text-neutral-400 light:text-neutral-500">╪د┘╪│┘╪ر ╪د┘╪»╪▒╪د╪│┘è╪ر</span>
+          <span className="font-semibold text-neutral-100 light:text-neutral-900">
             {activeCtx?.academicYear?.name ?? "ظ¤"}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-slate-400 light:text-slate-500">╪د┘╪ز╪▒┘à ╪د┘╪ص╪د┘┘è</span>
-          <span className="font-semibold text-slate-100 light:text-slate-900">
+          <span className="text-neutral-400 light:text-neutral-500">╪د┘╪ز╪▒┘à ╪د┘╪ص╪د┘┘è</span>
+          <span className="font-semibold text-neutral-100 light:text-neutral-900">
             {activeCtx?.term?.name ?? "ظ¤"}
           </span>
         </div>
       </div>
 
-      <div className="h-px bg-white/5 light:bg-slate-200" />
+      <div className="h-px bg-white/5 light:bg-neutral-200" />
 
       <div className="flex flex-col gap-1">
         <span className="text-[10px] font-bold text-warning-400 light:text-warning-600">
@@ -131,7 +131,7 @@ export function AcademicSettings(): ReactNode {
         ) : isTeacher && myGrades ? (
           <div className="flex flex-col gap-2">
             {myGrades.grades.length === 0 && (
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10px] text-neutral-500">
                 ┘┘à ┘è╪ز┘à ╪ح╪│┘╪د╪» ╪ث┘è ╪╡┘┘ê┘ ╪»╪▒╪د╪│┘è╪ر. ┘è╪▒╪ش┘ë ╪د┘╪ز┘ê╪د╪╡┘ ┘à╪╣ ╪د┘╪ح╪»╪د╪▒╪ر.
               </p>
             )}
@@ -164,7 +164,7 @@ export function AcademicSettings(): ReactNode {
                   />
                 ) : (
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-slate-400">╪د┘╪╡┘ ╪د┘╪»╪▒╪د╪│┘è</span>
+                    <span className="text-[10px] text-neutral-400">╪د┘╪╡┘ ╪د┘╪»╪▒╪د╪│┘è</span>
                     <div className="flex flex-wrap gap-1.5">
                       {myGrades.grades.map((g) => {
                         const isActive = grade === g.name;
@@ -180,7 +180,7 @@ export function AcademicSettings(): ReactNode {
                             className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
                               isActive
                                 ? "border-primary-500 bg-primary-500/15 text-primary-400 font-semibold"
-                                : "border-neutral-700 text-slate-400 hover:border-neutral-500 hover:text-slate-200"
+                                : "border-neutral-700 text-neutral-400 hover:border-neutral-500 hover:text-neutral-200"
                             }`}
                           >
                             {g.name}
@@ -210,7 +210,7 @@ export function AcademicSettings(): ReactNode {
               </>
             )}
 
-            <span className="text-[10px] leading-relaxed text-slate-500 light:text-slate-400">
+            <span className="text-[10px] leading-relaxed text-neutral-500 light:text-neutral-400">
               ╪ز╪║┘è┘è╪▒ ┘ç╪░┘ç ╪د┘┘é┘è┘à ┘è╪ج╪س╪▒ ┘┘é╪╖ ╪╣┘┘ë ┘┘ê╪ص╪ر ╪د┘╪ز╪ص┘â┘à ╪د┘╪«╪د╪╡╪ر ╪ذ┘â ┘ê┘╪د ┘è╪║┘è╪▒ ╪د┘╪ذ┘è╪د┘╪د╪ز ╪د┘┘╪╣┘┘è╪ر ┘┘╪╖┘╪د╪ذ ╪ث╪ذ╪»╪د┘ï.
             </span>
           </div>
@@ -223,7 +223,7 @@ export function AcademicSettings(): ReactNode {
               value={term ?? ""}
               onChange={(e) => { setTerm(e.target.value); }}
             />
-            <span className="text-[10px] leading-relaxed text-slate-500 light:text-slate-400">
+            <span className="text-[10px] leading-relaxed text-neutral-500 light:text-neutral-400">
               ╪ز╪║┘è┘è╪▒ ┘ç╪░┘ç ╪د┘┘é┘è┘à╪ر ┘è╪ج╪س╪▒ ┘┘é╪╖ ╪╣┘┘ë ┘┘ê╪ص╪ر ╪د┘╪ز╪ص┘â┘à ╪د┘╪«╪د╪╡╪ر ╪ذ┘â ┘ê┘╪د ┘è╪║┘è╪▒ ╪د┘╪ز╪▒┘à ╪د┘┘╪┤╪╖ ┘┘╪╖┘╪د╪ذ ╪ث╪ذ╪»╪د┘ï.
             </span>
           </>

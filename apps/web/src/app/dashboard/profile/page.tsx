@@ -135,9 +135,9 @@ function EditableField({
   return (
     <div className="flex items-center justify-between rounded-xl border border-white/10 p-3 transition-colors hover:border-white/20">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <span className="shrink-0 text-slate-400">{icon}</span>
+        <span className="shrink-0 text-neutral-400">{icon}</span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-slate-500">{label}</p>
+          <p className="text-xs text-neutral-500">{label}</p>
           {editing ? (
             renderEditor ? (
               <div className="mt-1">
@@ -154,8 +154,8 @@ function EditableField({
               />
             )
           ) : (
-            <p className="truncate text-sm font-medium text-slate-200">
-              {value || <span className="text-slate-600">غير محدد</span>}
+            <p className="truncate text-sm font-medium text-neutral-200">
+              {value || <span className="text-neutral-600">غير محدد</span>}
             </p>
           )}
         </div>
@@ -175,7 +175,7 @@ function EditableField({
               <button
                 onClick={handleCancel}
                 disabled={saving}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-500/10 transition-colors"
+                className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-500/10 transition-colors"
                 aria-label="إلغاء"
               >
                 <X className="h-4 w-4" />
@@ -184,7 +184,7 @@ function EditableField({
           ) : (
             <button
               onClick={handleEdit}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-500/10 hover:text-[#22D3EE] transition-colors"
+              className="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-500/10 hover:text-primary-400 transition-colors"
               aria-label={`تعديل ${label}`}
             >
               <Pencil className="h-4 w-4" />
@@ -279,8 +279,8 @@ export default function ProfilePage(): ReactNode {
       <Card variant="glass" padding="lg">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-[#22D3EE]" />
-            <h2 className="text-base font-extrabold text-slate-100">المعلومات الشخصية</h2>
+            <User className="h-4 w-4 text-primary-400" />
+            <h2 className="text-base font-extrabold text-neutral-100">المعلومات الشخصية</h2>
           </div>
         </CardHeader>
         <CardContent>
@@ -288,12 +288,12 @@ export default function ProfilePage(): ReactNode {
             <img
               src={avatarUrl}
               alt=""
-              className="h-24 w-24 shrink-0 rounded-full border-2 border-[#22D3EE] shadow-[0_0_20px_rgba(34,211,238,0.25)] object-cover"
+              className="h-24 w-24 shrink-0 rounded-full border-2 border-primary-400 shadow-[0_0_20px_rgba(34,211,238,0.25)] object-cover"
             />
             <div className="flex flex-1 flex-col gap-3 text-center sm:text-start">
               <div>
-                <p className="text-lg font-extrabold text-slate-50">{p.fullName}</p>
-                <p className="text-sm capitalize text-slate-400">
+                <p className="text-lg font-extrabold text-neutral-50">{p.fullName}</p>
+                <p className="text-sm capitalize text-neutral-400">
                   {p.role === "STUDENT" ? "طالب" : p.role}
                 </p>
               </div>
@@ -314,8 +314,8 @@ export default function ProfilePage(): ReactNode {
                   onSave={handleFieldSave}
                   placeholder="English Full Name"
                 />
-                <span className="flex items-center gap-2 px-1 text-sm text-slate-400">
-                  <Phone className="h-4 w-4 text-slate-500" />
+                <span className="flex items-center gap-2 px-1 text-sm text-neutral-400">
+                  <Phone className="h-4 w-4 text-neutral-500" />
                   {p.mobileNumber}
                 </span>
                 <EditableField
@@ -338,8 +338,8 @@ export default function ProfilePage(): ReactNode {
       <Card variant="glass" padding="lg">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-[#22D3EE]" />
-            <h2 className="text-base font-extrabold text-slate-100">المعلومات التعليمية</h2>
+            <BookOpen className="h-4 w-4 text-primary-400" />
+            <h2 className="text-base font-extrabold text-neutral-100">المعلومات التعليمية</h2>
           </div>
         </CardHeader>
         <CardContent>
@@ -401,8 +401,8 @@ export default function ProfilePage(): ReactNode {
       <Card variant="glass" padding="lg">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-[#22D3EE]" />
-            <h2 className="text-base font-extrabold text-slate-100">الموقع</h2>
+            <MapPin className="h-4 w-4 text-primary-400" />
+            <h2 className="text-base font-extrabold text-neutral-100">الموقع</h2>
           </div>
         </CardHeader>
         <CardContent>
@@ -438,25 +438,25 @@ export default function ProfilePage(): ReactNode {
       <Card variant="glass" padding="lg">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-[#22D3EE]" />
-            <h2 className="text-base font-extrabold text-slate-100">معلومات الحساب</h2>
+            <Shield className="h-4 w-4 text-primary-400" />
+            <h2 className="text-base font-extrabold text-neutral-100">معلومات الحساب</h2>
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-slate-400">حالة الحساب</span>
-              <span className={`text-sm font-extrabold ${p.status === "ACTIVE" ? "text-[#10B981]" : "text-warning-500"}`}>
+              <span className="text-sm text-neutral-400">حالة الحساب</span>
+              <span className={`text-sm font-extrabold ${p.status === "ACTIVE" ? "text-success-500" : "text-warning-500"}`}>
                 {statusLabel}
               </span>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-slate-400">تاريخ التسجيل</span>
-              <span className="text-sm font-medium text-slate-300">{formattedDate}</span>
+              <span className="text-sm text-neutral-400">تاريخ التسجيل</span>
+              <span className="text-sm font-medium text-neutral-300">{formattedDate}</span>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-slate-400">نوع الحساب</span>
-              <span className="text-sm font-extrabold text-[#22D3EE]">مجاني</span>
+              <span className="text-sm text-neutral-400">نوع الحساب</span>
+              <span className="text-sm font-extrabold text-primary-400">مجاني</span>
             </div>
           </div>
         </CardContent>
@@ -466,8 +466,8 @@ export default function ProfilePage(): ReactNode {
       <Card variant="glass" padding="lg">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Lock className="h-4 w-4 text-[#22D3EE]" />
-            <h2 className="text-base font-extrabold text-slate-100">الأمان</h2>
+            <Lock className="h-4 w-4 text-primary-400" />
+            <h2 className="text-base font-extrabold text-neutral-100">الأمان</h2>
           </div>
         </CardHeader>
         <CardContent>
@@ -489,14 +489,14 @@ export default function ProfilePage(): ReactNode {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Crown className="h-4 w-4 text-yellow-400" />
-            <h2 className="text-base font-extrabold text-slate-100">الاشتراك</h2>
+            <h2 className="text-base font-extrabold text-neutral-100">الاشتراك</h2>
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-slate-400">الخطة الحالية</span>
-              <span className="text-sm font-extrabold text-[#22D3EE]">مجاني</span>
+              <span className="text-sm text-neutral-400">الخطة الحالية</span>
+              <span className="text-sm font-extrabold text-primary-400">مجاني</span>
             </div>
             <Button variant="primary" size="sm" fullWidth className="mt-1">
               <Crown className="h-4 w-4" />
