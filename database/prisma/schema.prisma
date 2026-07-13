@@ -275,28 +275,28 @@ model Grade {
 }
 
 model AcademicYear {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  terms     Term[]
-  units     Unit[]
-  users     User[]
-  stories   Story[]
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String        @unique
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  terms        Term[]
+  units        Unit[]
+  users        User[]
+  stories      Story[]
   finalReviews FinalReview[]
 
   @@map("academic_years")
 }
 
 model Term {
-  id             String       @id @default(uuid()) @db.Uuid
+  id             String        @id @default(uuid()) @db.Uuid
   name           String
-  academicYearId String       @db.Uuid
-  displayOrder   Int          @default(0)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicYearId String        @db.Uuid
+  displayOrder   Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  academicYear   AcademicYear  @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   books          Book[]
   units          Unit[]
   users          User[]
@@ -365,30 +365,32 @@ model Unit {
 }
 
 model Lesson {
-  id                String             @id @default(uuid()) @db.Uuid
-  title             String
-  unitId            String             @db.Uuid
-  displayOrder      Int                @default(0)
-  estimatedDuration Int                @default(0)
-  isPremium         Boolean            @default(false)
-  published         Boolean            @default(true)
-  isHidden          Boolean            @default(false)
-  sequentialMode    Boolean            @default(true)
-  homeworkEnabled   Boolean            @default(false)
-  quizEnabled       Boolean            @default(false)
-  passingScore      Int                @default(70)
-  maxAttempts       Int                @default(3)
-  xpReward          Int                @default(100)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  homework          Homework?
-  document          LessonDocument?
-  progress          LessonProgress[]
-  settings          LessonSettings?
-  videos            LessonVideo[]
-  vocabulary        LessonVocabulary[]
-  unit              Unit               @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  quiz              Quiz?
+  id                  String               @id @default(uuid()) @db.Uuid
+  title               String
+  unitId              String               @db.Uuid
+  displayOrder        Int                  @default(0)
+  estimatedDuration   Int                  @default(0)
+  isPremium           Boolean              @default(false)
+  published           Boolean              @default(true)
+  isHidden            Boolean              @default(false)
+  sequentialMode      Boolean              @default(true)
+  homeworkEnabled     Boolean              @default(false)
+  quizEnabled         Boolean              @default(false)
+  passingScore        Int                  @default(70)
+  maxAttempts         Int                  @default(3)
+  xpReward            Int                  @default(100)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  homework            Homework?
+  document            LessonDocument?
+  progress            LessonProgress[]
+  settings            LessonSettings?
+  videos              LessonVideo[]
+  vocabulary          LessonVocabulary[]
+  vocabularySections  VocabularySection[]
+  vocabularyRelations VocabularyRelation[]
+  unit                Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  quiz                Quiz?
 
   @@index([unitId])
   @@index([displayOrder])
@@ -492,19 +494,75 @@ model ActivityQuestion {
 }
 
 model LessonVocabulary {
-  id           String   @id @default(uuid()) @db.Uuid
-  lessonId     String   @db.Uuid
-  word         String
-  translation  String
-  definition   String?
-  example      String?
-  partOfSpeech String?
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  lesson       Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  id               String             @id @default(uuid()) @db.Uuid
+  lessonId         String             @db.Uuid
+  sectionId        String?            @db.Uuid
+  word             String
+  translation      String
+  definition       String?
+  example          String?
+  partOfSpeech     String?
+  sourceTableIndex Int?
+  sourceRowIndex   Int?
+  sourcePairIndex  Int?
+  displayOrder     Int                @default(0)
+  createdAt        DateTime           @default(now())
+  lesson           Lesson             @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  section          VocabularySection? @relation("VocabularySectionItems", fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([lessonId])
+  @@index([sectionId])
   @@map("lesson_vocabulary")
+}
+
+enum VocabularySectionKind {
+  STANDARD_VOCABULARY
+  SYNONYM_ANTONYM
+
+  @@map("vocabulary_section_kind")
+}
+
+model VocabularySection {
+  id                  String                @id @default(uuid()) @db.Uuid
+  lessonId            String                @db.Uuid
+  kind                VocabularySectionKind
+  title               String?
+  displayOrder        Int                   @default(0)
+  sourceTableIndex    Int?
+  sourceTitleRowIndex Int?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  lesson              Lesson                @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  vocabularyItems     LessonVocabulary[]    @relation("VocabularySectionItems")
+  relations           VocabularyRelation[]
+
+  @@index([lessonId])
+  @@index([lessonId, displayOrder])
+  @@map("vocabulary_sections")
+}
+
+model VocabularyRelation {
+  id                 String            @id @default(uuid()) @db.Uuid
+  lessonId           String            @db.Uuid
+  sectionId          String            @db.Uuid
+  primaryWord        String
+  primaryTranslation String
+  synonym            String?
+  synonymTranslation String?
+  antonym            String?
+  antonymTranslation String?
+  displayOrder       Int               @default(0)
+  sourceTableIndex   Int?
+  sourceRowIndex     Int?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  lesson             Lesson            @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  section            VocabularySection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+  @@index([sectionId])
+  @@index([lessonId, displayOrder])
+  @@map("vocabulary_relations")
 }
 
 model Homework {
@@ -842,22 +900,22 @@ model StoryChapter {
 }
 
 model FinalReview {
-  id                String              @id @default(uuid()) @db.Uuid
+  id                String               @id @default(uuid()) @db.Uuid
   title             String
   description       String?
   coverImageUrl     String?
-  gradeId           String              @db.Uuid
-  academicYearId    String              @db.Uuid
-  termId            String              @db.Uuid
+  gradeId           String               @db.Uuid
+  academicYearId    String               @db.Uuid
+  termId            String               @db.Uuid
   educationalSystem String
-  displayOrder      Int                 @default(0)
-  published         Boolean             @default(false)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  displayOrder      Int                  @default(0)
+  published         Boolean              @default(false)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
   deletedAt         DateTime?
-  grade             Grade               @relation(fields: [gradeId], references: [id])
-  academicYear      AcademicYear        @relation(fields: [academicYearId], references: [id])
-  term              Term                @relation(fields: [termId], references: [id])
+  grade             Grade                @relation(fields: [gradeId], references: [id])
+  academicYear      AcademicYear         @relation(fields: [academicYearId], references: [id])
+  term              Term                 @relation(fields: [termId], references: [id])
   sections          FinalReviewSection[]
 
   @@index([gradeId])
@@ -870,17 +928,17 @@ model FinalReview {
 }
 
 model FinalReviewSection {
-  id              String       @id @default(uuid()) @db.Uuid
-  finalReviewId   String       @db.Uuid
+  id              String      @id @default(uuid()) @db.Uuid
+  finalReviewId   String      @db.Uuid
   title           String
   description     String?
-  questionCount   Int          @default(0)
-  durationMinutes Int          @default(0)
-  displayOrder    Int          @default(0)
-  published       Boolean      @default(true)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  finalReview     FinalReview  @relation(fields: [finalReviewId], references: [id], onDelete: Cascade)
+  questionCount   Int         @default(0)
+  durationMinutes Int         @default(0)
+  displayOrder    Int         @default(0)
+  published       Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  finalReview     FinalReview @relation(fields: [finalReviewId], references: [id], onDelete: Cascade)
 
   @@index([finalReviewId])
   @@index([displayOrder])
