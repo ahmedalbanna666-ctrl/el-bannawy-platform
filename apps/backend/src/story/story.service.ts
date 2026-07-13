@@ -213,21 +213,31 @@ export class StoryService {
   }
 
   async getStoriesForStudent(userId: string): Promise<unknown[]> {
-    const ctx = await this.academicContext.getStudentContext(userId);
-    if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) {
-      throw new ForbiddenException("Academic context not assigned");
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, gradeId: true, academicYearId: true, termId: true, educationalSystem: true },
+    });
+    if (!user) throw new NotFoundException("User not found");
+
+    const isStudent = user.role === "STUDENT";
+
+    const where: Record<string, unknown> = { published: true, deletedAt: null };
+
+    if (isStudent) {
+      if (!user.gradeId || !user.academicYearId || !user.termId) {
+        throw new ForbiddenException("Academic context not assigned");
+      }
+      where.gradeId = user.gradeId;
+      where.academicYearId = user.academicYearId;
+      where.termId = user.termId;
+      if (user.educationalSystem) {
+        where.educationalSystem = user.educationalSystem;
+      }
     }
 
     return this.prisma.story.findMany({
       orderBy: { displayOrder: "asc" },
-      where: {
-        published: true,
-        deletedAt: null,
-        gradeId: ctx.gradeId,
-        academicYearId: ctx.academicYearId,
-        termId: ctx.termId,
-        ...(ctx.educationalSystem ? { educationalSystem: ctx.educationalSystem } : {}),
-      },
+      where,
       include: {
         chapters: {
           where: { published: true },
@@ -238,10 +248,13 @@ export class StoryService {
   }
 
   async getStoryForStudent(id: string, userId: string): Promise<unknown> {
-    const ctx = await this.academicContext.getStudentContext(userId);
-    if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) {
-      throw new ForbiddenException("Academic context not assigned");
-    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, gradeId: true, academicYearId: true, termId: true, educationalSystem: true },
+    });
+    if (!user) throw new NotFoundException("User not found");
+
+    const isStudent = user.role === "STUDENT";
 
     const story = await this.prisma.story.findUnique({
       where: { id },
@@ -254,11 +267,17 @@ export class StoryService {
     });
 
     if (!story || story.deletedAt || !story.published) throw new NotFoundException("Story not found");
-    if (story.gradeId !== ctx.gradeId || story.academicYearId !== ctx.academicYearId || story.termId !== ctx.termId) {
-      throw new ForbiddenException("Story not available in your academic context");
-    }
-    if (ctx.educationalSystem && story.educationalSystem !== ctx.educationalSystem) {
-      throw new ForbiddenException("Story not available in your educational system");
+
+    if (isStudent) {
+      if (!user.gradeId || !user.academicYearId || !user.termId) {
+        throw new ForbiddenException("Academic context not assigned");
+      }
+      if (story.gradeId !== user.gradeId || story.academicYearId !== user.academicYearId || story.termId !== user.termId) {
+        throw new ForbiddenException("Story not available in your academic context");
+      }
+      if (user.educationalSystem && story.educationalSystem !== user.educationalSystem) {
+        throw new ForbiddenException("Story not available in your educational system");
+      }
     }
 
     return story;

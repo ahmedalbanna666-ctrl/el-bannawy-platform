@@ -119,22 +119,54 @@ export class FinalReviewService {
   }
 
   async getForStudent(userId: string) {
-    const ctx = await this.academicContext.getStudentContext(userId);
-    if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) throw new ForbiddenException("Academic context not assigned");
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, gradeId: true, academicYearId: true, termId: true, educationalSystem: true },
+    });
+    if (!user) throw new NotFoundException("User not found");
+
+    const isStudent = user.role === "STUDENT";
+
+    const where: Record<string, unknown> = { published: true, deletedAt: null };
+
+    if (isStudent) {
+      if (!user.gradeId || !user.academicYearId || !user.termId) throw new ForbiddenException("Academic context not assigned");
+      where.gradeId = user.gradeId;
+      where.academicYearId = user.academicYearId;
+      where.termId = user.termId;
+      if (user.educationalSystem) {
+        where.educationalSystem = user.educationalSystem;
+      }
+    }
+
     return this.prisma.finalReview.findMany({
       orderBy: { displayOrder: "asc" },
-      where: { published: true, deletedAt: null, gradeId: ctx.gradeId, academicYearId: ctx.academicYearId, termId: ctx.termId, ...(ctx.educationalSystem ? { educationalSystem: ctx.educationalSystem } : {}) },
+      where,
       include: { sections: { where: { published: true }, orderBy: { displayOrder: "asc" } } },
     });
   }
 
   async getForStudentById(id: string, userId: string) {
-    const ctx = await this.academicContext.getStudentContext(userId);
-    if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) throw new ForbiddenException("Academic context not assigned");
-    const fr = await this.prisma.finalReview.findUnique({ where: { id }, include: { sections: { where: { published: true }, orderBy: { displayOrder: "asc" } } } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, gradeId: true, academicYearId: true, termId: true, educationalSystem: true },
+    });
+    if (!user) throw new NotFoundException("User not found");
+
+    const isStudent = user.role === "STUDENT";
+
+    const fr = await this.prisma.finalReview.findUnique({
+      where: { id },
+      include: { sections: { where: { published: true }, orderBy: { displayOrder: "asc" } } },
+    });
     if (!fr || fr.deletedAt || !fr.published) throw new NotFoundException("Final review not found");
-    if (fr.gradeId !== ctx.gradeId || fr.academicYearId !== ctx.academicYearId || fr.termId !== ctx.termId) throw new ForbiddenException("Not in your academic context");
-    if (ctx.educationalSystem && fr.educationalSystem !== ctx.educationalSystem) throw new ForbiddenException("Not in your educational system");
+
+    if (isStudent) {
+      if (!user.gradeId || !user.academicYearId || !user.termId) throw new ForbiddenException("Academic context not assigned");
+      if (fr.gradeId !== user.gradeId || fr.academicYearId !== user.academicYearId || fr.termId !== user.termId) throw new ForbiddenException("Not in your academic context");
+      if (user.educationalSystem && fr.educationalSystem !== user.educationalSystem) throw new ForbiddenException("Not in your educational system");
+    }
+
     return fr;
   }
 
