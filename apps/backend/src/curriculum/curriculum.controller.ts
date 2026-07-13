@@ -2,9 +2,12 @@ import { Controller, Get, Param, ParseUUIDPipe, Patch, Post, Delete, UseGuards, 
 import { CurriculumService } from "./curriculum.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
+import { PermissionGuard } from "../common/guards/permission.guard";
+import { RequirePermission } from "../common/decorators/require-permission.decorator";
 import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
+import { PERMISSIONS } from "@el-bannawy/shared";
 import { IsInt, Min } from "class-validator";
 import {
   CreateUnitDto,
@@ -93,8 +96,9 @@ export class CurriculumController {
   }
 
   @Post("units")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
+  @RequirePermission(PERMISSIONS.UNITS_CREATE)
   async createUnit(
     @Body() dto: CreateUnitDto,
     @CurrentUser() userId: string,
@@ -104,8 +108,9 @@ export class CurriculumController {
   }
 
   @Patch("units/:id")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
+  @RequirePermission(PERMISSIONS.UNITS_EDIT)
   async updateUnit(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateUnitDto,
@@ -116,8 +121,9 @@ export class CurriculumController {
   }
 
   @Delete("units/:id")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
+  @RequirePermission(PERMISSIONS.UNITS_DELETE)
   async deleteUnit(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() userId: string,
@@ -129,8 +135,9 @@ export class CurriculumController {
   // ── Lesson Management ───────────────────────────────────────────
 
   @Post("lessons")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
+  @RequirePermission(PERMISSIONS.LESSONS_CREATE)
   async createLesson(
     @Body() dto: CreateLessonDto,
     @CurrentUser() userId: string,
@@ -140,8 +147,9 @@ export class CurriculumController {
   }
 
   @Patch("lessons/:id")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
+  @RequirePermission(PERMISSIONS.LESSONS_EDIT)
   async updateLesson(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateLessonDto,
@@ -152,8 +160,9 @@ export class CurriculumController {
   }
 
   @Delete("lessons/:id")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
+  @RequirePermission(PERMISSIONS.LESSONS_DELETE)
   async deleteLesson(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() userId: string,
