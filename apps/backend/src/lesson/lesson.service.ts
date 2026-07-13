@@ -274,6 +274,16 @@ export class LessonService {
     await this.prisma.lessonVocabulary.delete({ where: { id: vocabId } });
   }
 
+  async deleteAllVocabulary(lessonId: string, userId: string): Promise<{ deletedCount: number }> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+
+    const result = await this.prisma.lessonVocabulary.deleteMany({
+      where: { lessonId },
+    });
+
+    return { deletedCount: result.count };
+  }
+
   async previewVocabularyImport(lessonId: string, buffer: Buffer, originalName: string, userId: string): Promise<VocabularyImportPreview> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
     return this.vocabularyPreview.preview(buffer, originalName);

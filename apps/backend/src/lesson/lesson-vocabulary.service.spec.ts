@@ -323,6 +323,36 @@ describe("LessonService — Vocabulary", () => {
     });
   });
 
+  // ── V6: DELETE ALL ────────────────────────────────────────────────
+
+  describe("deleteAllVocabulary", () => {
+    it("verifies teacher lesson access", async () => {
+      prisma.lessonVocabulary.deleteMany.mockResolvedValue({ count: 3 });
+      await service.deleteAllVocabulary(lessonId, userId);
+      expect(academic.verifyTeacherLessonAccess).toHaveBeenCalledWith(userId, lessonId);
+      expect(prisma.lessonVocabulary.deleteMany).toHaveBeenCalledWith({ where: { lessonId } });
+    });
+
+    it("deletes only the target lesson vocabulary", async () => {
+      prisma.lessonVocabulary.deleteMany.mockResolvedValue({ count: 2 });
+      const result = await service.deleteAllVocabulary(lessonId, userId);
+      expect(prisma.lessonVocabulary.deleteMany).toHaveBeenCalledWith({ where: { lessonId } });
+      expect(result.deletedCount).toBe(2);
+    });
+
+    it("returns zero count for an empty lesson", async () => {
+      prisma.lessonVocabulary.deleteMany.mockResolvedValue({ count: 0 });
+      const result = await service.deleteAllVocabulary(lessonId, userId);
+      expect(result.deletedCount).toBe(0);
+    });
+
+    it("performs zero deletion on access failure", async () => {
+      academic.verifyTeacherLessonAccess.mockRejectedValue(new ForbiddenException());
+      await expect(service.deleteAllVocabulary(lessonId, userId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.lessonVocabulary.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
   // ── COMMIT ──────────────────────────────────────────────────────────
 
   describe("commitVocabularyImport", () => {

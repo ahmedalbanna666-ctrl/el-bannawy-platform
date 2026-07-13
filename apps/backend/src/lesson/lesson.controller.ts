@@ -63,6 +63,14 @@ export class LessonController {
     await this.lessonService.deleteVocabulary(lessonId, vocabId, userId);
   }
 
+  @Delete(":id/vocabulary") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR")
+  async deleteAllVocabulary(@Param("id", ParseUUIDPipe) lessonId: string, @CurrentUser() userId: string): Promise<ISuccessResponse<{ deletedCount: number }>> {
+    return successResponse(
+      await this.lessonService.deleteAllVocabulary(lessonId, userId),
+      "All vocabulary deleted",
+    );
+  }
+
   @Post(":id/vocabulary/import/preview") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR") @UseInterceptors(FileInterceptor("file"))
   async previewVocabularyImport(
     @Param("id", ParseUUIDPipe) lessonId: string,
