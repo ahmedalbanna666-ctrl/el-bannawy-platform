@@ -19,16 +19,34 @@ export function usePermissions(): {
   readonly isStaff: boolean;
   readonly isStudent: boolean;
 } {
-  const userRole = useAuthStore((s) => s.user?.role) as UserRole | undefined;
+  const user = useAuthStore((s) => s.user);
+  const userRole = user?.role as UserRole | undefined;
 
   const role = userRole ?? "STUDENT";
+
+  const authorizedPermissions: readonly Permission[] | undefined = user?.effectivePermissions;
 
   return {
     role,
     permissions: getPermissionsForRole(role),
-    can: (permission: Permission): boolean => hasPermission(role, permission),
-    canAny: (...permissions: Permission[]): boolean => hasAnyPermission(role, permissions),
-    canAll: (...permissions: Permission[]): boolean => hasAllPermissions(role, permissions),
+    can: (permission: Permission): boolean => {
+      if (authorizedPermissions !== undefined) {
+        return authorizedPermissions.includes(permission);
+      }
+      return hasPermission(role, permission);
+    },
+    canAny: (...permissionList: Permission[]): boolean => {
+      if (authorizedPermissions !== undefined) {
+        return permissionList.some((p) => authorizedPermissions.includes(p));
+      }
+      return hasAnyPermission(role, permissionList);
+    },
+    canAll: (...permissionList: Permission[]): boolean => {
+      if (authorizedPermissions !== undefined) {
+        return permissionList.every((p) => authorizedPermissions.includes(p));
+      }
+      return hasAllPermissions(role, permissionList);
+    },
     isAdmin: role === "ADMINISTRATOR",
     isTeacher: role === "TEACHER",
     isStaff: role === "STAFF",

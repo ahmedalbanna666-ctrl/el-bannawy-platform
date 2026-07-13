@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/auth-store";
 import { api } from "@/lib/api-client";
+import type { Permission } from "@el-bannawy/shared";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -14,6 +15,7 @@ interface AuthContextValue {
     mobileNumber: string | null;
     role: string;
     status: string;
+    effectivePermissions?: Permission[];
   } | null;
   login: (mobile: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
@@ -74,9 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         mobileNumber: string | null;
         role: string;
         status: string;
+        effectivePermissions: string[];
       }>("/auth/me");
       if (response.data) {
-        setUser(response.data);
+        setUser({
+          ...response.data,
+          effectivePermissions: response.data.effectivePermissions as Permission[],
+        });
       }
     } catch {
       clearStore();

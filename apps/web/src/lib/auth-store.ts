@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { Permission } from "@el-bannawy/shared";
 
 interface AuthUser {
   id: string;
@@ -7,6 +8,7 @@ interface AuthUser {
   mobileNumber: string | null;
   role: string;
   status: string;
+  effectivePermissions?: Permission[];
 }
 
 interface AuthState {
