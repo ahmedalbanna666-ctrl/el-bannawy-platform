@@ -18,7 +18,7 @@ const Dialog = forwardRef<HTMLDivElement, DialogProps>(
 
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}

@@ -61,26 +61,26 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
       !collapsed && "justify-start",
       collapsed && "justify-center px-0 py-3",
       item.active
-        ? "bg-[#22D3EE]/10 text-[#22D3EE]"
+        ? "bg-primary-400/10 text-primary-400"
         : item.danger
-          ? "border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.06)] text-slate-100 hover:bg-[#ef4444] hover:text-white hover:shadow-[0_5px_15px_rgba(239,68,68,0.3)] light:border-[rgba(239,68,68,0.25)] light:bg-[rgba(239,68,68,0.04)] light:text-slate-900"
-          : "text-slate-100 hover:-translate-x-1 hover:bg-[#1e293b]/80 hover:text-[#22D3EE] hover:backdrop-blur-[10px] hover:border hover:border-white/10 light:text-slate-900 light:hover:bg-slate-100 light:hover:text-[#0891B2] light:hover:border-slate-200",
+          ? "border border-danger-500/20 bg-danger-500/6 text-neutral-100 hover:bg-danger-500 hover:text-white hover:shadow-[0_5px_15px_rgba(239,68,68,0.3)] light:border-danger-500/25 light:bg-danger-500/4 light:text-neutral-900"
+          : "text-neutral-100 hover:-translate-x-1 hover:bg-neutral-800/80 hover:text-primary-400 hover:backdrop-blur-sm hover:border hover:border-white/10 light:text-neutral-900 light:hover:bg-neutral-100 light:hover:text-primary-600 light:hover:border-neutral-200",
     );
 
   const iconClass = (item: SidebarItem): string =>
     cn(
       "h-[1.3rem] w-[1.3rem] shrink-0",
       item.danger
-        ? "text-[#ef4444]"
+        ? "text-danger-500"
         : item.active
-          ? "text-[#22D3EE]"
-          : "text-slate-300 light:text-slate-500",
+          ? "text-primary-400"
+          : "text-neutral-400 light:text-neutral-500",
     );
 
   return (
     <aside
       className={cn(
-        "hidden h-screen flex-col border-l border-white/10 bg-transparent transition-[width] duration-300 dark:bg-transparent light:border-slate-200 lg:flex",
+        "hidden h-screen flex-col border-l border-white/10 bg-transparent transition-[width] duration-300 dark:bg-transparent light:border-neutral-200 lg:flex",
         "overflow-y-auto pb-24 pt-8",
         "[scrollbar-width:thin]",
         "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
@@ -93,20 +93,20 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
       {/* Brand + Collapse Toggle */}
       <div className="mb-10 flex items-center justify-between">
         {!collapsed ? (
-          <span className="font-cairo text-lg font-black text-slate-50 light:text-slate-900">
+          <span className="font-cairo text-lg font-black text-neutral-50 light:text-neutral-900">
             MR.{" "}
-            <span className="text-[#22D3EE] drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]">
+            <span className="text-primary-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]">
               AL-BANNA
             </span>
           </span>
         ) : (
-          <span className="font-cairo text-lg font-black text-[#22D3EE] drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]">
+          <span className="font-cairo text-lg font-black text-primary-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]">
             B
           </span>
         )}
         <button
           onClick={(): void => { setCollapsed(!collapsed); }}
-          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white light:text-slate-500 light:hover:bg-slate-100 light:hover:text-slate-700"
+          className="rounded-lg p-2 text-neutral-500 transition-colors hover:bg-white/10 hover:text-white light:text-neutral-500 light:hover:bg-neutral-100 light:hover:text-neutral-700"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           <ChevronLeft
@@ -125,25 +125,25 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
           onKeyDown={(e): void => { if (e.key === "Enter" || e.key === " ") { onProfileClick?.(); } }}
           role="button"
           tabIndex={0}
-          className="group mb-6 cursor-pointer rounded-[20px] border border-[rgba(34,211,238,0.2)] bg-[#0f172a]/65 px-[15px] py-4 backdrop-blur-xl shadow-[0_8px_20px_rgba(0,0,0,0.3),0_0_20px_rgba(34,211,238,0.12)] transition-all duration-300 hover:border-[rgba(34,211,238,0.5)] hover:bg-[#1e293b]/80 hover:shadow-[0_10px_25px_rgba(34,211,238,0.18)] light:border-slate-200 light:bg-white/85 light:shadow-[0_4px_15px_rgba(0,0,0,0.06)] light:hover:bg-white light:hover:shadow-[0_8px_25px_rgba(6,182,212,0.1)]"
+          className="group mb-6 cursor-pointer rounded-[20px] border border-primary-400/20 bg-neutral-900/65 px-[15px] py-4 backdrop-blur-xl shadow-[0_8px_20px_rgba(0,0,0,0.3),0_0_20px_rgba(34,211,238,0.12)] transition-all duration-300 hover:border-primary-400/50 hover:bg-neutral-800/80 hover:shadow-[0_10px_25px_rgba(34,211,238,0.18)] light:border-neutral-200 light:bg-white/85 light:shadow-[0_4px_15px_rgba(0,0,0,0.06)] light:hover:bg-white light:hover:shadow-[0_8px_25px_rgba(6,182,212,0.1)]"
         >
           <div className="mb-[15px] flex items-center gap-3">
             <img
               src={avatarUrl}
               alt=""
-              className="h-[52px] w-[52px] shrink-0 rounded-full border-2 border-[#22D3EE] shadow-[0_0_15px_rgba(34,211,238,0.2)] object-cover"
+              className="h-[52px] w-[52px] shrink-0 rounded-full border-2 border-primary-400 shadow-[0_0_15px_rgba(34,211,238,0.2)] object-cover"
             />
             <div className="flex flex-col justify-center gap-[3px]">
-              <span className="text-[1.05rem] font-extrabold leading-none text-slate-50 light:text-slate-900">
+              <span className="text-[1.05rem] font-extrabold leading-none text-neutral-50 light:text-neutral-900">
                 {firstName || "Student"}
               </span>
-              <span className="text-[0.75rem] font-semibold leading-none text-slate-400 light:text-slate-500">
+              <span className="text-[0.75rem] font-semibold leading-none text-neutral-500 light:text-neutral-500">
                 {gradeLabel}
               </span>
             </div>
           </div>
-          <div className="-mx-[15px] mb-[15px] h-px bg-[rgba(34,211,238,0.2)] light:bg-slate-200" />
-          <div className="flex items-center justify-between text-sm font-bold text-[#22D3EE] transition-transform duration-300 group-hover:translate-x-1">
+          <div className="-mx-[15px] mb-[15px] h-px bg-primary-400/20 light:bg-neutral-200" />
+          <div className="flex items-center justify-between text-sm font-bold text-primary-400 transition-transform duration-300 group-hover:translate-x-1">
             <span className="flex items-center gap-2">
               <User className="h-4 w-4" />
               عرض الملف الشخصي
@@ -163,7 +163,7 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
                   {entry.items.map((item) => (
                     <li key={item.id}>
                       {isDivider(item) && !collapsed ? (
-                        <div className="mx-2 my-1 h-px bg-white/5 light:bg-slate-200" />
+                        <div className="mx-2 my-1 h-px bg-white/5 light:bg-neutral-200" />
                       ) : (
                         <button
                           onClick={(): void => { handleItemClick(item); }}
@@ -175,7 +175,7 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
                             <>
                               <span className="flex-1 text-start">{item.label}</span>
                               {item.badge !== undefined && (
-                                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#22D3EE] px-1.5 text-[10px] font-bold text-white">
+                                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-400 px-1.5 text-[10px] font-bold text-white">
                                   {item.badge}
                                 </span>
                               )}
@@ -192,7 +192,7 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
 
           if (isDivider(entry) && !collapsed) {
             return (
-              <div key={entry.id} className="mx-2 my-1 h-px bg-white/5 light:bg-slate-200" />
+              <div key={entry.id} className="mx-2 my-1 h-px bg-white/5 light:bg-neutral-200" />
             );
           }
 
@@ -208,7 +208,7 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
                 <>
                   <span className="flex-1 text-start">{entry.label}</span>
                   {entry.badge !== undefined && (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#22D3EE] px-1.5 text-[10px] font-bold text-white">
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-400 px-1.5 text-[10px] font-bold text-white">
                       {entry.badge}
                     </span>
                   )}
@@ -221,7 +221,7 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
 
       {/* Bottom slot */}
       {!collapsed && children && (
-        <div className="border-t border-white/5 pt-4 light:border-slate-200">
+        <div className="border-t border-white/5 pt-4 light:border-neutral-200">
           {children}
         </div>
       )}
