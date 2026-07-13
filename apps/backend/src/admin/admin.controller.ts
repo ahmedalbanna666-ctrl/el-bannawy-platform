@@ -68,9 +68,9 @@ export class AdminController {
   @Post("teachers")
   async createTeacher(
     @Body() dto: CreateTeacherDto,
-    @CurrentUser() _userId: string,
+    @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.adminService.createTeacher(dto);
+    const data = await this.adminService.createTeacher(dto, userId);
     return successResponse(data, "Teacher created successfully");
   }
 

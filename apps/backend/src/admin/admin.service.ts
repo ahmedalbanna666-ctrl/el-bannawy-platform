@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { DelegatedPermissionService } from "../auth/delegated/delegated-permission.service";
 import { QueryTeachersDto } from "./dto/query-teachers.dto";
 import { CreateTeacherDto } from "./dto/create-teacher.dto";
 import { UpdateTeacherDto } from "./dto/update-teacher.dto";
@@ -40,7 +41,10 @@ const TEACHER_SELECT = {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly delegatedPermissionService: DelegatedPermissionService,
+  ) {}
 
   async listTeachers(query: QueryTeachersDto): Promise<unknown> {
     const { search, status, page = 1, limit = 20 } = query;
@@ -168,7 +172,7 @@ export class AdminService {
     };
   }
 
-  async createTeacher(dto: CreateTeacherDto): Promise<unknown> {
+  async createTeacher(dto: CreateTeacherDto, actorId: string): Promise<unknown> {
     if (dto.email) {
       const existingEmail = await this.prisma.user.findUnique({
         where: { email: dto.email },
@@ -212,6 +216,8 @@ export class AdminService {
         updatedAt: true,
       },
     });
+
+    await this.delegatedPermissionService.initializeTeacherPermissions(teacher.id, actorId);
 
     return {
       ...teacher,
