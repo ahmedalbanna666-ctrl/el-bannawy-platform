@@ -17,194 +17,194 @@ Tokens are the single source of truth for visual styling.
 
 # Token Categories
 
-Colors
-
-Typography
-
-Spacing
-
-Radius
-
-Shadows
-
-Borders
-
-Opacity
-
-Animation
-
-Z-Index
-
-Breakpoints
+Colors | Typography | Spacing | Radius | Shadows | Animation | Z-Index
 
 ---
 
 # Naming Convention
 
-color.primary
+Tokens follow Tailwind CSS v4 `@theme` convention in `globals.css`.
 
-color.success
-
-space.md
-
-radius.lg
-
-shadow.md
-
-font.heading
-
-animation.fast
+- `${category}-${variant}` → `--color-primary-500`, `--radius-xl`
+- `${category}` → `--color-surface`, `--shadow-glass`
+- CSS custom properties override in `.dark body` for dark-mode variants
 
 ---
 
 # Color Tokens
 
-Primary
+## Primary (Cyan/Teal — brand accent)
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-primary-50` | `#ecfeff` | Lightest bg tint |
+| `--color-primary-100` | `#cffafe` | Hover bg light |
+| `--color-primary-200` | `#a5f3fc` | Border light |
+| `--color-primary-300` | `#67e8f9` | Accent text light |
+| `--color-primary-400` | `#22d3ee` | Active text, icons, glow borders |
+| `--color-primary-500` | `#06b6d4` | Primary buttons, links |
+| `--color-primary-600` | `#0891b2` | Button hover, dark mode accent |
+| `--color-primary-700` | `#0e7490` | Active state |
+| `--color-primary-800` | `#155e75` | Deep bg |
+| `--color-primary-900` | `#164e63` | Darkest |
 
-Secondary
+## Secondary (Blue)
+Standard Tailwind blue palette — used for secondary CTAs.
 
-Success
+## Success (Green)
+| Token | Value |
+|-------|-------|
+| `--color-success-500` | `#22c55e` |
 
-Warning
+## Warning (Orange)
+| Token | Value |
+|-------|-------|
+| `--color-warning-500` | `#f97316` |
 
-Danger
+## Danger (Red)
+| Token | Value |
+|-------|-------|
+| `--color-danger-500` | `#ef4444` |
 
-Info
+## Info (Cyan — same as primary)
+| Token | Value |
+|-------|-------|
+| `--color-info-500` | `#06b6d4` |
 
-Neutral
+## Neutral (Gray scale)
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-neutral-50` | `#fafafa` | Page bg light |
+| `--color-neutral-100` | `#f5f5f5` | Card bg light |
+| `--color-neutral-200` | `#e5e5e5` | Borders light |
+| `--color-neutral-300` | `#d4d4d4` | Input borders light |
+| `--color-neutral-400` | `#a3a3a3` | Muted text light |
+| `--color-neutral-500` | `#737373` | Secondary text |
+| `--color-neutral-600` | `#525252` | Muted text dark |
+| `--color-neutral-700` | `#404040` | Borders dark |
+| `--color-neutral-800` | `#262626` | Hover bg dark |
+| `--color-neutral-900` | `#171717` | Text dark, sidebar bg |
 
-Surface
-
-Background
-
-Text
+## Surface Tokens (light / dark)
+| Token | Light | Dark |
+|-------|-------|------|
+| `--color-surface` | `#ffffff` | `#0c121e` |
+| `--color-surface-elevated` | `#ffffff` | `#0e1422` |
+| `--color-surface-muted` | `#f5f5f5` | `#1e293b` |
+| `--color-muted-foreground` | `#737373` | `#a3a3a3` |
+| `--color-ring` | `#06b6d4` | `#22d3ee` |
+| `--color-input` | `#d4d4d4` | `#525252` |
 
 ---
 
 # Typography Tokens
 
-Display
+| Token | Value |
+|-------|-------|
+| `--font-sans` | `var(--font-inter), "system-ui", "Arial", "sans-serif"` |
+| `--font-arabic` | `var(--font-cairo), "Noto Sans Arabic", "sans-serif"` |
 
-Heading
-
-Body
-
-Caption
-
-Label
-
-Button
-
----
-
-# Spacing Tokens
-
-xs
-
-sm
-
-md
-
-lg
-
-xl
-
-2xl
+Inter for Latin text, Cairo for Arabic — loaded via Next.js `next/font/google`.
 
 ---
 
 # Radius Tokens
 
-sm
-
-md
-
-lg
-
-xl
-
-full
+| Token | Value |
+|-------|-------|
+| `--radius-sm` | `8px` |
+| `--radius-md` | `12px` |
+| `--radius-lg` | `16px` |
+| `--radius-xl` | `24px` |
+| `--radius-full` | `9999px` |
 
 ---
 
 # Shadow Tokens
 
-sm
-
-md
-
-lg
-
-xl
-
-glass
+| Token | Value |
+|-------|-------|
+| `--shadow-sm` | `0 1px 2px 0 rgb(0 0 0 / 0.05)` |
+| `--shadow-md` | `0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)` |
+| `--shadow-lg` | `0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)` |
+| `--shadow-xl` | `0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)` |
+| `--shadow-glass` | `0 8px 32px 0 rgb(0 0 0 / 0.08)` |
 
 ---
 
 # Motion Tokens
 
-fast
+| Token | Value |
+|-------|-------|
+| `--animate-duration-fast` | `150ms` |
+| `--animate-duration-normal` | `250ms` |
+| `--animate-duration-slow` | `300ms` |
 
-normal
-
-slow
+Reduced motion: all animations/transitions disabled when `prefers-reduced-motion: reduce`.
 
 ---
 
 # Z-Index Tokens
 
-Dropdown
-
-Modal
-
-Toast
-
-Tooltip
-
-Overlay
+| Token | Value | Used By |
+|-------|-------|---------|
+| `--z-dropdown` | `50` | Dropdown menus |
+| `--z-modal` | `100` | Dialog overlays |
+| `--z-toast` | `150` | Toast notifications |
+| `--z-tooltip` | `200` | Tooltips |
+| `--z-overlay` | `300` | Fullscreen overlays |
 
 ---
 
-# Theme Tokens
+# Page Layout Tokens
 
-Dark Theme
-
-Light Theme
-
-Future Themes
-
----
-
-# Rules
-
-Never Hardcode Values.
-
-Always Reference Tokens.
+| Token | Value |
+|-------|-------|
+| `--max-width-page` | `1200px` |
+| `--gutter-page` | `16px` (→ `24px` at md, `32px` at lg) |
 
 ---
 
-# Accessibility
+# Theme System
 
-All Tokens
-
-WCAG AA Compatible
-
----
-
-# Acceptance Criteria
-
-✓ Consistent
-
-✓ Reusable
-
-✓ Theme Aware
-
-✓ Production Ready
+- Dark mode first: `<html className="dark">`
+- Light mode: toggle via `useTheme()` provider → adds `.light` / removes `.dark`
+- Variants: `dark:`, `light:`, `rtl:` custom variants in globals.css
+- Storage: `localStorage("el-bannawy-theme")`
 
 ---
 
-# Final Rule
+# Component Convention
 
-Every visual value used by the platform must originate from the Design Token System.
+All `@/components/ui/` primitives:
+- Use `cn()` from `@/lib/utils` for class merging
+- Use CVA (`class-variance-authority`) for variant props
+- Use `forwardRef` with `displayName`
+- Support `dark:`, `light:`, `rtl:` variants
+- Include `aria-*`, `role`, keyboard interaction
+- Use `--color-ring` token for focus rings
+
+---
+
+# Prohibited Patterns
+
+- Hardcoded hex/rgb values in JSX — use tokens only
+- `slate-*`, `gray-*`, `zinc-*`, `stone-*` — use `neutral-*`
+- Raw `z-50` — use `--z-*` tokens
+- Duplicate CSS class implementations (prefer React component + CVA)
+
+---
+
+# Migration Guide
+
+When migrating a page to design tokens:
+
+1. Replace `slate-*` → `neutral-*`
+2. Replace `#22D3EE` → `primary-400` (text/icons) or `primary-500` (bg)
+3. Replace `#ef4444` → `danger-500`
+4. Replace `#10B981` → `success-500`
+5. Replace `text-\[#...\]` with nearest semantic token
+6. Replace `bg-\[#...\]` with nearest surface/neutral token
+7. Use `focus-visible:ring-2 focus-visible:ring-primary-500` for focus
+8. Verify dark mode and RTL on every migrated surface
 
 End of Document.
