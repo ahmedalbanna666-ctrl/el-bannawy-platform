@@ -118,7 +118,7 @@ export function VocabularyImportDialog({
         } catch {
           // ignore parse failures
         }
-        const statusMessages: Record<number, string> = {
+        const statusMessages: Partial<Record<number, string>> = {
           401: "Authentication failed. Please log in again.",
           403: "You don't have access to this lesson.",
           413: "File is too large. Maximum size is 10MB.",
@@ -227,9 +227,9 @@ export function VocabularyImportDialog({
       const items = previewItems.map((item, idx) => ({
         word: item.word,
         translation: item.translation,
-        definition: item.definition || undefined,
-        example: item.example || undefined,
-        partOfSpeech: item.partOfSpeech || undefined,
+        definition: item.definition,
+        example: item.example,
+        partOfSpeech: item.partOfSpeech ?? undefined,
         displayOrder: existingVocab.length + idx,
       }));
 

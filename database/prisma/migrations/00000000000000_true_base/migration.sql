@@ -1,4 +1,4 @@
-﻿CREATE TYPE public."AccountStatus" AS ENUM (
+CREATE TYPE public."AccountStatus" AS ENUM (
     'ACTIVE',
     'PENDING_VERIFICATION',
     'SUSPENDED',

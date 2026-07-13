@@ -363,7 +363,7 @@ export default function ProfilePage(): ReactNode {
             />
             <EditableField
               label="المرحلة التعليمية"
-              value={p.assignedGrade?.stage?.name ?? ""}
+              value={p.assignedGrade?.stage.name ?? ""}
               fieldKey="educationalStage"
               icon={<GraduationCap className="h-4 w-4" />}
               onSave={handleFieldSave}

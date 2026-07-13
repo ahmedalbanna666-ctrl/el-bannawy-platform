@@ -442,7 +442,7 @@ function StudentProfileTab({
     { label: "البريد الإلكتروني", value: detail.email },
     { label: "رقم الهاتف", value: detail.mobileNumber },
     { label: "هاتف ولي الأمر", value: detail.parentMobile },
-    { label: "المرحلة", value: detail.assignedGrade?.stage?.name ?? null },
+    { label: "المرحلة", value: detail.assignedGrade?.stage.name ?? null },
     { label: "الصف", value: detail.assignedGrade?.name ?? null },
     { label: "النظام التعليمي", value: detail.educationalSystem },
     { label: "المحافظة", value: detail.governorate },

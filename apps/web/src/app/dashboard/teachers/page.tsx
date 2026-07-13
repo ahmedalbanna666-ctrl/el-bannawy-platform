@@ -470,8 +470,7 @@ function TeacherGradesTab({
 
   const grouped = detail.assignedGrades.reduce<Record<string, AssignedGrade[]>>((acc, g) => {
     const stageName = g.stage?.name ?? "أخرى";
-    if (!acc[stageName]) acc[stageName] = [];
-    acc[stageName].push(g);
+    (acc[stageName] ??= []).push(g);
     return acc;
   }, {});
 
@@ -606,7 +605,7 @@ function ActionDialogs({
 
   useEffect(() => {
     if (dialog.type === "edit" && teacherDetail) {
-      setEditFullName(teacherDetail.fullName ?? "");
+      setEditFullName(teacherDetail.fullName);
       setEditEnglishName(teacherDetail.englishName ?? "");
       setEditGovernorate(teacherDetail.governorate ?? "");
       setEditSchool(teacherDetail.school ?? "");
@@ -747,7 +746,7 @@ function GradeSelector({
 }): ReactNode {
   const [selectedGradeIds, setSelectedGradeIds] = useState<Set<string>>(new Set());
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
-  const [summary, setSummary] = useState<{ grades: Array<{ id: string; name: string; stageName: string; studentCount?: number }> } | null>(null);
+  const [summary, setSummary] = useState<{ grades: { id: string; name: string; stageName: string; studentCount?: number }[] } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const { data: stages, isLoading: stagesLoading } = useStages();
@@ -837,9 +836,9 @@ function GradeSelector({
         const grade = teacherDetail?.assignedGrades.find((g) => g.id === id)
           ?? stages?.flatMap((s) => s.grades).find((g) => g.id === id);
         const stageName = grade && "stage" in grade
-          ? (grade as AssignedGrade).stage?.name ?? ""
+          ? grade.stage?.name ?? ""
           : stages?.find((s) => s.grades.some((g) => g.id === id))?.name ?? "";
-        return { id, name: gradeMap.get(id) ?? id, stageName, studentCount: (grade as AssignedGrade)?._count?.users ?? 0 };
+        return { id, name: gradeMap.get(id) ?? id, stageName, studentCount: grade?._count?.users ?? 0 };
       }),
     });
     onSaved();
@@ -940,11 +939,9 @@ function GradeSelector({
           size="sm"
           variant="outline"
           onClick={() => {
-            if (stages) {
-              const all = new Set(stages.flatMap((s) => s.grades.map((g) => g.id)));
-              setSelectedGradeIds(all);
-              setExpandedStages(new Set(stages.map((s) => s.id)));
-            }
+            const all = new Set(stages.flatMap((s) => s.grades.map((g) => g.id)));
+            setSelectedGradeIds(all);
+            setExpandedStages(new Set(stages.map((s) => s.id)));
           }}
         >
           تحديد الكل
@@ -965,13 +962,12 @@ function GradeSummaryCard({
   summary,
   onBack,
 }: {
-  summary: { grades: Array<{ id: string; name: string; stageName: string; studentCount?: number }> };
+  summary: { grades: { id: string; name: string; stageName: string; studentCount?: number }[] };
   onBack: () => void;
 }): ReactNode {
   const totalStudents = summary.grades.reduce((sum, g) => sum + (g.studentCount ?? 0), 0);
   const grouped = summary.grades.reduce<Record<string, { id: string; name: string; studentCount?: number }[]>>((acc, g) => {
-    if (!acc[g.stageName]) acc[g.stageName] = [];
-    acc[g.stageName].push({ id: g.id, name: g.name, studentCount: g.studentCount });
+    (acc[g.stageName] ??= []).push({ id: g.id, name: g.name, studentCount: g.studentCount });
     return acc;
   }, {});
 
@@ -1024,8 +1020,7 @@ function AssignmentSummary({
   const totalStudents = grades.reduce((sum, g) => sum + (g._count?.users ?? 0), 0);
   const grouped = grades.reduce<Record<string, AssignedGrade[]>>((acc, g) => {
     const stageName = g.stage?.name ?? "أخرى";
-    if (!acc[stageName]) acc[stageName] = [];
-    acc[stageName].push(g);
+    (acc[stageName] ??= []).push(g);
     return acc;
   }, {});
 

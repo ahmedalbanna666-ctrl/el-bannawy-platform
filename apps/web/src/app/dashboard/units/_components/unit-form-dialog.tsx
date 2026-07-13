@@ -173,7 +173,7 @@ export function UnitFormDialog({
     e.preventDefault();
     if (!formData.title.trim()) return;
     if (!isEdit && !academicContextResolved) return;
-    if (isEdit && !unit?.gradeId) return;
+    if (isEdit && !unit.gradeId) return;
     mutation.mutate();
   };
 
@@ -250,7 +250,7 @@ export function UnitFormDialog({
               !formData.title.trim()
               || (!isEdit && contextLoading)
               || (!isEdit && !academicContextResolved)
-              || (isEdit && !unit?.gradeId)
+              || (isEdit && !unit.gradeId)
             }
           >
             {isEdit ? "حفظ التغييرات" : "إنشاء"}

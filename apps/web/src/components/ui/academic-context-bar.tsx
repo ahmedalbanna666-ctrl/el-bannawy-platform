@@ -22,7 +22,7 @@ interface AcademicContextBarProps {
 
 interface MyGradesResponse {
   gradeIds: string[];
-  grades: Array<{ id: string; name: string; stage: { id: string; name: string } }>;
+  grades: { id: string; name: string; stage: { id: string; name: string } }[];
 }
 
 export function AcademicContextBar({ className }: AcademicContextBarProps): ReactNode {
@@ -66,7 +66,7 @@ export function AcademicContextBar({ className }: AcademicContextBarProps): Reac
       if (!stageGradeNames.has(stageKey)) {
         stageGradeNames.set(stageKey, new Set());
       }
-      stageGradeNames.get(stageKey)!.add(g.name);
+      stageGradeNames.get(stageKey)?.add(g.name);
     }
   }
 
