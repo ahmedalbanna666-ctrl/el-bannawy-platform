@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -14,15 +13,12 @@ import {
   Languages,
   Volume2,
   ChevronLeft,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   Loader2,
 } from "lucide-react";
 import { usePronunciation } from "@/lib/use-pronunciation";
 import { parseDisplayWord } from "@/lib/word-display";
-
-const PAGE_SIZE = 16;
 
 interface VocabWord {
   readonly id: string;
@@ -48,7 +44,6 @@ interface VocabApiResponse {
 export default function StudentVocabularyPage(): ReactNode {
   const params = useParams();
   const lessonId = params.lessonId as string;
-  const [page, setPage] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const { speak, isSpeaking, isSupported } = usePronunciation();
 
@@ -82,20 +77,14 @@ export default function StudentVocabularyPage(): ReactNode {
   const isError = lessonError || vocabError;
   const error = lessonErr ?? vocabErr;
   const vocab = vocabData ?? [];
-  const totalPages = Math.max(1, Math.ceil(vocab.length / PAGE_SIZE));
-
-  const pageVocab = useMemo(() => {
-    const start = page * PAGE_SIZE;
-    return vocab.slice(start, start + PAGE_SIZE);
-  }, [vocab, page]);
 
   const pairs = useMemo(() => {
     const result: (readonly [VocabWord | null, VocabWord | null])[] = [];
-    for (let i = 0; i < pageVocab.length; i += 2) {
-      result.push([pageVocab[i] ?? null, pageVocab[i + 1] ?? null]);
+    for (let i = 0; i < vocab.length; i += 2) {
+      result.push([vocab[i] ?? null, vocab[i + 1] ?? null]);
     }
     return result;
-  }, [pageVocab]);
+  }, [vocab]);
 
   const toggleExpand = (id: string): void => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -158,7 +147,7 @@ export default function StudentVocabularyPage(): ReactNode {
       ) : (
         <>
           {/* Desktop: 2 items per row */}
-          <div className="hidden md:block">
+          <div className="hidden md:block" dir="ltr">
             <Table className="rounded-xl border border-neutral-200 dark:border-neutral-700">
               <TableHeader>
                 <TableRow className="h-12 border-b border-neutral-200 dark:border-neutral-700">
@@ -191,7 +180,7 @@ export default function StudentVocabularyPage(): ReactNode {
                     ) : (
                       <TableCell className="py-3" />
                     )}
-                    <TableCell className={`py-3 text-sm text-neutral-900 dark:text-neutral-100 ${left ? "" : "hidden"}`}>
+                    <TableCell className={`py-3 text-sm text-neutral-900 dark:text-neutral-100 ${left ? "" : "hidden"}`} dir="rtl">
                       {left?.translation}
                     </TableCell>
                     {right ? (
@@ -206,7 +195,7 @@ export default function StudentVocabularyPage(): ReactNode {
                     ) : (
                       <TableCell className="py-3" />
                     )}
-                    <TableCell className={`py-3 text-sm text-neutral-900 dark:text-neutral-100 ${right ? "" : "hidden"}`}>
+                    <TableCell className={`py-3 text-sm text-neutral-900 dark:text-neutral-100 ${right ? "" : "hidden"}`} dir="rtl">
                       {right?.translation}
                     </TableCell>
                   </TableRow>
@@ -216,7 +205,7 @@ export default function StudentVocabularyPage(): ReactNode {
           </div>
 
           {/* Mobile: 1 item per row */}
-          <div className="md:hidden">
+          <div className="md:hidden" dir="ltr">
             <Table className="rounded-xl border border-neutral-200 dark:border-neutral-700">
               <TableHeader>
                 <TableRow className="h-12 border-b border-neutral-200 dark:border-neutral-700">
@@ -229,7 +218,7 @@ export default function StudentVocabularyPage(): ReactNode {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pageVocab.map((v) => (
+                {vocab.map((v) => (
                   <TableRow key={v.id} className="h-auto border-b border-neutral-100 dark:border-neutral-800">
                     <VocabCell
                       vocab={v}
@@ -239,7 +228,7 @@ export default function StudentVocabularyPage(): ReactNode {
                       expanded={expandedId === v.id}
                       onToggleExpand={(): void => { toggleExpand(v.id); }}
                     />
-                    <TableCell className="py-3 text-sm text-neutral-900 dark:text-neutral-100">
+                    <TableCell className="py-3 text-sm text-neutral-900 dark:text-neutral-100" dir="rtl">
                       {v.translation}
                     </TableCell>
                   </TableRow>
@@ -247,33 +236,6 @@ export default function StudentVocabularyPage(): ReactNode {
               </TableBody>
             </Table>
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-4">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === 0}
-                onClick={(): void => { setPage((p) => p - 1); }}
-                aria-label="الصفحة السابقة"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-neutral-500">
-                {String(page + 1)} من {String(totalPages)}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages - 1}
-                onClick={(): void => { setPage((p) => p + 1); }}
-                aria-label="الصفحة التالية"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
         </>
       )}
     </div>
