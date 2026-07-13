@@ -1,5 +1,3 @@
-import type { VocabularyStructuredDraft } from "./vocabulary-structured.types";
-
 export type StructuredVocabularyPersistenceMode = "REPLACE_STRUCTURED";
 
 export interface StructuredVocabularyPersistenceOptions {
@@ -35,7 +33,7 @@ export class PersistenceValidationException extends Error {
   public readonly errors: readonly PersistenceValidationError[];
 
   constructor(errors: readonly PersistenceValidationError[]) {
-    super(`Vocabulary persistence validation failed: ${errors.length} error(s)`);
+    super("Vocabulary persistence validation failed: " + String(errors.length) + " error(s)");
     this.name = "PersistenceValidationException";
     this.errors = errors;
   }
