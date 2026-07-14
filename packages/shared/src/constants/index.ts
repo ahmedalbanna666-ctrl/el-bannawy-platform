@@ -39,6 +39,15 @@ export enum UserRoleEnum {
   ADMINISTRATOR = "administrator",
 }
 
+export const ROLE_LABELS: Record<string, string> = {
+  ADMINISTRATOR: "مدير النظام",
+  TEACHER: "معلم",
+  STAFF: "موظف",
+  STUDENT: "طالب",
+  SECRETARY: "سكرتير",
+  SUPPORT: "دعم فني",
+};
+
 export enum LessonStatusEnum {
   LOCKED = "locked",
   AVAILABLE = "available",

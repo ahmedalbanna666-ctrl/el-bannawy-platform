@@ -7,6 +7,7 @@ import { api } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/auth-store";
 import { useAuth } from "@/providers/auth-provider";
 import { usePermissions } from "@/lib/use-permissions";
+import { ROLE_LABELS } from "@el-bannawy/shared";
 import { getSidebarModules, type NavModule } from "@/lib/nav-registry";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AcademicSettings } from "@/components/ui/academic-settings";
@@ -47,7 +48,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
     staleTime: 120_000,
   });
 
-  const profileGrade = profile?.assignedGrade?.name ?? profile?.assignedGrade?.stage.name ?? "طالب";
+  const userRole = useAuthStore((s) => s.user?.role);
+
+  const profileGrade = userRole === "STUDENT"
+    ? (profile?.assignedGrade?.name ?? profile?.assignedGrade?.stage.name ?? "طالب")
+    : (ROLE_LABELS[userRole ?? ""] ?? userRole ?? "طالب");
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 
   useEffect(() => {
     setMounted(true);
@@ -56,7 +62,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
     }
   }, [isAuthenticated, router]);
 
-  const userRole = useAuthStore((s) => s.user?.role);
   const isAdmin = userRole === "ADMINISTRATOR";
   const isTeacherOrStaff = userRole === "TEACHER" || userRole === "STAFF";
 

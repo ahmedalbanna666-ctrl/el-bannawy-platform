@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useState, type ReactNode } from "react";
 import { ChevronLeft, User, type LucideIcon } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store";
+import { ROLE_LABELS } from "@el-bannawy/shared";
 
 interface SidebarItem {
   id: string;
@@ -46,7 +47,7 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
 
   const fullName = user?.fullName ?? "";
   const firstName = fullName ? fullName.split(" ")[0] : "";
-  const gradeLabel = profileGrade ?? user?.role ?? "Student";
+  const gradeLabel = profileGrade ?? (user?.role ? ROLE_LABELS[user.role] ?? user.role : "Student");
   const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName || "User")}&background=22D3EE&color=fff&bold=true&font-size=0.33`;
 
   const handleItemClick = (item: SidebarItem): void => {
