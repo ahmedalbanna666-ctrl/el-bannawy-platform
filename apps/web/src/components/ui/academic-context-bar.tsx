@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Select } from "@/components/ui/select";
@@ -36,6 +36,7 @@ export function AcademicContextBar({ className }: AcademicContextBarProps): Reac
   const setStage = useAcademicContextStore((s) => s.setStage);
   const setGrade = useAcademicContextStore((s) => s.setGrade);
   const setTerm = useAcademicContextStore((s) => s.setTerm);
+  const setTermId = useAcademicContextStore((s) => s.setTermId);
 
   const userRole = useAuthStore((s) => s.user?.role);
   const userId = useAuthStore((s) => s.user?.id);
@@ -51,6 +52,33 @@ export function AcademicContextBar({ className }: AcademicContextBarProps): Reac
     enabled: isTeacher && !!userId,
     staleTime: 30_000,
   });
+
+  const { data: allStages } = useQuery({
+    queryKey: ["curriculum-stages"],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; name: string; grades: { id: string; name: string }[] }[]>("/curriculum/stages");
+      return res.data ?? [];
+    },
+    enabled: isAdmin,
+    staleTime: 60_000,
+  });
+
+  const gradeToId = useMemo(() => {
+    const map = new Map<string, string>();
+    if (isTeacher && myGrades) {
+      for (const g of myGrades.grades) {
+        map.set(g.name, g.id);
+      }
+    }
+    if (isAdmin && allStages) {
+      for (const stage of allStages) {
+        for (const g of stage.grades) {
+          map.set(g.name, g.id);
+        }
+      }
+    }
+    return map;
+  }, [isTeacher, isAdmin, myGrades, allStages]);
 
   const assignedGradeNames = new Set(myGrades?.grades.map((g) => g.name) ?? []);
 
@@ -115,7 +143,10 @@ export function AcademicContextBar({ className }: AcademicContextBarProps): Reac
         options={filteredGradeOptions}
         placeholder="الصف"
         value={grade ?? ""}
-        onChange={(e): void => { setGrade(e.target.value); }}
+        onChange={(e): void => {
+          const selected = e.target.value;
+          setGrade(selected, gradeToId.get(selected) ?? null);
+        }}
         disabled={!stage}
         aria-label="الصف"
       />
@@ -125,7 +156,7 @@ export function AcademicContextBar({ className }: AcademicContextBarProps): Reac
           options={TERM_OPTIONS}
           placeholder="الترم"
           value={term ?? ""}
-          onChange={(e): void => { setTerm(e.target.value); }}
+          onChange={(e): void => { setTerm(e.target.value); setTermId(e.target.value); }}
           aria-label="الترم"
         />
       )}

@@ -8,58 +8,85 @@ datasource db {
 }
 
 model User {
-  id                      String                   @id @default(uuid()) @db.Uuid
-  fullName                String
-  englishName             String?
-  email                   String?                  @unique
-  mobileNumber            String?                  @unique
-  parentMobile            String?
-  passwordHash            String?
-  googleId                String?                  @unique
-  appleId                 String?                  @unique
-  oauthProvider           String?
-  role                    UserRole
-  status                  AccountStatus            @default(PENDING_VERIFICATION)
-  educationalSystem       String?
-  educationalStage        String?
-  grade                   String?
-  academicTerm            String?
-  governorate             String?
-  school                  String?
-  academicYearId          String?                  @db.Uuid
-  termId                  String?                  @db.Uuid
-  gradeId                 String?                  @db.Uuid
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  deletedAt               DateTime?
-  activityProgress        ActivityProgress[]
-  attendance              AttendanceRecord[]
-  coinWallet              CoinWallet?
-  conversations           Conversation[]
-  lessonProgress          LessonProgress[]
-  loginHistory            LoginHistory[]
-  notificationPreferences NotificationPreference?
-  notifications           Notification[]
-  passwordResets          PasswordReset[]
-  payments                Payment[]
-  quizAttempts            QuizAttempt[]
-  refreshTokens           RefreshToken[]
-  sessions                Session[]
-  homeworkAttempts        StudentHomeworkAttempt[]
-  achievements            UserAchievement[]
-  videoProgress           VideoProgress[]
-  xpTransactions          XPTransaction[]
-  academicYear            AcademicYear?            @relation(fields: [academicYearId], references: [id])
-  term                    Term?                    @relation(fields: [termId], references: [id])
-  assignedGrade           Grade?                   @relation(fields: [gradeId], references: [id])
-  teacherGrades           TeacherGrade[]
-  auditLogs               AuditLog[]
-  managedByTeacherId      String?                  @db.Uuid
-  managedByTeacher        User?                    @relation("TeacherManagesStaff", fields: [managedByTeacherId], references: [id])
-  managedStaff            User[]                   @relation("TeacherManagesStaff")
-  permissionGrants        UserPermissionGrant[]    @relation("PermissionHolder")
-  grantedPermissions      UserPermissionGrant[]    @relation("PermissionGrantor")
-  permissionsInitialized  Boolean                   @default(false)
+  id                         String                   @id @default(uuid()) @db.Uuid
+  fullName                   String
+  englishName                String?
+  email                      String?                  @unique
+  mobileNumber               String?                  @unique
+  parentMobile               String?
+  passwordHash               String?
+  googleId                   String?                  @unique
+  appleId                    String?                  @unique
+  oauthProvider              String?
+  role                       UserRole
+  status                     AccountStatus            @default(PENDING_VERIFICATION)
+  educationalSystem          String?
+  educationalStage           String?
+  grade                      String?
+  academicTerm               String?
+  governorate                String?
+  school                     String?
+  academicYearId             String?                  @db.Uuid
+  termId                     String?                  @db.Uuid
+  gradeId                    String?                  @db.Uuid
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  deletedAt                  DateTime?
+  activityProgress           ActivityProgress[]
+  attendance                 AttendanceRecord[]
+  coinWallet                 CoinWallet?
+  conversations              Conversation[]
+  lessonProgress             LessonProgress[]
+  loginHistory               LoginHistory[]
+  notificationPreferences    NotificationPreference?
+  notifications              Notification[]
+  passwordResets             PasswordReset[]
+  payments                   Payment[]
+  quizAttempts               QuizAttempt[]
+  refreshTokens              RefreshToken[]
+  sessions                   Session[]
+  homeworkAttempts           StudentHomeworkAttempt[]
+  achievements               UserAchievement[]
+  videoProgress              VideoProgress[]
+  xpTransactions             XPTransaction[]
+  academicYear               AcademicYear?            @relation(fields: [academicYearId], references: [id])
+  term                       Term?                    @relation(fields: [termId], references: [id])
+  assignedGrade              Grade?                   @relation(fields: [gradeId], references: [id])
+  teacherGrades              TeacherGrade[]
+  auditLogs                  AuditLog[]
+  managedByTeacherId         String?                  @db.Uuid
+  managedByTeacher           User?                    @relation("TeacherManagesStaff", fields: [managedByTeacherId], references: [id])
+  managedStaff               User[]                   @relation("TeacherManagesStaff")
+  permissionGrants           UserPermissionGrant[]    @relation("PermissionHolder")
+  grantedPermissions         UserPermissionGrant[]    @relation("PermissionGrantor")
+  permissionsInitialized     Boolean                  @default(false)
+  avatarUrl                  String?
+  jobTitle                   String?
+  liveSessionsAsTeacher      LiveSession[]            @relation("LiveSessionsAsTeacher")
+  liveBookings               LiveBooking[]            @relation("LiveBookingStudent")
+  liveAttendanceRecords      LiveAttendance[]         @relation("LiveAttendanceStudent")
+  liveAttendanceMarked       LiveAttendance[]         @relation("LiveAttendanceMarker")
+  liveSubscriptions          LiveSubscription[]       @relation("LiveSubscriptionHolder")
+  liveSubscriptionsAsTeacher LiveSubscription[]       @relation("LiveSubscriptionTeacher")
+  teacherAvailabilities      TeacherAvailability[]    @relation("TeacherAvailabilityTeacher")
+  teacherDateBlocks          TeacherDateBlock[]       @relation("TeacherDateBlockTeacher")
+  teacherLiveSettings        TeacherLiveSettings?
+  liveAnnouncements          LiveAnnouncement[]       @relation("LiveAnnouncementSender")
+  liveSessionControlLogs     LiveSessionControlLog[]  @relation("LiveSessionControlActor")
+  assessmentAttempts         AssessmentAttempt[]
+  coinPurchases              CoinPurchase[]
+  miniExams                  MiniExam[]                  @relation("MiniExamUser")
+  competitionsCreated        Competition[]               @relation("CompetitionCreator")
+  competitionParticipations  CompetitionParticipant[]    @relation("CompetitionParticipantStudent")
+  codesCreated               UnlockCode[]               @relation("UnlockCodeCreator")
+  codeRedemptions            CodeRedemption[]
+  contentUnlocks             ContentUnlock[]
+  unlockRequests             UnlockRequest[]            @relation("UnlockRequestRequester")
+  resolvedUnlockRequests     UnlockRequest[]            @relation("UnlockRequestResolver")
+  storyAttempts               StoryAttempt[]             @relation("StoryAttemptUser")
+  supportTicketsCreated       SupportTicket[]             @relation("SupportTicketCreator")
+  supportTicketsAssigned      SupportTicket[]             @relation("SupportTicketAgent")
+  supportMessages             SupportMessage[]            @relation("SupportMessageSender")
 
   @@index([mobileNumber])
   @@index([role])
@@ -198,6 +225,103 @@ model Coupon {
   @@map("coupons")
 }
 
+model CoinPackage {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  coinAmount  Int
+  price       Int
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  purchases   CoinPurchase[]
+
+  @@map("coin_packages")
+}
+
+model CoinPurchase {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  packageId   String   @db.Uuid
+  coinAmount  Int
+  price       Int
+  paymentId   String?  @db.Uuid
+  status      String   @default("COMPLETED")
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  package     CoinPackage @relation(fields: [packageId], references: [id])
+
+  @@index([userId])
+  @@map("coin_purchases")
+}
+
+model UnlockCode {
+  id          String      @id @default(uuid()) @db.Uuid
+  code        String      @unique
+  coinAmount  Int
+  maxUses     Int?
+  usedCount   Int         @default(0)
+  active      Boolean     @default(true)
+  expiresAt   DateTime?
+  createdById String      @db.Uuid
+  createdBy   User        @relation("UnlockCodeCreator", fields: [createdById], references: [id])
+  createdAt   DateTime    @default(now())
+
+  redemptions CodeRedemption[]
+
+  @@index([code])
+  @@map("unlock_codes")
+}
+
+model CodeRedemption {
+  id         String      @id @default(uuid()) @db.Uuid
+  codeId     String      @db.Uuid
+  userId     String      @db.Uuid
+  coinAmount Int
+  redeemedAt DateTime    @default(now())
+  code       UnlockCode  @relation(fields: [codeId], references: [id])
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([codeId, userId])
+  @@index([userId])
+  @@map("code_redemptions")
+}
+
+model ContentUnlock {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  targetType   String
+  targetId     String   @db.Uuid
+  unlockMethod String
+  coinAmount   Int?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId])
+  @@index([targetType, targetId])
+  @@map("content_unlocks")
+}
+
+model UnlockRequest {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  targetType    String
+  targetId      String    @db.Uuid
+  status        String    @default("PENDING")
+  adminNote     String?
+  resolvedById  String?   @db.Uuid
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  user          User      @relation("UnlockRequestRequester", fields: [userId], references: [id], onDelete: Cascade)
+  resolvedBy    User?     @relation("UnlockRequestResolver", fields: [resolvedById], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("unlock_requests")
+}
+
 model UserAchievement {
   id          String   @id @default(uuid()) @db.Uuid
   userId      String   @db.Uuid
@@ -256,19 +380,25 @@ model Stage {
 }
 
 model Grade {
-  id            String         @id @default(uuid()) @db.Uuid
-  name          String
-  stageId       String         @db.Uuid
-  displayOrder  Int            @default(0)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  stage         Stage          @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  units         Unit[]
-  books         Book[]
-  teacherGrades TeacherGrade[]
-  users         User[]
-  stories       Story[]
-  finalReviews  FinalReview[]
+  id                    String                @id @default(uuid()) @db.Uuid
+  name                  String
+  stageId               String                @db.Uuid
+  displayOrder          Int                   @default(0)
+  supportPhone          String?
+  supportEmail          String?
+  supportWhatsapp       String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  stage                 Stage                 @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  units                 Unit[]
+  books                 Book[]
+  teacherGrades         TeacherGrade[]
+  users                 User[]
+  stories               Story[]
+  finalReviews          FinalReview[]
+  competitions          Competition[]          @relation("CompetitionGrade")
+  liveSessions          LiveSession[]
+  teacherAvailabilities TeacherAvailability[]
 
   @@index([stageId])
   @@index([displayOrder])
@@ -286,6 +416,7 @@ model AcademicYear {
   users        User[]
   stories      Story[]
   finalReviews FinalReview[]
+  competitions Competition[] @relation("CompetitionAcademicYear")
 
   @@map("academic_years")
 }
@@ -303,6 +434,7 @@ model Term {
   users          User[]
   stories        Story[]
   finalReviews   FinalReview[]
+  competitions   Competition[] @relation("CompetitionTerm")
 
   @@index([academicYearId])
   @@map("terms")
@@ -343,7 +475,8 @@ model Unit {
   gradeId           String        @db.Uuid
   displayOrder      Int           @default(0)
   isPremium         Boolean       @default(false)
-  published         Boolean       @default(true)
+  lockedOverride    Boolean?
+  published         Boolean       @default(false)
   academicYearId    String?       @db.Uuid
   termId            String?       @db.Uuid
   educationalSystem String?
@@ -355,6 +488,7 @@ model Unit {
   academicYear      AcademicYear? @relation(fields: [academicYearId], references: [id])
   term              Term?         @relation(fields: [termId], references: [id])
   book              Book?         @relation(fields: [bookId], references: [id])
+  assessments       Assessment[]
 
   @@index([gradeId])
   @@index([displayOrder])
@@ -372,7 +506,8 @@ model Lesson {
   displayOrder        Int                  @default(0)
   estimatedDuration   Int                  @default(0)
   isPremium           Boolean              @default(false)
-  published           Boolean              @default(true)
+  lockedOverride      Boolean?
+  published           Boolean              @default(false)
   isHidden            Boolean              @default(false)
   sequentialMode      Boolean              @default(true)
   homeworkEnabled     Boolean              @default(false)
@@ -390,12 +525,123 @@ model Lesson {
   vocabulary          LessonVocabulary[]
   vocabularySections  VocabularySection[]
   vocabularyRelations VocabularyRelation[]
+  questionGroups      QuestionGroup[]
+  questions           Question[]
   unit                Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
   quiz                Quiz?
+  assessments         Assessment[]
 
   @@index([unitId])
   @@index([displayOrder])
   @@map("lessons")
+}
+
+model QuestionGroup {
+  id           String     @id @default(uuid()) @db.Uuid
+  lessonId     String     @db.Uuid
+  title        String
+  kind         String     @default("GENERAL")
+  displayOrder Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+  lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions    Question[]
+
+  @@index([lessonId])
+  @@index([lessonId, displayOrder])
+  @@map("question_groups")
+}
+
+model Question {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  lessonId            String                  @db.Uuid
+  groupId             String?                 @db.Uuid
+  type                String
+  prompt              String
+  instruction         String?
+  explanation         String?
+  displayOrder        Int                     @default(0)
+  config              Json?
+  metadata            Json?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  deletedAt           DateTime?
+  lesson              Lesson                  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  group               QuestionGroup?          @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  options             QuestionOption[]
+  hints               QuestionHint[]
+  attachments         QuestionAttachment[]
+  tagAssignments      QuestionTagAssignment[]
+  assessmentQuestions AssessmentQuestion[]
+  assessmentAnswers   AssessmentAnswer[]
+
+  @@index([lessonId])
+  @@index([lessonId, displayOrder])
+  @@index([groupId])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id           String   @id @default(uuid()) @db.Uuid
+  questionId   String   @db.Uuid
+  label        String
+  text         String
+  isCorrect    Boolean  @default(false)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([questionId, displayOrder])
+  @@map("question_options")
+}
+
+model QuestionHint {
+  id           String   @id @default(uuid()) @db.Uuid
+  questionId   String   @db.Uuid
+  text         String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_hints")
+}
+
+model QuestionAttachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  questionId   String   @db.Uuid
+  url          String
+  mimeType     String
+  name         String
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_attachments")
+}
+
+model QuestionTag {
+  id          String                  @id @default(uuid()) @db.Uuid
+  name        String                  @unique
+  createdAt   DateTime                @default(now())
+  assignments QuestionTagAssignment[]
+
+  @@map("question_tags")
+}
+
+model QuestionTagAssignment {
+  questionId String      @db.Uuid
+  tagId      String      @db.Uuid
+  createdAt  DateTime    @default(now())
+  question   Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tag        QuestionTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, tagId])
+  @@index([tagId])
+  @@map("question_tag_assignments")
 }
 
 model LessonSettings {
@@ -412,13 +658,15 @@ model LessonSettings {
 }
 
 model LessonDocument {
-  id        String   @id @default(uuid()) @db.Uuid
-  lessonId  String   @unique @db.Uuid
-  fileName  String
-  fileUrl   String
-  fileSize  Int      @default(0)
-  createdAt DateTime @default(now())
-  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid()) @db.Uuid
+  lessonId    String   @unique @db.Uuid
+  fileName    String
+  fileUrl     String
+  mimeType    String   @default("application/pdf")
+  fileSize    Int      @default(0)
+  downloadable Boolean @default(true)
+  createdAt   DateTime @default(now())
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@map("lesson_documents")
 }
@@ -427,8 +675,13 @@ model LessonVideo {
   id                         String          @id @default(uuid()) @db.Uuid
   lessonId                   String          @db.Uuid
   title                      String
+  /// @deprecated Use providerUrl and providerVideoId instead
   youtubeUrl                 String
+  /// @deprecated Use providerVideoId instead
   youtubeId                  String
+  providerName               String          @default("YOUTUBE")
+  providerVideoId            String
+  providerUrl                String
   duration                   Int             @default(0)
   displayOrder               Int             @default(0)
   enabled                    Boolean         @default(true)
@@ -438,10 +691,62 @@ model LessonVideo {
   activities                 Activity[]
   lesson                     Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   timelineEvents             TimelineEvent[]
+  videoEvents                VideoEvent[]
 
   @@index([lessonId])
   @@index([displayOrder])
   @@map("lesson_videos")
+}
+
+model VideoEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  videoId       String         @db.Uuid
+  timestamp     Int
+  type          String
+  title         String
+  description   String         @default("")
+  required      Boolean        @default(false)
+  enabled       Boolean        @default(true)
+  displayOrder  Int            @default(0)
+  payload       Json           @default("{}")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  video         LessonVideo    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  videoQuestion VideoQuestion?
+
+  @@index([videoId])
+  @@index([videoId, timestamp])
+  @@index([videoId, enabled])
+  @@map("video_events")
+}
+
+model VideoQuestion {
+  id           String                @id @default(uuid()) @db.Uuid
+  videoEventId String                @unique @db.Uuid
+  type         String
+  title        String
+  instructions String?
+  displayOrder Int                   @default(0)
+  metadata     Json                  @default("{}")
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  videoEvent   VideoEvent            @relation(fields: [videoEventId], references: [id], onDelete: Cascade)
+  options      VideoQuestionOption[]
+
+  @@map("video_questions")
+}
+
+model VideoQuestionOption {
+  id           String        @id @default(uuid()) @db.Uuid
+  questionId   String        @db.Uuid
+  text         String
+  isCorrect    Boolean       @default(false)
+  displayOrder Int           @default(0)
+  metadata     Json          @default("{}")
+  question     VideoQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("video_question_options")
 }
 
 model TimelineEvent {
@@ -748,6 +1053,148 @@ model QuizAnswer {
   @@map("quiz_answers")
 }
 
+model Assessment {
+  id           String               @id @default(uuid()) @db.Uuid
+  lessonId     String?              @db.Uuid
+  unitId       String?              @db.Uuid
+  title        String
+  description  String?
+  instructions String?
+  type         AssessmentType
+  visibility   AssessmentVisibility @default(DRAFT)
+
+  passingScore        Int?
+  maxScore            Int?
+  shuffleQuestions    Boolean @default(false)
+  shuffleOptions      Boolean @default(false)
+  randomQuestionCount Int?
+  timeLimit           Int?
+  unlimitedTime       Boolean @default(true)
+  attemptsAllowed     Int?
+  unlimitedAttempts   Boolean @default(false)
+
+  startDate            DateTime?
+  endDate              DateTime?
+  availableImmediately Boolean   @default(false)
+  manualPublish        Boolean   @default(false)
+  requireCompletion    Boolean   @default(false)
+  optional             Boolean   @default(false)
+
+  attemptPolicy  AttemptPolicy  @default(SINGLE)
+  feedbackPolicy FeedbackPolicy @default(IMMEDIATE)
+  scoringType    ScoringType    @default(AUTOMATIC)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  lesson    Lesson?              @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  unit      Unit?                @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  sections  AssessmentSection[]
+  questions AssessmentQuestion[]
+  attempts  AssessmentAttempt[]
+
+  @@index([lessonId])
+  @@index([unitId])
+  @@index([type])
+  @@index([visibility])
+  @@map("assessments")
+}
+
+model AssessmentSection {
+  id           String               @id @default(uuid()) @db.Uuid
+  assessmentId String               @db.Uuid
+  title        String
+  displayOrder Int                  @default(0)
+  instructions String?
+  assessment   Assessment           @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questions    AssessmentQuestion[]
+
+  @@index([assessmentId])
+  @@map("assessment_sections")
+}
+
+model AssessmentQuestion {
+  id           String  @id @default(uuid()) @db.Uuid
+  assessmentId String  @db.Uuid
+  questionId   String  @db.Uuid
+  sectionId    String? @db.Uuid
+  displayOrder Int     @default(0)
+  points       Int     @default(1)
+
+  assessment Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  section    AssessmentSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  question   Question           @relation(fields: [questionId], references: [id])
+
+  @@unique([assessmentId, questionId])
+  @@index([assessmentId])
+  @@index([questionId])
+  @@index([sectionId])
+  @@map("assessment_questions")
+}
+
+enum AssessmentAttemptStatus {
+  STARTED
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+  EXPIRED
+  CANCELLED
+  ABANDONED
+  COMPLETED
+
+  @@map("assessment_attempt_status")
+}
+
+model AssessmentAttempt {
+  id               String                  @id @default(uuid()) @db.Uuid
+  assessmentId     String                  @db.Uuid
+  studentId        String                  @db.Uuid
+  attemptNumber    Int
+  status           AssessmentAttemptStatus @default(STARTED)
+  startedAt        DateTime                @default(now())
+  submittedAt      DateTime?
+  completedAt      DateTime?
+  expiresAt        DateTime?
+  timeSpentSeconds Int?
+  score            Int?
+  maxScore         Int?
+  passed           Boolean?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  assessment Assessment      @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student    User            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers    AssessmentAnswer[]
+
+  @@unique([assessmentId, studentId, attemptNumber])
+  @@index([assessmentId])
+  @@index([studentId])
+  @@index([status])
+  @@map("assessment_attempts")
+}
+
+model AssessmentAnswer {
+  id         String    @id @default(uuid()) @db.Uuid
+  attemptId  String    @db.Uuid
+  questionId String    @db.Uuid
+  answer     Json?
+  isCorrect  Boolean?
+  score      Int?
+  maxScore   Int?
+  feedback   String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  attempt  AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("assessment_answers")
+}
+
 model Notification {
   id        String    @id @default(uuid()) @db.Uuid
   userId    String    @db.Uuid
@@ -872,6 +1319,7 @@ model Story {
   academicYear      AcademicYear   @relation(fields: [academicYearId], references: [id])
   term              Term           @relation(fields: [termId], references: [id])
   chapters          StoryChapter[]
+  attempts          StoryAttempt[]        @relation("StoryAttemptStory")
 
   @@index([gradeId])
   @@index([academicYearId])
@@ -893,6 +1341,9 @@ model StoryChapter {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   story        Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  videos       StoryChapterVideo[]      @relation("StoryChapterVideoChapter")
+  vocabulary   StoryChapterVocab[]       @relation("StoryChapterVocabChapter")
+  questions    StoryChapterQuestion[]    @relation("StoryChapterQuestionChapter")
 
   @@index([storyId])
   @@index([displayOrder])
@@ -940,11 +1391,273 @@ model FinalReviewSection {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   finalReview     FinalReview @relation(fields: [finalReviewId], references: [id], onDelete: Cascade)
+  vocabs          FinalReviewSectionVocab[]   @relation("FinalReviewSectionVocabSection")
+  questions       FinalReviewSectionQuestion[] @relation("FinalReviewSectionQuestionSection")
+  videos          FinalReviewSectionVideo[]   @relation("FinalReviewSectionVideoSection")
 
   @@index([finalReviewId])
   @@index([displayOrder])
   @@index([finalReviewId, displayOrder])
   @@map("final_review_sections")
+}
+
+model StoryChapterVideo {
+  id              String       @id @default(uuid()) @db.Uuid
+  storyChapterId  String       @db.Uuid
+  title           String
+  providerName    String       @default("YOUTUBE")
+  providerVideoId String
+  providerUrl     String
+  duration        Int          @default(0)
+  displayOrder    Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  chapter         StoryChapter @relation("StoryChapterVideoChapter", fields: [storyChapterId], references: [id], onDelete: Cascade)
+
+  @@index([storyChapterId])
+  @@index([displayOrder])
+  @@map("story_chapter_videos")
+}
+
+model StoryChapterVocab {
+  id           String       @id @default(uuid()) @db.Uuid
+  storyChapterId String     @db.Uuid
+  word         String
+  translation  String
+  definition   String?
+  example      String?
+  partOfSpeech String?
+  displayOrder Int          @default(0)
+  createdAt    DateTime     @default(now())
+  chapter      StoryChapter @relation("StoryChapterVocabChapter", fields: [storyChapterId], references: [id], onDelete: Cascade)
+
+  @@index([storyChapterId])
+  @@map("story_chapter_vocab")
+}
+
+model StoryChapterQuestion {
+  id              String                @id @default(uuid()) @db.Uuid
+  storyChapterId  String                @db.Uuid
+  type            String                @default("MULTIPLE_CHOICE")
+  question        String
+  explanation     String?
+  displayOrder    Int                   @default(0)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  chapter         StoryChapter          @relation("StoryChapterQuestionChapter", fields: [storyChapterId], references: [id], onDelete: Cascade)
+  options         StoryChapterQuestionOption[]
+  answers         StoryChapterAnswer[]
+
+  @@index([storyChapterId])
+  @@index([displayOrder])
+  @@map("story_chapter_questions")
+}
+
+model StoryChapterQuestionOption {
+  id         String                @id @default(uuid()) @db.Uuid
+  questionId String                @db.Uuid
+  text       String
+  isCorrect  Boolean               @default(false)
+  displayOrder Int                 @default(0)
+  question   StoryChapterQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("story_chapter_question_options")
+}
+
+model StoryAttempt {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  storyId     String   @db.Uuid
+  chapterId   String?  @db.Uuid
+  score       Int?
+  maxScore    Int?
+  passed      Boolean?
+  submitted   Boolean  @default(false)
+  startedAt   DateTime @default(now())
+  submittedAt DateTime?
+  answers     StoryChapterAnswer[]
+  story       Story    @relation("StoryAttemptStory", fields: [storyId], references: [id], onDelete: Cascade)
+  user        User     @relation("StoryAttemptUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([storyId])
+  @@map("story_attempts")
+}
+
+model StoryChapterAnswer {
+  id         String                @id @default(uuid()) @db.Uuid
+  attemptId  String                @db.Uuid
+  questionId String                @db.Uuid
+  answer     String?
+  isCorrect  Boolean?
+  createdAt  DateTime              @default(now())
+  attempt    StoryAttempt          @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question   StoryChapterQuestion  @relation(fields: [questionId], references: [id])
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("story_chapter_answers")
+}
+
+model MiniExam {
+  id            String        @id @default(uuid()) @db.Uuid
+  userId        String        @db.Uuid
+  user          User          @relation("MiniExamUser", fields: [userId], references: [id], onDelete: Cascade)
+  unitId        String?       @db.Uuid
+  storyId       String?       @db.Uuid
+  lessonId      String?       @db.Uuid
+  chapterId     String?       @db.Uuid
+  questionCount Int
+  durationMinutes Int
+  poolSize      Int
+  usedCount     Int
+  questions     Json?
+  status        String        @default("CREATED")
+  score         Int?
+  maxScore      Int?
+  passed        Boolean?
+  createdAt     DateTime      @default(now())
+  submittedAt   DateTime?
+  answers       MiniExamAnswer[]
+
+  @@index([userId])
+  @@map("mini_exams")
+}
+
+model MiniExamAnswer {
+  id         String   @id @default(uuid()) @db.Uuid
+  examId     String   @db.Uuid
+  questionId String   @db.Uuid
+  answer     String?
+  isCorrect  Boolean?
+  createdAt  DateTime @default(now())
+  exam       MiniExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, questionId])
+  @@index([examId])
+  @@index([questionId])
+  @@map("mini_exam_answers")
+}
+
+model FinalReviewSectionVideo {
+  id              String           @id @default(uuid()) @db.Uuid
+  finalReviewSectionId String      @db.Uuid
+  title           String
+  providerName    String           @default("YOUTUBE")
+  providerVideoId String
+  providerUrl     String
+  duration        Int              @default(0)
+  displayOrder    Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  section         FinalReviewSection @relation("FinalReviewSectionVideoSection", fields: [finalReviewSectionId], references: [id], onDelete: Cascade)
+
+  @@index([finalReviewSectionId])
+  @@index([displayOrder])
+  @@map("final_review_section_videos")
+}
+
+model FinalReviewSectionVocab {
+  id           String           @id @default(uuid()) @db.Uuid
+  finalReviewSectionId String   @db.Uuid
+  word         String
+  translation  String
+  definition   String?
+  example      String?
+  partOfSpeech String?
+  displayOrder Int              @default(0)
+  createdAt    DateTime         @default(now())
+  section      FinalReviewSection @relation("FinalReviewSectionVocabSection", fields: [finalReviewSectionId], references: [id], onDelete: Cascade)
+
+  @@index([finalReviewSectionId])
+  @@map("final_review_section_vocab")
+}
+
+model FinalReviewSectionQuestion {
+  id           String           @id @default(uuid()) @db.Uuid
+  finalReviewSectionId String   @db.Uuid
+  type         String           @default("MULTIPLE_CHOICE")
+  question     String
+  explanation  String?
+  displayOrder Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  section      FinalReviewSection @relation("FinalReviewSectionQuestionSection", fields: [finalReviewSectionId], references: [id], onDelete: Cascade)
+  options      FinalReviewSectionQuestionOption[]
+
+  @@index([finalReviewSectionId])
+  @@index([displayOrder])
+  @@map("final_review_section_questions")
+}
+
+model FinalReviewSectionQuestionOption {
+  id         String                    @id @default(uuid()) @db.Uuid
+  questionId String                    @db.Uuid
+  text       String
+  isCorrect  Boolean                   @default(false)
+  displayOrder Int                     @default(0)
+  question   FinalReviewSectionQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("final_review_section_question_options")
+}
+
+model Competition {
+  id              String   @id @default(uuid()) @db.Uuid
+  title           String
+  description     String?
+  mode            String   @default("QUIZ")
+  gradeId         String   @db.Uuid
+  academicYearId  String   @db.Uuid
+  termId          String   @db.Uuid
+  createdById     String   @db.Uuid
+  status          String   @default("DRAFT")
+  visibility      String   @default("GRADE")
+  startsAt        DateTime?
+  endsAt          DateTime?
+  timeLimitMinutes Int?
+  xpReward        Int      @default(0)
+  coinReward      Int      @default(0)
+  questions       Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdBy       User     @relation("CompetitionCreator", fields: [createdById], references: [id])
+  grade           Grade    @relation("CompetitionGrade", fields: [gradeId], references: [id])
+  academicYear    AcademicYear @relation("CompetitionAcademicYear", fields: [academicYearId], references: [id])
+  term            Term     @relation("CompetitionTerm", fields: [termId], references: [id])
+  participants    CompetitionParticipant[]
+
+  @@index([gradeId])
+  @@index([createdById])
+  @@index([status])
+  @@map("competitions")
+}
+
+model CompetitionParticipant {
+  id            String    @id @default(uuid()) @db.Uuid
+  competitionId String    @db.Uuid
+  studentId     String    @db.Uuid
+  status        String    @default("INVITED")
+  invitedBy     String?   @db.Uuid
+  joinedAt      DateTime?
+  submittedAt   DateTime?
+  score         Int       @default(0)
+  xpGained      Int       @default(0)
+  correctCount  Int       @default(0)
+  durationSeconds Int?
+  answers       Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  student       User       @relation("CompetitionParticipantStudent", fields: [studentId], references: [id])
+
+  @@unique([competitionId, studentId])
+  @@index([competitionId])
+  @@index([studentId])
+  @@index([status])
+  @@map("competition_participants")
 }
 
 enum UserRole {
@@ -984,4 +1697,376 @@ enum ActivityType {
   SPEAKING
   WRITING
   PARAGRAPH
+}
+
+enum LiveSessionStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  OPEN
+  FULL
+  LIVE
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+
+  @@map("live_session_status")
+}
+
+enum LiveSessionType {
+  PRIVATE
+  GROUP
+
+  @@map("live_session_type")
+}
+
+enum LiveBookingStatus {
+  CONFIRMED
+  CANCELLED
+  RESCHEDULED
+
+  @@map("live_booking_status")
+}
+
+enum LiveAttendanceStatus {
+  JOINED
+  LATE
+  LEFT_EARLY
+  ABSENT
+  COMPLETED
+
+  @@map("live_attendance_status")
+}
+
+enum LiveSubscriptionType {
+  PRIVATE_MONTHLY
+  GROUP_MONTHLY
+  ONE_TIME_PRIVATE
+
+  @@map("live_subscription_type")
+}
+
+enum LiveSubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+
+  @@map("live_subscription_status")
+}
+
+enum MeetingProvider {
+  EXTERNAL_URL
+  ZOOM_SDK
+
+  @@map("meeting_provider")
+}
+
+enum AssessmentType {
+  HOMEWORK
+  LESSON_QUIZ
+  LESSON_FINAL
+  UNIT_QUIZ
+  UNIT_FINAL
+  PRACTICE
+  VIDEO_SURPRISE
+  PLACEMENT_TEST
+  CUSTOM
+
+  @@map("assessment_type")
+}
+
+enum AssessmentVisibility {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  HIDDEN
+  ARCHIVED
+
+  @@map("assessment_visibility")
+}
+
+enum AttemptPolicy {
+  SINGLE
+  MULTIPLE
+  UNLIMITED
+  TEACHER_CONTROLLED
+
+  @@map("attempt_policy")
+}
+
+enum FeedbackPolicy {
+  IMMEDIATE
+  AFTER_SUBMISSION
+  AFTER_DUE_DATE
+  MANUAL_RELEASE
+  NEVER
+
+  @@map("feedback_policy")
+}
+
+enum ScoringType {
+  AUTOMATIC
+  MANUAL
+  MIXED
+
+  @@map("scoring_type")
+}
+
+model LiveSession {
+  id              String            @id @default(uuid()) @db.Uuid
+  title           String
+  teacherId       String            @db.Uuid
+  gradeId             String?           @db.Uuid
+  groupId             String?           @db.Uuid
+  availabilitySlotId  String?           @db.Uuid
+  date                DateTime
+  startTime       DateTime
+  endTime         DateTime
+  durationMinutes Int               @default(60)
+  maxStudents     Int?
+  availableSeats  Int?
+  status          LiveSessionStatus @default(DRAFT)
+  type            LiveSessionType   @default(PRIVATE)
+  meetingUrl        String?
+  meetingPassword   String?
+  meetingProvider   MeetingProvider   @default(EXTERNAL_URL)
+  notes             String?
+  publishedAt       DateTime?
+  scheduledAt       DateTime?
+  openedAt          DateTime?
+  liveAt            DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  archivedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  teacher              User                 @relation("LiveSessionsAsTeacher", fields: [teacherId], references: [id])
+  grade                Grade?               @relation(fields: [gradeId], references: [id])
+  availabilitySlot     TeacherAvailability? @relation(fields: [availabilitySlotId], references: [id])
+  bookings             LiveBooking[]
+  attendance           LiveAttendance[]
+  announcements        LiveAnnouncement[]
+  controlLogs          LiveSessionControlLog[]
+
+  @@index([teacherId])
+  @@index([gradeId])
+  @@index([status])
+  @@index([date])
+  @@index([teacherId, date])
+  @@map("live_sessions")
+}
+
+model LiveAnnouncement {
+  id          String   @id @default(uuid()) @db.Uuid
+  sessionId   String   @db.Uuid
+  senderId    String   @db.Uuid
+  message     String
+  type        String   @default("INFO")
+  pinned      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender  User        @relation("LiveAnnouncementSender", fields: [senderId], references: [id])
+
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+  @@map("live_announcements")
+}
+
+model LiveSessionControlLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  sessionId   String   @db.Uuid
+  action      String
+  actorId     String   @db.Uuid
+  details     String?
+  createdAt   DateTime @default(now())
+
+  session LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actor   User        @relation("LiveSessionControlActor", fields: [actorId], references: [id])
+
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+  @@map("live_session_control_logs")
+}
+
+model LiveBooking {
+  id                    String            @id @default(uuid()) @db.Uuid
+  sessionId             String            @db.Uuid
+  studentId             String            @db.Uuid
+  subscriptionId        String?           @db.Uuid
+  status                LiveBookingStatus @default(CONFIRMED)
+  rescheduleRequestedAt DateTime?
+  rescheduleReason      String?
+  cancelledAt           DateTime?
+  cancelReason          String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  session      LiveSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student      User              @relation("LiveBookingStudent", fields: [studentId], references: [id])
+  subscription LiveSubscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId])
+  @@index([studentId])
+  @@index([studentId, status])
+  @@map("live_bookings")
+}
+
+model LiveSubscription {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  userId              String                 @db.Uuid
+  type                LiveSubscriptionType
+  packageLabel        String                 @default("4")
+  packageSessionCount Int                    @default(4)
+  status              LiveSubscriptionStatus @default(ACTIVE)
+  teacherId           String?                @db.Uuid
+  groupId             String?                @db.Uuid
+  sessionsTotal       Int                    @default(0)
+  sessionsUsed        Int                    @default(0)
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
+  nextBillingDate     DateTime?
+  autoRenew           Boolean                @default(true)
+  price               Int                    @default(0)
+  cancelledAt         DateTime?
+  cancelReason        String?
+  suspendedAt         DateTime?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  deletedAt           DateTime?
+
+  user     User          @relation("LiveSubscriptionHolder", fields: [userId], references: [id])
+  teacher  User?         @relation("LiveSubscriptionTeacher", fields: [teacherId], references: [id])
+  bookings LiveBooking[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([teacherId])
+  @@map("live_subscriptions")
+}
+
+model LiveAttendance {
+  id              String               @id @default(uuid()) @db.Uuid
+  sessionId       String               @db.Uuid
+  studentId       String               @db.Uuid
+  status          LiveAttendanceStatus
+  joinedAt        DateTime?
+  leftAt          DateTime?
+  durationMinutes Int?
+  markedBy        String               @default("AUTO")
+  markedById      String?              @db.Uuid
+  notes           String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  session LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student User        @relation("LiveAttendanceStudent", fields: [studentId], references: [id])
+  marker  User?       @relation("LiveAttendanceMarker", fields: [markedById], references: [id])
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId])
+  @@index([studentId])
+  @@map("live_attendance")
+}
+
+model TeacherAvailability {
+  id            String    @id @default(uuid()) @db.Uuid
+  teacherId     String    @db.Uuid
+  dayOfWeek     Int
+  startTime     DateTime
+  endTime       DateTime
+  gradeId       String?   @db.Uuid
+  maxStudents   Int             @default(1)
+  type          LiveSessionType @default(PRIVATE)
+  isRecurring   Boolean         @default(true)
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+
+  teacher   User         @relation("TeacherAvailabilityTeacher", fields: [teacherId], references: [id])
+  grade     Grade?       @relation(fields: [gradeId], references: [id])
+  sessions  LiveSession[]
+
+  @@index([teacherId])
+  @@index([teacherId, dayOfWeek])
+  @@map("teacher_availability")
+}
+
+model TeacherDateBlock {
+  id          String    @id @default(uuid()) @db.Uuid
+  teacherId   String    @db.Uuid
+  blockedDate DateTime
+  reason      String?
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  teacher User @relation("TeacherDateBlockTeacher", fields: [teacherId], references: [id])
+
+  @@unique([teacherId, blockedDate])
+  @@index([teacherId])
+  @@map("teacher_date_blocks")
+}
+
+model TeacherLiveSettings {
+  id                String          @id @default(uuid()) @db.Uuid
+  teacherId         String          @unique @db.Uuid
+  defaultMeetingUrl String?
+  meetingPassword   String?
+  meetingProvider   MeetingProvider @default(EXTERNAL_URL)
+  allowOverride     Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  teacher User @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@map("teacher_live_settings")
+}
+
+model SupportTicket {
+  id              String            @id @default(uuid()) @db.Uuid
+  userId          String            @db.Uuid
+  userRole        String
+  category        String            @default("GENERAL")
+  priority        String            @default("MEDIUM")
+  status          String            @default("OPEN")
+  subject         String
+  description     String
+  assignedAgentId String?           @db.Uuid
+  resolution      String?
+  resolvedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  user        User            @relation("SupportTicketCreator", fields: [userId], references: [id], onDelete: Cascade)
+  assignedAgent User?          @relation("SupportTicketAgent", fields: [assignedAgentId], references: [id])
+  messages    SupportMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([assignedAgentId])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  ticketId  String   @db.Uuid
+  senderId  String   @db.Uuid
+  senderRole String
+  body      String
+  internal  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User        @relation("SupportMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("support_messages")
 }

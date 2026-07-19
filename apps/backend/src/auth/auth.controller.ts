@@ -5,11 +5,15 @@ import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { GoogleAuthGuard } from "./guards/google-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
+import { ConfigurationService } from "../config/configuration.service";
 import type { Request, Response } from "express";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: ConfigurationService,
+  ) {}
 
   @Post("register")
   async register(@Body() dto: RegisterDto): Promise<ISuccessResponse<IAuthTokens>> {
@@ -36,7 +40,7 @@ export class AuthController {
     const googleProfile = req.user as { email: string | null; googleId: string } | undefined;
 
     if (!googleProfile?.email) {
-      res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/login?error=google_no_email`);
+      res.redirect(`${this.config.app.frontendUrl}/login?error=google_no_email`);
       return;
     }
 
@@ -48,11 +52,11 @@ export class AuthController {
 
     if (result.type === "existing") {
       res.redirect(
-        `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/dashboard?token=${result.accessToken}&refreshToken=${result.refreshToken}&expiresIn=${String(result.expiresIn)}`,
+        `${this.config.app.frontendUrl}/dashboard?token=${result.accessToken}&refreshToken=${result.refreshToken}&expiresIn=${String(result.expiresIn)}`,
       );
     } else {
       res.redirect(
-        `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/register?oauth=google&token=${result.accessToken}&email=${encodeURIComponent(googleProfile.email)}&expiresIn=${String(result.expiresIn)}`,
+        `${this.config.app.frontendUrl}/register?oauth=google&token=${result.accessToken}&email=${encodeURIComponent(googleProfile.email)}&expiresIn=${String(result.expiresIn)}`,
       );
     }
   }

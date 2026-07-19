@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Permission } from "@el-bannawy/shared";
+import type { Permission, UserRole } from "@el-bannawy/shared";
 
 interface AuthUser {
   id: string;
   fullName: string;
   mobileNumber: string | null;
-  role: string;
+  role: UserRole;
   status: string;
   effectivePermissions?: Permission[];
 }
@@ -21,6 +21,12 @@ interface AuthState {
   logout: () => void;
 }
 
+/** Safe accessor that returns null on the server. */
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return useAuthStore.getState().accessToken;
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -30,11 +36,6 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       setAuth: (accessToken: string, refreshToken: string): void => {
         set({ accessToken, refreshToken, isAuthenticated: true });
-        try {
-          localStorage.setItem("accessToken", accessToken);
-        } catch {
-          // SSR guard
-        }
       },
       setUser: (user: AuthUser): void => {
         set({ user });
@@ -46,11 +47,6 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           isAuthenticated: false,
         });
-        try {
-          localStorage.removeItem("accessToken");
-        } catch {
-          // SSR guard
-        }
       },
     }),
     {

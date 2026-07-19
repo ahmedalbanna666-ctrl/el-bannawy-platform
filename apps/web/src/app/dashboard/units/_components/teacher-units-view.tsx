@@ -40,6 +40,7 @@ interface UnitManagement {
   readonly displayOrder: number;
   readonly published: boolean;
   readonly isPremium: boolean;
+  readonly lockedOverride: boolean | null;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly grade: {
@@ -92,31 +93,17 @@ export function TeacherUnitsView(): ReactNode {
 
   const academicContext = useAcademicContext();
 
-  const academicFilterIds = useMemo(() => {
-    const teacherGrades = myGrades?.grades ?? [];
-    const grade = academicContext.grade
-      ? teacherGrades.find((g) => g.name === academicContext.grade)
-      : undefined;
-
-    return {
-      gradeId: grade?.id,
-      academicYearId: academicContext.academicYearId,
-      termId: academicContext.termId,
-      educationalSystem: academicContext.educationalSystem,
-    };
-  }, [myGrades, academicContext]);
-
   const filterParams = useMemo(() => {
     const params = new URLSearchParams();
-    if (academicFilterIds.gradeId) params.set("gradeId", academicFilterIds.gradeId);
-    if (academicFilterIds.academicYearId) params.set("academicYearId", academicFilterIds.academicYearId);
-    if (academicFilterIds.termId) params.set("termId", academicFilterIds.termId);
-    if (academicFilterIds.educationalSystem) params.set("educationalSystem", academicFilterIds.educationalSystem);
+    if (academicContext.gradeId) params.set("gradeId", academicContext.gradeId);
+    if (academicContext.academicYearId) params.set("academicYearId", academicContext.academicYearId);
+    if (academicContext.termId) params.set("termId", academicContext.termId);
+    if (academicContext.educationalSystem) params.set("educationalSystem", academicContext.educationalSystem);
     return params.toString();
-  }, [academicFilterIds]);
+  }, [academicContext]);
 
   const { data: units, isLoading, isError, error } = useQuery({
-    queryKey: ["management-units", academicFilterIds],
+    queryKey: ["management-units", filterParams],
     queryFn: async () => {
       const endpoint = `/curriculum/units${filterParams ? `?${filterParams}` : ""}`;
       const res = await api.get<UnitManagement[]>(endpoint);
@@ -150,6 +137,8 @@ export function TeacherUnitsView(): ReactNode {
       gradeId: unit.grade.id,
       displayOrder: unit.displayOrder,
       published: unit.published,
+      isPremium: unit.isPremium,
+      lockedOverride: unit.lockedOverride ?? null,
     });
   };
 

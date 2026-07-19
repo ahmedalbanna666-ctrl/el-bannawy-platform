@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { useAcademicContext } from "@/lib/academic-context-store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,11 +39,22 @@ function formatRelativeDate(dateStr: string): string {
 
 export function StaffUnitsView(): ReactNode {
   const router = useRouter();
+  const academicContext = useAcademicContext();
+
+  const filterParams = useMemo(() => {
+    const params = new URLSearchParams();
+    if (academicContext.gradeId) params.set("gradeId", academicContext.gradeId);
+    if (academicContext.academicYearId) params.set("academicYearId", academicContext.academicYearId);
+    if (academicContext.termId) params.set("termId", academicContext.termId);
+    if (academicContext.educationalSystem) params.set("educationalSystem", academicContext.educationalSystem);
+    return params.toString();
+  }, [academicContext]);
 
   const { data: units, isLoading, isError, error } = useQuery({
-    queryKey: ["staff-units"],
+    queryKey: ["staff-units", filterParams],
     queryFn: async () => {
-      const res = await api.get<UnitView[]>("/curriculum/units");
+      const endpoint = `/curriculum/units${filterParams ? `?${filterParams}` : ""}`;
+      const res = await api.get<UnitView[]>(endpoint);
       return res.data ?? [];
     },
     staleTime: 30_000,

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/auth-store";
 import { api } from "@/lib/api-client";
-import type { Permission } from "@el-bannawy/shared";
+import type { Permission, UserRole } from "@el-bannawy/shared";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -21,7 +21,6 @@ interface AuthContextValue {
   register: (payload: RegisterPayload) => Promise<void>;
   oauthRegister: (payload: OAuthRegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
-  refreshSession: () => Promise<void>;
 }
 
 interface RegisterPayload {
@@ -57,7 +56,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   const {
     accessToken,
-    refreshToken: storedRefreshToken,
     user,
     isAuthenticated,
     setAuth,
@@ -74,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         id: string;
         fullName: string;
         mobileNumber: string | null;
-        role: string;
+        role: UserRole;
         status: string;
         effectivePermissions: string[];
       }>("/auth/me");
@@ -186,28 +184,6 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     }
   }, [accessToken, clearStore, queryClient]);
 
-  const refreshSession = useCallback(async (): Promise<void> => {
-    if (!storedRefreshToken) {
-      clearStore();
-      return;
-    }
-
-    try {
-      const response = await api.post<{
-        accessToken: string;
-        refreshToken: string;
-        expiresIn: number;
-      }>("/auth/refresh-token", { refreshToken: storedRefreshToken });
-
-      if (response.data) {
-        setAuth(response.data.accessToken, response.data.refreshToken);
-        document.cookie = `auth_token=${response.data.accessToken}; path=/; max-age=${String(response.data.expiresIn)}; SameSite=Lax`;
-      }
-    } catch {
-      clearStore();
-    }
-  }, [storedRefreshToken, setAuth, clearStore]);
-
   return (
     <AuthContext.Provider
       value={{
@@ -217,7 +193,6 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         register,
         oauthRegister,
         logout,
-        refreshSession,
       }}
     >
       {children}

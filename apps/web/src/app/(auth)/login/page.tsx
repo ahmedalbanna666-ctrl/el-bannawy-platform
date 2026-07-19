@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { School, Phone, Lock, LogIn } from "lucide-react";
+import { School, Phone, Lock, LogIn, Eye, EyeOff } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -19,6 +19,7 @@ export default function LoginPage(): ReactNode {
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(() => searchParams.get("error") ?? null);
   const [loading, setLoading] = useState(false);
 
@@ -66,11 +67,21 @@ export default function LoginPage(): ReactNode {
 
           <Input
             label="Password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             placeholder="Enter your password"
             value={password}
             onChange={(e): void => { setPassword(e.target.value); }}
             leftIcon={<Lock className="h-5 w-5" />}
+            rightIcon={
+              <button
+                type="button"
+                onClick={(): void => { setShowPassword((prev) => !prev); }}
+                className="flex items-center justify-center focus:outline-none"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            }
             required
           />
 

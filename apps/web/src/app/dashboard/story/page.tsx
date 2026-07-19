@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { usePermissions } from "@/lib/use-permissions";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,6 +44,13 @@ function getChapterStatus(index: number, _total: number): ChapterStatus {
 
 export default function StoryPage(): ReactNode {
   const router = useRouter();
+  const { isAdmin, isTeacher, isStaff } = usePermissions();
+
+  useEffect(() => {
+    if (isAdmin || isTeacher || isStaff) {
+      router.replace("/dashboard/stories");
+    }
+  }, [isAdmin, isTeacher, isStaff, router]);
 
   const { data: stories, isLoading, isError, error } = useQuery({
     queryKey: ["stories", "student"],

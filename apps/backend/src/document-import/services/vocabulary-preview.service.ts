@@ -1,22 +1,22 @@
 import { Injectable } from "@nestjs/common";
 import { DocxExtractorService } from "./docx-extractor.service";
-import { VocabularyTableV1Parser } from "../parsers/vocabulary-table-v1.parser";
-import type { VocabularyImportPreview } from "../types/vocabulary-preview.types";
+import { VocabularyTableV2Parser } from "../parsers/vocabulary-table-v2.parser";
+import type { VocabularyStructuredDraft } from "../types/vocabulary-structured.types";
 
 @Injectable()
 export class VocabularyPreviewService {
   constructor(
     private readonly extractor: DocxExtractorService,
-    private readonly parser: VocabularyTableV1Parser,
+    private readonly parser: VocabularyTableV2Parser,
   ) {}
 
-  async preview(buffer: Buffer, originalName: string): Promise<VocabularyImportPreview> {
+  async preview(buffer: Buffer, originalName: string): Promise<VocabularyStructuredDraft> {
     this.extractor.validateDocxFile(buffer, originalName);
     const document = await this.extractor.extract(buffer);
     return this.parser.parse(document);
   }
 
-  previewFromDocument(document: Parameters<VocabularyTableV1Parser["parse"]>[0]): VocabularyImportPreview {
+  previewFromDocument(document: Parameters<VocabularyTableV2Parser["parse"]>[0]): VocabularyStructuredDraft {
     return this.parser.parse(document);
   }
 }

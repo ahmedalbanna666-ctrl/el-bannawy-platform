@@ -79,4 +79,11 @@ export class ProfileService {
 
     return updated;
   }
+
+  async getAchievements(userId: string): Promise<unknown[]> {
+    return this.prisma.userAchievement.findMany({
+      where: { userId },
+      orderBy: { earnedAt: "desc" },
+    });
+  }
 }

@@ -6,66 +6,40 @@ import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tan
 import { api } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/auth-store";
 import { useAuth } from "@/providers/auth-provider";
+import { ROLE_LABELS } from "@el-bannawy/shared";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { GovernorateSelect } from "@/components/ui/governorate-select";
-import { normalizeEgyptMobile } from "@/lib/phone";
-import {
-  SYSTEM_OPTIONS,
-} from "@/lib/education-options";
+import { SYSTEM_OPTIONS } from "@/lib/education-options";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
+import { RoleProfileSection } from "./components/role-profile-section";
+import type { UserProfileResponse } from "./types";
 import {
   User,
   Phone,
-  GraduationCap,
+  Mail,
   Lock,
   Crown,
   LogOut,
   Pencil,
   Check,
   X,
-  Calendar,
   MapPin,
   School,
-  BookOpen,
   Layers,
-  Globe,
   Shield,
 } from "lucide-react";
 
-// ── Types ────────────────────────────────────────────────────────────
+// ── Query Hook ──────────────────────────────────────────────────────
 
-interface ProfileData {
-  id: string;
-  fullName: string;
-  englishName: string | null;
-  mobileNumber: string;
-  parentMobile: string | null;
-  role: string;
-  status: string;
-  educationalSystem: string | null;
-  governorate: string | null;
-  school: string | null;
-  gradeId: string | null;
-  academicYearId: string | null;
-  termId: string | null;
-  assignedGrade: { id: string; name: string; stage: { name: string } } | null;
-  academicYear: { id: string; name: string } | null;
-  term: { id: string; name: string } | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// ── Query Hooks ──────────────────────────────────────────────────────
-
-function useProfile(userId: string | undefined): UseQueryResult<ProfileData> {
+function useProfile(userId: string | undefined): UseQueryResult<UserProfileResponse> {
   return useQuery({
     queryKey: ["profile", userId],
     queryFn: async () => {
-      const res = await api.get<ProfileData>("/profile");
+      const res = await api.get<UserProfileResponse>("/profile");
       if (!res.data) throw new Error("Profile not found");
       return res.data;
     },
@@ -205,11 +179,11 @@ export default function ProfilePage(): ReactNode {
   const { setUser } = useAuthStore();
   const { logout } = useAuth();
 
-  const { data: profile, isLoading, isError, error } = useProfile(authUser?.id);
+  const { data: profile, isLoading, isError, error, refetch } = useProfile(authUser?.id);
 
   const updateMutation = useMutation({
     mutationFn: async (payload: Record<string, string>) => {
-      const res = await api.patch<ProfileData>("/profile", payload);
+      const res = await api.patch<UserProfileResponse>("/profile", payload);
       return res.data;
     },
     onSuccess: async (data) => {
@@ -240,33 +214,17 @@ export default function ProfilePage(): ReactNode {
       <ErrorState
         title="فشل تحميل الملف الشخصي"
         description={error instanceof Error ? error.message : "حدث خطأ غير متوقع"}
+        onRetry={() => { void refetch(); }}
+        retryLabel="إعادة المحاولة"
       />
     );
   }
 
-  const p = profile ?? {
-    id: authUser?.id ?? "",
-    fullName: authUser?.fullName ?? "",
-    englishName: null,
-    mobileNumber: authUser?.mobileNumber ?? "",
-    parentMobile: null,
-    role: authUser?.role ?? "STUDENT",
-    status: authUser?.status ?? "ACTIVE",
-    educationalSystem: null,
-    governorate: null,
-    school: null,
-    gradeId: null,
-    academicYearId: null,
-    termId: null,
-    assignedGrade: null,
-    academicYear: null,
-    term: null,
-    createdAt: "",
-    updatedAt: "",
-  };
+  if (!profile) return <ProfileSkeleton />;
+  const p = profile;
 
   const firstName = p.fullName ? p.fullName.split(" ")[0] : "";
-  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName || "User")}&background=22D3EE&color=fff&bold=true&font-size=0.33&size=128`;
+  const avatarUrl = p.avatarUrl ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName || "User")}&background=22D3EE&color=fff&bold=true&font-size=0.33&size=128`;
 
   const statusLabel = p.status === "ACTIVE" ? "نشط" : p.status === "PENDING_VERIFICATION" ? "قيد التحقق" : p.status;
   const formattedDate = p.createdAt
@@ -293,8 +251,8 @@ export default function ProfilePage(): ReactNode {
             <div className="flex flex-1 flex-col gap-3 text-center sm:text-start">
               <div>
                 <p className="text-lg font-extrabold text-neutral-50">{p.fullName}</p>
-                <p className="text-sm capitalize text-neutral-400">
-                  {p.role === "STUDENT" ? "طالب" : p.role}
+                <p className="text-sm text-neutral-400">
+                  {ROLE_LABELS[p.role] ?? p.role}
                 </p>
               </div>
               <div className="flex flex-col gap-2">
@@ -306,27 +264,32 @@ export default function ProfilePage(): ReactNode {
                   onSave={handleFieldSave}
                   placeholder="الاسم الكامل"
                 />
-                <EditableField
-                  label="الاسم بالإنجليزية"
-                  value={p.englishName ?? ""}
-                  fieldKey="englishName"
-                  icon={<Globe className="h-4 w-4" />}
-                  onSave={handleFieldSave}
-                  placeholder="English Full Name"
-                />
+                {p.email && (
+                  <span className="flex items-center gap-2 px-1 text-sm text-neutral-400">
+                    <Mail className="h-4 w-4 text-neutral-500" />
+                    {p.email}
+                  </span>
+                )}
                 <span className="flex items-center gap-2 px-1 text-sm text-neutral-400">
                   <Phone className="h-4 w-4 text-neutral-500" />
                   {p.mobileNumber}
                 </span>
                 <EditableField
-                  label="رقم ولي الأمر"
-                  value={p.parentMobile ?? ""}
-                  fieldKey="parentMobile"
-                  icon={<Phone className="h-4 w-4" />}
+                  label="النظام التعليمي"
+                  value={p.educationalSystem ?? ""}
+                  fieldKey="educationalSystem"
+                  icon={<Layers className="h-4 w-4" />}
                   onSave={handleFieldSave}
-                  type="tel"
-                  placeholder="01234567890"
-                  normalizeOnSave={normalizeEgyptMobile}
+                  renderEditor={(draft, setDraft, disabled): ReactNode => (
+                    <Select
+                      label=""
+                      value={draft}
+                      onChange={(e): void => { setDraft(e.target.value); }}
+                      options={SYSTEM_OPTIONS}
+                      placeholder="اختر النظام التعليمي"
+                      disabled={disabled}
+                    />
+                  )}
                 />
               </div>
             </div>
@@ -334,68 +297,8 @@ export default function ProfilePage(): ReactNode {
         </CardContent>
       </Card>
 
-      {/* Educational Information */}
-      <Card variant="glass" padding="lg">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-primary-400" />
-            <h2 className="text-base font-extrabold text-neutral-100">المعلومات التعليمية</h2>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-2">
-            <EditableField
-              label="النظام التعليمي"
-              value={p.educationalSystem ?? ""}
-              fieldKey="educationalSystem"
-              icon={<Layers className="h-4 w-4" />}
-              onSave={handleFieldSave}
-              renderEditor={(draft, setDraft, disabled): ReactNode => (
-                <Select
-                  label=""
-                  value={draft}
-                  onChange={(e): void => { setDraft(e.target.value); }}
-                  options={SYSTEM_OPTIONS}
-                  placeholder="اختر النظام التعليمي"
-                  disabled={disabled}
-                />
-              )}
-            />
-            <EditableField
-              label="المرحلة التعليمية"
-              value={p.assignedGrade?.stage.name ?? ""}
-              fieldKey="educationalStage"
-              icon={<GraduationCap className="h-4 w-4" />}
-              onSave={handleFieldSave}
-              readOnly
-            />
-            <EditableField
-              label="الصف الدراسي"
-              value={p.assignedGrade?.name ?? ""}
-              fieldKey="grade"
-              icon={<BookOpen className="h-4 w-4" />}
-              onSave={handleFieldSave}
-              readOnly
-            />
-            <EditableField
-              label="السنة الدراسية"
-              value={p.academicYear?.name ?? ""}
-              fieldKey="academicYearId"
-              icon={<Calendar className="h-4 w-4" />}
-              onSave={handleFieldSave}
-              readOnly
-            />
-            <EditableField
-              label="الفصل الدراسي"
-              value={p.term?.name ?? ""}
-              fieldKey="termId"
-              icon={<Calendar className="h-4 w-4" />}
-              onSave={handleFieldSave}
-              readOnly
-            />
-          </div>
-        </CardContent>
-      </Card>
+       {/* Role-Specific Profile Section */}
+       <RoleProfileSection profile={profile} onSave={handleFieldSave} />
 
       {/* Location */}
       <Card variant="glass" padding="lg">

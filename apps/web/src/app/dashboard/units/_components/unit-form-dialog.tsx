@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, type SyntheticEvent, type ReactNode } fro
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { useAcademicContextStore, useAcademicContext } from "@/lib/academic-context-store";
+import { useAuthStore } from "@/lib/auth-store";
 import { ACADEMIC_TERMS } from "@/lib/education-options";
 import {
   Dialog,
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Select } from "@/components/ui/select";
 
 interface AcademicYearLookup {
   readonly id: string;
@@ -34,6 +36,8 @@ interface UnitEditData {
   readonly gradeId: string;
   readonly displayOrder: number;
   readonly published: boolean;
+  readonly isPremium: boolean;
+  readonly lockedOverride: boolean | null;
 }
 
 interface UnitFormDialogProps {
@@ -47,6 +51,8 @@ interface UnitFormData {
   description: string;
   displayOrder: string;
   published: boolean;
+  isPremium: boolean;
+  lockedOverride: string;
 }
 
 const EMPTY_FORM: UnitFormData = {
@@ -54,7 +60,15 @@ const EMPTY_FORM: UnitFormData = {
   description: "",
   displayOrder: "",
   published: true,
+  isPremium: false,
+  lockedOverride: "auto",
 };
+
+function toLockedOverride(value: string): boolean | null {
+  if (value === "locked") return true;
+  if (value === "open") return false;
+  return null;
+}
 
 export function UnitFormDialog({
   open,
@@ -76,6 +90,13 @@ export function UnitFormDialog({
             ? String(unit.displayOrder)
             : "",
         published: unit?.published ?? true,
+        isPremium: unit?.isPremium ?? false,
+        lockedOverride:
+          unit?.lockedOverride === null || unit?.lockedOverride === undefined
+            ? "auto"
+            : unit.lockedOverride
+              ? "locked"
+              : "open",
       });
     }
   }, [open, unit]);
@@ -83,8 +104,13 @@ export function UnitFormDialog({
   const academicYearFromStore = useAcademicContextStore((s) => s.academicYear);
   const termFromStore = useAcademicContextStore((s) => s.term);
   const gradeFromStore = useAcademicContextStore((s) => s.grade);
+  const academicYearIdFromStore = useAcademicContextStore((s) => s.academicYearId);
+  const termIdFromStore = useAcademicContextStore((s) => s.termId);
   const ctx = useAcademicContext();
   const educationalSystem = ctx.educationalSystem;
+  const userId = useAuthStore((s) => s.user?.id);
+  const userRole = useAuthStore((s) => s.user?.role);
+  const isAdmin = userRole === "ADMINISTRATOR";
 
   const { data: academicYears, isLoading: academicYearsLoading } = useQuery({
     queryKey: ["admin-academic-years"],
@@ -102,33 +128,51 @@ export function UnitFormDialog({
       const res = await api.get<StageLookup[]>("/admin/stages");
       return res.data ?? [];
     },
-    enabled: open && !isEdit,
+    enabled: open && !isEdit && isAdmin,
     staleTime: 300_000,
   });
 
+  const { data: myGrades } = useQuery({
+    queryKey: ["my-grades", userId],
+    queryFn: async () => {
+      const res = await api.get<{ gradeIds: string[]; grades: { id: string; name: string; stage: { id: string; name: string } }[] }>("/teachers/my-grades");
+      return res.data ?? null;
+    },
+    enabled: open && !isEdit && !isAdmin && !!userId,
+    staleTime: 30_000,
+  });
+
   const resolvedAcademicYearId = useMemo(() => {
+    if (academicYearIdFromStore) return academicYearIdFromStore;
     if (!academicYears || !academicYearFromStore) return null;
     const year = academicYears.find((y) => y.name === academicYearFromStore);
     return year?.id ?? null;
-  }, [academicYears, academicYearFromStore]);
+  }, [academicYears, academicYearFromStore, academicYearIdFromStore]);
 
   const resolvedTermId = useMemo(() => {
+    if (termIdFromStore) return termIdFromStore;
     if (!academicYears || !academicYearFromStore || !termFromStore) return null;
     const year = academicYears.find((y) => y.name === academicYearFromStore);
     if (!year) return null;
     const termLabel = ACADEMIC_TERMS.find((t) => t.id === termFromStore)?.label;
     const term = termLabel ? year.terms.find((t) => t.name === termLabel) : undefined;
     return term?.id ?? null;
-  }, [academicYears, academicYearFromStore, termFromStore]);
+  }, [academicYears, academicYearFromStore, termFromStore, termIdFromStore]);
 
   const resolvedGradeId = useMemo(() => {
-    if (!stages || !gradeFromStore) return null;
-    for (const stage of stages) {
-      const grade = stage.grades.find((g) => g.name === gradeFromStore);
+    if (!gradeFromStore) return null;
+    if (stages && stages.length > 0) {
+      for (const stage of stages) {
+        const grade = stage.grades.find((g) => g.name === gradeFromStore);
+        if (grade) return grade.id;
+      }
+    }
+    if (myGrades?.grades) {
+      const grade = myGrades.grades.find((g) => g.name === gradeFromStore);
       if (grade) return grade.id;
     }
     return null;
-  }, [stages, gradeFromStore]);
+  }, [stages, myGrades, gradeFromStore]);
 
   const academicContextResolved =
     isEdit ||
@@ -153,12 +197,17 @@ export function UnitFormDialog({
         payload.academicYearId = resolvedAcademicYearId;
         payload.termId = resolvedTermId;
         payload.educationalSystem = educationalSystem;
+        payload.published = formData.published;
+        payload.isPremium = formData.isPremium;
+        payload.lockedOverride = toLockedOverride(formData.lockedOverride);
       } else {
         payload.gradeId = unit.gradeId;
       }
 
       if (unit) {
         payload.published = formData.published;
+        payload.isPremium = formData.isPremium;
+        payload.lockedOverride = toLockedOverride(formData.lockedOverride);
         return api.patch(`/curriculum/units/${unit.id}`, payload);
       }
       return api.post("/curriculum/units", payload);
@@ -218,6 +267,21 @@ export function UnitFormDialog({
               onChange={(e): void => { update("published", e.target.checked); }}
             />
           )}
+          <Switch
+            label="مدفوع (مقفل للطلاب)"
+            checked={formData.isPremium}
+            onChange={(e): void => { update("isPremium", e.target.checked); }}
+          />
+          <Select
+            label="القفل التتابعي"
+            value={formData.lockedOverride}
+            onChange={(e): void => { update("lockedOverride", e.target.value); }}
+            options={[
+              { value: "auto", label: "تلقائي (حسب اجتياز امتحان الوحدة السابقة)" },
+              { value: "open", label: "مفتوح دائماً" },
+              { value: "locked", label: "مقفل دائماً" },
+            ]}
+          />
           {!isEdit && contextLoading && (
             <p className="text-sm text-neutral-500">جاري تحميل السياق الأكاديمي...</p>
           )}

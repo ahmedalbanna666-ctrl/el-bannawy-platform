@@ -3,6 +3,7 @@
 import { useState, useRef, type ReactNode, type ChangeEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { getAccessToken } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -21,22 +22,36 @@ import {
 
 interface PreviewItem {
   readonly clientDraftId: string;
+  readonly kind: "STANDARD_ITEM" | "SYNONYM_ANTONYM_RELATION";
   readonly word: string;
   readonly translation: string;
   readonly partOfSpeech: string | null;
+  readonly synonym: string | null;
+  readonly synonymTranslation: string | null;
+  readonly antonym: string | null;
+  readonly antonymTranslation: string | null;
   readonly status: "VALID" | "WARNING" | "INVALID";
   readonly warnings: readonly string[];
   readonly errors: readonly string[];
+  readonly sectionClientDraftId: string | null;
+}
+
+interface PreviewGroupMeta {
+  readonly clientDraftId: string;
+  readonly title: string | null;
+  readonly displayOrder: number;
 }
 
 interface PreviewResult {
   readonly parserProfile: string;
   readonly counts: { readonly total: number; readonly valid: number; readonly warning: number; readonly invalid: number };
+  readonly sections: readonly PreviewGroupMeta[];
   readonly items: readonly PreviewItem[];
 }
 
 interface EditableItem {
   clientDraftId: string;
+  kind: "STANDARD_ITEM" | "SYNONYM_ANTONYM_RELATION";
   word: string;
   translation: string;
   definition: string;
@@ -44,6 +59,11 @@ interface EditableItem {
   status: "VALID" | "WARNING" | "INVALID";
   isManual: boolean;
   partOfSpeech: string | null;
+  synonym: string | null;
+  synonymTranslation: string | null;
+  antonym: string | null;
+  antonymTranslation: string | null;
+  sectionClientDraftId: string | null;
   warnings: readonly string[];
   errors: readonly string[];
 }
@@ -71,6 +91,7 @@ export function VocabularyImportDialog({
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewItems, setPreviewItems] = useState<EditableItem[]>([]);
+  const [previewGroups, setPreviewGroups] = useState<PreviewGroupMeta[]>([]);
   const [previewWarnings, setPreviewWarnings] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -80,11 +101,16 @@ export function VocabularyImportDialog({
   const [editDefinition, setEditDefinition] = useState("");
   const [editExample, setEditExample] = useState("");
   const [editPartOfSpeech, setEditPartOfSpeech] = useState("");
+  const [editSynonym, setEditSynonym] = useState("");
+  const [editSynonymTranslation, setEditSynonymTranslation] = useState("");
+  const [editAntonym, setEditAntonym] = useState("");
+  const [editAntonymTranslation, setEditAntonymTranslation] = useState("");
   const [newWord, setNewWord] = useState("");
   const [newTranslation, setNewTranslation] = useState("");
   const [newDefinition, setNewDefinition] = useState("");
   const [newExample, setNewExample] = useState("");
   const [newPartOfSpeech, setNewPartOfSpeech] = useState("");
+  const [newGroupId, setNewGroupId] = useState<string>("");
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
@@ -95,7 +121,7 @@ export function VocabularyImportDialog({
     setUploadError(null);
 
     try {
-      const token = localStorage.getItem("accessToken");
+      const token = getAccessToken();
       const formData = new FormData();
       formData.append("file", file);
 
@@ -132,18 +158,32 @@ export function VocabularyImportDialog({
 
       const items: EditableItem[] = preview.items.map((item) => ({
         clientDraftId: item.clientDraftId,
-        word: item.word,
-        translation: item.translation,
+        kind: item.kind,
+        word: "word" in item ? item.word : (item as { primaryWord: string }).primaryWord,
+        translation: "translation" in item ? item.translation : (item as { primaryTranslation: string }).primaryTranslation,
         definition: "",
         example: "",
         status: item.status,
         isManual: false,
         partOfSpeech: item.partOfSpeech,
+        synonym: "synonym" in item ? (item.synonym ?? null) : null,
+        synonymTranslation: "synonymTranslation" in item ? (item.synonymTranslation ?? null) : null,
+        antonym: "antonym" in item ? (item.antonym ?? null) : null,
+        antonymTranslation: "antonymTranslation" in item ? (item.antonymTranslation ?? null) : null,
+        sectionClientDraftId: item.sectionClientDraftId,
         warnings: item.warnings,
         errors: item.errors,
       }));
 
+      const groups: PreviewGroupMeta[] = preview.sections.map((g) => ({
+        clientDraftId: g.clientDraftId,
+        title: g.title,
+        displayOrder: g.displayOrder,
+      }));
+
       setPreviewItems(items);
+      setPreviewGroups(groups);
+      setNewGroupId(groups[0]?.clientDraftId ?? "");
       setPreviewWarnings(preview.counts.total > 0 ? [] : ["No vocabulary items found in document"]);
     } catch (err) {
       if (err instanceof TypeError && err.message === "Failed to fetch") {
@@ -163,15 +203,35 @@ export function VocabularyImportDialog({
     setEditDefinition(item.definition);
     setEditExample(item.example);
     setEditPartOfSpeech(item.partOfSpeech ?? "");
+    setEditSynonym(item.synonym ?? "");
+    setEditSynonymTranslation(item.synonymTranslation ?? "");
+    setEditAntonym(item.antonym ?? "");
+    setEditAntonymTranslation(item.antonymTranslation ?? "");
   };
 
   const saveEdit = (): void => {
     if (!editingId) return;
     const posValue = editPartOfSpeech.trim();
+    const synValue = editSynonym.trim();
+    const synTransValue = editSynonymTranslation.trim();
+    const antValue = editAntonym.trim();
+    const antTransValue = editAntonymTranslation.trim();
     setPreviewItems((prev) =>
       prev.map((item) =>
         item.clientDraftId === editingId
-          ? { ...item, word: editWord.trim(), translation: editTranslation.trim(), definition: editDefinition.trim(), example: editExample.trim(), partOfSpeech: posValue.length > 0 ? posValue : null, status: "VALID" as const }
+          ? {
+              ...item,
+              word: editWord.trim(),
+              translation: editTranslation.trim(),
+              definition: editDefinition.trim(),
+              example: editExample.trim(),
+              partOfSpeech: posValue.length > 0 ? posValue : null,
+              synonym: synValue.length > 0 ? synValue : null,
+              synonymTranslation: synTransValue.length > 0 ? synTransValue : null,
+              antonym: antValue.length > 0 ? antValue : null,
+              antonymTranslation: antTransValue.length > 0 ? antTransValue : null,
+              status: "VALID" as const,
+            }
           : item,
       ),
     );
@@ -189,10 +249,12 @@ export function VocabularyImportDialog({
   const addManualItem = (): void => {
     if (!newWord.trim() || !newTranslation.trim()) return;
     const posValue = newPartOfSpeech.trim();
+    const groupId = newGroupId === "" ? null : newGroupId;
     setPreviewItems((prev) => [
       ...prev,
       {
         clientDraftId: `manual-${Date.now().toString()}-${Math.random().toString(36).slice(2, 9)}`,
+        kind: "STANDARD_ITEM",
         word: newWord.trim(),
         translation: newTranslation.trim(),
         definition: newDefinition.trim(),
@@ -200,6 +262,11 @@ export function VocabularyImportDialog({
         status: "VALID",
         isManual: true,
         partOfSpeech: posValue.length > 0 ? posValue : null,
+        synonym: null,
+        synonymTranslation: null,
+        antonym: null,
+        antonymTranslation: null,
+        sectionClientDraftId: groupId,
         warnings: [],
         errors: [],
       },
@@ -224,17 +291,38 @@ export function VocabularyImportDialog({
         })
         .map((ev) => ev.id);
 
+      const groupRelationKinds = new Map<string, boolean>();
+      for (const item of previewItems) {
+        if (item.sectionClientDraftId && item.kind === "SYNONYM_ANTONYM_RELATION") {
+          groupRelationKinds.set(item.sectionClientDraftId, true);
+        }
+      }
+
       const items = previewItems.map((item, idx) => ({
         word: item.word,
         translation: item.translation,
         definition: item.definition,
         example: item.example,
         partOfSpeech: item.partOfSpeech ?? undefined,
+        kind: item.kind,
+        synonym: item.synonym ?? undefined,
+        synonymTranslation: item.synonymTranslation ?? undefined,
+        antonym: item.antonym ?? undefined,
+        antonymTranslation: item.antonymTranslation ?? undefined,
         displayOrder: existingVocab.length + idx,
+        sectionClientDraftId: item.sectionClientDraftId,
+      }));
+
+      const sections = previewGroups.map((g) => ({
+        clientDraftId: g.clientDraftId,
+        title: g.title,
+        displayOrder: g.displayOrder,
+        kind: groupRelationKinds.has(g.clientDraftId) ? "SYNONYM_ANTONYM" : "STANDARD_VOCABULARY",
       }));
 
       return api.post(`/lessons/${lessonId}/vocabulary/import/commit`, {
         items,
+        sections,
         removeVocabIds,
       });
     },
@@ -243,6 +331,24 @@ export function VocabularyImportDialog({
       onClose();
     },
   });
+
+  const groupSections: { readonly key: string; readonly title: string | null; readonly items: readonly EditableItem[] }[] = ((): { readonly key: string; readonly title: string | null; readonly items: readonly EditableItem[] }[] => {
+    const sorted = [...previewGroups].sort((a, b) => a.displayOrder - b.displayOrder);
+    const sections = sorted
+      .map((g) => ({
+        key: g.clientDraftId,
+        title: g.title,
+        items: previewItems.filter((i) => i.sectionClientDraftId === g.clientDraftId),
+      }))
+      .filter((s) => s.items.length > 0);
+    const ungrouped = previewItems.filter(
+      (i) => i.sectionClientDraftId === null || i.sectionClientDraftId === "",
+    );
+    if (ungrouped.length > 0) {
+      sections.push({ key: "__ungrouped__", title: null, items: ungrouped });
+    }
+    return sections;
+  })();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -329,8 +435,15 @@ export function VocabularyImportDialog({
                 </div>
               )}
 
-              <div className="flex flex-col gap-2">
-                {previewItems.map((item) => (
+              {groupSections.map((section) => (
+                <div key={section.key} className="flex flex-col gap-2">
+                  {section.title !== null && (
+                    <h3 className="border-b border-neutral-200 pb-1 text-sm font-bold text-neutral-700 dark:border-neutral-700 dark:text-neutral-200">
+                      {section.title}
+                    </h3>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    {section.items.map((item) => (
                   <div
                     key={item.clientDraftId}
                     className={`flex items-center gap-3 rounded-xl p-3 ${
@@ -357,6 +470,38 @@ export function VocabularyImportDialog({
                             placeholder="ترجمة"
                           />
                         </div>
+                        {item.kind === "SYNONYM_ANTONYM_RELATION" && (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={editSynonym}
+                                onChange={(e): void => { setEditSynonym(e.target.value); }}
+                                className="flex-1"
+                                placeholder="مرادف (اختياري)"
+                              />
+                              <Input
+                                value={editSynonymTranslation}
+                                onChange={(e): void => { setEditSynonymTranslation(e.target.value); }}
+                                className="flex-1"
+                                placeholder="ترجمة المرادف (اختياري)"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={editAntonym}
+                                onChange={(e): void => { setEditAntonym(e.target.value); }}
+                                className="flex-1"
+                                placeholder="مضاد (اختياري)"
+                              />
+                              <Input
+                                value={editAntonymTranslation}
+                                onChange={(e): void => { setEditAntonymTranslation(e.target.value); }}
+                                className="flex-1"
+                                placeholder="ترجمة المضاد (اختياري)"
+                              />
+                            </div>
+                          </>
+                        )}
                         <Input
                           value={editDefinition}
                           onChange={(e): void => { setEditDefinition(e.target.value); }}
@@ -407,6 +552,28 @@ export function VocabularyImportDialog({
                               {item.translation}
                             </span>
                           </div>
+                          {item.kind === "SYNONYM_ANTONYM_RELATION" && (
+                            <div className="mt-1 flex flex-wrap gap-3 text-xs">
+                              {item.synonym && (
+                                <span className="text-primary-600 dark:text-primary-400">
+                                  <span className="text-neutral-500">مرادف: </span>
+                                  {item.synonym}
+                                  {item.synonymTranslation && (
+                                    <span className="text-neutral-400"> ({item.synonymTranslation})</span>
+                                  )}
+                                </span>
+                              )}
+                              {item.antonym && (
+                                <span className="text-danger-600 dark:text-danger-400">
+                                  <span className="text-neutral-500">مضاد: </span>
+                                  {item.antonym}
+                                  {item.antonymTranslation && (
+                                    <span className="text-neutral-400"> ({item.antonymTranslation})</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {item.definition && (
                             <p className="mt-0.5 text-xs text-neutral-400">{item.definition}</p>
                           )}
@@ -455,8 +622,10 @@ export function VocabularyImportDialog({
                       </>
                     )}
                   </div>
-                ))}
-              </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
 
               {editingId === null && (
                 <div className="flex flex-col gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-700">
@@ -493,6 +662,20 @@ export function VocabularyImportDialog({
                     onChange={(e): void => { setNewPartOfSpeech(e.target.value); }}
                     className="text-xs"
                   />
+                  {previewGroups.length > 0 && (
+                    <select
+                      value={newGroupId}
+                      onChange={(e): void => { setNewGroupId(e.target.value); }}
+                      className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-900 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-100"
+                    >
+                      {previewGroups.map((g) => (
+                        <option key={g.clientDraftId} value={g.clientDraftId}>
+                          {g.title ?? "بدون مجموعة"}
+                        </option>
+                      ))}
+                      <option value="">بدون مجموعة</option>
+                    </select>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"

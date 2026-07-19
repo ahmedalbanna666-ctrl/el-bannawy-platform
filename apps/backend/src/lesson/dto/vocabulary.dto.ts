@@ -85,6 +85,56 @@ export class CommitVocabularyItemDto {
   @IsString()
   @MaxLength(32)
   partOfSpeech?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  kind?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  synonym?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  synonymTranslation?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  antonym?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  antonymTranslation?: string;
+
+  @IsOptional()
+  @IsString()
+  sectionClientDraftId?: string;
+}
+
+export class CommitVocabularySectionDto {
+  @IsOptional()
+  @IsString()
+  clientDraftId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  title?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  displayOrder?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  kind?: string;
 }
 
 export class CommitVocabularyImportDto {
@@ -92,6 +142,12 @@ export class CommitVocabularyImportDto {
   @ValidateNested({ each: true })
   @Type(() => CommitVocabularyItemDto)
   items!: CommitVocabularyItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CommitVocabularySectionDto)
+  sections?: CommitVocabularySectionDto[];
 
   @IsOptional()
   @IsUUID("all", { each: true })

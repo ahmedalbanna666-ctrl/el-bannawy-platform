@@ -5,14 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { UnitLockOverlay } from "@/components/coins/unit-lock-overlay";
+import { usePermissions } from "@/lib/use-permissions";
 import {
   Play,
   Clock,
-  CheckCircle2,
   Lock,
   ArrowRight,
 } from "lucide-react";
@@ -23,6 +23,8 @@ interface LessonSummary {
   displayOrder: number;
   estimatedDuration: number;
   isPremium: boolean;
+  locked: boolean;
+  lockedOverride: boolean | null;
   sequentialMode: boolean;
   homeworkEnabled: boolean;
   quizEnabled: boolean;
@@ -32,6 +34,8 @@ interface UnitDetail {
   id: string;
   title: string;
   displayOrder: number;
+  isPremium: boolean;
+  unlocked: boolean;
   lessons: LessonSummary[];
 }
 
@@ -47,24 +51,12 @@ interface Stage {
   }[];
 }
 
-type LessonStatus = "completed" | "current" | "locked";
-
-function getLessonStatus(index: number): LessonStatus {
-  if (index < 2) return "completed";
-  if (index === 2) return "current";
-  return "locked";
-}
-
-const STATUS_BORDER: Record<LessonStatus, string> = {
-  completed: "border-primary-500/60",
-  current: "border-success-500/60 shadow-[0_0_18px_rgba(16,185,129,0.12)]",
-  locked: "border-neutral-200 dark:border-neutral-700 opacity-50",
-};
-
 export default function LessonListPage(): ReactNode {
   const params = useParams();
   const router = useRouter();
   const unitId = params.unitId as string;
+  const { isAdmin, isTeacher } = usePermissions();
+  const isManagement = isAdmin || isTeacher;
 
   const [unit, setUnit] = useState<UnitDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +111,8 @@ export default function LessonListPage(): ReactNode {
     );
   }
 
+  const unitLocked = !isManagement && unit.isPremium && !unit.unlocked;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -128,10 +122,13 @@ export default function LessonListPage(): ReactNode {
         <p className="mt-1 text-sm text-neutral-500">اختر الدرس الذي تريد دراسته</p>
       </div>
 
+      {unitLocked && (
+        <UnitLockOverlay unitId={unit.id} unitTitle={unit.title} />
+      )}
+
       <div className="flex flex-col gap-3">
-        {unit.lessons.map((lesson, idx) => {
-          const status = getLessonStatus(idx);
-          const isLocked = status === "locked";
+          {unit.lessons.map((lesson, _idx) => {
+          const isLocked = lesson.locked || unitLocked;
 
           return (
             <Card
@@ -140,9 +137,9 @@ export default function LessonListPage(): ReactNode {
               padding="md"
               className={`transition-all duration-200 ${
                 isLocked
-                  ? "cursor-not-allowed"
+                  ? "cursor-not-allowed opacity-70"
                   : "cursor-pointer hover:-translate-y-0.5 hover:shadow-md"
-              } ${STATUS_BORDER[status]}`}
+              } border-neutral-200 dark:border-neutral-700`}
               onClick={(): void => {
                 if (isLocked) return;
                 router.push(`/dashboard/lessons/detail/${lesson.id}`);
@@ -161,16 +158,10 @@ export default function LessonListPage(): ReactNode {
                 <div className="flex items-center gap-4">
                   <div
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                      status === "completed"
-                        ? "bg-primary-500/10"
-                        : status === "current"
-                          ? "bg-success-500/10"
-                          : "bg-neutral-200 dark:bg-neutral-700"
+                      isLocked ? "bg-neutral-200 dark:bg-neutral-700" : "bg-success-500/10"
                     }`}
                   >
-                    {status === "completed" ? (
-                      <CheckCircle2 className="h-5 w-5 text-primary-500" />
-                    ) : status === "locked" ? (
+                    {isLocked ? (
                       <Lock className="h-5 w-5 text-neutral-400" />
                     ) : (
                       <Play className="h-5 w-5 text-success-500" />
@@ -197,17 +188,7 @@ export default function LessonListPage(): ReactNode {
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    {status === "completed" && (
-                      <Badge variant="success" className="text-[10px]">
-                        مكتمل
-                      </Badge>
-                    )}
-                    {status === "current" && (
-                      <Badge variant="success" className="text-[10px] bg-success-500/15 text-success-600">
-                        الدرس الحالي
-                      </Badge>
-                    )}
-                    {status === "locked" && (
+                    {isLocked && (
                       <span className="text-[11px] text-neutral-400">مغلق</span>
                     )}
                     {!isLocked && (

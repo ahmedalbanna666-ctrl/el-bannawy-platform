@@ -287,6 +287,24 @@ export class CurriculumService {
     });
   }
 
+  async listStages(): Promise<unknown[]> {
+    const stages = await this.prisma.stage.findMany({
+      orderBy: { displayOrder: "asc" },
+      include: {
+        grades: {
+          orderBy: { displayOrder: "asc" },
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    return stages.map((s) => ({
+      id: s.id,
+      name: s.name,
+      grades: s.grades.map((g) => ({ id: g.id, name: g.name })),
+    }));
+  }
+
   // ── Unit Management ─────────────────────────────────────────────
 
   async getUnitsForManagement(
@@ -383,6 +401,9 @@ export class CurriculumService {
         description: dto.description ?? null,
         gradeId: dto.gradeId,
         displayOrder: dto.displayOrder ?? 0,
+        published: dto.published ?? false,
+        isPremium: dto.isPremium ?? false,
+        lockedOverride: dto.lockedOverride ?? null,
         academicYearId: dto.academicYearId,
         termId: dto.termId,
         educationalSystem: dto.educationalSystem ?? user?.educationalSystem ?? null,
@@ -424,6 +445,9 @@ export class CurriculumService {
         title: dto.title,
         unitId: dto.unitId,
         displayOrder: dto.displayOrder ?? 0,
+        published: dto.published ?? false,
+        isPremium: dto.isPremium ?? false,
+        lockedOverride: dto.lockedOverride ?? null,
       },
     });
   }

@@ -46,6 +46,69 @@ export class AdminService {
     private readonly delegatedPermissionService: DelegatedPermissionService,
   ) {}
 
+  async getTeacherPermissions(teacherId: string): Promise<string[]> {
+    const teacher = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { role: true, deletedAt: true },
+    });
+    if (!teacher || teacher.deletedAt) {
+      throw new NotFoundException("Teacher not found");
+    }
+    if (teacher.role !== "TEACHER") {
+      throw new BadRequestException("Target user is not a teacher");
+    }
+
+    const effective =
+      await this.delegatedPermissionService.getEffectivePermissions(teacherId);
+    return [...effective];
+  }
+
+  async grantTeacherPermission(
+    actorId: string,
+    teacherId: string,
+    permission: string,
+  ): Promise<void> {
+    const teacher = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { role: true, deletedAt: true },
+    });
+    if (!teacher || teacher.deletedAt) {
+      throw new NotFoundException("Teacher not found");
+    }
+    if (teacher.role !== "TEACHER") {
+      throw new BadRequestException("Target user is not a teacher");
+    }
+
+    await this.delegatedPermissionService.grantPermission(
+      actorId,
+      teacherId,
+      permission as never,
+    );
+  }
+
+  async revokeTeacherPermission(
+    actorId: string,
+    teacherId: string,
+    permission: string,
+  ): Promise<void> {
+    const teacher = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { role: true, deletedAt: true },
+    });
+    if (!teacher || teacher.deletedAt) {
+      throw new NotFoundException("Teacher not found");
+    }
+    if (teacher.role !== "TEACHER") {
+      throw new BadRequestException("Target user is not a teacher");
+    }
+
+    await this.delegatedPermissionService.revokePermission(
+      actorId,
+      teacherId,
+      permission as never,
+    );
+  }
+
   async listTeachers(query: QueryTeachersDto): Promise<unknown> {
     const { search, status, page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;

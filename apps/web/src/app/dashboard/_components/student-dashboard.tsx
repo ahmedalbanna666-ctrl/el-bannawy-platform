@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { CardEdge } from "@/components/ui/card-edge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -23,7 +24,9 @@ import {
   Users,
   Target,
   BookCheck,
+  Video,
 } from "lucide-react";
+import { useMyBookings } from "@/lib/live-api";
 
 interface DashboardData {
   user: { id: string; fullName: string; role: string };
@@ -39,6 +42,7 @@ interface DashboardData {
 
 export function StudentDashboard(): ReactNode {
   const router = useRouter();
+  const { data: liveBookings } = useMyBookings();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -186,7 +190,89 @@ export function StudentDashboard(): ReactNode {
         </Card>
       </section>
 
-      {/* SECTION 3 — Quick Learning Tools */}
+      {/* SECTION 3 — Live Classes */}
+      {liveBookings && liveBookings.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+              الحصص المباشرة القادمة
+            </h2>
+            <button
+              onClick={(): void => { router.push("/dashboard/live"); }}
+              className="text-xs font-medium text-primary-500 hover:text-primary-600"
+            >
+              عرض الكل
+            </button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {liveBookings.slice(0, 2).map((booking) => {
+              const startDate = new Date(booking.session.startTime);
+              const isToday =
+                startDate.toDateString() === new Date().toDateString();
+              return (
+                <div
+                  key={booking.id}
+                  onClick={(): void => {
+                    router.push(`/dashboard/live/sessions/${booking.session.id}`);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter")
+                      router.push(
+                        `/dashboard/live/sessions/${booking.session.id}`,
+                      );
+                  }}
+                >
+                  <Card
+                    variant={isToday ? "elevated" : "outline"}
+                    padding="md"
+                    className={`cursor-pointer transition-all ${
+                      isToday
+                        ? "border-success-500/30 shadow-success-500/5"
+                        : ""
+                    }`}
+                  >
+                    {isToday && <CardEdge variant="primary" />}
+                    <CardContent>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
+                          <Video className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                            {booking.session.title}
+                          </p>
+                          <p className="text-xs text-neutral-500">
+                            {booking.session.teacher.name} ·{" "}
+                            {startDate.toLocaleDateString("ar-SA", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            })}{" "}
+                            ·{" "}
+                            {startDate.toLocaleTimeString("ar-SA", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                        {isToday && (
+                          <span className="shrink-0 text-xs font-bold text-success-500">
+                            اليوم
+                          </span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* SECTION 4 — Quick Learning Tools */}
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
         <div onClick={(): void => { router.push("/dashboard/ai"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/ai"); } }}>
@@ -255,7 +341,7 @@ export function StudentDashboard(): ReactNode {
 
       </section>
 
-      {/* SECTION 4 — Curriculum Units */}
+      {/* SECTION 5 — Curriculum Units */}
       <div onClick={(): void => { router.push("/dashboard/units"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/units"); } }}>
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
@@ -273,7 +359,7 @@ export function StudentDashboard(): ReactNode {
       </Card>
       </div>
 
-      {/* SECTION 5 — Story */}
+      {/* SECTION 6 — Story */}
       <div onClick={(): void => { router.push("/dashboard/story"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/story"); } }}>
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>
@@ -291,7 +377,7 @@ export function StudentDashboard(): ReactNode {
       </Card>
       </div>
 
-      {/* SECTION 6 — Final Review */}
+      {/* SECTION 7 — Final Review */}
       <div onClick={(): void => { router.push("/dashboard/final-review"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/final-review"); } }}>
       <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
         <CardContent>

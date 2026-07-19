@@ -73,6 +73,12 @@ Version 1
 - Paymob
 - Fawry
 - Instapay
+- Vodafone Cash
+- Orange Cash
+- Etisalat Cash
+- Vodafone Cash
+- Orange Cash
+- Etisalat Cash
 
 Future
 
@@ -80,6 +86,39 @@ Future
 - PayPal
 - Apple Pay
 - Google Pay
+
+---
+
+# ==========================
+# GATEWAY CONFIGURATION
+# ==========================
+
+Each payment method is gated by environment credentials.
+
+When credentials are present, the backend calls the real gateway API during checkout and verification.
+
+When credentials are absent, the gateway runs in SIMULATION MODE and returns a local confirmation URL so the flow can be tested end-to-end without a live account.
+
+Environment Variables
+
+| Gateway | Variables |
+| --- | --- |
+| Paymob | PAYMOB_API_KEY, PAYMOB_HMAC_SECRET, PAYMOB_MERCHANT_ID, PAYMOB_BASE_URL, PAYMOB_INTEGRATION_IDS |
+| Fawry | FAWRY_MERCHANT_CODE, FAWRY_SECURITY_KEY, FAWRY_BASE_URL |
+| Instapay | INSTAPAY_API_KEY, INSTAPAY_BASE_URL |
+| Vodafone Cash | VODAFONE_CASH_MERCHANT_ID, VODAFONE_CASH_SECRET, VODAFONE_CASH_BASE_URL |
+| Orange Cash | ORANGE_CASH_MERCHANT_ID, ORANGE_CASH_SECRET, ORANGE_CASH_BASE_URL |
+| Etisalat Cash | ETISALAT_CASH_MERCHANT_ID, ETISALAT_CASH_SECRET, ETISALAT_CASH_BASE_URL |
+
+Webhook Secret
+
+PAYMENT_WEBHOOK_SECRET (used to verify POST /api/v1/webhooks/payments)
+
+Base URL used in callback/redirect links
+
+PUBLIC_BASE_URL
+
+Enabled flag returned by GET /payments/methods reflects whether credentials are configured.
 
 ---
 

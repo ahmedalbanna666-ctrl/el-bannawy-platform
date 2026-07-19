@@ -11,12 +11,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Select } from "@/components/ui/select";
 
 interface LessonEditData {
   readonly id: string;
   readonly title: string;
   readonly displayOrder: number;
   readonly published: boolean;
+  readonly isPremium: boolean;
+  readonly lockedOverride: boolean | null;
   readonly homeworkEnabled: boolean;
   readonly quizEnabled: boolean;
 }
@@ -32,6 +35,8 @@ interface LessonFormData {
   title: string;
   displayOrder: string;
   published: boolean;
+  isPremium: boolean;
+  lockedOverride: string;
   homeworkEnabled: boolean;
   quizEnabled: boolean;
 }
@@ -40,9 +45,17 @@ const EMPTY_FORM: LessonFormData = {
   title: "",
   displayOrder: "",
   published: true,
+  isPremium: false,
+  lockedOverride: "auto",
   homeworkEnabled: false,
   quizEnabled: false,
 };
+
+function toLockedOverride(value: string): boolean | null {
+  if (value === "locked") return true;
+  if (value === "open") return false;
+  return null;
+}
 
 export function LessonFormDialog({
   open,
@@ -64,6 +77,13 @@ export function LessonFormDialog({
             ? String(lesson.displayOrder)
             : "",
         published: lesson?.published ?? true,
+        isPremium: lesson?.isPremium ?? false,
+        lockedOverride:
+          lesson?.lockedOverride === null || lesson?.lockedOverride === undefined
+            ? "auto"
+            : lesson.lockedOverride
+              ? "locked"
+              : "open",
         homeworkEnabled: lesson?.homeworkEnabled ?? false,
         quizEnabled: lesson?.quizEnabled ?? false,
       });
@@ -80,12 +100,17 @@ export function LessonFormDialog({
       };
       if (lesson) {
         payload.published = formData.published;
+        payload.isPremium = formData.isPremium;
+        payload.lockedOverride = toLockedOverride(formData.lockedOverride);
         payload.homeworkEnabled = formData.homeworkEnabled;
         payload.quizEnabled = formData.quizEnabled;
         return api.patch(`/curriculum/lessons/${lesson.id}`, payload);
       }
       return api.post("/curriculum/lessons", {
         ...payload,
+        published: formData.published,
+        isPremium: formData.isPremium,
+        lockedOverride: toLockedOverride(formData.lockedOverride),
         unitId,
       });
     },
@@ -137,6 +162,21 @@ export function LessonFormDialog({
                 label="منشور"
                 checked={formData.published}
                 onChange={(e): void => { update("published", e.target.checked); }}
+              />
+              <Switch
+                label="مدفوع (مقفل للطلاب)"
+                checked={formData.isPremium}
+                onChange={(e): void => { update("isPremium", e.target.checked); }}
+              />
+              <Select
+                label="القفل التتابعي"
+                value={formData.lockedOverride}
+                onChange={(e): void => { update("lockedOverride", e.target.value); }}
+                options={[
+                  { value: "auto", label: "تلقائي (حسب اجتياز امتحان الدرس السابق)" },
+                  { value: "open", label: "مفتوح دائماً" },
+                  { value: "locked", label: "مقفل دائماً" },
+                ]}
               />
               <Switch
                 label="تفعيل الواجب"

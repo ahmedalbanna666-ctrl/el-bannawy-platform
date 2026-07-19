@@ -9,6 +9,7 @@ export interface AcademicContext {
   readonly educationalSystem: string | null;
   readonly stage: string | null;
   readonly grade: string | null;
+  readonly gradeId: string | null;
   readonly term: string | null;
   readonly termId: string | null;
 }
@@ -24,7 +25,7 @@ interface AcademicContextState extends AcademicContext {
   setAcademicYearId: (academicYearId: string | null) => void;
   setEducationalSystem: (educationalSystem: string) => void;
   setStage: (stage: string) => void;
-  setGrade: (grade: string) => void;
+  setGrade: (grade: string, gradeId?: string | null) => void;
   setTerm: (term: string) => void;
   setTermId: (termId: string | null) => void;
   applyPlatformContext: (ctx: { academicYearId: string; academicYearName: string; termId: string; termName: string }) => void;
@@ -39,6 +40,7 @@ export const useAcademicContextStore = create<AcademicContextState>()(
       educationalSystem: null,
       stage: null,
       grade: null,
+      gradeId: null,
       term: null,
       termId: null,
       setAcademicYear: (academicYear: string): void => {
@@ -53,8 +55,8 @@ export const useAcademicContextStore = create<AcademicContextState>()(
       setStage: (stage: string): void => {
         set({ stage, grade: null });
       },
-      setGrade: (grade: string): void => {
-        set({ grade });
+      setGrade: (grade: string, gradeId?: string | null): void => {
+        set({ grade, gradeId: gradeId ?? null });
       },
       setTerm: (term: string): void => {
         set({ term });
@@ -90,6 +92,7 @@ export const useAcademicContextStore = create<AcademicContextState>()(
         educationalSystem: state.educationalSystem,
         stage: state.stage,
         grade: state.grade,
+        gradeId: state.gradeId,
         term: state.term,
         termId: state.termId,
       }),
@@ -105,6 +108,7 @@ export function useAcademicContext(): AcademicContext {
       educationalSystem: s.educationalSystem,
       stage: s.stage,
       grade: s.grade,
+      gradeId: s.gradeId,
       term: s.term,
       termId: s.termId,
     })),

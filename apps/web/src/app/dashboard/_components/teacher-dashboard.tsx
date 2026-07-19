@@ -10,7 +10,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuthStore } from "@/lib/auth-store";
 import { getDashboardModules } from "@/lib/nav-registry";
-import { GraduationCap, ChevronLeft } from "lucide-react";
+import { useLiveSessions } from "@/lib/live-api";
+import { GraduationCap, ChevronLeft, Clock, Calendar } from "lucide-react";
 
 function formatTodayArabic(): string {
   return new Date().toLocaleDateString("ar-EG", {
@@ -32,6 +33,29 @@ export function TeacherDashboard(): ReactNode {
   const fullName = useAuthStore((s) => s.user?.fullName ?? "");
   const userId = useAuthStore((s) => s.user?.id);
   const firstName = fullName.split(" ")[0];
+
+  const { data: allLiveSessions } = useLiveSessions();
+  const mySessions = useMemo(
+    () =>
+      (allLiveSessions ?? []).filter((s) => {
+        const now = new Date();
+        const start = new Date(s.startTime);
+        return s.teacherId === userId && start > now;
+      }),
+    [allLiveSessions, userId],
+  );
+  const todaySessionCount = useMemo(
+    () =>
+      mySessions.filter((s) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const start = new Date(s.startTime);
+        return start >= today && start < tomorrow;
+      }).length,
+    [mySessions],
+  );
 
   const { data: myGrades } = useQuery({
     queryKey: ["my-grades", userId],
@@ -64,6 +88,27 @@ export function TeacherDashboard(): ReactNode {
           {today}
         </p>
       </div>
+
+      <section className="grid grid-cols-2 gap-4">
+        <div className="rounded-2xl bg-success-500/10 p-4 text-center">
+          <Calendar className="mx-auto mb-1 h-6 w-6 text-success-500" />
+          <p className="text-2xl font-bold text-success-600 dark:text-success-400">
+            {todaySessionCount}
+          </p>
+          <p className="text-xs text-success-600/70 dark:text-success-400/70">
+            حصص اليوم
+          </p>
+        </div>
+        <div className="rounded-2xl bg-primary-500/10 p-4 text-center">
+          <Clock className="mx-auto mb-1 h-6 w-6 text-primary-500" />
+          <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+            {mySessions.length}
+          </p>
+          <p className="text-xs text-primary-600/70 dark:text-primary-400/70">
+            الحصص القادمة
+          </p>
+        </div>
+      </section>
 
       {!hasAssignedGrades && (
         <EmptyState

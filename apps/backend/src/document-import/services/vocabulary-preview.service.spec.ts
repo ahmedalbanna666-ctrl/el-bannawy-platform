@@ -2,8 +2,8 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException } from "@nestjs/common";
 import { VocabularyPreviewService } from "./vocabulary-preview.service";
 import { DocxExtractorService } from "./docx-extractor.service";
-import { VocabularyTableV1Parser } from "../parsers/vocabulary-table-v1.parser";
-import type { VocabularyImportPreview } from "../types/vocabulary-preview.types";
+import { VocabularyTableV2Parser } from "../parsers/vocabulary-table-v2.parser";
+import type { VocabularyStructuredDraft } from "../types/vocabulary-structured.types";
 import {
   createSimpleVocabTable,
   createFourColumnTable,
@@ -17,19 +17,29 @@ describe("VocabularyPreviewService", () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [VocabularyPreviewService, DocxExtractorService, VocabularyTableV1Parser],
+      providers: [VocabularyPreviewService, DocxExtractorService, VocabularyTableV2Parser],
     }).compile();
     service = module.get(VocabularyPreviewService);
   });
 
   describe("preview", () => {
+    function firstWord(result: VocabularyStructuredDraft): string {
+      const first = result.items[0];
+      return first.kind === "STANDARD_ITEM" ? first.word : first.primaryWord;
+    }
+
+    function firstTranslation(result: VocabularyStructuredDraft): string {
+      const first = result.items[0];
+      return first.kind === "STANDARD_ITEM" ? first.translation : first.primaryTranslation;
+    }
+
     it("returns typed preview for valid 2-column DOCX", async () => {
       const buf = await createSimpleVocabTable();
       const result = await service.preview(buf, "test.docx");
-      expect(result.parserProfile).toBe("VOCABULARY_TABLE_V1");
+      expect(result.parserProfile).toBe("VOCABULARY_STRUCTURED_V2");
       expect(result.items.length).toBeGreaterThanOrEqual(1);
-      expect(result.items[0].word).toBeTruthy();
-      expect(result.items[0].translation).toBeTruthy();
+      expect(firstWord(result)).toBeTruthy();
+      expect(firstTranslation(result)).toBeTruthy();
     });
 
     it("returns typed preview for valid 4-column DOCX", async () => {
@@ -41,7 +51,9 @@ describe("VocabularyPreviewService", () => {
     it("preserves Arabic text from real DOCX", async () => {
       const buf = await createSimpleVocabTable();
       const result = await service.preview(buf, "test.docx");
-      const translations = result.items.map((i) => i.translation);
+      const translations: string[] = result.items.map((i) =>
+        i.kind === "STANDARD_ITEM" ? i.translation : i.primaryTranslation,
+      );
       expect(translations.some((t) => t.includes("يتعلم"))).toBe(true);
     });
 
@@ -75,7 +87,7 @@ describe("VocabularyPreviewService", () => {
     it("parserProfile exact value", async () => {
       const buf = await createSimpleVocabTable();
       const result = await service.preview(buf, "test.docx");
-      expect(result.parserProfile).toBe("VOCABULARY_TABLE_V1");
+      expect(result.parserProfile).toBe("VOCABULARY_STRUCTURED_V2");
     });
 
     it("performs zero database writes — service has no Prisma dependency", async () => {

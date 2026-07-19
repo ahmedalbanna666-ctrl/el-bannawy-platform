@@ -1,10 +1,21 @@
-import { Module } from "@nestjs/common";
+import { Module, OnModuleInit } from "@nestjs/common";
 import { VideoController } from "./video.controller";
 import { VideoService } from "./video.service";
+import { ProviderRegistryService } from "./providers/provider-registry.service";
+import { YouTubeProvider } from "./providers/youtube/youtube.provider";
 
 @Module({
   controllers: [VideoController],
-  providers: [VideoService],
+  providers: [VideoService, ProviderRegistryService, YouTubeProvider],
+  exports: [VideoService, ProviderRegistryService],
 })
-// eslint-disable-next-line @typescript-eslint/no-extraneous-class
-export class VideoModule {}
+export class VideoModule implements OnModuleInit {
+  constructor(
+    private readonly providerRegistry: ProviderRegistryService,
+    private readonly youtubeProvider: YouTubeProvider,
+  ) {}
+
+  onModuleInit(): void {
+    this.providerRegistry.register(this.youtubeProvider);
+  }
+}

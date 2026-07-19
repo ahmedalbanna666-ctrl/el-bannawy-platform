@@ -40,6 +40,13 @@ export class CurriculumController {
     return successResponse(data, "Continue learning data retrieved successfully");
   }
 
+  @Get("stages")
+  @UseGuards(JwtAuthGuard)
+  async getStages(): Promise<ISuccessResponse<unknown[]>> {
+    const data = await this.curriculumService.listStages();
+    return successResponse(data, "Stages retrieved successfully");
+  }
+
   @Get("progress")
   @UseGuards(JwtAuthGuard)
   async getOverallProgress(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {

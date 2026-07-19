@@ -24,4 +24,10 @@ export class ProfileController {
     const data = await this.profileService.updateProfile(userId, dto);
     return successResponse(data, "Profile updated successfully");
   }
+
+  @Get("achievements")
+  async getAchievements(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown[]>> {
+    const data = await this.profileService.getAchievements(userId);
+    return successResponse(data);
+  }
 }

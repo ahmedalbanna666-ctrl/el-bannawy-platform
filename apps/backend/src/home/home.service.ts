@@ -184,4 +184,103 @@ export class HomeService {
       },
     };
   }
+
+  async getLeaderboard(userId: string): Promise<{
+    scope: {
+      gradeId: string | null;
+      academicYearId: string | null;
+      termId: string | null;
+      educationalSystem: string | null;
+    };
+    top: {
+      id: string;
+      fullName: string;
+      avatarUrl: string | null;
+      xp: number;
+      level: number;
+      coins: number;
+      rank: number;
+    }[];
+    me: ({
+      id: string;
+      fullName: string;
+      avatarUrl: string | null;
+      xp: number;
+      level: number;
+      coins: number;
+      rank: number;
+    } & { total: number }) | null;
+  }> {
+    const ctx = await this.academicContext.getStudentContext(userId);
+
+    const scope = {
+      gradeId: ctx?.gradeId ?? null,
+      academicYearId: ctx?.academicYearId ?? null,
+      termId: ctx?.termId ?? null,
+      educationalSystem: ctx?.educationalSystem ?? null,
+    };
+
+    const where: Record<string, unknown> = { deletedAt: null, role: "STUDENT" };
+    if (ctx?.gradeId) {
+      where.gradeId = ctx.gradeId;
+    }
+    if (ctx?.academicYearId) {
+      where.academicYearId = ctx.academicYearId;
+    }
+    if (ctx?.termId) {
+      where.termId = ctx.termId;
+    }
+    if (ctx?.educationalSystem) {
+      where.educationalSystem = ctx.educationalSystem;
+    }
+
+    const students = await this.prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        fullName: true,
+        avatarUrl: true,
+        gradeId: true,
+      },
+    });
+
+    const xpByUser = await this.prisma.xPTransaction.groupBy({
+      by: ["userId"],
+      where: { userId: { in: students.map((s) => s.id) } },
+      _sum: { amount: true },
+    });
+
+    const coinsByUser = await this.prisma.coinWallet.findMany({
+      where: { userId: { in: students.map((s) => s.id) } },
+      select: { userId: true, balance: true },
+    });
+
+    const xpMap = new Map(xpByUser.map((x) => [x.userId, x._sum.amount ?? 0]));
+    const coinsMap = new Map(coinsByUser.map((c) => [c.userId, c.balance ?? 0]));
+
+    const ranked = students
+      .map((s) => {
+        const xp = xpMap.get(s.id) ?? 0;
+        return {
+          id: s.id,
+          fullName: s.fullName,
+          avatarUrl: s.avatarUrl,
+          xp,
+          level: Math.floor(xp / 1000) + 1,
+          coins: coinsMap.get(s.id) ?? 0,
+          rank: 0,
+        };
+      })
+      .sort((a, b) => b.xp - a.xp || a.id.localeCompare(b.id))
+      .map((entry, idx) => ({ ...entry, rank: idx + 1 }));
+
+    const top = ranked.slice(0, 50);
+    const me = ranked.find((r) => r.id === userId) ?? null;
+
+    return {
+      scope,
+      top,
+      me: me ? { ...me, total: ranked.length } : null,
+    };
+  }
 }

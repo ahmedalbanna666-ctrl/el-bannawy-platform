@@ -5,15 +5,18 @@ dotenv.config({ path: path.resolve(__dirname, "..", "..", "..", ".env") });
 
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AppModule } from "./app.module";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
+  const configService = app.get(ConfigService);
+
   app.setGlobalPrefix("api/v1");
 
   app.enableCors({
-    origin: process.env.FRONTEND_URL ?? "http://localhost:3000",
+    origin: configService.get<string>("FRONTEND_URL"),
     credentials: true,
   });
 
@@ -25,7 +28,7 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  const port = process.env.PORT ?? 4000;
+  const port = configService.get<number>("PORT", 4000);
   await app.listen(port);
   Logger.log(`Backend running on http://localhost:${String(port)}`, "Bootstrap");
 }

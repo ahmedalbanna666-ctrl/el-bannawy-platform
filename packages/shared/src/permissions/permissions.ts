@@ -31,6 +31,8 @@ export const PERMISSIONS = {
   LIVE_VIEW: "live.view",
   LIVE_CREATE: "live.create",
   LIVE_EDIT: "live.edit",
+  LIVE_DELETE: "live.delete",
+  LIVE_CONTROL: "live.control",
 
   STUDENTS_VIEW: "students.view",
   STUDENTS_CREATE: "students.create",
@@ -48,8 +50,22 @@ export const PERMISSIONS = {
 
   LEARNING_ACCESS: "learning.access",
 
+  MISTAKES_VIEW: "mistakes.view",
+  MISTAKES_PRACTICE: "mistakes.practice",
+
   ROLES_MANAGE: "roles.manage",
   PLATFORM_MANAGE: "platform.manage",
+
+  COINS_VIEW: "coins.view",
+  COINS_MANAGE: "coins.manage",
+  COINS_GRANT: "coins.grant",
+  COINS_PURCHASE: "coins.purchase",
+  COINS_UNLOCK: "coins.unlock",
+  UNLOCK_CODES_MANAGE: "unlock_codes.manage",
+  UNLOCK_REQUESTS_MANAGE: "unlock_requests.manage",
+
+  COMPETITION_MANAGE: "competition.manage",
+  COMPETITION_VIEW: "competition.view",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

@@ -3,7 +3,7 @@
 # El-bannawy Platform
 ## Live Classes Module Requirements
 
-Version: 1.0.0
+Version: 1.1.0
 
 ---
 
@@ -381,6 +381,57 @@ The Live Classes Module is complete when:
 ✓ Analytics are collected.
 
 ✓ Responsive design works.
+
+---
+
+---
+
+# Architecture: Teacher Availability First
+
+Sessions are created from teacher availability slots.
+
+Teachers define recurring weekly availability blocks. Sessions are concrete instances linked to specific blocks.
+
+## Data Models
+
+### MeetingProvider Enum
+- `EXTERNAL_URL` — generic meeting link (Google Meet, Zoom URL, etc.)
+- `ZOOM_SDK` — reserved for future Zoom SDK integration
+
+### LiveSession
+- `meetingProvider` — stores which provider the meeting uses (default: `EXTERNAL_URL`)
+- `availabilitySlotId` — optional FK to `TeacherAvailability` linking a session to its originating slot
+
+### TeacherLiveSettings
+One-to-one settings per teacher (matches `LessonSettings` pattern):
+- `defaultMeetingUrl` — fallback meeting link
+- `meetingPassword` — optional meeting password
+- `meetingProvider` — preferred meeting provider
+- `allowOverride` — whether per-session overrides are permitted
+
+### Soft Delete Strategy
+Both `TeacherAvailability` and `TeacherDateBlock` use `deletedAt` for soft deletion, consistent with project-wide convention.
+
+## API Design
+
+All endpoints follow `live/` prefix with JWT + Permission guards.
+
+Sessions: CRUD + publish/cancel (status transitions)
+Booking: book/unbook per session
+Attendance: record/get per session
+Availability: create/list/soft-delete
+Date Blocks: create/soft-delete (unblock)
+Analytics: aggregate stats
+
+## Implementation Status
+
+Sprint 1 — Foundation complete.
+- Database models, enums, relations, indexes
+- Migration SQL (not applied — requires DB)
+- Backend module with controller (18 endpoints), service (skeleton CRUD), DTOs (7 classes)
+- Shared types (enums, interfaces, DTOs) in `packages/shared/src/live/`
+- RBAC: `LIVE_VIEW`, `LIVE_CREATE`, `LIVE_EDIT`, `LIVE_DELETE` permissions
+- MeetingProvider + TeacherLiveSettings prepared for future Zoom integration
 
 ---
 

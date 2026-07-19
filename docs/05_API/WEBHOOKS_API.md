@@ -93,6 +93,45 @@ Response
 }
 ```
 
+Signature
+
+Header: x-signature (HMAC SHA-256 hex)
+
+Header: x-timestamp (Unix epoch milliseconds)
+
+Signed payload:
+
+```text
+${x-timestamp}.${rawRequestBody}
+```
+
+Secret: PAYMENT_WEBHOOK_SECRET
+
+Replay Protection
+
+x-timestamp must be within 5 minutes of server time.
+
+Request Body Example
+
+```json
+{
+    "provider": "fawry",
+    "event": "PAYMENT_SUCCESS",
+    "timestamp": "1710000000000",
+    "payload": {
+        "merchantRefNumber": "clx000paymentid",
+        "referenceNumber": "902244",
+        "fawryRefNumber": "TXN123",
+        "status": "PAID",
+        "amount": 100.0
+    }
+}
+```
+
+Supported providers: paymob, fawry, instapay, vodafone_cash, orange_cash, etisalat_cash.
+
+The webhook locates the PENDING Payment by gatewayRef (merchantRefNumber / referenceNumber) and completes it.
+
 ---
 
 # ==========================

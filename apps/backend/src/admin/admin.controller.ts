@@ -21,6 +21,7 @@ import { CreateTeacherDto } from "./dto/create-teacher.dto";
 import { UpdateTeacherDto } from "./dto/update-teacher.dto";
 import { UpdateTeacherStatusDto } from "./dto/update-teacher-status.dto";
 import { AssignGradesDto } from "./dto/assign-grades.dto";
+import { GrantPermissionDto } from "./dto/grant-permission.dto";
 import { UpdateSettingsDto } from "./dto/update-settings.dto";
 import { CreateAcademicYearDto } from "./dto/create-academic-year.dto";
 import { UpdateAcademicYearDto } from "./dto/update-academic-year.dto";
@@ -102,6 +103,36 @@ export class AdminController {
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.adminService.assignGrades(id, dto);
     return successResponse(data, "Grades assigned successfully");
+  }
+
+  @Get("teachers/:id/permissions")
+  async getTeacherPermissions(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() _userId: string,
+  ): Promise<ISuccessResponse<{ grantedPermissions: string[] }>> {
+    const grantedPermissions =
+      await this.adminService.getTeacherPermissions(id);
+    return successResponse({ grantedPermissions });
+  }
+
+  @Post("teachers/:id/permissions/grant")
+  async grantTeacherPermission(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: GrantPermissionDto,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    await this.adminService.grantTeacherPermission(userId, id, dto.permission);
+    return successResponse({}, "Permission granted successfully");
+  }
+
+  @Post("teachers/:id/permissions/revoke")
+  async revokeTeacherPermission(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: GrantPermissionDto,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    await this.adminService.revokeTeacherPermission(userId, id, dto.permission);
+    return successResponse({}, "Permission revoked successfully");
   }
 
   @Get("settings")

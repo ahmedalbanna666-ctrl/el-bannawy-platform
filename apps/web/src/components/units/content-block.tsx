@@ -24,11 +24,25 @@ export function ContentBlock({
   children,
   className,
 }: ContentBlockProps): ReactNode {
+  const isActive = statusBadge !== null && statusBadge !== undefined;
+
   return (
     <Card variant="elevated" padding="none" className={cn("overflow-hidden", className)}>
       <div className="flex items-center gap-3 border-b border-neutral-200 px-5 py-3 dark:border-neutral-700">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10">
-          <Icon className="h-5 w-5 text-primary-500" />
+        <div
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors duration-150",
+            isActive
+              ? "bg-primary-500/10"
+              : "bg-neutral-100 dark:bg-neutral-800",
+          )}
+        >
+          <Icon
+            className={cn(
+              "h-5 w-5 transition-colors duration-150",
+              isActive ? "text-primary-500" : "text-neutral-400",
+            )}
+          />
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">

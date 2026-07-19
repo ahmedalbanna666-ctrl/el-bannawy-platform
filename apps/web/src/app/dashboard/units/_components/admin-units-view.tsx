@@ -37,6 +37,7 @@ interface UnitManagement {
   readonly displayOrder: number;
   readonly published: boolean;
   readonly isPremium: boolean;
+  readonly lockedOverride: boolean | null;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly grade: {
@@ -73,6 +74,7 @@ export function AdminUnitsView(): ReactNode {
 
   const filterParams = useMemo(() => {
     const params = new URLSearchParams();
+    if (academicContext.gradeId) params.set("gradeId", academicContext.gradeId);
     if (academicContext.academicYearId) params.set("academicYearId", academicContext.academicYearId);
     if (academicContext.termId) params.set("termId", academicContext.termId);
     if (academicContext.educationalSystem) params.set("educationalSystem", academicContext.educationalSystem);
@@ -114,6 +116,8 @@ export function AdminUnitsView(): ReactNode {
       gradeId: unit.grade.id,
       displayOrder: unit.displayOrder,
       published: unit.published,
+      isPremium: unit.isPremium,
+      lockedOverride: unit.lockedOverride ?? null,
     });
   };
 

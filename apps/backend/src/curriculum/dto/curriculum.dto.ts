@@ -23,6 +23,18 @@ export class CreateUnitDto {
   @Min(0)
   displayOrder?: number;
 
+  @IsOptional()
+  @IsBoolean()
+  published?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isPremium?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  lockedOverride?: boolean;
+
   @IsUUID()
   academicYearId!: string;
 
@@ -65,6 +77,10 @@ export class UpdateUnitDto {
   isPremium?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  lockedOverride?: boolean;
+
+  @IsOptional()
   @IsUUID()
   academicYearId?: string;
 
@@ -92,6 +108,18 @@ export class CreateLessonDto {
   @IsInt()
   @Min(0)
   displayOrder?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  published?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isPremium?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  lockedOverride?: boolean;
 }
 
 export class UpdateLessonDto {
@@ -111,6 +139,10 @@ export class UpdateLessonDto {
   @IsOptional()
   @IsBoolean()
   isPremium?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  lockedOverride?: boolean;
 
   @IsOptional()
   @IsBoolean()

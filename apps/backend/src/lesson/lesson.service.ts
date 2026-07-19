@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from "@nestjs/common";
+import * as fs from "fs/promises";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
 import { VocabularyPreviewService } from "../document-import/services/vocabulary-preview.service";
-import type { VocabularyImportPreview } from "../document-import/types/vocabulary-preview.types";
+import { LocalFileStorage } from "../common/storage/local-file.storage";
+import type { VocabularyStructuredDraft } from "../document-import/types/vocabulary-structured.types";
 
 @Injectable()
 export class LessonService {
@@ -10,6 +12,7 @@ export class LessonService {
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
     private readonly vocabularyPreview: VocabularyPreviewService,
+    private readonly fileStorage: LocalFileStorage,
   ) {}
 
   async getLesson(id: string, userId: string): Promise<unknown> {
@@ -30,7 +33,19 @@ export class LessonService {
           },
         },
         vocabulary: {
+          where: { sectionId: null },
           orderBy: { displayOrder: "asc" },
+        },
+        vocabularySections: {
+          orderBy: { displayOrder: "asc" },
+          include: {
+            vocabularyItems: {
+              orderBy: { displayOrder: "asc" },
+            },
+            relations: {
+              orderBy: { displayOrder: "asc" },
+            },
+          },
         },
         settings: true,
         document: true,
@@ -62,8 +77,17 @@ export class LessonService {
       where: { userId_lessonId: { userId, lessonId: id } },
     });
 
+    const groups = lesson.vocabularySections.map((section) => ({
+      id: section.id,
+      kind: section.kind,
+      title: section.title,
+      displayOrder: section.displayOrder,
+      items: section.vocabularyItems,
+    }));
+
     return {
       ...lesson,
+      vocabulary: { groups },
       progress: progress ?? { progress: 0, completed: false },
     };
   }
@@ -196,7 +220,7 @@ export class LessonService {
     if (!youtubeId) throw new BadRequestException("Invalid YouTube URL");
 
     return this.prisma.lessonVideo.create({
-      data: { lessonId, title: youtubeUrl, youtubeUrl, youtubeId, displayOrder: 0 },
+      data: { lessonId, title: youtubeUrl, youtubeUrl, youtubeId, providerVideoId: youtubeId, providerUrl: youtubeUrl, displayOrder: 0 },
     });
   }
 
@@ -284,14 +308,32 @@ export class LessonService {
     return { deletedCount: result.count };
   }
 
-  async previewVocabularyImport(lessonId: string, buffer: Buffer, originalName: string, userId: string): Promise<VocabularyImportPreview> {
+  async previewVocabularyImport(lessonId: string, buffer: Buffer, originalName: string, userId: string): Promise<VocabularyStructuredDraft> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
     return this.vocabularyPreview.preview(buffer, originalName);
   }
 
   async commitVocabularyImport(
     lessonId: string,
-    dto: { items: Array<{ word: string; translation: string; definition?: string; example?: string; displayOrder?: number; replaceVocabId?: string; partOfSpeech?: string }>; removeVocabIds?: string[] },
+    dto: {
+      items: Array<{
+        word: string;
+        translation: string;
+        definition?: string;
+        example?: string;
+        displayOrder?: number;
+        replaceVocabId?: string;
+        partOfSpeech?: string;
+        kind?: string;
+        synonym?: string;
+        synonymTranslation?: string;
+        antonym?: string;
+        antonymTranslation?: string;
+        sectionClientDraftId?: string;
+      }>;
+      sections?: Array<{ clientDraftId?: string; title?: string; displayOrder?: number; kind?: string }>;
+      removeVocabIds?: string[];
+    },
     userId: string,
   ): Promise<unknown> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
@@ -303,6 +345,23 @@ export class LessonService {
         });
       }
 
+      const clientDraftToSectionId = new Map<string, string>();
+      const sections = dto.sections ?? [];
+      for (let s = 0; s < sections.length; s++) {
+        const section = sections[s];
+        const created = await tx.vocabularySection.create({
+          data: {
+            lessonId,
+            kind: (section.kind as "STANDARD_VOCABULARY" | "SYNONYM_ANTONYM") ?? "STANDARD_VOCABULARY",
+            title: section.title?.trim() || null,
+            displayOrder: section.displayOrder ?? s,
+          },
+        });
+        if (section.clientDraftId) {
+          clientDraftToSectionId.set(section.clientDraftId, created.id);
+        }
+      }
+
       for (let i = 0; i < dto.items.length; i++) {
         const item = dto.items[i];
         if (item.replaceVocabId) {
@@ -311,38 +370,118 @@ export class LessonService {
           });
         }
 
-        await tx.lessonVocabulary.create({
-          data: {
-            lessonId,
-            word: item.word.trim(),
-            translation: item.translation.trim(),
-            definition: item.definition?.trim() || null,
-            example: item.example?.trim() || null,
-            partOfSpeech: item.partOfSpeech?.trim() || null,
-            displayOrder: item.displayOrder ?? i,
-          },
-        });
+        const sectionId = item.sectionClientDraftId
+          ? clientDraftToSectionId.get(item.sectionClientDraftId) ?? null
+          : null;
+
+        if (item.kind === "SYNONYM_ANTONYM_RELATION") {
+          await tx.vocabularyRelation.create({
+            data: {
+              lessonId,
+              sectionId: sectionId ?? "",
+              primaryWord: item.word.trim(),
+              primaryTranslation: item.translation.trim(),
+              synonym: item.synonym?.trim() || null,
+              synonymTranslation: item.synonymTranslation?.trim() || null,
+              antonym: item.antonym?.trim() || null,
+              antonymTranslation: item.antonymTranslation?.trim() || null,
+              displayOrder: item.displayOrder ?? i,
+            },
+          });
+        } else {
+          await tx.lessonVocabulary.create({
+            data: {
+              lessonId,
+              sectionId,
+              word: item.word.trim(),
+              translation: item.translation.trim(),
+              definition: item.definition?.trim() || null,
+              example: item.example?.trim() || null,
+              partOfSpeech: item.partOfSpeech?.trim() || null,
+              displayOrder: item.displayOrder ?? i,
+            },
+          });
+        }
       }
 
-      return tx.lessonVocabulary.findMany({
-        where: { lessonId },
-        orderBy: { displayOrder: "asc" },
-      });
+      const [vocabulary, relations, createdSections] = await Promise.all([
+        tx.lessonVocabulary.findMany({ where: { lessonId }, orderBy: { displayOrder: "asc" } }),
+        tx.vocabularyRelation.findMany({ where: { lessonId }, orderBy: { displayOrder: "asc" } }),
+        tx.vocabularySection.findMany({ where: { lessonId }, orderBy: { displayOrder: "asc" } }),
+      ]);
+
+      return { vocabulary, relations, sections: createdSections };
     });
   }
 
-  async uploadDocument(lessonId: string, fileName: string, fileUrl: string, fileSize: number, userId: string): Promise<unknown> {
+  async uploadDocument(
+    lessonId: string,
+    fileName: string,
+    buffer: Buffer,
+    fileSize: number,
+    mimeType: string,
+    userId: string,
+  ): Promise<unknown> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+
+    const existing = await this.prisma.lessonDocument.findUnique({ where: { lessonId } });
+    if (existing?.fileUrl) {
+      await this.fileStorage.remove(existing.fileUrl);
+    }
+
+    const { fileUrl } = await this.fileStorage.save(buffer, fileName, lessonId);
+
     return this.prisma.lessonDocument.upsert({
       where: { lessonId },
-      create: { lessonId, fileName, fileUrl, fileSize },
-      update: { fileName, fileUrl, fileSize },
+      create: { lessonId, fileName, fileUrl, fileSize, mimeType, downloadable: true },
+      update: { fileName, fileUrl, fileSize, mimeType },
     });
   }
 
   async deleteDocument(lessonId: string, userId: string): Promise<void> {
     await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    const existing = await this.prisma.lessonDocument.findUnique({ where: { lessonId } });
+    if (existing?.fileUrl) {
+      await this.fileStorage.remove(existing.fileUrl);
+    }
     await this.prisma.lessonDocument.deleteMany({ where: { lessonId } });
+  }
+
+  async getDocument(lessonId: string, userId: string): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    const doc = await this.prisma.lessonDocument.findUnique({ where: { lessonId } });
+    if (!doc) {
+      throw new NotFoundException("Document not found");
+    }
+
+    const role = await this.getRole(userId);
+    if (role !== "TEACHER" && role !== "ADMINISTRATOR" && !doc.downloadable) {
+      throw new ForbiddenException("This document is not available for download");
+    }
+    if (role === "STUDENT") {
+      await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    }
+
+    const exists = await this.fileStorage.exists(doc.fileUrl);
+    if (!exists) {
+      throw new NotFoundException("Document file is missing");
+    }
+
+    const buffer = await fs.readFile(this.fileStorage.resolve(doc.fileUrl));
+    return { buffer, fileName: doc.fileName, mimeType: doc.mimeType };
+  }
+
+  async setDocumentDownloadable(lessonId: string, downloadable: boolean, userId: string): Promise<unknown> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    return this.prisma.lessonDocument.upsert({
+      where: { lessonId },
+      create: { lessonId, fileName: "document", fileUrl: "", downloadable },
+      update: { downloadable },
+    });
+  }
+
+  private async getRole(userId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    return user?.role ?? "STUDENT";
   }
 
   async uploadQuiz(lessonId: string, title: string, userId: string): Promise<unknown> {

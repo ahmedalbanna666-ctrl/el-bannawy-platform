@@ -14,6 +14,18 @@ async function main() {
 
   // Idempotent: clean existing seed data first
   await prisma.$transaction([
+    prisma.assessmentAnswer.deleteMany(),
+    prisma.assessmentAttempt.deleteMany(),
+    prisma.assessmentQuestion.deleteMany(),
+    prisma.assessmentSection.deleteMany(),
+    prisma.assessment.deleteMany(),
+    prisma.questionTagAssignment.deleteMany(),
+    prisma.questionTag.deleteMany(),
+    prisma.questionAttachment.deleteMany(),
+    prisma.questionHint.deleteMany(),
+    prisma.questionOption.deleteMany(),
+    prisma.question.deleteMany(),
+    prisma.questionGroup.deleteMany(),
     prisma.homeworkAnswer.deleteMany(),
     prisma.quizAnswer.deleteMany(),
     prisma.studentHomeworkAttempt.deleteMany(),
@@ -24,6 +36,8 @@ async function main() {
     prisma.activity.deleteMany(),
     prisma.videoProgress.deleteMany(),
     prisma.lessonVocabulary.deleteMany(),
+    prisma.vocabularyRelation.deleteMany(),
+    prisma.vocabularySection.deleteMany(),
     prisma.homeworkQuestion.deleteMany(),
     prisma.quizQuestion.deleteMany(),
     prisma.homework.deleteMany(),
@@ -33,18 +47,27 @@ async function main() {
     prisma.lessonProgress.deleteMany(),
     prisma.attendanceRecord.deleteMany(),
     prisma.lessonVideo.deleteMany(),
+    prisma.videoEvent.deleteMany(),
+    prisma.videoQuestion.deleteMany(),
+    prisma.videoQuestionOption.deleteMany(),
     prisma.lesson.deleteMany(),
     prisma.unit.deleteMany(),
     prisma.grade.deleteMany(),
     prisma.stage.deleteMany(),
     prisma.xPTransaction.deleteMany(),
     prisma.userAchievement.deleteMany(),
+    prisma.userPermissionGrant.deleteMany(),
     prisma.coinWallet.deleteMany(),
     prisma.notificationPreference.deleteMany(),
     prisma.notification.deleteMany(),
     prisma.conversationMessage.deleteMany(),
     prisma.conversation.deleteMany(),
     prisma.loginHistory.deleteMany(),
+    prisma.storyChapter.deleteMany(),
+    prisma.story.deleteMany(),
+    prisma.finalReviewSection.deleteMany(),
+    prisma.finalReview.deleteMany(),
+    prisma.auditLog.deleteMany(),
     prisma.refreshToken.deleteMany(),
     prisma.session.deleteMany(),
     prisma.passwordReset.deleteMany(),
@@ -53,19 +76,10 @@ async function main() {
 
   const hashedPassword = await bcrypt.hash("Test@1234", 12);
 
-  const student = await prisma.user.create({
-    data: {
-      fullName: "Ahmed Hassan",
-      mobileNumber: "+201001234567",
-      passwordHash: hashedPassword,
-      role: "STUDENT",
-      status: "ACTIVE",
-    },
-  });
-
   const teacher = await prisma.user.create({
     data: {
       fullName: "Mohamed Ali",
+      email: "teacher@elbannawy.com",
       mobileNumber: "+201009876543",
       passwordHash: hashedPassword,
       role: "TEACHER",
@@ -76,6 +90,7 @@ async function main() {
   const admin = await prisma.user.create({
     data: {
       fullName: "Admin User",
+      email: "admin@elbannawy.com",
       mobileNumber: "+201005555555",
       passwordHash: hashedPassword,
       role: "ADMINISTRATOR",
@@ -83,36 +98,85 @@ async function main() {
     },
   });
 
-  await prisma.coinWallet.create({
-    data: { userId: student.id, balance: 500 },
+  await prisma.user.create({
+    data: {
+      fullName: "Ahmed Albanna",
+      email: "ahmed.albanna666@gmail.com",
+      mobileNumber: "+201001234567",
+      passwordHash: hashedPassword,
+      role: "ADMINISTRATOR",
+      status: "ACTIVE",
+    },
   });
 
-  const xpSeeds = [
-    { amount: 50, reason: "Completed lesson: Introduction to English" },
-    { amount: 100, reason: "Quiz: Vocabulary Basics - 90% score" },
-    { amount: 75, reason: "Homework: Grammar Exercise 1" },
-    { amount: 200, reason: "Achievement: First Week Streak" },
-    { amount: 30, reason: "Daily login bonus" },
-  ];
-  for (const xp of xpSeeds) {
-    await prisma.xPTransaction.create({ data: { userId: student.id, ...xp } });
+  const STAGE_GRADES: Record<string, string[]> = {
+    ابتدائي: [
+      "الصف الأول الابتدائي",
+      "الصف الثاني الابتدائي",
+      "الصف الثالث الابتدائي",
+      "الصف الرابع الابتدائي",
+      "الصف الخامس الابتدائي",
+      "الصف السادس الابتدائي",
+    ],
+    إعدادي: ["الصف الأول الإعدادي", "الصف الثاني الإعدادي", "الصف الثالث الإعدادي"],
+    ثانوي: ["الصف الأول الثانوي", "الصف الثاني الثانوي", "الصف الثالث الثانوي"],
+  };
+
+  const stageGradeMap = new Map<string, string>();
+  let stageOrder = 0;
+  for (const [stageName, gradeNames] of Object.entries(STAGE_GRADES)) {
+    stageOrder += 1;
+    const stage = await prisma.stage.create({
+      data: { id: uuidv4(), name: stageName, displayOrder: stageOrder },
+    });
+    let gradeOrder = 0;
+    for (const gradeName of gradeNames) {
+      gradeOrder += 1;
+      const grade = await prisma.grade.create({
+        data: { id: uuidv4(), name: gradeName, displayOrder: gradeOrder, stageId: stage.id },
+      });
+      if (stageName === "ابتدائي" && gradeName === "الصف الأول الابتدائي") {
+        stageGradeMap.set("primaryGrade1", grade.id);
+      }
+    }
   }
 
-  const achievementSeeds = [
-    { type: "first_lesson", title: "First Lesson", description: "Completed your first lesson", icon: "trophy" },
-    { type: "week_streak", title: "Week Warrior", description: "7-day learning streak", icon: "flame" },
-    { type: "quiz_master", title: "Quiz Master", description: "Score 90%+ on 3 quizzes", icon: "award" },
-  ];
-  for (const ach of achievementSeeds) {
-    await prisma.userAchievement.create({ data: { userId: student.id, ...ach } });
-  }
+  const seedGradeId = stageGradeMap.get("primaryGrade1")!;
 
-  const stage = await prisma.stage.create({
-    data: { id: uuidv4(), name: "Beginner", displayOrder: 1 },
+  await prisma.teacherGrade.create({
+    data: { userId: teacher.id, gradeId: seedGradeId },
   });
 
-  const grade = await prisma.grade.create({
-    data: { id: uuidv4(), name: "Grade 1", displayOrder: 1, stageId: stage.id },
+  const academicYear = await prisma.academicYear.upsert({
+    where: { name: "2025-2026" },
+    create: {
+      id: uuidv4(),
+      name: "2025-2026",
+      isActive: true,
+      terms: {
+        create: [
+          { id: uuidv4(), name: "الترم الأول", displayOrder: 1 },
+          { id: uuidv4(), name: "الترم الثاني", displayOrder: 2 },
+        ],
+      },
+    },
+    update: { isActive: true },
+  });
+
+  const terms = await prisma.term.findMany({ where: { academicYearId: academicYear.id } });
+  const firstTermId = terms[0]?.id ?? null;
+
+
+
+  await prisma.systemSetting.upsert({
+    where: { key: "active_academic_year_id" },
+    create: { key: "active_academic_year_id", value: academicYear.id },
+    update: { value: academicYear.id },
+  });
+  await prisma.systemSetting.upsert({
+    where: { key: "active_term_id" },
+    create: { key: "active_term_id", value: firstTermId ?? "" },
+    update: { value: firstTermId ?? "" },
   });
 
   const unit1 = await prisma.unit.create({
@@ -121,7 +185,9 @@ async function main() {
       title: "Getting Started",
       description: "Basic greetings and introductions",
       displayOrder: 1,
-      gradeId: grade.id,
+      gradeId: seedGradeId,
+      academicYearId: academicYear.id,
+      termId: firstTermId,
       published: true,
     },
   });
@@ -132,7 +198,9 @@ async function main() {
       title: "Everyday Conversations",
       description: "Common phrases for daily interactions",
       displayOrder: 2,
-      gradeId: grade.id,
+      gradeId: seedGradeId,
+      academicYearId: academicYear.id,
+      termId: firstTermId,
       published: true,
     },
   });
@@ -186,6 +254,9 @@ async function main() {
       title: "Greetings Video",
       youtubeUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
       youtubeId: "dQw4w9WgXcQ",
+      providerName: "YOUTUBE",
+      providerVideoId: "dQw4w9WgXcQ",
+      providerUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
       duration: 180,
       displayOrder: 1,
       lessonId: lesson1.id,
@@ -199,6 +270,9 @@ async function main() {
       title: "Practice: Say Hello",
       youtubeUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
       youtubeId: "dQw4w9WgXcQ",
+      providerName: "YOUTUBE",
+      providerVideoId: "dQw4w9WgXcQ",
+      providerUrl: "https://youtube.com/watch?v=dQw4w9WgXcQ",
       duration: 120,
       displayOrder: 2,
       lessonId: lesson1.id,
@@ -311,22 +385,11 @@ async function main() {
     },
   });
 
-  await prisma.lessonProgress.create({
-    data: { userId: student.id, lessonId: lesson1.id, completed: false, progress: 65 },
-  });
 
-  await prisma.loginHistory.create({
-    data: { userId: student.id, ipAddress: "127.0.0.1", success: true },
-  });
-
-  await prisma.attendanceRecord.create({
-    data: { userId: student.id, present: true },
-  });
-
-  console.log(`Student: ${student.fullName} (+201001234567 / Test@1234)`);
-  console.log(`Teacher: ${teacher.fullName} (+201009876543 / Test@1234)`);
-  console.log(`Admin: ${admin.fullName} (+201005555555 / Test@1234)`);
-  console.log("Education: 1 stage, 1 grade, 2 units, 3 lessons");
+  console.log(`Teacher: ${teacher.fullName} (${teacher.email} / +201009876543 / Test@1234)`);
+  console.log(`Admin 1: admin@elbannawy.com / Test@1234`);
+  console.log(`Admin 2: ahmed.albanna666@gmail.com / Test@1234`);
+  console.log("Education: 3 stages, 12 grades, 1 academic year (2 terms), 2 units, 3 lessons");
   console.log("Content: 2 videos, 2 activities, 3 vocab, 1 homework, 1 quiz");
   console.log("Seeding complete!");
 }

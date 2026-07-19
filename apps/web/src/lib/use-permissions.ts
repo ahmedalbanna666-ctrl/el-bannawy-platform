@@ -20,7 +20,7 @@ export function usePermissions(): {
   readonly isStudent: boolean;
 } {
   const user = useAuthStore((s) => s.user);
-  const userRole = user?.role as UserRole | undefined;
+  const userRole = user?.role;
 
   const role = userRole ?? "STUDENT";
 

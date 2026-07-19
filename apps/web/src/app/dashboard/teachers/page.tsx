@@ -3,6 +3,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { PERMISSIONS } from "@el-bannawy/shared";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -23,6 +24,9 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  Shield,
+  Coins,
+  type LucideIcon,
 } from "lucide-react";
 
 interface AssignedGrade {
@@ -113,7 +117,7 @@ export default function TeachersPage(): ReactNode {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"profile" | "grades">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "grades" | "permissions">("profile");
 
   const filters: Record<string, string> = {};
   if (search) filters.search = search;
@@ -191,6 +195,7 @@ export default function TeachersPage(): ReactNode {
           {([
             { key: "profile", label: "الملف الشخصي", icon: User },
             { key: "grades", label: "الصفوف الدراسية", icon: BookOpen },
+            { key: "permissions", label: "الصلاحيات", icon: Shield },
           ] as const).map((tab) => (
             <Button
               key={tab.key}
@@ -219,6 +224,10 @@ export default function TeachersPage(): ReactNode {
             detailLoading={detailLoading}
             setDialog={setDialog}
           />
+        )}
+
+        {activeTab === "permissions" && selectedTeacherId && (
+          <TeacherPermissionsTab teacherId={selectedTeacherId} />
         )}
 
         <ActionDialogs
@@ -502,6 +511,204 @@ function TeacherGradesTab({
             ))}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TeacherPermissionsTab({
+  teacherId,
+}: {
+  teacherId: string;
+}): ReactNode {
+  const queryClient = useQueryClient();
+
+  const PERMISSION_LABELS: Record<string, string> = {
+    "users.view": "عرض المستخدمين",
+    "users.create": "إنشاء مستخدمين",
+    "users.edit": "تعديل المستخدمين",
+    "users.delete": "حذف المستخدمين",
+    "units.view": "عرض الوحدات",
+    "units.create": "إنشاء وحدات",
+    "units.edit": "تعديل الوحدات",
+    "units.delete": "حذف الوحدات",
+    "lessons.view": "عرض الدروس",
+    "lessons.create": "إنشاء دروس",
+    "lessons.edit": "تعديل الدروس",
+    "lessons.delete": "حذف الدروس",
+    "videos.upload": "رفع الفيديوهات",
+    "pdfs.upload": "رفع الملفات",
+    "vocabulary.manage": "إدارة المفردات",
+    "homework.manage": "إدارة الواجبات",
+    "quizzes.manage": "إدارة الاختبارات",
+    "story.view": "عرض القصص",
+    "story.edit": "تعديل القصص",
+    "story.publish": "نشر القصص",
+    "final_review.view": "عرض المراجعات",
+    "final_review.edit": "تعديل المراجعات",
+    "live.view": "عرض البث المباشر",
+    "live.create": "إنشاء بث مباشر",
+    "live.edit": "تعديل البث المباشر",
+    "live.delete": "حذف البث المباشر",
+    "students.view": "عرض الطلاب",
+    "students.create": "إنشاء طلاب",
+    "ai.manage": "إدارة الذكاء الاصطناعي",
+    "reports.view": "عرض التقارير",
+    "reports.export": "تصدير التقارير",
+    "notifications.send": "إرسال الإشعارات",
+    "settings.manage": "إدارة الإعدادات",
+    "support.answer": "الرد على الدعم",
+    "learning.access": "الوصول للتعلم",
+    "coins.view": "عرض العملات",
+    "coins.manage": "إدارة باقات العملات والمدفوعات",
+    "coins.grant": "منح العملات",
+    "coins.purchase": "شراء العملات",
+    "coins.unlock": "فتح المحتوى بالعملات",
+    "unlock_codes.manage": "إدارة رموز التفعيل",
+    "unlock_requests.manage": "إدارة طلبات الفتح",
+    "roles.manage": "إدارة الصلاحيات",
+    "platform.manage": "إدارة المنصة",
+  };
+
+  const PERMISSION_GROUPS: { label: string; keys: string[]; icon?: LucideIcon }[] = [
+    { label: "الوحدات", keys: [PERMISSIONS.UNITS_VIEW, PERMISSIONS.UNITS_CREATE, PERMISSIONS.UNITS_EDIT, PERMISSIONS.UNITS_DELETE] },
+    { label: "الدروس", keys: [PERMISSIONS.LESSONS_VIEW, PERMISSIONS.LESSONS_CREATE, PERMISSIONS.LESSONS_EDIT, PERMISSIONS.LESSONS_DELETE] },
+    { label: "المحتوى", keys: [PERMISSIONS.VIDEOS_UPLOAD, PERMISSIONS.PDFS_UPLOAD, PERMISSIONS.VOCABULARY_MANAGE, PERMISSIONS.HOMEWORK_MANAGE, PERMISSIONS.QUIZZES_MANAGE] },
+    { label: "القصة", keys: [PERMISSIONS.STORY_VIEW, PERMISSIONS.STORY_EDIT, PERMISSIONS.STORY_PUBLISH] },
+    { label: "المراجعة النهائية", keys: [PERMISSIONS.FINAL_REVIEW_VIEW, PERMISSIONS.FINAL_REVIEW_EDIT] },
+    { label: "البث المباشر", keys: [PERMISSIONS.LIVE_VIEW, PERMISSIONS.LIVE_CREATE, PERMISSIONS.LIVE_EDIT, PERMISSIONS.LIVE_DELETE] },
+    { label: "الطلاب", keys: [PERMISSIONS.STUDENTS_VIEW, PERMISSIONS.STUDENTS_CREATE] },
+    { label: "الذكاء الاصطناعي", keys: [PERMISSIONS.AI_MANAGE] },
+    { label: "التقارير", keys: [PERMISSIONS.REPORTS_VIEW, PERMISSIONS.REPORTS_EXPORT] },
+    { label: "الإشعارات", keys: [PERMISSIONS.NOTIFICATIONS_SEND] },
+    { label: "الدعم", keys: [PERMISSIONS.SUPPORT_ANSWER] },
+    { label: "التعلم", keys: [PERMISSIONS.LEARNING_ACCESS] },
+    {
+      label: "العملات والاشتراكات",
+      icon: Coins,
+      keys: [
+        PERMISSIONS.COINS_VIEW,
+        PERMISSIONS.COINS_MANAGE,
+        PERMISSIONS.COINS_GRANT,
+        PERMISSIONS.COINS_UNLOCK,
+        PERMISSIONS.UNLOCK_CODES_MANAGE,
+        PERMISSIONS.UNLOCK_REQUESTS_MANAGE,
+      ],
+    },
+  ];
+
+  const { data: permissionsData, isLoading } = useQuery({
+    queryKey: ["teacher-permissions", teacherId],
+    queryFn: async () => {
+      const res = await api.get<{ grantedPermissions: string[] }>(
+        `/admin/teachers/${teacherId}/permissions`,
+      );
+      return res.data ?? { grantedPermissions: [] };
+    },
+    staleTime: 15_000,
+  });
+
+  const grantedPermissions = permissionsData?.grantedPermissions ?? [];
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({
+      permission,
+      grant,
+    }: {
+      permission: string;
+      grant: boolean;
+    }) => {
+      if (grant) {
+        return api.post(`/admin/teachers/${teacherId}/permissions/grant`, {
+          permission,
+        });
+      }
+      return api.post(`/admin/teachers/${teacherId}/permissions/revoke`, {
+        permission,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["teacher-permissions", teacherId],
+      });
+    },
+  });
+
+  if (isLoading) {
+    return <Skeleton className="h-64 rounded-xl" />;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Shield className="h-5 w-5 text-primary-500" />
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            إدارة الصلاحيات
+          </h2>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-4 text-sm text-neutral-500">
+          قم بتمكين أو تعطيل الصلاحيات الفردية لهذا المعلم. الصلاحيات الممنوحة تظهر باللون الأخضر.
+        </p>
+        <div className="flex flex-col gap-4">
+          {PERMISSION_GROUPS.map((group) => {
+            return (
+              <div
+                key={group.label}
+                className="rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden"
+              >
+                 <div className="flex items-center justify-between bg-neutral-50 dark:bg-neutral-800 px-4 py-2">
+                  <span className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                    {group.icon && <group.icon className="h-4 w-4 text-amber-500" />}
+                    {group.label}
+                  </span>
+                  <span className="text-xs text-neutral-400">
+                    {group.keys.filter((k) => grantedPermissions.includes(k))
+                      .length}{" "}
+                    / {group.keys.length}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2 p-3">
+                  {group.keys.map((permKey) => {
+                    const isGranted = grantedPermissions.includes(permKey);
+                    const label =
+                      PERMISSION_LABELS[permKey] ?? permKey;
+
+                    return (
+                      <button
+                        key={permKey}
+                        type="button"
+                        onClick={() => {
+                          toggleMutation.mutate({
+                            permission: permKey,
+                            grant: !isGranted,
+                          });
+                        }}
+                        disabled={toggleMutation.isPending}
+                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+                          isGranted
+                            ? "border-success-500 bg-success-500/10 text-success-600 dark:text-success-400"
+                            : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600"
+                        }`}
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            isGranted
+                              ? "bg-success-500"
+                              : "bg-neutral-300 dark:bg-neutral-600"
+                          }`}
+                        />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );

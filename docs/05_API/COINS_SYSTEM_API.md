@@ -161,6 +161,17 @@ Request
 }
 ```
 
+Supported paymentMethod values
+
+- paymob
+- fawry
+- instapay
+- vodafone_cash
+- orange_cash
+- etisalat_cash
+
+The purchase endpoint creates a PENDING payment and returns a paymentUrl. No coins are credited until /coins/verify succeeds.
+
 Response
 
 ```json

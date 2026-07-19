@@ -1,0 +1,16 @@
+export { BaseQuestion } from "./base-question.entity";
+export { McqQuestion } from "./mcq-question.entity";
+export { TrueFalseQuestion } from "./true-false-question.entity";
+export { FillInBlankQuestion } from "./fill-in-blank-question.entity";
+export { GrammarQuestion } from "./grammar-question.entity";
+export { ReadingQuestion } from "./reading-question.entity";
+export { ReadingSubQuestion } from "./reading-sub-question.entity";
+export { DialogueQuestion } from "./dialogue-question.entity";
+export { DialogueSubQuestion } from "./dialogue-sub-question.entity";
+export { ParagraphQuestion } from "./paragraph-question.entity";
+export { WritingQuestion } from "./writing-question.entity";
+export { MatchingQuestion } from "./matching-question.entity";
+export { OrderingQuestion } from "./ordering-question.entity";
+export { DragDropQuestion } from "./drag-drop-question.entity";
+export { ShortAnswerQuestion } from "./short-answer-question.entity";
+export { EssayQuestion } from "./essay-question.entity";

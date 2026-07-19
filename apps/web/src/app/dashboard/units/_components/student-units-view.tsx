@@ -6,7 +6,8 @@ import { api } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { BookOpen } from "lucide-react";
+import { UnitLockOverlay } from "@/components/coins/unit-lock-overlay";
+import { BookOpen, Lock } from "lucide-react";
 
 interface LessonSummary {
   id: string;
@@ -24,6 +25,8 @@ interface Unit {
   title: string;
   description: string;
   displayOrder: number;
+  isPremium: boolean;
+  unlocked: boolean;
   lessons: LessonSummary[];
 }
 
@@ -203,6 +206,7 @@ export function StudentUnitsView(): ReactNode {
           {reversed.map((unit, idx) => {
             const status = getUnitStatus(idx, reversed.length);
             const isOdd = idx % 2 === 0;
+            const locked = unit.isPremium && !unit.unlocked;
 
             const ringColor =
               status === "completed"
@@ -216,6 +220,13 @@ export function StudentUnitsView(): ReactNode {
                 ? "hover:border-success-500 hover:shadow-[0_0_30px_rgba(16,185,129,0.22)]"
                 : "hover:border-primary-500/60 hover:shadow-[0_0_25px_rgba(34,211,238,0.18)]";
 
+            const handleOpen = (): void => {
+              if (locked) return;
+              if (unit.lessons.length > 0) {
+                router.push(`/dashboard/lessons/${unit.id}`);
+              }
+            };
+
             return (
               <div
                 key={unit.id}
@@ -227,37 +238,45 @@ export function StudentUnitsView(): ReactNode {
                   </span>
                 )}
 
-                <div
-                  ref={(el): void => {
-                    nodeRefs.current[idx] = el;
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e): void => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      if (unit.lessons.length > 0) {
-                        router.push(`/dashboard/lessons/${unit.id}`);
+                <div className="relative">
+                  <div
+                    ref={(el): void => {
+                      nodeRefs.current[idx] = el;
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e): void => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleOpen();
                       }
-                    }
-                  }}
-                  onClick={(): void => {
-                    if (unit.lessons.length > 0) {
-                      router.push(`/dashboard/lessons/${unit.id}`);
-                    }
-                  }}
-                  className={`flex h-[100px] w-[100px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[26px] border-2 transition-all duration-200 hover:scale-[1.02] ${ringColor} ${hoverColor}`}
-                >
-                  <span className="font-cairo text-[9px] font-extrabold uppercase tracking-[0.15em] text-primary-500/60">
-                    UNIT
-                  </span>
-                  <span className="font-cairo text-[2.2rem] font-black leading-none text-neutral-900 dark:text-neutral-100">
-                    {unit.displayOrder}
-                  </span>
-                  <span className="text-[11px] font-semibold text-neutral-400">
-                    {status === "current" ? `${String(45)}%` : status === "completed" ? "100%" : ""}
-                  </span>
+                    }}
+                    onClick={handleOpen}
+                    className={`flex h-[100px] w-[100px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[26px] border-2 transition-all duration-200 hover:scale-[1.02] ${ringColor} ${hoverColor} ${locked ? "opacity-70" : ""}`}
+                  >
+                    <span className="font-cairo text-[9px] font-extrabold uppercase tracking-[0.15em] text-primary-500/60">
+                      UNIT
+                    </span>
+                    <span className="font-cairo text-[2.2rem] font-black leading-none text-neutral-900 dark:text-neutral-100">
+                      {unit.displayOrder}
+                    </span>
+                    <span className="text-[11px] font-semibold text-neutral-400">
+                      {status === "current" ? `${String(45)}%` : status === "completed" ? "100%" : ""}
+                    </span>
+                  </div>
+
+                  {locked && (
+                    <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-white shadow-[0_0_10px_rgba(245,158,11,0.5)]">
+                      <Lock className="h-3.5 w-3.5" />
+                    </span>
+                  )}
                 </div>
+
+                {locked && (
+                  <div className="mt-2">
+                    <UnitLockOverlay unitId={unit.id} unitTitle={unit.title} />
+                  </div>
+                )}
               </div>
             );
           })}

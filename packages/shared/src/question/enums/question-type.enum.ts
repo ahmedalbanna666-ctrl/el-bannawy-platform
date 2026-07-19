@@ -1,0 +1,19 @@
+export const QuestionType = {
+  MCQ: "MCQ",
+  TRUE_FALSE: "TRUE_FALSE",
+  FILL_IN_BLANK: "FILL_IN_BLANK",
+  GRAMMAR: "GRAMMAR",
+  READING: "READING",
+  READING_QUESTION: "READING_QUESTION",
+  DIALOGUE: "DIALOGUE",
+  DIALOGUE_QUESTION: "DIALOGUE_QUESTION",
+  PARAGRAPH: "PARAGRAPH",
+  WRITING: "WRITING",
+  MATCHING: "MATCHING",
+  ORDERING: "ORDERING",
+  DRAG_DROP: "DRAG_DROP",
+  SHORT_ANSWER: "SHORT_ANSWER",
+  ESSAY: "ESSAY",
+} as const;
+
+export type QuestionType = (typeof QuestionType)[keyof typeof QuestionType];

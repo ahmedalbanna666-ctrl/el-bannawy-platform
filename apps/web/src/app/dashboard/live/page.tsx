@@ -1,165 +1,72 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import {
+  LiveSessionCard,
+  LiveSessionCardSkeleton,
+} from "@/components/live/live-session-card";
+import {
+  useLiveSubscriptions,
+  useMyBookings,
+  useLiveSessions,
+  useBookSession,
+  usePublishSession,
+  useUnpublishSession,
+  deriveSessionState,
+  type LiveSubscriptionItem,
+  type LiveSessionItem,
+} from "@/lib/live-api";
+import { useAuthStore } from "@/lib/auth-store";
+import { usePermissions } from "@/lib/use-permissions";
 import {
   Users,
   User,
-  Clock,
   Calendar,
   Zap,
   Star,
-  ShieldCheck,
-  RotateCw,
-  Headphones,
-  Lock,
   Play,
   Sparkles,
   CheckCircle2,
   ArrowLeft,
+  Video,
+  Settings2,
 } from "lucide-react";
 
-// ── Types (Backend-Ready — mirrors future API response shapes) ──────
+function SubscriptionHero({
+  subscriptions,
+  isLoading,
+}: {
+  subscriptions: LiveSubscriptionItem[];
+  isLoading: boolean;
+}): ReactNode {
+  if (isLoading) {
+    return (
+      <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-none">
+        {[1, 2].map((i) => (
+          <Card key={i} variant="gradient" padding="none" className="min-w-[280px] flex-1 snap-center overflow-hidden">
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-3 animate-pulse">
+                <div className="h-4 w-24 rounded bg-white/20" />
+                <div className="h-5 w-32 rounded bg-white/20" />
+                <div className="h-16 w-full rounded-xl bg-white/10" />
+                <div className="h-2 w-full rounded-full bg-white/15" />
+                <div className="h-10 w-full rounded-xl bg-white/20" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
-type SubscriptionType = "PRIVATE_MONTHLY" | "GROUP_MONTHLY" | "ONE_TIME_PRIVATE";
-
-interface SubscriptionData {
-  type: SubscriptionType;
-  status: "ACTIVE" | "EXPIRED" | "CANCELLED";
-  teacherName: string;
-  groupName?: string;
-  nextSession: { date: string; time: string };
-  sessionsUsed: number;
-  sessionsTotal: number;
-}
-
-interface UpcomingSession {
-  id: string;
-  teacherName: string;
-  teacherAvatar: string;
-  type: "PRIVATE" | "GROUP";
-  date: string;
-  time: string;
-  relativeStatus: "TODAY" | "TOMORROW" | "IN_2_HOURS" | "NOW" | "COMPLETED";
-}
-
-interface AvailableService {
-  id: string;
-  icon: ReactNode;
-  title: string;
-  description: string;
-  benefits: string[];
-  badge?: string;
-  buttonLabel: string;
-  href: string;
-  featured: boolean;
-}
-
-// ── Placeholder Data (replace with React Query when backend is ready) ─
-
-const SUBSCRIPTION_DATA: SubscriptionData[] = [
-  {
-    type: "PRIVATE_MONTHLY",
-    status: "ACTIVE",
-    teacherName: "أحمد البنا",
-    nextSession: { date: "2026-07-04", time: "19:00" },
-    sessionsUsed: 5,
-    sessionsTotal: 8,
-  },
-  {
-    type: "GROUP_MONTHLY",
-    status: "ACTIVE",
-    teacherName: "أحمد البنا",
-    groupName: "مجموعة المحادثة A",
-    nextSession: { date: "2026-07-05", time: "16:30" },
-    sessionsUsed: 3,
-    sessionsTotal: 8,
-  },
-];
-
-const UPCOMING_SESSIONS: UpcomingSession[] = [
-  {
-    id: "s1",
-    teacherName: "أحمد البنا",
-    teacherAvatar: "",
-    type: "PRIVATE",
-    date: "2026-07-04",
-    time: "19:00",
-    relativeStatus: "TOMORROW",
-  },
-  {
-    id: "s2",
-    teacherName: "أحمد البنا",
-    teacherAvatar: "",
-    type: "GROUP",
-    date: "2026-07-05",
-    time: "16:30",
-    relativeStatus: "IN_2_HOURS",
-  },
-  {
-    id: "s3",
-    teacherName: "أحمد البنا",
-    teacherAvatar: "",
-    type: "PRIVATE",
-    date: "2026-07-02",
-    time: "10:00",
-    relativeStatus: "COMPLETED",
-  },
-];
-
-const SERVICES: AvailableService[] = [
-  {
-    id: "private-monthly",
-    icon: <User className="h-6 w-6" />,
-    title: "اشتراك فردي شهري",
-    description: "موعد ثابت أسبوعياً مع المعلم.",
-    benefits: ["اهتمام كامل", "خطة مخصصة", "مواعيد ثابتة"],
-    badge: "الأكثر طلباً",
-    buttonLabel: "اشترك الآن",
-    href: "/dashboard/live/book",
-    featured: true,
-  },
-  {
-    id: "group-monthly",
-    icon: <Users className="h-6 w-6" />,
-    title: "اشتراك مجموعة",
-    description: "انضم إلى مجموعة ثابتة.",
-    benefits: ["سعر أقل", "تفاعل جماعي", "مواعيد ثابتة"],
-    buttonLabel: "عرض المجموعات",
-    href: "/dashboard/live/book",
-    featured: false,
-  },
-  {
-    id: "one-time",
-    icon: <Zap className="h-6 w-6" />,
-    title: "احجز حصة فردية",
-    description: "احجز حصة واحدة حسب المواعيد المتاحة.",
-    benefits: ["اختيار اليوم", "اختيار الوقت", "مرونة كاملة"],
-    buttonLabel: "احجز الآن",
-    href: "/dashboard/live/book",
-    featured: false,
-  },
-];
-
-const RELATIVE_LABELS: Record<string, { label: string; color: "success" | "primary" | "warning" | "secondary" }> = {
-  TODAY: { label: "اليوم", color: "primary" },
-  TOMORROW: { label: "غداً", color: "primary" },
-  IN_2_HOURS: { label: "بعد ساعتين", color: "warning" },
-  NOW: { label: "بدأت الآن", color: "success" },
-  COMPLETED: { label: "انتهت", color: "secondary" },
-};
-
-// ── Sub-components ───────────────────────────────────────────────────
-
-function SubscriptionHero({ subscriptions }: { subscriptions: SubscriptionData[] }): ReactNode {
-  const count = subscriptions.length;
-
-  if (count === 0) {
+  if (subscriptions.length === 0) {
     return (
       <Card variant="gradient" padding="none" className="overflow-hidden">
         <CardContent className="p-6">
@@ -173,7 +80,11 @@ function SubscriptionHero({ subscriptions }: { subscriptions: SubscriptionData[]
                 اشترك الآن للاستفادة من الحصص المباشرة
               </p>
             </div>
-            <Button variant="primary" size="md" className="bg-white text-primary-600 hover:bg-white/90">
+            <Button
+              variant="primary"
+              size="md"
+              className="bg-white text-primary-600 hover:bg-white/90"
+            >
               اشترك الآن
             </Button>
           </div>
@@ -184,62 +95,57 @@ function SubscriptionHero({ subscriptions }: { subscriptions: SubscriptionData[]
 
   return (
     <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-none">
-      {subscriptions.map((sub, idx) => {
-        const isPrivate = sub.type === "PRIVATE_MONTHLY";
-        const isGroup = sub.type === "GROUP_MONTHLY";
+      {subscriptions.map((sub) => {
+        const isPrivate = sub.planType === "PRIVATE_MONTHLY";
         const remaining = sub.sessionsTotal - sub.sessionsUsed;
-        const progressPct = Math.round((sub.sessionsUsed / sub.sessionsTotal) * 100);
+        const progressPct =
+          sub.sessionsTotal > 0
+            ? Math.round((sub.sessionsUsed / sub.sessionsTotal) * 100)
+            : 0;
 
         return (
           <Card
-            key={idx}
+            key={sub.id}
             variant="gradient"
             padding="none"
-            className="min-w-[300px] flex-1 snap-center overflow-hidden"
+            className="min-w-[280px] flex-1 snap-center overflow-hidden"
           >
             <CardContent className="p-5">
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    {isPrivate && (
+                    {isPrivate ? (
                       <>
                         <User className="h-4 w-4 text-white/70" />
-                        <h2 className="text-sm font-bold text-white">اشتراك فردي</h2>
+                        <h2 className="text-sm font-bold text-white">
+                          اشتراك فردي
+                        </h2>
                       </>
-                    )}
-                    {isGroup && (
+                    ) : (
                       <>
                         <Users className="h-4 w-4 text-white/70" />
-                        <h2 className="text-sm font-bold text-white">اشتراك مجموعة</h2>
+                        <h2 className="text-sm font-bold text-white">
+                          اشتراك مجموعة
+                        </h2>
                       </>
                     )}
                   </div>
-                  <Badge className="bg-white/20 text-white text-[10px]">نشط</Badge>
-                </div>
-
-                <div>
-                  <p className="text-xs text-white/60">المعلم</p>
-                  <p className="text-base font-semibold text-white">{sub.teacherName}</p>
-                  {sub.groupName && (
-                    <p className="text-sm text-white/70 mt-0.5">{sub.groupName}</p>
-                  )}
+                  <Badge className="bg-white/20 text-white text-[10px]">
+                    نشط
+                  </Badge>
                 </div>
 
                 <div className="rounded-xl bg-white/10 p-3">
-                  <p className="text-xs text-white/60">الحصة القادمة</p>
-                  <div className="mt-1 flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-white/50" />
-                    <span className="text-sm font-medium text-white">{sub.nextSession.date}</span>
-                    <span className="text-xs text-white/40">•</span>
-                    <Clock className="h-4 w-4 text-white/50" />
-                    <span className="text-sm font-medium text-white">{sub.nextSession.time}</span>
-                  </div>
+                  <p className="text-xs text-white/60">المعلم</p>
+                  <p className="text-base font-semibold text-white">
+                    {sub.teacher.name}
+                  </p>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-white/70">
-                      {remaining} / {sub.sessionsTotal} حصص متبقية
+                      {String(remaining)} / {String(sub.sessionsTotal)} حصص متبقية
                     </span>
                     <span className="text-white/50">{String(progressPct)}%</span>
                   </div>
@@ -258,7 +164,7 @@ function SubscriptionHero({ subscriptions }: { subscriptions: SubscriptionData[]
                   className="mt-1 bg-white text-primary-600 hover:bg-white/90"
                 >
                   <Play className="h-4 w-4" />
-                  انضم للحصة
+                  احجز حصة
                 </Button>
               </div>
             </CardContent>
@@ -270,9 +176,43 @@ function SubscriptionHero({ subscriptions }: { subscriptions: SubscriptionData[]
 }
 
 function ServiceCards(): ReactNode {
+  const services = [
+    {
+      id: "private-monthly",
+      icon: <User className="h-6 w-6" />,
+      title: "اشتراك فردي شهري",
+      description: "موعد ثابت أسبوعياً مع المعلم.",
+      benefits: ["اهتمام كامل", "خطة مخصصة", "مواعيد ثابتة"],
+      badge: "الأكثر طلباً",
+      href: "/dashboard/live/book",
+      featured: true,
+      buttonLabel: "اشترك الآن",
+    },
+    {
+      id: "group-monthly",
+      icon: <Users className="h-6 w-6" />,
+      title: "اشتراك مجموعة",
+      description: "انضم إلى مجموعة ثابتة.",
+      benefits: ["سعر أقل", "تفاعل جماعي", "مواعيد ثابتة"],
+      href: "/dashboard/live/book",
+      featured: false,
+      buttonLabel: "اختر الخطة",
+    },
+    {
+      id: "one-time",
+      icon: <Zap className="h-6 w-6" />,
+      title: "احجز حصة فردية",
+      description: "احجز حصة واحدة حسب المواعيد المتاحة.",
+      benefits: ["اختيار اليوم", "اختيار الوقت", "مرونة كاملة"],
+      href: "/dashboard/live/book",
+      featured: false,
+      buttonLabel: "احجز الآن",
+    },
+  ];
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      {SERVICES.map((service) => (
+      {services.map((service) => (
         <Card
           key={service.id}
           variant={service.featured ? "elevated" : "outline"}
@@ -306,7 +246,9 @@ function ServiceCards(): ReactNode {
                 <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                   {service.title}
                 </h3>
-                <p className="mt-1 text-xs text-neutral-400">{service.description}</p>
+                <p className="mt-1 text-xs text-neutral-400">
+                  {service.description}
+                </p>
               </div>
 
               <ul className="flex flex-col gap-1 w-full">
@@ -339,149 +281,340 @@ function ServiceCards(): ReactNode {
   );
 }
 
-function UpcomingSessionsList({ sessions }: { sessions: UpcomingSession[] }): ReactNode {
-  if (sessions.length === 0) {
-    return (
-      <EmptyState
-        icon={<Calendar className="h-16 w-16" />}
-        title="لا توجد حصص قادمة"
-        description="ستظهر حصصك المحجوزة هنا"
-      />
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {sessions.map((session) => {
-        const rel = RELATIVE_LABELS[session.relativeStatus] ?? {
-          label: session.relativeStatus,
-          color: "secondary" as const,
-        };
-        const isCompleted = session.relativeStatus === "COMPLETED";
-        const isLive = session.relativeStatus === "NOW";
-
-        return (
-          <Card
-            key={session.id}
-            variant={isLive ? "elevated" : "outline"}
-            padding="md"
-            className={`transition-all duration-200 ${
-              isCompleted ? "opacity-60" : ""
-            } ${isLive ? "border-success-500/30 shadow-success-500/5" : ""}`}
-          >
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold ${
-                    session.type === "PRIVATE"
-                      ? "bg-primary-500/10 text-primary-500"
-                      : "bg-amber-500/10 text-amber-500"
-                  }`}
-                >
-                  {session.teacherName.charAt(0)}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                      {session.teacherName}
-                    </h3>
-                    <Badge
-                      variant={session.type === "PRIVATE" ? "primary" : "warning"}
-                      className="text-[10px]"
-                    >
-                      {session.type === "PRIVATE" ? "فردي" : "مجموعة"}
-                    </Badge>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-neutral-400">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {session.date}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {session.time}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  <Badge variant={rel.color} className="text-[10px]">
-                    {rel.label}
-                  </Badge>
-                  {!isCompleted && (
-                    <Button
-                      variant={isLive ? "success" : "primary"}
-                      size="sm"
-                    >
-                      <Play className="h-4 w-4" />
-                      انضم
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
-}
-
-function FeatureCards(): ReactNode {
-  const features = [
-    {
-      icon: <ShieldCheck className="h-5 w-5" />,
-      label: "جودة عالية",
-      color: "bg-success-500/10 text-success-500",
-    },
-    {
-      icon: <RotateCw className="h-5 w-5" />,
-      label: "مواعيد مرنة",
-      color: "bg-primary-500/10 text-primary-500",
-    },
-    {
-      icon: <Headphones className="h-5 w-5" />,
-      label: "دعم مستمر",
-      color: "bg-warning-500/10 text-warning-500",
-    },
-    {
-      icon: <Lock className="h-5 w-5" />,
-      label: "دفع آمن",
-      color: "bg-info-500/10 text-info-500",
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {features.map((f) => (
-        <Card key={f.label} variant="default" padding="sm" className="text-center">
-          <CardContent>
-            <div className="flex flex-col items-center gap-2">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${f.color}`}>
-                {f.icon}
-              </div>
-              <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                {f.label}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-// ── Main Page ────────────────────────────────────────────────────────
-
-export default function LiveSessionsPage(): ReactNode {
+function StudentView(): ReactNode {
   const router = useRouter();
+  const {
+    data: subscriptions,
+    isLoading: subsLoading,
+  } = useLiveSubscriptions();
+  const {
+    data: bookings,
+    isLoading: bookingsLoading,
+    isError: bookingsError,
+    refetch: bookingsRetry,
+  } = useMyBookings();
+  const {
+    data: sessions,
+    isError: sessionsError,
+    refetch: sessionsRetry,
+  } = useLiveSessions();
+  const { mutateAsync: bookSession } = useBookSession();
 
-  const hasSubscription = SUBSCRIPTION_DATA.length > 0;
+  const bookedSessionIds = useMemo(
+    () => new Set(bookings?.map((b) => b.sessionId) ?? []),
+    [bookings],
+  );
+
+  const availableSessions = useMemo(
+    () =>
+      (sessions ?? []).filter(
+        (s) =>
+          !bookedSessionIds.has(s.id) &&
+          s.status !== "DRAFT" &&
+          s.status !== "CANCELLED" &&
+          s.status !== "COMPLETED" &&
+          s.status !== "ARCHIVED" &&
+          (s.maxStudents === 0 || s._count.bookings < s.maxStudents),
+      ),
+    [sessions, bookedSessionIds],
+  );
+
+  const handleBook = useCallback(
+    (sessionId: string): void => {
+      void bookSession({ sessionId });
+    },
+    [bookSession],
+  );
+
+  const handleJoin = useCallback((session: LiveSessionItem): void => {
+    if (session.meetingUrl) {
+      window.open(session.meetingUrl, "_blank", "noopener,noreferrer");
+    }
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 pb-4">
-      {/* Page Header */}
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <Star className="h-4 w-4 text-amber-500" />
+          <h2 className="text-sm font-semibold text-neutral-600 dark:text-neutral-400">
+            اشتراكك الحالي
+          </h2>
+        </div>
+        <SubscriptionHero
+          subscriptions={subscriptions ?? []}
+          isLoading={subsLoading}
+        />
+      </section>
+
+      <section>
+        <div className="mb-3">
+          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+            الخدمات المتاحة
+          </h2>
+          <p className="text-sm text-neutral-500">
+            اختر الطريقة المناسبة للتعلم
+          </p>
+        </div>
+        <ServiceCards />
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+            حصصك القادمة
+          </h2>
+          <Link
+            href="/dashboard/live/book"
+            className="text-sm font-medium text-primary-500 hover:text-primary-600"
+          >
+            احجز حصة
+          </Link>
+        </div>
+
+        {bookingsError && (
+          <ErrorState
+            title="فشل تحميل الحجوزات"
+            onRetry={(): void => { void bookingsRetry(); }}
+          />
+        )}
+
+        {bookingsLoading && (
+          <div className="flex flex-col gap-3">
+            {[1, 2].map((i) => (
+              <LiveSessionCardSkeleton key={i} />
+            ))}
+          </div>
+        )}
+
+        {bookings?.length === 0 && !bookingsLoading && (
+          <EmptyState
+            icon={<Calendar className="h-16 w-16" />}
+            title="لا توجد حجوزات قادمة"
+            description="احجز حصة مباشرة للبدء"
+            actionLabel="احجز الآن"
+            onAction={(): void => { router.push("/dashboard/live/book"); }}
+          />
+        )}
+
+        {bookings && bookings.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {bookings.map((booking) => (
+              <LiveSessionCard
+                key={booking.id}
+                session={booking.session}
+                state={deriveSessionState(
+                  booking.session,
+                  true,
+                )}
+                onJoin={handleJoin}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {sessionsError && (
+        <ErrorState
+          title="فشل تحميل الجلسات المتاحة"
+          onRetry={(): void => { void sessionsRetry(); }}
+        />
+      )}
+
+      {availableSessions.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-bold text-neutral-900 dark:text-neutral-100">
+            جلسات متاحة للحجز
+          </h2>
+          <div className="flex flex-col gap-3">
+            {availableSessions.map((session) => (
+              <LiveSessionCard
+                key={session.id}
+                session={session}
+                state={deriveSessionState(
+                  session,
+                  bookedSessionIds.has(session.id),
+                )}
+                onBook={handleBook}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function TeacherView(): ReactNode {
+  const user = useAuthStore((s) => s.user);
+  const router = useRouter();
+  const { can } = usePermissions();
+  const canControl = can("live.control");
+
+  const { mutate: publishSession } = usePublishSession();
+  const { mutate: unpublishSession } = useUnpublishSession();
+
+  const handleControl = useCallback(
+    (session: LiveSessionItem, action: "start" | "end" | "publish" | "unpublish" | "panel") => {
+      if (action === "panel") {
+        router.push(`/dashboard/live/sessions/${session.id}`);
+      } else if (action === "publish") {
+        publishSession(session.id);
+      } else if (action === "unpublish") {
+        unpublishSession(session.id);
+      }
+    },
+    [router, publishSession, unpublishSession],
+  );
+
+  const {
+    data: sessions,
+    isLoading,
+    isError,
+    refetch: retry,
+  } = useLiveSessions();
+
+  const mySessions = useMemo(
+    () => (sessions ?? []).filter((s) => s.teacherId === user?.id),
+    [sessions, user?.id],
+  );
+
+  const todaySessions = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return mySessions.filter((s) => {
+      const start = new Date(s.startTime);
+      return start >= today && start < tomorrow;
+    });
+  }, [mySessions]);
+
+  const upcomingSessions = useMemo(
+    () => mySessions.filter((s) => new Date(s.startTime) > new Date()),
+    [mySessions],
+  );
+
+  return (
+    <div className="flex flex-col gap-6 pb-4">
+      <section className="grid gap-4 md:grid-cols-3">
+        <Card
+          variant="elevated"
+          padding="md"
+          interactive
+          className="text-center"
+          onClick={(): void => { router.push("/dashboard/live/availability"); }}
+        >
+          <CardContent>
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500">
+                <Settings2 className="h-6 w-6" />
+              </div>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                إدارة الأوقات المتاحة
+              </h3>
+              <p className="text-xs text-neutral-500">
+                حدد أوقاتك المتاحة للحصص المباشرة
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card variant="outline" padding="md" className="text-center">
+          <CardContent>
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-success-500/10 text-success-500">
+                <Calendar className="h-6 w-6" />
+              </div>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                حصص اليوم
+              </h3>
+              <p className="text-2xl font-bold text-primary-500">
+                {String(todaySessions.length)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card variant="outline" padding="md" className="text-center">
+          <CardContent>
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-warning-500/10 text-warning-500">
+                <Video className="h-6 w-6" />
+              </div>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                الحصص القادمة
+              </h3>
+              <p className="text-2xl font-bold text-primary-500">
+                {String(upcomingSessions.length)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+            حصصي المباشرة
+          </h2>
+          <Link
+            href="/dashboard/live/availability"
+            className="text-sm font-medium text-primary-500 hover:text-primary-600"
+          >
+            إدارة الأوقات
+          </Link>
+        </div>
+
+        {isError && (
+          <ErrorState
+            title="فشل تحميل الجلسات"
+            onRetry={(): void => { void retry(); }}
+          />
+        )}
+
+        {isLoading && (
+          <div className="flex flex-col gap-3">
+            {[1, 2, 3].map((i) => (
+              <LiveSessionCardSkeleton key={i} />
+            ))}
+          </div>
+        )}
+
+        {mySessions.length === 0 && !isLoading && (
+          <EmptyState
+            icon={<Calendar className="h-16 w-16" />}
+            title="لا توجد حصص مجدولة"
+            description="سيتم عرض الحصص التي تنشئها هنا"
+          />
+        )}
+
+        {mySessions.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {mySessions.map((session) => (
+              <LiveSessionCard
+                key={session.id}
+                session={session}
+                state={deriveSessionState(session, false)}
+                canControl={canControl}
+                onControl={handleControl}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+export default function LiveSessionsPage(): ReactNode {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const isTeacher = user?.role === "TEACHER" || user?.role === "ADMINISTRATOR";
+
+  return (
+    <div className="flex flex-col gap-6 pb-4">
       <div>
         <button
           onClick={(): void => { router.push("/dashboard"); }}
@@ -494,46 +627,13 @@ export default function LiveSessionsPage(): ReactNode {
           الحصص المباشرة
         </h1>
         <p className="mt-1 text-sm text-neutral-500">
-          احجز حصتك المباشرة وتعلم مع أفضل المعلمين
+          {isTeacher
+            ? "إدارة الحصص المباشرة وتحديد الأوقات المتاحة"
+            : "احجز حصتك المباشرة وتعلم مع أفضل المعلمين"}
         </p>
       </div>
 
-      {/* SECTION 1 — Current Subscription */}
-      <section>
-        {hasSubscription && (
-          <div className="mb-3 flex items-center gap-2">
-            <Star className="h-4 w-4 text-amber-500" />
-            <h2 className="text-sm font-semibold text-neutral-600 dark:text-neutral-400">
-              اشتراكك الحالي
-            </h2>
-          </div>
-        )}
-        <SubscriptionHero subscriptions={SUBSCRIPTION_DATA} />
-      </section>
-
-      {/* SECTION 2 — Available Services */}
-      <section>
-        <div className="mb-3">
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-            الخدمات المتاحة
-          </h2>
-          <p className="text-sm text-neutral-500">اختر الطريقة المناسبة للتعلم</p>
-        </div>
-        <ServiceCards />
-      </section>
-
-      {/* SECTION 3 — Upcoming Sessions */}
-      <section>
-        <h2 className="mb-3 text-lg font-bold text-neutral-900 dark:text-neutral-100">
-          حصصك القادمة
-        </h2>
-        <UpcomingSessionsList sessions={UPCOMING_SESSIONS} />
-      </section>
-
-      {/* SECTION 4 — Features */}
-      <section>
-        <FeatureCards />
-      </section>
+      {isTeacher ? <TeacherView /> : <StudentView />}
     </div>
   );
 }

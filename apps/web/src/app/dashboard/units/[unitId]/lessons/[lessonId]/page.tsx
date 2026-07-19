@@ -31,7 +31,7 @@ interface LessonDetail {
   readonly homeworkEnabled: boolean;
   readonly quizEnabled: boolean;
   readonly videos: readonly LessonVideo[];
-  readonly vocabulary: readonly LessonVocabulary[];
+  readonly vocabulary: { readonly groups: readonly LessonVocabulary[] };
   readonly document: LessonDocument | null;
   readonly unit: {
     readonly id: string;
@@ -47,8 +47,8 @@ export default function LessonContentPage(): ReactNode {
   const rawRole = user?.role;
   const { isAdmin, isTeacher } = usePermissions();
   const isManagement = isAdmin || isTeacher;
-  const unitId = params.unitId as string;
-  const lessonId = params.lessonId as string;
+  const unitId = Array.isArray(params.unitId) ? params.unitId[0] : (params.unitId ?? "");
+  const lessonId = Array.isArray(params.lessonId) ? params.lessonId[0] : (params.lessonId ?? "");
 
   const hydrated = typeof rawRole === "string";
 
@@ -149,7 +149,7 @@ export default function LessonContentPage(): ReactNode {
       <LessonContentBlocks
         lessonId={lessonId}
         videos={lesson.videos}
-        vocabulary={lesson.vocabulary}
+        vocabulary={lesson.vocabulary.groups}
         document={lesson.document}
         quiz={quiz ?? null}
         homework={homework ?? null}
@@ -171,6 +171,26 @@ function LessonContentSkeleton(): ReactNode {
         {Array.from({ length: 5 }, (_, i) => (
           <Skeleton key={i} className="h-32 rounded-2xl" />
         ))}
+      </div>
+      <div className="flex flex-col gap-2 rounded-2xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <div className="flex items-center justify-center gap-3 py-1.5">
+          <Skeleton className="h-px w-20" />
+          <Skeleton className="h-8 w-52 rounded-full" />
+          <Skeleton className="h-px w-20" />
+        </div>
+        <div className="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+          {Array.from({ length: 6 }, (_, ri) => (
+            <div
+              key={ri}
+              className="flex items-center gap-4 border-b border-neutral-100 px-4 py-3.5 last:border-0 dark:border-neutral-800"
+            >
+              <Skeleton className="h-4 w-1/4" />
+              <Skeleton className="h-4 w-1/4" />
+              <Skeleton className="h-4 w-1/4" />
+              <Skeleton className="h-4 w-1/4" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

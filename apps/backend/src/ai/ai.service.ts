@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { ConfigurationService } from "../config/configuration.service";
 import type { SendMessageDto } from "./dto/ai.dto";
 
 @Injectable()
 export class AiService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigurationService,
+  ) {}
 
   async createConversation(userId: string, title?: string): Promise<unknown> {
     return this.prisma.conversation.create({
@@ -159,9 +163,7 @@ export class AiService {
     history: { role: string; content: string }[],
     context: string,
   ): Promise<string> {
-    const apiKey = process.env.AI_API_KEY;
-    const model = process.env.AI_MODEL ?? "gpt-4o-mini";
-    const endpoint = process.env.AI_ENDPOINT ?? "https://api.openai.com/v1/chat/completions";
+    const { apiKey, model, endpoint } = this.config.ai;
 
     const systemPrompt = `You are El-bannawy AI, a helpful English learning assistant for Arabic-speaking students. 
 ${context}

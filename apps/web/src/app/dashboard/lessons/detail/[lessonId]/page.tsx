@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, type ReactNode } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { YouTubePlayer, VideoPlayerSkeleton } from "@/components/lesson-player/youtube-player";
+import { VideoPlayer, VideoPlayerSkeleton } from "@/components/video-player";
 import {
   Play,
   CheckCircle,
@@ -46,8 +46,9 @@ interface LessonDetail {
   progress: { progress: number; completed: boolean } | null;
   unit: { id: string; title: string; displayOrder: number; grade: { id: string; name: string } };
   videos: LessonVideo[];
-  vocabulary: LessonVocabulary[];
+  vocabulary: { readonly groups: readonly LessonVocabulary[] };
   settings: LessonSettings | null;
+  document: { readonly id: string; readonly fileName: string; readonly downloadable: boolean } | null;
 }
 
 interface LessonVideo {
@@ -55,19 +56,35 @@ interface LessonVideo {
   title: string;
   youtubeUrl: string;
   youtubeId: string;
+  providerName: string;
+  providerVideoId: string;
+  providerUrl: string;
   duration: number;
   displayOrder: number;
   timelineEvents: unknown[];
   activities: unknown[];
 }
 
+interface LessonVocabularyItem {
+  readonly id: string;
+  readonly word: string;
+  readonly translation: string;
+  readonly definition: string | null;
+  readonly example: string | null;
+  readonly partOfSpeech: string | null;
+  readonly synonym?: string | null;
+  readonly synonymTranslation?: string | null;
+  readonly antonym?: string | null;
+  readonly antonymTranslation?: string | null;
+  readonly displayOrder: number;
+}
+
 interface LessonVocabulary {
-  id: string;
-  word: string;
-  translation: string;
-  definition: string;
-  example: string | null;
-  displayOrder: number;
+  readonly id: string | null;
+  readonly kind?: string;
+  readonly title: string | null;
+  readonly displayOrder: number;
+  readonly items: readonly LessonVocabularyItem[];
 }
 
 interface LessonSettings {
@@ -336,20 +353,24 @@ function LearningCards({
   vocabulary,
   activityCount,
   homeworkEnabled,
+  document,
 }: {
   lessonId: string;
-  vocabulary: LessonVocabulary[];
+  vocabulary: readonly LessonVocabulary[];
   activityCount: number;
   homeworkEnabled: boolean;
+  document: { readonly id: string; readonly fileName: string; readonly downloadable: boolean } | null;
 }): ReactNode {
+  const totalVocab = vocabulary.reduce((acc, g) => acc + g.items.length, 0);
+
   const cards = [
     {
       id: "vocabulary",
       label: "المفردات",
       icon: Languages,
-      detail: vocabulary.length > 0 ? `${String(vocabulary.length)} كلمة` : "لا توجد مفردات",
+      detail: totalVocab > 0 ? `${String(totalVocab)} كلمة` : "لا توجد مفردات",
       href: `/dashboard/lessons/detail/${lessonId}/vocabulary`,
-      enabled: vocabulary.length > 0,
+      enabled: vocabulary.length > 0 || totalVocab > 0,
     },
     {
       id: "activities",
@@ -371,9 +392,16 @@ function LearningCards({
       id: "pdf",
       label: "ملف PDF",
       icon: FileText,
-      detail: "غير متوفر حالياً",
-      href: null,
-      enabled: false,
+      detail: document
+        ? document.downloadable
+          ? document.fileName
+          : "متوفر للمعلم فقط"
+        : "غير متوفر حالياً",
+      href:
+        document && document.downloadable
+          ? `/dashboard/lessons/detail/${lessonId}/pdf`
+          : null,
+      enabled: Boolean(document && document.downloadable),
     },
   ];
 
@@ -609,6 +637,7 @@ function NavigationFooter({
 export default function LessonDetailPage(): ReactNode {
   // ── All Hooks (Rules of Hooks — must be unconditional, at top, same order every render) ──
   const params = useParams();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const lessonId = params.lessonId as string;
 
@@ -635,14 +664,6 @@ export default function LessonDetailPage(): ReactNode {
     },
     [firstVideoId, queryClient],
   );
-
-  const handlePlayerReady = useCallback(() => {
-    // Player initialized
-  }, []);
-
-  const handlePlayerError = useCallback(() => {
-    // Error handled by UI fallback
-  }, []);
 
   // ── Derived values (non-hooks — safe to compute from resolved hook data above) ──
   const quizStatus = getQuizStatus(
@@ -690,6 +711,28 @@ export default function LessonDetailPage(): ReactNode {
     0,
   );
 
+  const handleLessonComplete = (_currentTime: number, _duration: number): void => {
+    void queryClient.invalidateQueries({ queryKey: ["video-progress", firstVideoId] });
+  };
+
+  const nextLesson = navigation.next;
+  const lessonCompletedActions = {
+    onNextLesson: nextLesson
+      ? (): void => { router.push(`/dashboard/lessons/detail/${nextLesson.id}`); }
+      : undefined,
+    onReviewQuestions: (): void => {
+      if (quizEnabled && quizData) {
+        router.push(`/dashboard/quiz/${lessonId}`);
+      } else {
+        router.push(`/dashboard/lessons/detail/${lessonId}/vocabulary`);
+      }
+    },
+    onHomework: lesson.homeworkEnabled
+      ? (): void => { router.push(`/dashboard/homework/${lessonId}`); }
+      : undefined,
+    onBackToUnit: (): void => { router.push("/dashboard/units"); },
+  };
+
   // ── Render ──
   return (
     <div className="flex flex-col gap-6 pb-4">
@@ -707,13 +750,16 @@ export default function LessonDetailPage(): ReactNode {
       <section aria-label="مشغل الفيديو">
         {activeVideo ? (
           <div className="space-y-1">
-            <YouTubePlayer
+            <VideoPlayer
+              providerName={activeVideo.providerName}
+              providerVideoId={activeVideo.providerVideoId}
               videoId={activeVideo.id}
-              youtubeId={activeVideo.youtubeId}
               onProgress={handleVideoProgress}
-              onReady={handlePlayerReady}
-              onError={handlePlayerError}
               startAt={videoProgress?.lastPosition ?? 0}
+              lessonTitle={activeVideo.title}
+              enableLessonCompleted
+              onComplete={handleLessonComplete}
+              completedActions={lessonCompletedActions}
             />
             <div className="flex items-center justify-between rounded-b-2xl bg-neutral-800/80 px-4 py-2 backdrop-blur">
               <div className="flex items-center gap-3 text-sm text-neutral-300">
@@ -751,9 +797,10 @@ export default function LessonDetailPage(): ReactNode {
       {/* Learning Cards */}
       <LearningCards
         lessonId={lessonId}
-        vocabulary={lesson.vocabulary}
+        vocabulary={lesson.vocabulary.groups}
         activityCount={totalActivities}
         homeworkEnabled={lesson.homeworkEnabled}
+        document={lesson.document}
       />
 
       {/* Quiz Card */}

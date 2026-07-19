@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Post, Delete, Patch, Param, ParseUUIDPipe, UseGuards, Body, UseInterceptors, UploadedFile, HttpCode, HttpStatus, BadRequestException } from "@nestjs/common";
+﻿import { Controller, Get, Post, Delete, Patch, Param, ParseUUIDPipe, UseGuards, Body, UseInterceptors, UploadedFile, HttpCode, HttpStatus, BadRequestException, Res } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { LessonService } from "./lesson.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
@@ -7,7 +7,7 @@ import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
 import { CreateVocabularyDto, UpdateVocabularyDto, CommitVocabularyImportDto } from "./dto/vocabulary.dto";
-import type { VocabularyImportPreview } from "../document-import/types/vocabulary-preview.types";
+import type { VocabularyStructuredDraft } from "../document-import/types/vocabulary-structured.types";
 
 @Controller("lessons")
 export class LessonController {
@@ -76,7 +76,7 @@ export class LessonController {
     @Param("id", ParseUUIDPipe) lessonId: string,
     @UploadedFile() file: Record<string, unknown>,
     @CurrentUser() userId: string,
-  ): Promise<ISuccessResponse<VocabularyImportPreview>> {
+  ): Promise<ISuccessResponse<VocabularyStructuredDraft>> {
     const buffer = (file?.["buffer"] as Buffer | undefined);
     const originalName = (file?.["originalname"] as string) ?? "unknown.docx";
     if (!Buffer.isBuffer(buffer)) {
@@ -104,7 +104,42 @@ export class LessonController {
   async uploadDocument(@Param("id", ParseUUIDPipe) lessonId: string, @UploadedFile() file: Record<string, unknown>, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
     const name = (file?.["originalname"] as string) ?? "document";
     const size = (file?.["size"] as number) ?? 0;
-    return successResponse(await this.lessonService.uploadDocument(lessonId, name, name, size, userId), "OK");
+    const buffer = file?.["buffer"] as Buffer | undefined;
+    if (!Buffer.isBuffer(buffer)) {
+      throw new BadRequestException("File is required");
+    }
+    const mimeType = (file?.["mimetype"] as string) ?? "application/pdf";
+    return successResponse(
+      await this.lessonService.uploadDocument(lessonId, name, buffer, size, mimeType, userId),
+      "Document uploaded",
+    );
+  }
+
+  @Get(":id/document") @UseGuards(JwtAuthGuard)
+  async getDocument(
+    @Param("id", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
+    @Res() res: Record<string, unknown>,
+  ): Promise<void> {
+    const doc = await this.lessonService.getDocument(lessonId, userId);
+    (res as { setHeader: (k: string, v: string) => void }).setHeader("Content-Type", doc.mimeType);
+    (res as { setHeader: (k: string, v: string) => void }).setHeader(
+      "Content-Disposition",
+      `inline; filename="${encodeURIComponent(doc.fileName)}"`,
+    );
+    (res as { end: (b: Buffer) => void }).end(doc.buffer);
+  }
+
+  @Patch(":id/document/downloadable") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR")
+  async setDocumentDownloadable(
+    @Param("id", ParseUUIDPipe) lessonId: string,
+    @Body("downloadable") downloadable: boolean,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    return successResponse(
+      await this.lessonService.setDocumentDownloadable(lessonId, Boolean(downloadable), userId),
+      "Document availability updated",
+    );
   }
 
   @Delete(":id/document") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR") @HttpCode(HttpStatus.NO_CONTENT)

@@ -1,7 +1,8 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { usePermissions } from "@/lib/use-permissions";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +27,14 @@ interface FinalReview {
 
 export default function FinalReviewPage(): ReactNode {
   const router = useRouter();
+  const { isAdmin, isTeacher, isStaff } = usePermissions();
+
+  useEffect(() => {
+    if (isAdmin || isTeacher || isStaff) {
+      router.replace("/dashboard/final-reviews");
+    }
+  }, [isAdmin, isTeacher, isStaff, router]);
+
   const { data: reviews, isLoading, isError, error } = useQuery({
     queryKey: ["final-reviews", "student"],
     queryFn: async () => { const r = await api.get<FinalReview[]>("/final-reviews"); return r.data ?? []; },

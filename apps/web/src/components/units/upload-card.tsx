@@ -23,6 +23,7 @@ interface UploadCardProps {
   uploadProgress?: number;
   onFileSelect: (file: File) => void;
   onDelete: () => void;
+  footer?: ReactNode;
   className?: string;
 }
 
@@ -36,6 +37,7 @@ export function UploadCard({
   uploadProgress = 0,
   onFileSelect,
   onDelete,
+  footer,
   className,
 }: UploadCardProps): ReactNode {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +142,12 @@ export function UploadCard({
           </div>
         )}
       </CardContent>
+
+      {footer && (
+        <div className="border-t border-neutral-200 px-5 py-3 dark:border-neutral-700">
+          {footer}
+        </div>
+      )}
     </Card>
   );
 }

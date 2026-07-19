@@ -38,6 +38,7 @@ interface LessonManagement {
   readonly displayOrder: number;
   readonly published: boolean;
   readonly isPremium: boolean;
+  readonly lockedOverride: boolean | null;
   readonly homeworkEnabled: boolean;
   readonly quizEnabled: boolean;
   readonly estimatedDuration: number;
@@ -90,7 +91,7 @@ export default function UnitDetailPage(): ReactNode {
   const rawRole = user?.role;
   const { isAdmin, isTeacher, can } = usePermissions();
   const isManagement = isAdmin || isTeacher;
-  const unitId = params.unitId as string;
+  const unitId = Array.isArray(params.unitId) ? params.unitId[0] : (params.unitId ?? "");
   const queryClient = useQueryClient();
 
   const canCreateLesson = can(PERMISSIONS.LESSONS_CREATE);
@@ -181,6 +182,8 @@ export default function UnitDetailPage(): ReactNode {
       title: lesson.title,
       displayOrder: lesson.displayOrder,
       published: lesson.published,
+      isPremium: lesson.isPremium,
+      lockedOverride: lesson.lockedOverride ?? null,
       homeworkEnabled: lesson.homeworkEnabled,
       quizEnabled: lesson.quizEnabled,
     });

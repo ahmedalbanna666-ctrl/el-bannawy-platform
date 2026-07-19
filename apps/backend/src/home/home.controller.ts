@@ -19,4 +19,11 @@ export class HomeController {
     const data = await this.homeService.getDashboard(userId);
     return successResponse(data, "Dashboard data retrieved successfully");
   }
+
+  @Get("leaderboard")
+  @UseGuards(JwtAuthGuard)
+  async getLeaderboard(@CurrentUser() userId: string): Promise<ReturnType<typeof successResponse>> {
+    const data = await this.homeService.getLeaderboard(userId);
+    return successResponse(data, "Leaderboard retrieved successfully");
+  }
 }

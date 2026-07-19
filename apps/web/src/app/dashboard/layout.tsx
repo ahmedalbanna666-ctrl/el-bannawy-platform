@@ -7,7 +7,6 @@ import { api } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/auth-store";
 import { useAuth } from "@/providers/auth-provider";
 import { usePermissions } from "@/lib/use-permissions";
-import { ROLE_LABELS } from "@el-bannawy/shared";
 import { getSidebarModules, type NavModule } from "@/lib/nav-registry";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AcademicSettings } from "@/components/ui/academic-settings";
@@ -24,6 +23,13 @@ import { Sidebar, type SidebarContent } from "@/components/ui/sidebar";
 import { Header } from "@/components/ui/header";
 import { BottomNav, type BottomNavItem } from "@/components/ui/bottom-nav";
 
+const ROLE_LABELS: Record<string, string> = {
+  ADMINISTRATOR: "مدير",
+  TEACHER: "معلم",
+  STAFF: "موظف",
+  STUDENT: "طالب",
+};
+
 interface DashboardLayoutProps {
   children: ReactNode;
 }
@@ -36,13 +42,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
   const { logout } = useAuth();
   const [mounted, setMounted] = useState(false);
 
-  const { data: profile } = useQuery({
+  const { data: profile } = useQuery<{
+    role: string;
+    roleProfile?: { grade?: { name: string } | null; stage?: { name: string } | null };
+    assignedGrade?: { name: string; stage: { name: string } } | null;
+  } | null>({
     queryKey: ["sidebar-profile", userId],
     queryFn: async () => {
-      const res = await api.get<{
-        assignedGrade: { name: string; stage: { name: string } } | null;
-      }>("/profile");
-      return res.data ?? null;
+      const res = await api.get<Record<string, unknown>>("/profile");
+      if (!res.data) return null;
+      const data = res.data;
+      return data as { role: string; roleProfile?: { grade?: { name: string } | null; stage?: { name: string } | null }; assignedGrade?: { name: string; stage: { name: string } } | null };
     },
     enabled: isAuthenticated && !!userId,
     staleTime: 120_000,
@@ -51,9 +61,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
   const userRole = useAuthStore((s) => s.user?.role);
 
   const profileGrade = userRole === "STUDENT"
-    ? (profile?.assignedGrade?.name ?? profile?.assignedGrade?.stage.name ?? "طالب")
-    : (ROLE_LABELS[userRole ?? ""] ?? userRole ?? "طالب");
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    ? (profile?.roleProfile?.grade?.name
+      ?? profile?.roleProfile?.stage?.name
+      ?? "طالب")
+    : (ROLE_LABELS[userRole ?? ""] ?? "طالب");
 
   useEffect(() => {
     setMounted(true);
@@ -78,6 +89,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
       const modules = getSidebarModules(can);
       const items: SidebarContent = [];
       let lastCategory: NavModule["category"] = null;
+      let dividerCount = 0;
 
       for (const m of modules) {
         if (m.id === "home") {
@@ -87,11 +99,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
         }
 
         if (m.category === "student" && lastCategory !== "student") {
-          items.push({ id: "div-student", label: "", icon: ScrollText, divider: true });
+          dividerCount += 1;
+          items.push({ id: `div-student-${String(dividerCount)}`, label: "", icon: ScrollText, divider: true });
         } else if (m.category === "management" && lastCategory !== "management" && lastCategory !== "content") {
-          items.push({ id: "div-management", label: "", icon: ScrollText, divider: true });
+          dividerCount += 1;
+          items.push({ id: `div-management-${String(dividerCount)}`, label: "", icon: ScrollText, divider: true });
         } else if (m.category === "settings" && lastCategory !== "settings") {
-          items.push({ id: "div-settings", label: "", icon: ScrollText, divider: true });
+          dividerCount += 1;
+          items.push({ id: `div-settings-${String(dividerCount)}`, label: "", icon: ScrollText, divider: true });
         }
 
         const hasEditPermission = canEdit;
@@ -107,7 +122,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
         lastCategory = m.category;
       }
 
-      items.push({ id: "div-logout", label: "", icon: ScrollText, divider: true });
+      dividerCount += 1;
+      items.push({ id: `div-logout-${String(dividerCount)}`, label: "", icon: ScrollText, divider: true });
       items.push({ id: "logout", label: "تسجيل الخروج", icon: LogOut, onClick: handleLogout, danger: true });
 
       return items;
