@@ -16,6 +16,7 @@ interface WrongAnswerItem {
   question: string;
   options: MistakeOption[];
   correctAnswer: string;
+  studentAnswer: string | null;
   explanation: string | null;
   answeredAt: string;
   attemptId: string;
@@ -57,6 +58,7 @@ interface PaginatedResult<T> {
   total: number;
   page: number;
   limit: number;
+  sourceCounts: Partial<Record<MistakeSource, number>>;
 }
 
 @Injectable()
@@ -107,6 +109,10 @@ export class MistakesService {
     if (params.unitId) {
       all = all.filter((item) => item.unitId === params.unitId);
     }
+    if (params.unitIds && params.unitIds.length > 0) {
+      const selected = new Set(params.unitIds);
+      all = all.filter((item) => item.unitId !== null && selected.has(item.unitId));
+    }
     if (params.lessonId) {
       all = all.filter((item) => item.lessonId === params.lessonId);
     }
@@ -130,12 +136,17 @@ export class MistakesService {
         new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime(),
     );
 
+    const sourceCounts: Partial<Record<MistakeSource, number>> = {};
+    for (const item of all) {
+      sourceCounts[item.source] = (sourceCounts[item.source] ?? 0) + 1;
+    }
+
     const total = all.length;
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
     const items = all.slice((page - 1) * limit, page * limit);
 
-    return { items, total, page, limit };
+    return { items, total, page, limit, sourceCounts };
   }
 
   async getFilters(
@@ -224,6 +235,10 @@ export class MistakesService {
     }
     if (dto.unitId) {
       pool = pool.filter((item) => item.unitId === dto.unitId);
+    }
+    if (dto.unitIds && dto.unitIds.length > 0) {
+      const selected = new Set(dto.unitIds);
+      pool = pool.filter((item) => item.unitId !== null && selected.has(item.unitId));
     }
     if (dto.lessonId) {
       pool = pool.filter((item) => item.lessonId === dto.lessonId);
@@ -481,6 +496,7 @@ export class MistakesService {
             a.question.correctAnswer,
           ),
           correctAnswer: a.question.correctAnswer ?? "",
+          studentAnswer: a.answer ?? null,
           explanation: a.question.explanation,
           answeredAt: a.createdAt.toISOString(),
           attemptId: a.attempt.id,
@@ -557,6 +573,7 @@ export class MistakesService {
             a.question.correctAnswer,
           ),
           correctAnswer: a.question.correctAnswer ?? "",
+          studentAnswer: a.answer ?? null,
           explanation: a.question.explanation,
           answeredAt: a.createdAt.toISOString(),
           attemptId: a.attempt.id,
@@ -648,6 +665,12 @@ export class MistakesService {
             isCorrect: o.isCorrect,
           })),
           correctAnswer: correctOption?.text ?? "",
+          studentAnswer:
+            a.answer === null || a.answer === undefined
+              ? null
+              : typeof a.answer === "string"
+                ? a.answer
+                : JSON.stringify(a.answer),
           explanation: a.question.explanation,
           answeredAt: a.createdAt.toISOString(),
           attemptId: a.attempt.id,
@@ -724,6 +747,7 @@ export class MistakesService {
             isCorrect: o.isCorrect,
           })),
           correctAnswer: correctOption?.text ?? "",
+          studentAnswer: a.answer ?? null,
           explanation: a.question.explanation,
           answeredAt: a.createdAt.toISOString(),
           attemptId: a.attempt.id,

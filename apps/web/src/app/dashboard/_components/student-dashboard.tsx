@@ -16,14 +16,11 @@ import {
   BookOpen,
   ScrollText,
   RefreshCw,
-  Gamepad2,
   Trophy,
+  Gamepad2,
   BookMarked,
-  ClipboardList,
   ChevronRight,
   Users,
-  Target,
-  BookCheck,
   Video,
 } from "lucide-react";
 import { useMyBookings } from "@/lib/live-api";
@@ -75,21 +72,24 @@ export function StudentDashboard(): ReactNode {
     return <EmptyState title="لا توجد بيانات" description="لا توجد بيانات متاحة للوحة التحكم" icon={<BookOpen className="h-16 w-16" />} />;
   }
 
-  const xpProgress = data.xp.total > 0 ? (data.xp.total % 1000) / 10 : 0;
-
   return (
     <div className="flex flex-col gap-6">
 
-      {/* SECTION 1 — Continue Learning */}
+      {/* SECTION 1 — Continue / Start Learning */}
       {data.continueLearning ? (
         <section>
           <Card variant="gradient" padding="none" className="border-primary-500/20 px-4 py-3">
             <CardContent>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold leading-tight tracking-tight text-neutral-900 dark:text-neutral-100">
-                    {data.continueLearning.unitName}
-                  </h2>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-primary-500/80">
+                      واصل من حيث توقفت
+                    </p>
+                    <h2 className="truncate text-sm font-bold leading-tight tracking-tight text-neutral-900 dark:text-neutral-100">
+                      {data.continueLearning.unitName} · {data.continueLearning.lessonName}
+                    </h2>
+                  </div>
                   <Button
                     size="xs"
                     className="shrink-0 text-xs font-medium"
@@ -107,11 +107,11 @@ export function StudentDashboard(): ReactNode {
                   <div className="h-0.5 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all"
-                      style={{ width: `${String(xpProgress)}%` }}
+                      style={{ width: `${String(data.continueLearning.progress)}%` }}
                     />
                   </div>
                   <span className="shrink-0 text-[10px] text-neutral-400">
-                    {data.xp.total % 1000}/{data.xp.nextLevelXp}
+                    {Math.round(data.continueLearning.progress)}%
                   </span>
                 </div>
               </div>
@@ -119,78 +119,38 @@ export function StudentDashboard(): ReactNode {
           </Card>
         </section>
       ) : (
-        <EmptyState
-          title="ابدأ رحلتك التعليمية"
-          description="ابدأ بتصفح الوحدات التعليمية أدناه"
-          icon={<GraduationCap className="h-16 w-16" />}
-        />
+        <section>
+          <Card variant="gradient" padding="none" className="border-primary-500/20 px-4 py-3">
+            <CardContent>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
+                    <GraduationCap className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold leading-tight text-neutral-900 dark:text-neutral-100">
+                      ابدأ رحلتك التعليمية
+                    </p>
+                    <p className="truncate text-xs text-neutral-500">
+                      اختر وحدة وتابع تقدمك خطوة بخطوة
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="xs"
+                  className="shrink-0 text-xs font-medium"
+                  onClick={() => { router.push("/dashboard/units"); }}
+                >
+                  <Play className="h-3 w-3" />
+                  ابدأ الآن
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
       )}
 
-      {/* SECTION 2 — Statistics */}
-      <section className="grid gap-4 md:grid-cols-4">
-        <Card variant="elevated" padding="sm">
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-primary-500/10 p-2">
-                <BookCheck className="h-5 w-5 text-primary-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-                  {data.stats.completedLessons}/{data.stats.totalLessons}
-                </p>
-                <p className="text-xs text-neutral-500">الدروس المكتملة</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card variant="elevated" padding="sm">
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-warning-500/10 p-2">
-                <ClipboardList className="h-5 w-5 text-warning-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-                  {data.stats.homeworkPending}
-                </p>
-                <p className="text-xs text-neutral-500">الواجبات المعلقة</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card variant="elevated" padding="sm">
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-success-500/10 p-2">
-                <Target className="h-5 w-5 text-success-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-                  {data.stats.quizPassRate}%
-                </p>
-                <p className="text-xs text-neutral-500">معدل النجاح</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card variant="elevated" padding="sm">
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-info-500/10 p-2">
-                <Users className="h-5 w-5 text-info-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-                  {data.stats.attendanceRate}%
-                </p>
-                <p className="text-xs text-neutral-500">نسبة الحضور</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* SECTION 3 — Live Classes */}
+      {/* SECTION 2 — Live Classes */}
       {liveBookings && liveBookings.length > 0 && (
         <section>
           <div className="mb-3 flex items-center justify-between">
@@ -309,35 +269,39 @@ export function StudentDashboard(): ReactNode {
           </Card>
         </div>
 
-        <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
-                <RefreshCw className="h-6 w-6 text-red-500" />
+        <div onClick={(): void => { router.push("/dashboard/mistakes"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/mistakes"); } }}>
+          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
+                  <RefreshCw className="h-6 w-6 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">تعلم من أخطائك</h3>
+                  <p className="text-sm text-neutral-500">راجع الإجابات الخاطئة وحسن مستواك</p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-neutral-400" />
               </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">تعلم من أخطائك</h3>
-                <p className="text-sm text-neutral-500">راجع الإجابات الخاطئة وحسن مستواك</p>
-              </div>
-              <ChevronRight className="h-5 w-5 text-neutral-400" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10">
-                <Gamepad2 className="h-6 w-6 text-purple-500" />
+        <div onClick={(): void => { router.push("/dashboard/games"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/games"); } }}>
+          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10">
+                  <Gamepad2 className="h-6 w-6 text-purple-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الألعاب التعليمية</h3>
+                  <p className="text-sm text-neutral-500">العب ألعاباً لتحسين المفردات والقواعد والقراءة</p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-neutral-400" />
               </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الألعاب التعليمية</h3>
-                <p className="text-sm text-neutral-500">العب ألعاباً لتحسين المفردات والقواعد والقراءة</p>
-              </div>
-              <ChevronRight className="h-5 w-5 text-neutral-400" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
       </section>
 

@@ -117,6 +117,28 @@ export class CoinsService {
     return { verified: true, status: "COMPLETED", coinsAdded: 0 };
   }
 
+  async getUnlockCost(targetType: string): Promise<{ cost: number }> {
+    const key = targetType === "UNIT" ? "unit_unlock_cost" : targetType === "LESSON" ? "lesson_unlock_cost" : null;
+    if (!key) return { cost: 0 };
+    const setting = await this.prisma.systemSetting.findUnique({ where: { key } });
+    return { cost: setting ? Number(setting.value) : targetType === "UNIT" ? 50 : 20 };
+  }
+
+  async setUnlockCost(userId: string, dto: { targetType: string; cost: number }): Promise<{ cost: number }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (!user || (user.role !== "ADMINISTRATOR" && user.role !== "TEACHER")) {
+      throw new ForbiddenException("Only administrators and teachers can set unlock costs");
+    }
+    const key = dto.targetType === "UNIT" ? "unit_unlock_cost" : dto.targetType === "LESSON" ? "lesson_unlock_cost" : null;
+    if (!key) throw new BadRequestException("Invalid target type");
+    await this.prisma.systemSetting.upsert({
+      where: { key },
+      update: { value: String(dto.cost) },
+      create: { key, value: String(dto.cost) },
+    });
+    return { cost: dto.cost };
+  }
+
   async listCodes(_userId: string): Promise<unknown[]> {
     return this.prisma.unlockCode.findMany({
       orderBy: { createdAt: "desc" },
@@ -124,7 +146,7 @@ export class CoinsService {
     });
   }
 
-  async createCode(userId: string, dto: { code?: string; coinAmount: number; maxUses?: number; expiresAt?: string }): Promise<unknown> {
+  async createCode(userId: string, dto: { code?: string; coinAmount: number; maxUses?: number; expiresAt?: string; targetType?: string; targetId?: string }): Promise<unknown> {
     const code = dto.code?.trim() ? dto.code.trim() : randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
     const existing = await this.prisma.unlockCode.findUnique({ where: { code } });
     if (existing) throw new BadRequestException("Code already exists");
@@ -135,6 +157,8 @@ export class CoinsService {
         maxUses: dto.maxUses ?? null,
         active: true,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        targetType: dto.targetType ?? null,
+        targetId: dto.targetId ?? null,
         createdById: userId,
       },
     });
@@ -146,22 +170,45 @@ export class CoinsService {
     return this.prisma.unlockCode.update({ where: { id }, data: { active: !code.active } });
   }
 
-  async redeemCode(userId: string, codeStr: string): Promise<{ coinsAdded: number }> {
+  async redeemCode(userId: string, codeStr: string): Promise<{ coinsAdded: number; unlocked: boolean }> {
     const code = await this.prisma.unlockCode.findFirst({ where: { code: codeStr.trim().toUpperCase() } });
     if (!code) throw new NotFoundException("Invalid activation code");
     if (!code.active) throw new BadRequestException("Code is disabled");
     if (code.expiresAt && code.expiresAt < new Date()) throw new BadRequestException("Code has expired");
-    if (code.maxUses !== null && code.usedCount >= code.maxUses) throw new BadRequestException("Code usage limit reached");
 
-    const already = await this.prisma.codeRedemption.findFirst({ where: { codeId: code.id, userId } });
-    if (already) throw new BadRequestException("You have already redeemed this code");
+    const isContentCode = !!(code.targetType && code.targetId);
+    let coinsAdded = 0;
 
-    await this.prisma.$transaction([
-      this.prisma.codeRedemption.create({ data: { codeId: code.id, userId, coinAmount: code.coinAmount } }),
-      this.prisma.unlockCode.update({ where: { id: code.id }, data: { usedCount: { increment: 1 } } }),
-    ]);
-    await this.creditWallet(userId, code.coinAmount);
-    return { coinsAdded: code.coinAmount };
+    await this.prisma.$transaction(async (tx) => {
+      // re-read inside transaction to avoid race conditions
+      const current = await tx.unlockCode.findUnique({ where: { id: code.id }, select: { usedCount: true } });
+      if (current && code.maxUses !== null && current.usedCount >= code.maxUses) {
+        throw new BadRequestException("Code usage limit reached");
+      }
+
+      const already = await tx.codeRedemption.findFirst({ where: { codeId: code.id, userId } });
+      if (already) throw new BadRequestException("You have already redeemed this code");
+
+      await tx.codeRedemption.create({ data: { codeId: code.id, userId, coinAmount: code.coinAmount } });
+      await tx.unlockCode.update({ where: { id: code.id }, data: { usedCount: { increment: 1 } } });
+
+      if (isContentCode) {
+        await tx.contentUnlock.upsert({
+          where: { userId_targetType_targetId: { userId, targetType: code.targetType!, targetId: code.targetId! } },
+          update: {},
+          create: { userId, targetType: code.targetType!, targetId: code.targetId!, unlockMethod: "CODE", coinAmount: null },
+        });
+      } else {
+        await tx.coinWallet.upsert({
+          where: { userId },
+          update: { balance: { increment: code.coinAmount } },
+          create: { userId, balance: code.coinAmount },
+        });
+        coinsAdded = code.coinAmount;
+      }
+    });
+
+    return { coinsAdded, unlocked: isContentCode };
   }
 
   async listRequests(userId: string, status?: string): Promise<unknown[]> {
@@ -204,7 +251,7 @@ export class CoinsService {
     });
     if (existing) return { unlocked: true };
 
-    const cost = dto.targetType === "UNIT" ? 50 : dto.targetType === "LESSON" ? 20 : 0;
+    const { cost } = await this.getUnlockCost(dto.targetType);
     if (cost > 0) {
       const wallet = await this.prisma.coinWallet.findUnique({ where: { userId } });
       const balance = wallet?.balance ?? 0;

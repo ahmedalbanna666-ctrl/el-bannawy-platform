@@ -1,4 +1,5 @@
-import { IsInt, IsOptional, IsString, Min, Max, IsUUID, IsEnum } from "class-validator";
+import { IsInt, IsOptional, IsString, Min, Max, IsUUID, IsEnum, IsArray } from "class-validator";
+import { Transform } from "class-transformer";
 import { MistakeSource } from "./mistake-query.dto";
 
 export class CreateMiniExamDto {
@@ -15,6 +16,18 @@ export class CreateMiniExamDto {
   @IsOptional()
   @IsUUID()
   unitId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID("4", { each: true })
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value
+      : value !== undefined && value !== null && value !== ""
+        ? [value]
+        : undefined,
+  )
+  unitIds?: string[];
 
   @IsOptional()
   @IsUUID()

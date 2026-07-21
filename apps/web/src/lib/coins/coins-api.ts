@@ -37,6 +37,8 @@ export interface UnlockCodeItem {
   usedCount: number;
   active: boolean;
   expiresAt: string | null;
+  targetType: string | null;
+  targetId: string | null;
   createdAt: string;
   _count?: { redemptions: number };
 }
@@ -74,6 +76,30 @@ export const COINS_KEYS = {
   myUnlocks: ["coins", "my-unlocks"] as const,
   myPurchases: ["coins", "my-purchases"] as const,
 };
+
+export function useUnlockCost(targetType: string): UseQueryResult<{ cost: number }> {
+  return useQuery({
+    queryKey: ["coins", "unlock-cost", targetType],
+    queryFn: async () => {
+      const res = await api.get<{ cost: number }>(`/coins/unlock-cost/${targetType}`);
+      if (!res.data) throw new Error("Failed to fetch unlock cost");
+      return res.data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useSetUnlockCost(): UseMutationResult<
+  ApiResponse<{ cost: number }>,
+  Error,
+  { targetType: string; cost: number }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto) => api.post("/coins/unlock-cost", dto),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["coins", "unlock-cost"] }); },
+  });
+}
 
 export function useCoinPackages(): UseQueryResult<CoinPackageItem[]> {
   return useQuery({
@@ -186,12 +212,17 @@ export function useUnlockContent(): UseMutationResult<unknown, Error, { targetTy
   });
 }
 
-export function useRedeemCode(): UseMutationResult<unknown, Error, string> {
+export function useRedeemCode(): UseMutationResult<
+  ApiResponse<{ coinsAdded: number; unlocked: boolean }>,
+  Error,
+  string
+> {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code) => api.post("/coins/redeem", { code }),
+    mutationFn: (code) => api.post<{ coinsAdded: number; unlocked: boolean }>("/coins/redeem", { code }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: COINS_KEYS.wallet });
+      void qc.invalidateQueries({ queryKey: ["coins", "access"] });
     },
   });
 }
@@ -207,7 +238,7 @@ export function useUnlockCodes(): UseQueryResult<UnlockCodeItem[]> {
   });
 }
 
-export function useCreateUnlockCode(): UseMutationResult<unknown, Error, { code?: string; coinAmount: number; maxUses?: number; expiresAt?: string }> {
+export function useCreateUnlockCode(): UseMutationResult<unknown, Error, { code?: string; coinAmount: number; maxUses?: number; expiresAt?: string; targetType?: string; targetId?: string }> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto) => api.post("/coins/codes", dto),

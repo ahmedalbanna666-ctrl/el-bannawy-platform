@@ -94,25 +94,43 @@ export class CoinsController {
     return successResponse(data, "Code redeemed");
   }
 
+  @Get("unlock-cost/:targetType")
+  async getUnlockCost(
+    @Param("targetType") targetType: string,
+  ): Promise<ISuccessResponse<{ cost: number }>> {
+    const data = await this.coins.getUnlockCost(targetType);
+    return successResponse(data);
+  }
+
+  @Post("unlock-cost")
+  @Roles("ADMINISTRATOR", "TEACHER")
+  async setUnlockCost(
+    @CurrentUser() userId: string,
+    @Body() dto: { targetType: string; cost: number },
+  ): Promise<ISuccessResponse<{ cost: number }>> {
+    const data = await this.coins.setUnlockCost(userId, dto);
+    return successResponse(data, "Unlock cost updated");
+  }
+
   @Get("codes")
-  @Roles("ADMINISTRATOR")
+  @Roles("ADMINISTRATOR", "TEACHER")
   async listCodes(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown[]>> {
     const data = await this.coins.listCodes(userId);
     return successResponse(data);
   }
 
   @Post("codes")
-  @Roles("ADMINISTRATOR")
+  @Roles("ADMINISTRATOR", "TEACHER")
   async createCode(
     @CurrentUser() userId: string,
-    @Body() dto: { code?: string; coinAmount: number; maxUses?: number; expiresAt?: string },
+    @Body() dto: { code?: string; coinAmount: number; maxUses?: number; expiresAt?: string; targetType?: string; targetId?: string },
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.coins.createCode(userId, dto);
     return successResponse(data, "Code created");
   }
 
   @Post("codes/:id/toggle")
-  @Roles("ADMINISTRATOR")
+  @Roles("ADMINISTRATOR", "TEACHER")
   async toggleCode(
     @CurrentUser() userId: string,
     @Param("id", ParseUUIDPipe) id: string,

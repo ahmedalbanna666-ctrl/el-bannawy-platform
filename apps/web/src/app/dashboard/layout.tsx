@@ -73,7 +73,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
     }
   }, [isAuthenticated, router]);
 
-  const isAdmin = userRole === "ADMINISTRATOR";
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return (): void => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [sidebarOpen]);
+
   const isTeacherOrStaff = userRole === "TEACHER" || userRole === "STAFF";
 
   const handleLogout = useCallback((): void => {
@@ -82,7 +95,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
   }, [logout, router]);
 
   const { can } = usePermissions();
-  const canEdit = isAdmin || userRole === "TEACHER";
 
   const sidebarItems: SidebarContent = useMemo(
     () => {
@@ -91,12 +103,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
       let lastCategory: NavModule["category"] = null;
       let dividerCount = 0;
 
-      for (const m of modules) {
-        if (m.id === "home") {
-          items.push({ id: m.id, label: m.title, icon: m.icon, onClick: (): void => { router.push(m.route); } });
-          lastCategory = null;
-          continue;
-        }
+       for (const m of modules) {
+         if (m.id === "home") {
+           items.push({ id: m.id, label: m.title, icon: m.icon, onClick: (): void => { router.push(m.route); } });
+           lastCategory = null;
+           continue;
+         }
+
+         if (m.id === "achievements" && userRole !== "STUDENT") {
+           continue;
+         }
 
         if (m.category === "student" && lastCategory !== "student") {
           dividerCount += 1;
@@ -109,8 +125,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
           items.push({ id: `div-settings-${String(dividerCount)}`, label: "", icon: ScrollText, divider: true });
         }
 
-        const hasEditPermission = canEdit;
-        const label = hasEditPermission ? m.title.replace("الوحدات التعليمية", "إدارة الوحدات").replace("قصة المنهج", "إدارة القصة").replace("المراجعة النهائية", "المراجعة النهائية").replace("الحصص المباشرة", "الحصص المباشرة") : m.title;
+        const label = m.title;
 
         items.push({
           id: m.id,
@@ -161,6 +176,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
       >
         {isTeacherOrStaff && <AcademicSettings />}
       </Sidebar>
+
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm [animation:sidebar-backdrop-in_0.2s_ease]"
+            onClick={(): void => { setSidebarOpen(false); }}
+          />
+          <Sidebar
+            items={sidebarItems}
+            className="fixed inset-y-0 right-0 z-50 h-screen w-[280px] shadow-2xl [animation:sidebar-slide-in_0.25s_ease]"
+            onClose={(): void => { setSidebarOpen(false); }}
+            onProfileClick={(): void => { router.push("/dashboard/profile"); }}
+            profileGrade={profileGrade}
+          >
+            {isTeacherOrStaff && <AcademicSettings />}
+          </Sidebar>
+        </div>
+      )}
 
       <div className="flex flex-1 flex-col">
         <Header

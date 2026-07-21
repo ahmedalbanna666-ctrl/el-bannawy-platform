@@ -59,6 +59,7 @@ export function StudentUnitsView(): ReactNode {
   const [stages, setStages] = useState<Stage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openUnitId, setOpenUnitId] = useState<string | null>(null);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -221,7 +222,10 @@ export function StudentUnitsView(): ReactNode {
                 : "hover:border-primary-500/60 hover:shadow-[0_0_25px_rgba(34,211,238,0.18)]";
 
             const handleOpen = (): void => {
-              if (locked) return;
+              if (locked) {
+                setOpenUnitId(unit.id);
+                return;
+              }
               if (unit.lessons.length > 0) {
                 router.push(`/dashboard/lessons/${unit.id}`);
               }
@@ -274,7 +278,12 @@ export function StudentUnitsView(): ReactNode {
 
                 {locked && (
                   <div className="mt-2">
-                    <UnitLockOverlay unitId={unit.id} unitTitle={unit.title} />
+                    <UnitLockOverlay
+                      unitId={unit.id}
+                      unitTitle={unit.title}
+                      open={openUnitId === unit.id}
+                      onOpenChange={(o) => { setOpenUnitId(o ? unit.id : null); }}
+                    />
                   </div>
                 )}
               </div>

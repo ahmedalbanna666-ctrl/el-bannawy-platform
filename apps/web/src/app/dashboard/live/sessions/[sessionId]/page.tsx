@@ -13,6 +13,7 @@ import {
   type LiveAnnouncementItem,
   type LiveControlLogItem,
   type LiveBookingItem,
+  type LiveSessionItem,
 } from "@/lib/live-api";
 import { usePermissions } from "@/lib/use-permissions";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
@@ -32,7 +33,6 @@ import {
   Clock,
   CalendarDays,
   ArrowLeft,
-  AlertTriangle,
   Megaphone,
   Pin,
   MessageSquare,
@@ -70,9 +70,10 @@ export default function SessionControlPage(): ReactNode {
   const sessionId = params.sessionId as string | undefined;
   const { can } = usePermissions();
 
+  const canControl = can("live.control");
   const { data: session, isLoading: sessionLoading, error: sessionError } = useLiveSession(sessionId);
-  const { data: panel, isLoading: panelLoading } = useControlPanel(sessionId);
-  const { data: controlLogs } = useControlLogs(sessionId);
+  const { data: panel, isLoading: panelLoading } = useControlPanel(canControl ? sessionId : undefined);
+  const { data: controlLogs } = useControlLogs(canControl ? sessionId : undefined);
 
   const startSession = useStartSession();
   const endSession = useEndSession();
@@ -105,22 +106,7 @@ export default function SessionControlPage(): ReactNode {
     try { await removeParticipant.mutateAsync({ sessionId, studentId }); } catch { /* ignore */ }
   }, [sessionId, removeParticipant]);
 
-  if (!can("live.control")) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 py-20">
-        <AlertTriangle className="h-12 w-12 text-neutral-400" />
-        <p className="text-lg font-medium text-neutral-600 dark:text-neutral-400">
-          ليس لديك صلاحية التحكم في الجلسات المباشرة
-        </p>
-        <Button variant="outline" onClick={(): void => { router.back(); }}>
-          <ArrowLeft className="ml-2 h-4 w-4" />
-          العودة
-        </Button>
-      </div>
-    );
-  }
-
-  if (sessionLoading || panelLoading) {
+  if (sessionLoading || (canControl && panelLoading)) {
     return (
       <div className="flex flex-col gap-4 p-4">
         <div className="flex items-center gap-3">
@@ -138,6 +124,10 @@ export default function SessionControlPage(): ReactNode {
 
   if (sessionError || !session) {
     return <ErrorState description="تعذر العثور على الجلسة أو ليس لديك صلاحية الوصول" />;
+  }
+
+  if (!canControl) {
+    return <StudentSessionView session={session} onBack={(): void => { router.push("/dashboard/live"); }} />;
   }
 
   const statusInfo = STATUS_BADGES[session.status] ?? { label: session.status, variant: "secondary" as const };
@@ -325,6 +315,128 @@ export default function SessionControlPage(): ReactNode {
                 <a href={session.meetingUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 underline-offset-2 hover:underline dark:text-primary-400">
                   {session.meetingUrl}
                 </a>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function StudentSessionView({ session, onBack }: { session: LiveSessionItem; onBack: () => void }): ReactNode {
+  const statusInfo = STATUS_BADGES[session.status] ?? { label: session.status, variant: "secondary" as const };
+  const isLive = session.status === "LIVE";
+  const canJoin = Boolean(session.meetingUrl) && (isLive || ["SCHEDULED", "PUBLISHED", "OPEN"].includes(session.status));
+  const seatsLeft = session.maxStudents > 0 ? session.maxStudents - session._count.bookings : null;
+
+  return (
+    <div className="flex flex-col gap-6 p-4" dir="rtl">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-white">{session.title}</h1>
+            <p className="text-sm text-neutral-500">
+              {formatDate(session.startTime)} | {formatTime(session.startTime)} - {formatTime(session.endTime)}
+            </p>
+          </div>
+        </div>
+        <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+      </div>
+
+      {/* Join action */}
+      {canJoin && (
+        <Card variant="gradient" padding="md" className="border-success-500/30">
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success-500/10 text-success-500">
+                <Video className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                  {isLive ? "الجلسة مباشرة الآن" : "حصتك مجدولة"}
+                </p>
+                <p className="text-xs text-neutral-500">انضم إلى الاجتماع عبر الرابط أدناه</p>
+              </div>
+            </div>
+            <a
+              href={session.meetingUrl ?? "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-success-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-success-600"
+            >
+              <Play className="h-4 w-4" />
+              {isLive ? "انضم الآن" : "ادخل الجلسة"}
+            </a>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Session details */}
+      <Card>
+        <CardHeader className="flex items-center gap-2 text-base font-semibold">
+          <Video className="h-4 w-4" />
+          تفاصيل الحصة
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4">
+            {session.description && (
+              <p className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+                {session.description}
+              </p>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Users className="h-4 w-4 text-neutral-400" />
+                <span className="text-neutral-600 dark:text-neutral-400">المعلم:</span>
+                <span className="font-medium">{session.teacher.name}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <CalendarDays className="h-4 w-4 text-neutral-400" />
+                <span className="text-neutral-600 dark:text-neutral-400">التاريخ:</span>
+                <span className="font-medium">{formatDate(session.startTime)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="h-4 w-4 text-neutral-400" />
+                <span className="text-neutral-600 dark:text-neutral-400">الوقت:</span>
+                <span className="font-medium">{formatTime(session.startTime)} - {formatTime(session.endTime)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Users className="h-4 w-4 text-neutral-400" />
+                <span className="text-neutral-600 dark:text-neutral-400">المقاعد:</span>
+                <span className="font-medium">
+                  {seatsLeft === null ? `${String(session._count.bookings)} محجوز` : `${String(seatsLeft)} متاح من ${String(session.maxStudents)}`}
+                </span>
+              </div>
+              {session.meetingProvider && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Video className="h-4 w-4 text-neutral-400" />
+                  <span className="text-neutral-600 dark:text-neutral-400">المنصة:</span>
+                  <span className="font-medium">{session.meetingProvider}</span>
+                </div>
+              )}
+            </div>
+            {session.meetingUrl && (
+              <div className="flex flex-col gap-1 rounded-lg bg-neutral-50 p-3 dark:bg-neutral-800/50">
+                <span className="text-xs text-neutral-500">رابط الاجتماع</span>
+                <a
+                  href={session.meetingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all text-sm font-medium text-primary-600 underline-offset-2 hover:underline dark:text-primary-400"
+                  dir="ltr"
+                >
+                  {session.meetingUrl}
+                </a>
+                {session.meetingPassword && (
+                  <span className="text-xs text-neutral-500">
+                    كلمة المرور: <span className="font-medium text-neutral-700 dark:text-neutral-300">{session.meetingPassword}</span>
+                  </span>
+                )}
               </div>
             )}
           </div>

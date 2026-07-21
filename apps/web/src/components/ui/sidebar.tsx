@@ -81,18 +81,13 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
   return (
     <aside
       className={cn(
-        "hidden h-screen flex-col border-l border-white/10 bg-transparent transition-[width] duration-300 dark:bg-transparent light:border-neutral-200 lg:flex",
-        "overflow-y-auto pb-24 pt-8",
-        "[scrollbar-width:thin]",
-        "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
-        "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20",
-        "hover:[&::-webkit-scrollbar-thumb]:bg-white/40",
+        "flex h-screen flex-col overflow-hidden border-l border-white/10 bg-transparent transition-[width] duration-300 ease-in-out dark:bg-transparent light:border-neutral-200",
         collapsed ? "w-[72px] px-3" : "w-[280px] px-5",
         className,
       )}
     >
-      {/* Brand + Collapse Toggle */}
-      <div className="mb-10 flex items-center justify-between">
+      {/* Brand + Collapse Toggle (fixed, never scrolls) */}
+      <div className="flex shrink-0 items-center justify-between pt-8">
         {!collapsed ? (
           <span className="font-cairo text-lg font-black text-neutral-50 light:text-neutral-900">
             MR.{" "}
@@ -119,14 +114,14 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
         </button>
       </div>
 
-      {/* Profile Card */}
+      {/* Profile Card (fixed, never scrolls) */}
       {!collapsed && (
         <div
           onClick={onProfileClick}
           onKeyDown={(e): void => { if (e.key === "Enter" || e.key === " ") { onProfileClick?.(); } }}
           role="button"
           tabIndex={0}
-          className="group mb-6 cursor-pointer rounded-[20px] border border-primary-400/20 bg-neutral-900/65 px-[15px] py-4 backdrop-blur-xl shadow-[0_8px_20px_rgba(0,0,0,0.3),0_0_20px_rgba(34,211,238,0.12)] transition-all duration-300 hover:border-primary-400/50 hover:bg-neutral-800/80 hover:shadow-[0_10px_25px_rgba(34,211,238,0.18)] light:border-neutral-200 light:bg-white/85 light:shadow-[0_4px_15px_rgba(0,0,0,0.06)] light:hover:bg-white light:hover:shadow-[0_8px_25px_rgba(6,182,212,0.1)]"
+          className="group mb-6 mt-6 cursor-pointer rounded-[20px] border border-primary-400/20 bg-neutral-900/65 px-[15px] py-4 backdrop-blur-xl shadow-[0_8px_20px_rgba(0,0,0,0.3),0_0_20px_rgba(34,211,238,0.12)] transition-all duration-300 hover:border-primary-400/50 hover:bg-neutral-800/80 hover:shadow-[0_10px_25px_rgba(34,211,238,0.18)] light:border-neutral-200 light:bg-white/85 light:shadow-[0_4px_15px_rgba(0,0,0,0.06)] light:hover:bg-white light:hover:shadow-[0_8px_25px_rgba(6,182,212,0.1)]"
         >
           <div className="mb-[15px] flex items-center gap-3">
             <img
@@ -154,8 +149,21 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1">
+      {/* Navigation (scrollable region) */}
+      <nav
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain py-2",
+          "[scrollbar-width:thin]",
+          "[scrollbar-color:rgba(255,255,255,0.18)_transparent]",
+          "[&::-webkit-scrollbar]:w-1.5",
+          "[&::-webkit-scrollbar-track]:bg-transparent",
+          "[&::-webkit-scrollbar-thumb]:rounded-full",
+          "[&::-webkit-scrollbar-thumb]:bg-white/15",
+          "hover:[&::-webkit-scrollbar-thumb]:bg-white/40",
+          "light:[&::-webkit-scrollbar-thumb]:bg-neutral-300/70",
+          "light:hover:[&::-webkit-scrollbar-thumb]:bg-neutral-400",
+        )}
+      >
         {items.map((entry, _idx) => {
           if (isSection(entry)) {
             return (
@@ -218,14 +226,13 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
             </button>
           );
         })}
-      </nav>
 
-      {/* Bottom slot */}
-      {!collapsed && children && (
-        <div className="border-t border-white/5 pt-4 light:border-neutral-200">
-          {children}
-        </div>
-      )}
+        {!collapsed && children && (
+          <div className="mt-4 border-t border-white/5 pt-4 light:border-neutral-200">
+            {children}
+          </div>
+        )}
+      </nav>
     </aside>
   );
 }

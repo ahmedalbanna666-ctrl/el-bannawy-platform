@@ -264,6 +264,8 @@ model UnlockCode {
   usedCount   Int         @default(0)
   active      Boolean     @default(true)
   expiresAt   DateTime?
+  targetType  String?     // "UNIT" | "LESSON" | null (null = coins-only code)
+  targetId    String?     @db.Uuid
   createdById String      @db.Uuid
   createdBy   User        @relation("UnlockCodeCreator", fields: [createdById], references: [id])
   createdAt   DateTime    @default(now())

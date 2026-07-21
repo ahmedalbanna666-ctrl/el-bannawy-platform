@@ -19,6 +19,10 @@ import {
   BookOpen,
   Crown,
   Medal,
+  BookCheck,
+  ClipboardList,
+  Users,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,6 +34,14 @@ interface Achievement {
   readonly description: string | null;
   readonly icon: string | null;
   readonly earnedAt: string;
+}
+
+interface DashboardStats {
+  xp: { total: number; level: number; nextLevelXp: number };
+  coins: number;
+  streak: number;
+  achievements: number;
+  stats: { completedLessons: number; totalLessons: number; homeworkPending: number; quizPassRate: number; attendanceRate: number };
 }
 
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -52,6 +64,17 @@ function getIcon(name: string | null): LucideIcon {
 export default function AchievementsPage(): ReactNode {
   const user = useAuthStore((s) => s.user);
   const userId = user?.id;
+
+  const { data: dashboard } = useQuery({
+    queryKey: ["home", userId],
+    queryFn: async (): Promise<DashboardStats> => {
+      const res = await api.get<DashboardStats>("/home");
+      if (!res.data) throw new Error("فشل تحميل الإحصائيات");
+      return res.data;
+    },
+    enabled: Boolean(userId),
+    staleTime: 30_000,
+  });
 
   const {
     data: achievements,
@@ -83,9 +106,11 @@ export default function AchievementsPage(): ReactNode {
   }
 
   const list = achievements ?? [];
+  const d = dashboard;
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-500/10">
           <Trophy className="h-6 w-6 text-primary-500" />
@@ -103,6 +128,127 @@ export default function AchievementsPage(): ReactNode {
         </Badge>
       </div>
 
+      {/* Progress Stats */}
+      {d && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card variant="elevated" padding="sm">
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-primary-500/10 p-2">
+                    <BookCheck className="h-5 w-5 text-primary-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                      {d.stats.completedLessons}/{d.stats.totalLessons}
+                    </p>
+                    <p className="text-xs text-neutral-500">الدروس المكتملة</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated" padding="sm">
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-warning-500/10 p-2">
+                    <ClipboardList className="h-5 w-5 text-warning-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                      {d.stats.homeworkPending}
+                    </p>
+                    <p className="text-xs text-neutral-500">الواجبات المعلقة</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated" padding="sm">
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-success-500/10 p-2">
+                    <Target className="h-5 w-5 text-success-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                      {d.stats.quizPassRate}%
+                    </p>
+                    <p className="text-xs text-neutral-500">معدل النجاح</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated" padding="sm">
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-info-500/10 p-2">
+                    <Users className="h-5 w-5 text-info-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                      {d.stats.attendanceRate}%
+                    </p>
+                    <p className="text-xs text-neutral-500">نسبة الحضور</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* XP & Coins & Streak */}
+          <section className="grid gap-4 sm:grid-cols-3">
+            <Card variant="elevated" padding="md">
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-yellow-500/10 p-2">
+                    <Zap className="h-5 w-5 text-yellow-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">نقاط الخبرة</p>
+                    <p className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
+                      {d.xp.total.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-neutral-400">المستوى {d.xp.level}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated" padding="md">
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-yellow-500/10 p-2">
+                    <Coins className="h-5 w-5 text-yellow-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">العملات</p>
+                    <p className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
+                      {d.coins.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-neutral-400">الرصيد الحالي</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated" padding="md">
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-orange-500/10 p-2">
+                    <Flame className="h-5 w-5 text-orange-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">سلسلة المواظبة</p>
+                    <p className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
+                      {d.streak}
+                    </p>
+                    <p className="text-xs text-neutral-400">يوم متتالي</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
+
+      {/* Achievements Grid */}
       {list.length === 0 ? (
         <EmptyState
           icon={<Trophy className="h-16 w-16" />}
@@ -157,6 +303,17 @@ function AchievementsSkeleton(): ReactNode {
   return (
     <div className="flex flex-col gap-6">
       <Skeleton className="h-12 w-64" />
+      <Skeleton className="h-6 w-96" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-20 rounded-xl" />
+        ))}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }, (_, i) => (
+          <Skeleton key={i} className="h-24 rounded-xl" />
+        ))}
+      </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }, (_, i) => (
           <Skeleton key={i} className="h-36 rounded-2xl" />

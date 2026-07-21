@@ -3,10 +3,9 @@ import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-q
 import {
   useUnlockContent,
   useSubmitUnlockRequest,
+  useRedeemCode,
+  useUnlockCost,
 } from "@/lib/coins/coins-api";
-
-export const UNIT_UNLOCK_COST = 50;
-export const LESSON_UNLOCK_COST = 20;
 
 export interface ContentAccess {
   unlocked: boolean;
@@ -34,19 +33,27 @@ export interface UseUnitUnlockResult {
   access: UseQueryResult<ContentAccess>;
   unlock: (onDone?: (err?: unknown) => void) => void;
   request: (onDone?: (err?: unknown) => void) => void;
+  redeem: (code: string, onDone?: (err?: unknown, result?: { coinsAdded: number; unlocked: boolean }) => void) => void;
   unlocking: boolean;
   requesting: boolean;
+  redeeming: boolean;
+  cost: number;
 }
 
 export function useUnitUnlock(unitId: string | undefined): UseUnitUnlockResult {
   const qc = useQueryClient();
   const access = useContentAccess("UNIT", unitId);
+  const { data: costData } = useUnlockCost("UNIT");
   const unlockMut = useUnlockContent();
   const requestMut = useSubmitUnlockRequest();
+  const redeemMut = useRedeemCode();
+
+  const cost = costData?.cost ?? 50;
 
   const invalidate = (): void => {
     void qc.invalidateQueries({ queryKey: ["coins", "access", "UNIT", unitId] });
     void qc.invalidateQueries({ queryKey: ["curriculum"] });
+    void qc.invalidateQueries({ queryKey: ["coins", "wallet"] });
   };
 
   const unlock = (onDone?: (err?: unknown) => void): void => {
@@ -69,11 +76,25 @@ export function useUnitUnlock(unitId: string | undefined): UseUnitUnlockResult {
     );
   };
 
+  const redeem = (code: string, onDone?: (err?: unknown, result?: { coinsAdded: number; unlocked: boolean }) => void): void => {
+    redeemMut.mutate(code, {
+      onSuccess: (res) => {
+        invalidate();
+        const data = res.data;
+        onDone?.(undefined, data);
+      },
+      onError: (err) => { onDone?.(err); },
+    });
+  };
+
   return {
     access,
     unlock,
     request,
+    redeem,
     unlocking: unlockMut.isPending,
     requesting: requestMut.isPending,
+    redeeming: redeemMut.isPending,
+    cost,
   };
 }

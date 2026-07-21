@@ -1,5 +1,5 @@
-import { IsOptional, IsString, IsInt, Min, Max, IsEnum, IsUUID } from "class-validator";
-import { Type } from "class-transformer";
+import { IsOptional, IsString, IsInt, Min, Max, IsEnum, IsUUID, IsArray } from "class-validator";
+import { Type, Transform } from "class-transformer";
 
 export enum MistakeSource {
   ASSESSMENT = "ASSESSMENT",
@@ -16,6 +16,18 @@ export class MistakeQueryDto {
   @IsOptional()
   @IsUUID()
   unitId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID("4", { each: true })
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value
+      : value !== undefined && value !== null && value !== ""
+        ? [value]
+        : undefined,
+  )
+  unitIds?: string[];
 
   @IsOptional()
   @IsUUID()

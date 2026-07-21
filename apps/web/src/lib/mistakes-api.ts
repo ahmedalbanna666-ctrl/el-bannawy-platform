@@ -14,6 +14,7 @@ export interface WrongAnswerItem {
   question: string;
   options: MistakeOption[];
   correctAnswer: string;
+  studentAnswer: string | null;
   explanation: string | null;
   answeredAt: string;
   attemptId: string;
@@ -61,6 +62,7 @@ export interface MiniExamSummary {
 export interface MistakeQueryParams {
   scope?: "all" | "today" | "term";
   unitId?: string;
+  unitIds?: string[];
   lessonId?: string;
   storyId?: string;
   chapterId?: string;
@@ -75,6 +77,7 @@ export interface CreateMiniExamDto {
   questionCount: number;
   durationMinutes: number;
   unitId?: string;
+  unitIds?: string[];
   lessonId?: string;
   storyId?: string;
   chapterId?: string;
@@ -101,10 +104,13 @@ export const MISTAKES_KEYS = {
   miniExamHistory: (studentId?: string) => ["mistakes", "mini-exam", "history", studentId] as const,
 };
 
-export function useMistakes(params: MistakeQueryParams): UseQueryResult<{ items: WrongAnswerItem[]; total: number; page: number; limit: number }> {
+export function useMistakes(params: MistakeQueryParams): UseQueryResult<{ items: WrongAnswerItem[]; total: number; page: number; limit: number; sourceCounts: Partial<Record<MistakeSource, number>> }> {
   const qp = new URLSearchParams();
   if (params.scope) qp.set("scope", params.scope);
   if (params.unitId) qp.set("unitId", params.unitId);
+  if (params.unitIds && params.unitIds.length > 0) {
+    for (const id of params.unitIds) qp.append("unitIds", id);
+  }
   if (params.lessonId) qp.set("lessonId", params.lessonId);
   if (params.storyId) qp.set("storyId", params.storyId);
   if (params.chapterId) qp.set("chapterId", params.chapterId);
@@ -118,8 +124,14 @@ export function useMistakes(params: MistakeQueryParams): UseQueryResult<{ items:
   return useQuery({
     queryKey: MISTAKES_KEYS.list(params),
     queryFn: async () => {
-      const res = await api.get<{ items: WrongAnswerItem[]; total: number; page: number; limit: number }>(`/mistakes${qs ? `?${qs}` : ""}`);
-      return { items: res.data?.items ?? [], total: res.data?.total ?? 0, page: res.data?.page ?? 1, limit: res.data?.limit ?? 20 };
+      const res = await api.get<{ items: WrongAnswerItem[]; total: number; page: number; limit: number; sourceCounts: Partial<Record<MistakeSource, number>> }>(`/mistakes${qs ? `?${qs}` : ""}`);
+      return {
+        items: res.data?.items ?? [],
+        total: res.data?.total ?? 0,
+        page: res.data?.page ?? 1,
+        limit: res.data?.limit ?? 20,
+        sourceCounts: res.data?.sourceCounts ?? {},
+      };
     },
     staleTime: 15_000,
   });

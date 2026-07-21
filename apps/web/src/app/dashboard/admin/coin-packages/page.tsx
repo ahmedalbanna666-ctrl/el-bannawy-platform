@@ -86,8 +86,7 @@ function PackageFormDialog({
   );
 }
 
-export default function AdminCoinPackagesPage(): ReactNode {
-  const router = useRouter();
+function PackagesManager(): ReactNode {
   const { can } = usePermissions();
   const canManage = can("coins.manage");
   const { data: packages, isLoading, isError, refetch } = useAllCoinPackages();
@@ -97,17 +96,16 @@ export default function AdminCoinPackagesPage(): ReactNode {
 
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذه الباقة؟")) return;
-    try { await deletePackage(id); } catch { /* handled */ }
-  }, [deletePackage]);
+    try {
+      await deletePackage(id);
+      void refetch();
+    } catch { /* handled */ }
+  }, [deletePackage, refetch]);
 
   return (
     <div className="flex flex-col gap-6 pb-4">
       <div className="flex items-center justify-between">
         <div>
-          <button onClick={() => { router.push("/dashboard/admin"); }} className="mb-2 flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600">
-            <ArrowLeft className="h-4 w-4" />
-            العودة للإدارة
-          </button>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">إدارة باقات العملات</h1>
         </div>
         {canManage && (
@@ -118,7 +116,7 @@ export default function AdminCoinPackagesPage(): ReactNode {
         )}
       </div>
 
-      {isError && <ErrorState title="فشل تحميل الباقات" onRetry={() => { void refetch(); }} />}
+      {isError && <ErrorState title="فشل تحميل الباقات" description="قد لا تملك صلاحية الوصول أو حدث خطأ في الخادم" onRetry={() => { void refetch(); }} />}
 
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -172,6 +170,30 @@ export default function AdminCoinPackagesPage(): ReactNode {
 
       {dialogOpen && (
         <PackageFormDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditTarget(null); }} pkg={editTarget} />
+      )}
+    </div>
+  );
+}
+
+export default function AdminCoinPackagesPage(): ReactNode {
+  const router = useRouter();
+  const { can } = usePermissions();
+  const canManage = can("coins.manage");
+
+  return (
+    <div className="flex flex-col gap-6 pb-4">
+      <button onClick={() => { router.push("/dashboard/admin"); }} className="flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600">
+        <ArrowLeft className="h-4 w-4" />
+        العودة للإدارة
+      </button>
+
+      {canManage ? (
+        <PackagesManager />
+      ) : (
+        <ErrorState
+          title="لا تملك صلاحية الوصول"
+          description="فقط المديرون يمكنهم إدارة باقات العملات. تواصل مع مسؤول النظام للحصول على الصلاحية."
+        />
       )}
     </div>
   );

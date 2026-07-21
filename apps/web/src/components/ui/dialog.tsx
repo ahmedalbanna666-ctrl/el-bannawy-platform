@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 import { Button } from "./button";
@@ -16,7 +17,7 @@ const Dialog = forwardRef<HTMLDivElement, DialogProps>(
   ({ open, onClose, title, children, className, ...props }, ref) => {
     if (!open) return null;
 
-    return (
+    const overlay = (
       <div
         className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         onClick={(e) => {
@@ -53,6 +54,12 @@ const Dialog = forwardRef<HTMLDivElement, DialogProps>(
         </div>
       </div>
     );
+
+    if (typeof document !== "undefined") {
+      return createPortal(overlay, document.body);
+    }
+
+    return overlay;
   },
 );
 
