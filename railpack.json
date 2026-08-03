@@ -7,6 +7,7 @@
   "steps": {
     "build": {
       "commands": [
+        "cd database && pnpm run generate",
         "cd apps/backend && pnpm run build"
       ]
     }
