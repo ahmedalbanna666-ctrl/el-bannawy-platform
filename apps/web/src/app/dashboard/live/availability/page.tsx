@@ -12,6 +12,7 @@ import {
   useUpdateAvailability,
   type TeacherAvailabilityItem,
 } from "@/lib/live-api";
+import { useAuthStore } from "@/lib/auth-store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -305,6 +306,7 @@ function BlockDateSection(): ReactNode {
 
 export default function AvailabilityPage(): ReactNode {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
   const [activeDay, setActiveDay] = useState(6);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TeacherAvailabilityItem | null>(null);
@@ -314,10 +316,10 @@ export default function AvailabilityPage(): ReactNode {
     isLoading,
     isError,
     refetch: retry,
-  } = useAvailabilities();
+  } = useAvailabilities(user?.id);
   const { mutateAsync: deleteAvailability, isPending: isDeleting } =
     useDeleteAvailability();
-  const { data: dateBlocks } = useDateBlocks();
+  const { data: dateBlocks } = useDateBlocks(user?.id);
   const { mutateAsync: unblockDate, isPending: isUnblocking } = useUnblockDate();
 
   const dayMap = useMemo(() => {
