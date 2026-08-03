@@ -118,6 +118,20 @@ Review migration status and backup/restore procedures before applying production
 
 The backend exposes `GET /api/v1/home/health` without authentication. It returns `{ status: "ok", timestamp }` and is used by the container host health check.
 
+## Seed Accounts (Production DB)
+
+Created by `database/prisma/seed.ts` (idempotent — re-running rebuilds demo data). All share password `Test@1234`.
+
+| Role | Email | Login verified |
+| --- | --- | --- |
+| ADMINISTRATOR | `admin@elbannawy.com` | ✅ 201 |
+| ADMINISTRATOR | `ahmed.albanna6666@gmail.com` | ✅ in DB |
+| TEACHER | `teacher@elbannawy.com` | ✅ 201 |
+| TEACHER | `ahmed.albanna666@gmail.com` | ✅ in DB |
+| STUDENT | `student@elbannawy.com` | ✅ in DB |
+
+> These accounts have `status: ACTIVE` but `emailVerifiedAt: null`. Login is allowed (they were created before the email-verification gate). To harden, run the seed accounts through `/auth/verify-email` or set `emailVerifiedAt` directly.
+
 ## Post-Deploy Smoke Test
 
 1. Open `https://el-bannawy-web.vercel.app` and confirm the login page renders (HTTP 200).
@@ -134,5 +148,7 @@ The backend exposes `GET /api/v1/home/health` without authentication. It returns
 - Redis: Railway `Redis` service SUCCESS; BullMQ scheduler workers registered at boot.
 - Backend logs: `Nest application successfully started`, no `EACCES`/config errors.
 - Brevo: transactional email configured (`BREVO_API_KEY`, `BREVO_SENDER_EMAIL=ahmed.albanna6666@gmail.com`); test send verified (HTTP 201).
+- Admin login: `admin@elbannawy.com` / `Test@1234` → 201 via production API.
+- Teacher login: `teacher@elbannawy.com` / `Test@1234` → 201 via production API.
 
 End of Document.
