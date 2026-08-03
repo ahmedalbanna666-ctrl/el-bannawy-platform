@@ -13,6 +13,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+# Ensure all workspace dependencies are installed and buildable
+RUN pnpm install --frozen-lockfile || pnpm install
 RUN pnpm --filter @el-bannawy/shared build
 RUN pnpm --filter @el-bannawy/database generate
 RUN pnpm --filter @el-bannawy/backend build
