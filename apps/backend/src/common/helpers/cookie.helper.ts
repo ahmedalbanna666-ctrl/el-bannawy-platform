@@ -10,11 +10,14 @@ export function setAuthCookies(
   accessExpiresIn: number,
 ): void {
   const isProduction = process.env.NODE_ENV === "production";
+  // Web (vercel.app) and API (railway.app) are different sites — SameSite=None
+  // (+ Secure) is required for the browser to send the auth cookies cross-site.
+  const sameSite: "none" | "lax" = isProduction ? "none" : "lax";
 
   res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "strict",
+    sameSite,
     path: "/",
     maxAge: accessExpiresIn * 1000,
     signed: true,
@@ -23,7 +26,7 @@ export function setAuthCookies(
   res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "strict",
+    sameSite,
     path: "/api/v1/auth",
     maxAge: 7 * 24 * 60 * 60 * 1000,
     signed: true,
