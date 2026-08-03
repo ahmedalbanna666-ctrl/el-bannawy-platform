@@ -63,26 +63,34 @@ vercel deploy --prod --yes                    # from repo root
 
 ## Backend → Railway
 
-The backend runs on Railway, built from the GitHub repo with `railpack.json` (monorepo-aware). The build:
+The backend runs on Railway, built from the GitHub repo root `Dockerfile` (monorepo-aware). The build:
 
-1. Builds `packages/shared`
-2. Runs `prisma generate` in `database`
-3. Runs `nest build` in `apps/backend`
-4. Starts with `cd apps/backend && node dist/src/main.js`
+1. Installs all workspace dependencies (`pnpm install --frozen-lockfile`)
+2. Builds `packages/shared`
+3. Runs `prisma generate` in `database`
+4. Runs `nest build` in `apps/backend`
+5. Deploys the package via `pnpm deploy --legacy` (self-contained `node_modules`)
+6. Regenerates the Prisma client inside the deployed package
+7. Starts with `node out/dist/src/main.js`
 
 Deployed URL: https://el-bannawy-backend-production.up.railway.app
 
 Required secrets (set as Railway service variables):
 
 - `DATABASE_URL`, `DIRECT_URL` (PostgreSQL/Neon)
-- `REDIS_HOST`, `REDIS_PORT` (Redis for BullMQ)
+- `REDIS_HOST`, `REDIS_PORT`, `REDIS_USER`, `REDIS_PASSWORD` (Redis service on Railway)
 - `JWT_SECRET`, `COOKIE_SECRET`, `PAYMENT_WEBHOOK_SECRET`
+- `AI_ENCRYPTION_KEY` (required, min 32 chars, in production)
 - `FRONTEND_URL` (the Vercel URL, e.g. `https://el-bannawy-web.vercel.app`)
 - `PUBLIC_BASE_URL`, `CORS_ORIGINS`
 - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
 - `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`
 
 The Vercel frontend rewrites `/api/*` to this URL (configured in `apps/web/vercel.json`).
+
+### Railway Redis
+
+A `Redis` service is provisioned on the same Railway project. The backend's BullMQ scheduler workers connect via `REDIS_HOST`/`REDIS_PORT`/`REDIS_USER`/`REDIS_PASSWORD`. The `scheduler.module.ts` reads these env vars.
 
 ## Build And Verify
 
@@ -118,10 +126,12 @@ The backend exposes `GET /api/v1/home/health` without authentication. It returns
 4. Verify a read-only curriculum request.
 5. Verify migration status and logs contain no secrets.
 
-## Verified Status (2026-08-03)
+## Verified Status (2026-08-04)
 
 - Frontend: `https://el-bannawy-web.vercel.app` → HTTP 200 (Ready).
 - Backend health via Vercel rewrite: `https://el-bannawy-web.vercel.app/api/v1/home/health` → `{"status":"ok"}`.
 - Backend direct: `https://el-bannawy-backend-production.up.railway.app/api/v1/home/health` → `{"status":"ok"}`.
+- Redis: Railway `Redis` service SUCCESS; BullMQ scheduler workers registered at boot.
+- Backend logs: `Nest application successfully started`, no `EACCES`/config errors.
 
 End of Document.
