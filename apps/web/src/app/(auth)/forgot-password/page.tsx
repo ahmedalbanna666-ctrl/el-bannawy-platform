@@ -6,10 +6,10 @@ import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { School, Phone, Send, ArrowLeft } from "lucide-react";
+import { School, Mail, Send, ArrowLeft } from "lucide-react";
 
 export default function ForgotPasswordPage(): ReactNode {
-  const [mobile, setMobile] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ export default function ForgotPasswordPage(): ReactNode {
     setLoading(true);
 
     try {
-      const response = await api.post<{ message: string }>("/auth/forgot-password", { mobile });
+      const response = await api.post<{ message: string }>("/auth/forgot-password", { identifier });
       setMessage(response.message ?? "Verification code sent");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
@@ -41,19 +41,19 @@ export default function ForgotPasswordPage(): ReactNode {
             Forgot Password
           </h1>
           <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">
-            Enter your registered mobile number to receive a verification code
+            Enter your registered email or mobile number to receive a verification code
           </p>
         </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={(e): void => { void handleSubmit(e); }} className="flex flex-col gap-5">
           <Input
-            label="Mobile Number"
-            type="tel"
-            placeholder="+201234567890"
-            value={mobile}
-            onChange={(e): void => { setMobile(e.target.value); }}
-            leftIcon={<Phone className="h-5 w-5" />}
+            label="Email or Mobile Number"
+            type="text"
+            placeholder="Enter your email or mobile number"
+            value={identifier}
+            onChange={(e): void => { setIdentifier(e.target.value); }}
+            leftIcon={<Mail className="h-5 w-5" />}
             required
           />
 

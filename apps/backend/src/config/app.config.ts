@@ -5,4 +5,8 @@ export default registerAs("app", () => ({
   nodeEnv: process.env.NODE_ENV ?? "development",
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? "http://localhost:4000",
+  corsOrigins: (process.env.CORS_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0),
 }));

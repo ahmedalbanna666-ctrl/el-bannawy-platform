@@ -4,71 +4,45 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/providers/theme-provider";
 import { useAuthStore } from "@/lib/auth-store";
 import { usePermissions } from "@/lib/use-permissions";
-import { api } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
-import { Moon, Sun, Bell, Menu, Flame, Coins, Zap, Trophy, History } from "lucide-react";
+import { Moon, Sun, Menu, Flame, Coins, Zap, Trophy, History, ShoppingCart } from "lucide-react";
 import { Button } from "./button";
 import { AcademicContextBar } from "./academic-context-bar";
-import { useEffect, useState, type ReactNode } from "react";
-
-interface HeaderStats {
-  streak: number;
-  coins: number;
-  level: number;
-  xp: number;
-}
+import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown";
+import { useHomeData } from "@/lib/home-api";
+import { type ReactNode } from "react";
 
 interface HeaderProps {
   title?: string;
   onMenuClick?: () => void;
-  onNotificationClick?: () => void;
-  notificationCount?: number;
   className?: string;
 }
 
 export function Header({
   onMenuClick,
-  onNotificationClick,
-  notificationCount,
   className,
 }: HeaderProps): ReactNode {
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuthStore();
   const { isStudent } = usePermissions();
   const router = useRouter();
-  const [stats, setStats] = useState<HeaderStats | null>(null);
-
-  useEffect(() => {
-    if (!isStudent) return;
-    async function fetchStats(): Promise<void> {
-      try {
-        const response = await api.get<{
-          xp: { total: number; level: number };
-          coins: number;
-          streak: number;
-        }>("/home");
-        if (response.data) {
-          setStats({
-            streak: response.data.streak,
-            coins: response.data.coins,
-            level: response.data.xp.level,
-            xp: response.data.xp.total,
-          });
-        }
-      } catch {
-        // Stats unavailable — header works without them
-      }
-    }
-    void fetchStats();
-  }, [isStudent]);
+  const { data } = useHomeData(isStudent);
 
   const fullName = user?.fullName ?? "";
   const firstName = fullName ? fullName.split(" ")[0] : "";
+  const stats = data
+    ? {
+        streak: data.streak,
+        coins: data.coins,
+        level: data.xp.level,
+        xp: data.xp.total,
+      }
+    : null;
 
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 flex flex-col border-b border-neutral-200 bg-neutral-50/80 px-4 backdrop-blur-md dark:border-neutral-700 dark:bg-neutral-900/80 lg:px-6",
+        "sticky top-0 z-30 flex flex-col border-b border-white/15 bg-white/30 px-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-colors dark:border-white/10 dark:bg-neutral-950/25 dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] lg:px-6",
         className,
       )}
     >
@@ -85,7 +59,7 @@ export function Header({
           </Button>
           {firstName && (
             <h1 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-              مرحباً، {firstName} 👋
+              مرحباً، {firstName}
             </h1>
           )}
         </div>
@@ -113,14 +87,7 @@ export function Header({
             <History className="h-5 w-5" />
           </Button>
 
-          <Button variant="ghost" size="icon-sm" aria-label="Notifications" className="relative" onClick={onNotificationClick}>
-            <Bell className="h-5 w-5" />
-            {notificationCount && notificationCount > 0 ? (
-              <span className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-500 px-1 text-[10px] font-bold text-white">
-                {notificationCount > 99 ? "99+" : notificationCount}
-              </span>
-            ) : null}
-          </Button>
+          <NotificationsDropdown />
         </div>
       </div>
 
@@ -147,6 +114,15 @@ export function Header({
             <Trophy className="h-3.5 w-3.5" />
             {stats.xp} XP
           </span>
+          <button
+            type="button"
+            onClick={(): void => { router.push("/dashboard/shop"); }}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400 dark:hover:bg-emerald-500/20"
+            aria-label="المتجر"
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            المتجر
+          </button>
         </div>
       )}
     </header>

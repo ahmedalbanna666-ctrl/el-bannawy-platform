@@ -28,8 +28,10 @@ export class SupportController {
     @Query("priority") priority?: string,
     @Query("category") category?: string,
     @Query("assignedAgentId") assignedAgentId?: string,
-  ): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.support.listTickets(userId, { status, priority, category, assignedAgentId });
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.support.listTickets(userId, { status, priority, category, assignedAgentId }, Number(page) || 1, Number(limit) || 20);
     return successResponse(data);
   }
 
@@ -83,10 +85,12 @@ export class SupportController {
   }
 
   @Post("tickets/:ticketId/close")
+  @Roles("ADMINISTRATOR", "SUPPORT", "STAFF")
   async closeTicket(
     @Param("ticketId", ParseUUIDPipe) ticketId: string,
+    @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<null>> {
-    await this.support.closeTicket(ticketId);
+    await this.support.closeTicket(ticketId, userId);
     return successResponse(null, "Ticket closed");
   }
 }

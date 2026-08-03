@@ -133,6 +133,24 @@ System Health
 
 Settings
 
+## Role-Based Module Visibility
+
+Student-facing modules are hidden for non-student roles regardless of granted permissions.
+
+Implementation: `NavModule.roles` in `lib/nav-registry.ts`. Modules restricted to `["STUDENT"]` do not appear in the sidebar or dashboard cards for `TEACHER`, `STAFF`, `SUPPORT`, `SECRETARY`, or `ADMINISTRATOR`.
+
+Restricted (student-only) modules:
+
+- Ask El-bannawy AI (chat) — management UI lives at `admin/ai` settings/knowledge-base
+- Games — management lives at `teacher/games` ("إدارة الألعاب")
+- Learn From Mistakes
+- Achievements
+- Leaderboard
+- Saved PDFs
+- Shop
+
+Both `getSidebarModules(can, role)` and `getDashboardModules(can, role)` apply this role filter.
+
 ---
 
 # Behavior

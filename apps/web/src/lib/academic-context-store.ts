@@ -86,6 +86,7 @@ export const useAcademicContextStore = create<AcademicContextState>()(
     }),
     {
       name: "el-bannawy-academic-context",
+      version: 1,
       partialize: (state) => ({
         academicYear: state.academicYear,
         academicYearId: state.academicYearId,

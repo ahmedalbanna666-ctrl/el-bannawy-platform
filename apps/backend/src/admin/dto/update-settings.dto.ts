@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsIn } from "class-validator";
+import { IsString, IsOptional, IsBoolean, IsIn, IsInt, Min, Max } from "class-validator";
 import { Type } from "class-transformer";
 
 export class UpdateSettingsDto {
@@ -27,4 +27,11 @@ export class UpdateSettingsDto {
   @IsBoolean()
   @Type(() => Boolean)
   maintenanceMode?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  @Type(() => Number)
+  certificateThreshold?: number;
 }

@@ -41,6 +41,33 @@ const TYPE_BADGE_COLORS: Record<QuestionPreviewType, string> = {
   UNKNOWN: "bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300",
 };
 
+interface DialogueLine {
+  speaker: string;
+  text: string;
+  hasBlank?: boolean;
+}
+
+function isDialogueType(type: QuestionPreviewType): boolean {
+  return type === "DIALOGUE" || type === "DIALOGUE_QUESTION";
+}
+
+function parseDialogueOptions(item: EditableQuestionItem): DialogueLine[] {
+  const raw = item.options[0]?.text;
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const first = parsed[0] as Record<string, unknown> | undefined;
+  if (first && typeof first.speaker === "string" && typeof first.text === "string") {
+    return parsed as DialogueLine[];
+  }
+  return [];
+}
+
 interface QuestionImportCardProps {
   readonly item: EditableQuestionItem;
   readonly questionNumber: number;
@@ -204,7 +231,7 @@ export function QuestionImportCard({
         )}
 
         {/* Options */}
-        {(isEditing ? editOptions : item.options).length > 0 && (
+        {!isDialogueType(item.questionType) && (isEditing ? editOptions : item.options).length > 0 && (
           <div className="mt-2 flex flex-col gap-1.5">
             {(isEditing ? editOptions : item.options).map((opt, oi) => {
               const label = String.fromCharCode(97 + oi);
@@ -248,6 +275,11 @@ export function QuestionImportCard({
           </div>
         )}
 
+        {/* Dialogue lines preview */}
+        {!isEditing && isDialogueType(item.questionType) && (
+          <DialoguePreview lines={parseDialogueOptions(item)} />
+        )}
+
         {/* Warnings & Errors */}
         {item.warnings.length > 0 && !isEditing && (
           <div className="mt-2 flex flex-col gap-1">
@@ -289,6 +321,29 @@ export function QuestionImportCard({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function DialoguePreview({ lines }: { readonly lines: readonly DialogueLine[] }): ReactNode {
+  if (lines.length === 0) {
+    return <p className="mt-2 text-xs text-neutral-500">لا توجد أسطر حوار</p>;
+  }
+  return (
+    <div className="mt-2 flex flex-col gap-1.5 rounded-[var(--radius-sm)] border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-700 dark:bg-neutral-800/50">
+      {lines.map((line, li) => (
+        <div key={li} className="flex items-start gap-2 text-sm">
+          <span className="mt-0.5 shrink-0 rounded bg-primary-100 px-2 py-0.5 text-[11px] font-bold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+            {line.speaker}
+          </span>
+          <span className="text-neutral-700 dark:text-neutral-300" dir="auto">
+            {line.text.replace(/(?:\(\d+\)\s*)?(?:\.{2,}|_{2,})/g, (match) => {
+              const num = /\((\d+)\)/.exec(match);
+              return num ? `${num[1]}. ______` : "______";
+            })}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

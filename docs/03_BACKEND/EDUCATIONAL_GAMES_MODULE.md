@@ -1,332 +1,39 @@
-# EDUCATIONAL_GAMES_MODULE.md
+# Educational Games Module
 
-# El-bannawy Platform
-## Educational Games Module Requirements
+Version: 2.0.0
+Status: Web client feature baseline
 
-Version: 1.0.0
+## Current Games
 
----
+The web client currently provides a games hub, listening challenge, and pronunciation challenge. Supporting code includes a question engine, game settings/types, game data hook, unit-map selection, and browser speech-recognition integration.
 
-# Purpose
+## Learning Rules
 
-The Educational Games Module transforms learning into an enjoyable experience by using interactive educational games.
+- Games are supplementary practice and do not unlock lessons or replace assessments.
+- Pronunciation challenge depends on browser speech-recognition availability; unsupported browsers must show a usable fallback/error state (implemented: word + translation are shown and the learner can skip each word without scoring; skipped words are counted separately on the result screen).
+- Listening challenge uses lesson/content data available to the client. When speech synthesis is unavailable the current word is displayed as text so the challenge remains playable.
+- Game rewards and persistence must not be documented as active unless backed by a backend endpoint and schema relation.
 
-Games are designed to reinforce English language skills while increasing motivation and reducing study fatigue.
+## Current Routes
 
-Educational Games are supplementary learning activities.
+- `/dashboard/games`
+- `/dashboard/games/listening-challenge`
+- `/dashboard/games/pronunciation-challenge`
+- `/dashboard/games/memory`
+- `/dashboard/teacher/games`
 
-They never replace lessons.
+## Teacher Management
 
----
+The `/dashboard/teacher/games` page manages the three client games:
 
-# Objectives
+- Listening challenge: enable/disable, replay limit, questions per round.
+- Pronunciation challenge: enable/disable, success threshold, questions per round, XP and coin rewards.
+- Memory game: enable/disable, word pairs per round.
 
-The Educational Games Module must:
+Game settings are stored per game in a single `systemSetting` row keyed `game_settings` and are served from `GET /games/settings`. Students see disabled games as locked on the games hub and cannot open them.
 
-- Increase student engagement.
-- Reduce boredom.
-- Reinforce lesson concepts.
-- Improve vocabulary.
-- Improve grammar.
-- Improve reading.
-- Improve listening.
-- Encourage continuous learning.
+## Current Limitations
 
----
-
-# Supported Users
-
-Primary User
-
-- Student
-
-Management Users
-
-- Teacher
-- Administrator
-
----
-
-# Navigation Flow
-
-Home
-
-↓
-
-Educational Games
-
-↓
-
-Game Categories
-
-↓
-
-Choose Game
-
-↓
-
-Play
-
-↓
-
-Results
-
-↓
-
-Rewards
-
-↓
-
-Return to Home
-
----
-
-# Game Categories
-
-Version 1
-
-Supported Categories
-
-- Vocabulary Games
-- Grammar Games
-- Listening Games
-- Reading Games
-- Sentence Building
-- Memory Games
-- Matching Games
-- Word Search
-
-Future Categories
-
-- Speaking Games
-- Multiplayer Games
-- AI Games
-- Story Games
-
----
-
-# Game Card
-
-Each game displays:
-
-- Game Name
-- Thumbnail
-- Difficulty
-- Estimated Duration
-- XP Reward
-- Completion Status
-
----
-
-# Difficulty Levels
-
-Games may have:
-
-- Easy
-- Medium
-- Hard
-
-Difficulty affects XP rewards.
-
----
-
-# Game Rules
-
-Every game must:
-
-- Be educational.
-- Be short.
-- Be replayable.
-- Give immediate feedback.
-
-Games should take between:
-
-2–10 minutes.
-
----
-
-# Supported Game Types
-
-Version 1
-
-- Matching
-- Memory Cards
-- Drag & Drop
-- Word Search
-- Sentence Ordering
-- Image Matching
-- Multiple Choice
-- Listening Challenge
-
----
-
-# XP Rewards
-
-Students may earn XP.
-
-Teachers configure:
-
-- Minimum XP
-- Maximum XP
-- Daily Limit
-
-XP is granted only after successful completion.
-
----
-
-# Coins
-
-Coins are not awarded by default.
-
-Coins may be awarded only through documented reward events.
-
----
-
-# Progress
-
-Games track:
-
-- Times Played
-- Highest Score
-- Average Score
-- Fastest Completion
-- XP Earned
-
----
-
-# Leaderboards
-
-Future Version
-
-Game Leaderboards
-
-Daily
-
-Weekly
-
-Monthly
-
-Not included in Version 1.
-
----
-
-# Retry Rules
-
-Students may replay games unlimited times.
-
-XP rules determine reward eligibility.
-
----
-
-# Analytics
-
-Track:
-
-- Total Plays
-- Completion Rate
-- Average Score
-- Average Duration
-- Popular Games
-- Student Performance
-
----
-
-# Teacher Features
-
-Teachers can:
-
-- Enable Games
-- Disable Games
-- Assign Games
-- Configure XP Rewards
-- View Analytics
-
----
-
-# Administrator Features
-
-Administrators may:
-
-- Manage All Games
-- Configure Global Rewards
-- Publish New Games
-- Disable Games
-
----
-
-# Performance
-
-Games must load within:
-
-2 seconds.
-
-Gameplay should remain smooth on:
-
-- Mobile
-- Tablet
-- Desktop
-
----
-
-# Security
-
-Students may only access games assigned to their educational stage.
-
----
-
-# Empty State
-
-Display
-
-No educational games available yet.
-
----
-
-# Error State
-
-Display
-
-Unable to load games.
-
-Retry
-
----
-
-# Future Enhancements
-
-Future Versions
-
-- Multiplayer Games
-- AI Adaptive Games
-- Seasonal Events
-- Weekly Challenges
-- Team Competitions
-- Daily Missions
-
----
-
-# Acceptance Criteria
-
-The Educational Games Module is complete when:
-
-✓ Games load correctly.
-
-✓ XP rewards work.
-
-✓ Progress tracking works.
-
-✓ Analytics are collected.
-
-✓ Teachers can manage games.
-
-✓ Responsive design works.
-
----
-
-# Final Rule
-
-Educational Games are designed to reinforce learning, not replace it.
-
-Every game must have a measurable educational objective.
+There is no dedicated backend games module or game-attempt schema in the current API. Persisted game analytics, configurable XP limits, multiplayer, and game leaderboards are planned. Existing XP/achievement features are separate from the client challenge implementation. XP/coin rewards displayed by the pronunciation challenge are client-side only and not yet persisted.
 
 End of Document.

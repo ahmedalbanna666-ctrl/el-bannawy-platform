@@ -7,9 +7,12 @@ export class ReportsService {
 
   // --- Student Reports ---
 
-  async getStudentReport(studentId: string): Promise<unknown> {
+  async getStudentReport(studentId: string, page = 1, limit = 20): Promise<unknown> {
     const user = await this.prisma.user.findUnique({ where: { id: studentId } });
     if (!user) throw new NotFoundException("Student not found");
+
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * safeLimit;
 
     const [
       lessonProgress,
@@ -26,6 +29,8 @@ export class ReportsService {
           lesson: { select: { title: true, unit: { select: { title: true, grade: { select: { name: true } } } } } },
         },
         orderBy: { startedAt: "desc" },
+        take: safeLimit,
+        skip,
       }),
       this.prisma.studentHomeworkAttempt.findMany({
         where: { userId: studentId, submitted: true },
@@ -33,6 +38,8 @@ export class ReportsService {
           homework: { select: { title: true, lessonId: true, lesson: { select: { title: true } } } },
         },
         orderBy: { submittedAt: "desc" },
+        take: safeLimit,
+        skip,
       }),
       this.prisma.quizAttempt.findMany({
         where: { userId: studentId, submitted: true },
@@ -40,6 +47,8 @@ export class ReportsService {
           quiz: { select: { title: true, lessonId: true, lesson: { select: { title: true } } } },
         },
         orderBy: { submittedAt: "desc" },
+        take: safeLimit,
+        skip,
       }),
       this.prisma.xPTransaction.aggregate({
         where: { userId: studentId },
@@ -50,10 +59,14 @@ export class ReportsService {
       this.prisma.userAchievement.findMany({
         where: { userId: studentId },
         orderBy: { earnedAt: "desc" },
+        take: safeLimit,
+        skip,
       }),
       this.prisma.attendanceRecord.findMany({
         where: { userId: studentId },
         orderBy: { date: "desc" },
+        take: safeLimit,
+        skip,
       }),
     ]);
 
@@ -149,14 +162,48 @@ export class ReportsService {
     const user = await this.prisma.user.findFirst({ where: { id: teacherId, deletedAt: null } });
     if (!user) throw new NotFoundException("Teacher not found");
 
+    const assignedGradeIds = (
+      await this.prisma.teacherGrade.findMany({
+        where: { userId: teacherId },
+        select: { gradeId: true },
+      })
+    ).map((tg) => tg.gradeId);
+
+    const studentWhere: Record<string, unknown> = { role: "STUDENT" };
+    if (assignedGradeIds.length > 0) {
+      studentWhere.gradeId = { in: assignedGradeIds };
+    }
+
+    const gradeFilter = assignedGradeIds.length > 0 ? { gradeId: { in: assignedGradeIds } } : undefined;
+
     const [totalStudents, hwAll, hwPassed, qAll, qPassed, attAll, attPresent] = await Promise.all([
-      this.prisma.user.count({ where: { role: "STUDENT" } }),
-      this.prisma.studentHomeworkAttempt.aggregate({ where: { submitted: true }, _avg: { score: true }, _count: true }),
-      this.prisma.studentHomeworkAttempt.aggregate({ where: { submitted: true, passed: true }, _count: true }),
-      this.prisma.quizAttempt.aggregate({ where: { submitted: true }, _avg: { score: true }, _count: true }),
-      this.prisma.quizAttempt.aggregate({ where: { submitted: true, passed: true }, _count: true }),
-      this.prisma.attendanceRecord.aggregate({ _count: true }),
-      this.prisma.attendanceRecord.aggregate({ where: { present: true }, _count: true }),
+      this.prisma.user.count({ where: studentWhere }),
+      this.prisma.studentHomeworkAttempt.aggregate({
+        where: { submitted: true, user: gradeFilter },
+        _avg: { score: true },
+        _count: true,
+      }),
+      this.prisma.studentHomeworkAttempt.aggregate({
+        where: { submitted: true, passed: true, user: gradeFilter },
+        _count: true,
+      }),
+      this.prisma.quizAttempt.aggregate({
+        where: { submitted: true, user: gradeFilter },
+        _avg: { score: true },
+        _count: true,
+      }),
+      this.prisma.quizAttempt.aggregate({
+        where: { submitted: true, passed: true, user: gradeFilter },
+        _count: true,
+      }),
+      this.prisma.attendanceRecord.aggregate({
+        where: { user: gradeFilter },
+        _count: true,
+      }),
+      this.prisma.attendanceRecord.aggregate({
+        where: { present: true, user: gradeFilter },
+        _count: true,
+      }),
     ]);
 
     const avgHwScore = Math.round(hwAll._avg.score ?? 0);
@@ -196,6 +243,8 @@ export class ReportsService {
     const user = await this.prisma.user.findFirst({ where: { id: adminId, deletedAt: null } });
     if (!user) throw new NotFoundException("Administrator not found");
 
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
     const [
       totalStudents,
       totalTeachers,
@@ -206,12 +255,18 @@ export class ReportsService {
       totalXp,
       totalCoins,
       activeToday,
+      activeLogins30d,
+      newStudents30d,
+      completedLessons,
+      totalLessonProgress,
       hwAttempts,
       quizAttempts,
+      attendanceAll,
+      attendancePresent,
     ] = await Promise.all([
-      this.prisma.user.count({ where: { role: "STUDENT" } }),
-      this.prisma.user.count({ where: { role: "TEACHER" } }),
-      this.prisma.user.count({ where: { role: "ADMINISTRATOR" } }),
+      this.prisma.user.count({ where: { role: "STUDENT", deletedAt: null } }),
+      this.prisma.user.count({ where: { role: "TEACHER", deletedAt: null } }),
+      this.prisma.user.count({ where: { role: "ADMINISTRATOR", deletedAt: null } }),
       this.prisma.lesson.count({ where: { published: true } }),
       this.prisma.homework.count({ where: { deletedAt: null } }),
       this.prisma.quiz.count({ where: { deletedAt: null } }),
@@ -223,9 +278,30 @@ export class ReportsService {
           createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
         },
       }),
+      this.prisma.loginHistory.count({
+        where: { success: true, createdAt: { gte: thirtyDaysAgo } },
+      }),
+      this.prisma.user.count({ where: { role: "STUDENT", createdAt: { gte: thirtyDaysAgo } } }),
+      this.prisma.lessonProgress.count({ where: { completed: true } }),
+      this.prisma.lessonProgress.count(),
       this.prisma.studentHomeworkAttempt.aggregate({ where: { submitted: true }, _count: true, _avg: { score: true } }),
       this.prisma.quizAttempt.aggregate({ where: { submitted: true }, _count: true, _avg: { score: true } }),
+      this.prisma.attendanceRecord.aggregate({ _count: true }),
+      this.prisma.attendanceRecord.aggregate({ where: { present: true }, _count: true }),
     ]);
+
+    const gradeBreakdown = await this.prisma.grade.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        _count: { select: { users: { where: { role: "STUDENT" } } } },
+      },
+    });
+
+    const attendanceRate = attendanceAll._count > 0
+      ? Math.round((attendancePresent._count / attendanceAll._count) * 100)
+      : 0;
 
     return {
       admin: { id: user.id, fullName: user.fullName },
@@ -237,6 +313,13 @@ export class ReportsService {
         totalHomework,
         totalQuizzes,
         activeToday,
+        activeLogins30d,
+        newStudents30d,
+        completedLessons,
+        totalLessonProgress,
+        overallCompletionRate: totalLessonProgress > 0
+          ? Math.round((completedLessons / totalLessonProgress) * 100)
+          : 0,
       },
       engagement: {
         totalXpAwarded: totalXp._sum.amount ?? 0,
@@ -245,7 +328,13 @@ export class ReportsService {
         avgHomeworkScore: Math.round(hwAttempts._avg.score ?? 0),
         quizAttempts: quizAttempts._count,
         avgQuizScore: Math.round(quizAttempts._avg.score ?? 0),
+        attendanceRate,
       },
+      perGrade: gradeBreakdown.map((g) => ({
+        gradeId: g.id,
+        gradeName: g.name,
+        students: g._count.users,
+      })),
     };
   }
 }

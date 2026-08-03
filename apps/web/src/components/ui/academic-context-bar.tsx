@@ -7,9 +7,7 @@ import { Select } from "@/components/ui/select";
 import { useAcademicContextStore } from "@/lib/academic-context-store";
 import { useAuthStore } from "@/lib/auth-store";
 import {
-  ACADEMIC_YEAR_OPTIONS,
   STAGE_OPTIONS,
-  TERM_OPTIONS,
   SYSTEM_OPTIONS,
   getGradeOptions,
   stageLabelToKey,
@@ -26,17 +24,12 @@ interface MyGradesResponse {
 }
 
 export function AcademicContextBar({ className }: AcademicContextBarProps): ReactNode {
-  const academicYear = useAcademicContextStore((s) => s.academicYear);
   const educationalSystem = useAcademicContextStore((s) => s.educationalSystem);
   const stage = useAcademicContextStore((s) => s.stage);
   const grade = useAcademicContextStore((s) => s.grade);
-  const term = useAcademicContextStore((s) => s.term);
-  const setAcademicYear = useAcademicContextStore((s) => s.setAcademicYear);
   const setEducationalSystem = useAcademicContextStore((s) => s.setEducationalSystem);
   const setStage = useAcademicContextStore((s) => s.setStage);
   const setGrade = useAcademicContextStore((s) => s.setGrade);
-  const setTerm = useAcademicContextStore((s) => s.setTerm);
-  const setTermId = useAcademicContextStore((s) => s.setTermId);
 
   const userRole = useAuthStore((s) => s.user?.role);
   const userId = useAuthStore((s) => s.user?.id);
@@ -105,23 +98,12 @@ export function AcademicContextBar({ className }: AcademicContextBarProps): Reac
   return (
     <div
       className={cn(
-        "grid grid-cols-1 gap-2 pb-2",
-        isAdmin ? "sm:grid-cols-2 lg:grid-cols-5" : "sm:grid-cols-2 lg:grid-cols-3",
+        "grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 lg:grid-cols-3",
         className,
       )}
       role="group"
       aria-label="السياق الأكاديمي"
     >
-      {isAdmin && (
-        <Select
-          size="sm"
-          options={ACADEMIC_YEAR_OPTIONS}
-          placeholder="السنة الدراسية"
-          value={academicYear ?? ""}
-          onChange={(e): void => { setAcademicYear(e.target.value); }}
-          aria-label="السنة الدراسية"
-        />
-      )}
       <Select
         size="sm"
         options={SYSTEM_OPTIONS}
@@ -150,16 +132,6 @@ export function AcademicContextBar({ className }: AcademicContextBarProps): Reac
         disabled={!stage}
         aria-label="الصف"
       />
-      {isAdmin && (
-        <Select
-          size="sm"
-          options={TERM_OPTIONS}
-          placeholder="الترم"
-          value={term ?? ""}
-          onChange={(e): void => { setTerm(e.target.value); setTermId(e.target.value); }}
-          aria-label="الترم"
-        />
-      )}
     </div>
   );
 }

@@ -1,9 +1,19 @@
-import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
+import { Injectable, NotFoundException, ForbiddenException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
+import { CacheService } from "../common/services/cache.service";
+import { EssayEvaluationService } from "../essay-evaluation/essay-evaluation.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationPriority, NotificationTargetType } from "../notifications/dto/notification.dto";
 import type { CreateHomeworkDto } from "./dto/create-homework.dto";
 import type { UpdateHomeworkDto } from "./dto/update-homework.dto";
 import type { SaveAnswerDto } from "./dto/save-homework.dto";
+import type { Prisma } from "@prisma/client";
+import {
+  isMultipleChoice,
+  isMcqAnswerCorrect,
+  formatMcqStudentAnswer,
+} from "../common/utils/answer-evaluation";
 
 interface HomeworkSummary {
   id: string;
@@ -21,9 +31,14 @@ interface HomeworkSummary {
 
 @Injectable()
 export class HomeworkService {
+  private readonly logger = new Logger(HomeworkService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
+    private readonly essayEvaluation: EssayEvaluationService,
+    private readonly notifications: NotificationsService,
+    private readonly cache: CacheService,
   ) {}
 
   async getHomework(lessonId: string, userId: string): Promise<HomeworkSummary | null> {
@@ -49,6 +64,29 @@ export class HomeworkService {
       },
     });
 
+    if (!homework) throw new NotFoundException("Homework not found");
+    return homework;
+  }
+
+  async getHomeworkForTeacher(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    const homework = await this.prisma.homework.findFirst({
+      where: { lessonId, deletedAt: null },
+      include: {
+        questions: {
+          orderBy: { displayOrder: "asc" },
+          select: {
+            id: true,
+            type: true,
+            question: true,
+            options: true,
+            correctAnswer: true,
+            explanation: true,
+            displayOrder: true,
+          },
+        },
+      },
+    });
     if (!homework) throw new NotFoundException("Homework not found");
     return homework;
   }
@@ -113,7 +151,17 @@ export class HomeworkService {
     const homework = await this.prisma.homework.findFirst({
       where: { lessonId, deletedAt: null },
       include: {
-        questions: { orderBy: { displayOrder: "asc" } },
+        questions: {
+          orderBy: { displayOrder: "asc" },
+          select: {
+            id: true,
+            type: true,
+            question: true,
+            options: true,
+            correctAnswer: true,
+            correctionMode: true,
+          },
+        },
       },
     });
 
@@ -127,22 +175,65 @@ export class HomeworkService {
     if (!latestAttempt) throw new ForbiddenException("No active attempt found. Start a new attempt first.");
 
     const correctAnswers: string[] = [];
-    const wrongAnswersList: { questionId: string; studentAnswer: string; correctAnswer: string }[] = [];
+    const wrongAnswersList: { questionId: string; studentAnswer: string }[] = [];
 
     // Auto-grade and record individual answers
-    const homeworkAnswerRecords: { attemptId: string; questionId: string; answer: string; isCorrect: boolean }[] = [];
+    const homeworkAnswerRecords: {
+      attemptId: string; questionId: string; answer: string; isCorrect: boolean;
+      aiScore?: number; aiFeedback?: string; aiDetails?: unknown;
+      grammarScore?: number; grammarErrors?: unknown;
+      teacherReviewed?: boolean;
+    }[] = [];
+
+    const TEXT_QUESTION_TYPES = new Set(["FILL_IN_BLANKS", "SHORT_ANSWER", "ESSAY", "WRITING"]);
+    const ESSAY_TYPES = new Set(["ESSAY", "WRITING"]);
 
     for (let i = 0; i < homework.questions.length; i++) {
       const question = homework.questions[i];
-      const studentAnswer = i < answers.length ? answers[i].trim().toLowerCase() : "";
-      const correct = (question.correctAnswer ?? "").trim().toLowerCase();
-      const isCorrect = studentAnswer === correct;
+      const rawAnswer = i < answers.length ? answers[i] : "";
+      const studentAnswer = TEXT_QUESTION_TYPES.has(question.type) ? rawAnswer.trim() : rawAnswer.trim().toLowerCase();
+      const correct = TEXT_QUESTION_TYPES.has(question.type) ? (question.correctAnswer ?? "").trim() : (question.correctAnswer ?? "").trim().toLowerCase();
+      let isCorrect = isMultipleChoice(question.type)
+        ? isMcqAnswerCorrect(question.options, question.correctAnswer, studentAnswer)
+        : studentAnswer === correct;
+      let aiScore: number | undefined;
+      let aiFeedback: string | undefined;
+      let aiDetails: unknown = undefined;
+      let grammarScore: number | undefined;
+      let grammarErrors: unknown = undefined;
+      let teacherReviewed: boolean | undefined;
+
+      // Run essay evaluation based on correction mode
+      if (ESSAY_TYPES.has(question.type) && rawAnswer.trim()) {
+        const mode = question.correctionMode;
+        if (mode === "AI") {
+          const aiResult = await this.essayEvaluation.evaluateAI(question.question, rawAnswer.trim());
+          aiScore = aiResult.score;
+          aiFeedback = aiResult.feedback;
+          aiDetails = aiResult;
+          isCorrect = aiResult.score >= 50;
+        } else if (mode === "GRAMMAR_CHECK") {
+          const grammarResult = this.essayEvaluation.evaluateGrammar(rawAnswer.trim());
+          grammarScore = grammarResult.score;
+          grammarErrors = grammarResult.errors;
+          isCorrect = grammarResult.score >= 50;
+        } else if (mode === "MANUAL") {
+          isCorrect = false;
+          teacherReviewed = false;
+        }
+      }
 
       homeworkAnswerRecords.push({
         attemptId: latestAttempt.id,
         questionId: question.id,
-        answer: studentAnswer,
+        answer: rawAnswer.trim(),
         isCorrect,
+        aiScore,
+        aiFeedback,
+        aiDetails,
+        grammarScore,
+        grammarErrors,
+        teacherReviewed,
       });
 
       if (isCorrect) {
@@ -150,8 +241,7 @@ export class HomeworkService {
       } else {
         wrongAnswersList.push({
           questionId: question.id,
-          studentAnswer,
-          correctAnswer: correct,
+          studentAnswer: rawAnswer.trim(),
         });
       }
     }
@@ -162,11 +252,9 @@ export class HomeworkService {
     const passed = score >= homework.passingScore;
 
     // Record individual answers and update attempt in a transaction
-    await this.prisma.$transaction([
-      this.prisma.homeworkAnswer.createMany({
-        data: homeworkAnswerRecords,
-      }),
-      this.prisma.studentHomeworkAttempt.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.homeworkAnswer.createMany({ data: homeworkAnswerRecords as never });
+      await tx.studentHomeworkAttempt.update({
         where: { id: latestAttempt.id },
         data: {
           submitted: true,
@@ -174,11 +262,12 @@ export class HomeworkService {
           score,
           passed,
         },
-      }),
-    ]);
+      });
 
-    // Update lesson progress
-    await this.updateLessonProgress(homework.lessonId, userId);
+      await this.updateLessonProgressTx(tx, homework.lessonId, userId);
+    });
+
+    await this.cache.del(this.cache.generateKey("dashboard", userId));
 
     return {
       id: latestAttempt.id,
@@ -200,7 +289,7 @@ export class HomeworkService {
 
     if (!homework) throw new NotFoundException("Homework not found");
 
-    const latestAttempt = await this.prisma.studentHomeworkAttempt.findFirst({
+    const latestSubmitted = await this.prisma.studentHomeworkAttempt.findFirst({
       where: { userId, homeworkId: homework.id, submitted: true },
       orderBy: { submittedAt: "desc" },
       select: {
@@ -212,9 +301,19 @@ export class HomeworkService {
       },
     });
 
-    if (!latestAttempt) return null;
+    const latestActive = await this.prisma.studentHomeworkAttempt.findFirst({
+      where: { userId, homeworkId: homework.id, submitted: false },
+      orderBy: { startedAt: "desc" },
+      select: { id: true, startedAt: true },
+    });
 
-    return latestAttempt;
+    // A newer active (unsubmitted) attempt means the student is mid-homework:
+    // hide the stale result so they can keep answering.
+    if (latestActive && (!latestSubmitted || latestActive.startedAt > (latestSubmitted.submittedAt ?? new Date(0)))) {
+      return null;
+    }
+
+    return latestSubmitted;
   }
 
   async getHistory(lessonId: string, userId: string): Promise<unknown> {
@@ -296,7 +395,9 @@ export class HomeworkService {
           options: q.options,
           correctAnswer: q.correctAnswer,
           explanation: q.explanation,
-          studentAnswer: studentAnswer?.answer ?? null,
+          studentAnswer: isMultipleChoice(q.type)
+            ? formatMcqStudentAnswer(q.options, studentAnswer?.answer ?? null)
+            : (studentAnswer?.answer ?? null),
           isCorrect: studentAnswer?.isCorrect ?? null,
         };
       }),
@@ -411,10 +512,28 @@ export class HomeworkService {
     });
 
     // Enable homework on the lesson
-    await this.prisma.lesson.update({
+    const updatedLesson = await this.prisma.lesson.update({
       where: { id: dto.lessonId },
       data: { homeworkEnabled: true },
+      include: { unit: { select: { gradeId: true } } },
     });
+
+    // Notify students in the same grade
+    const gradeId = updatedLesson.unit.gradeId;
+    if (gradeId) {
+      this.notifications
+        .sendNotification(userId, {
+          type: "homework_reminder",
+          title: "واجب جديد",
+          message: `تم إضافة واجب جديد لدرس: ${lesson.title}`,
+          priority: NotificationPriority.MEDIUM,
+          targetType: NotificationTargetType.GRADE,
+          targetId: gradeId,
+        })
+        .catch((err: unknown) => {
+          this.logger.error(`Failed to send homework notification: ${err instanceof Error ? err.message : String(err)}`);
+        });
+    }
 
     return homework;
   }
@@ -425,21 +544,24 @@ export class HomeworkService {
     await this.academicContext.verifyTeacherLessonAccess(userId, homework.lessonId);
 
     if (dto.questions) {
-      await this.prisma.homeworkQuestion.deleteMany({ where: { homeworkId } });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.homeworkAnswer.deleteMany({ where: { question: { homeworkId } } });
+        await tx.homeworkQuestion.deleteMany({ where: { homeworkId } });
 
-      if (dto.questions.length > 0) {
-        await this.prisma.homeworkQuestion.createMany({
-          data: dto.questions.map((q) => ({
-            homeworkId,
-            type: q.type ?? "MULTIPLE_CHOICE",
-            question: q.question ?? "",
-            options: q.options,
-            correctAnswer: q.correctAnswer,
-            explanation: q.explanation,
-            displayOrder: q.displayOrder ?? 0,
-          })),
-        });
-      }
+        if (dto.questions && dto.questions.length > 0) {
+          await tx.homeworkQuestion.createMany({
+            data: dto.questions.map((q) => ({
+              homeworkId,
+              type: q.type ?? "MULTIPLE_CHOICE",
+              question: q.question ?? "",
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+              explanation: q.explanation,
+              displayOrder: q.displayOrder ?? 0,
+            })),
+          });
+        }
+      });
     }
 
     const updated = await this.prisma.homework.update({
@@ -537,6 +659,7 @@ export class HomeworkService {
 
     const attempts = await this.prisma.studentHomeworkAttempt.findMany({
       where: { homeworkId: homework.id, submitted: true },
+      take: 500,
       select: {
         score: true,
         passed: true,
@@ -553,6 +676,7 @@ export class HomeworkService {
         attempt: { homeworkId: homework.id, submitted: true },
         isCorrect: false,
       },
+      take: 500,
       include: {
         question: { select: { id: true, question: true } },
       },
@@ -605,6 +729,29 @@ export class HomeworkService {
     if (currentProgress) {
       const hwProgress = Math.min(100, currentProgress.progress + 10);
       await this.prisma.lessonProgress.update({
+        where: { id: currentProgress.id },
+        data: { progress: hwProgress },
+      });
+    }
+  }
+
+  private async updateLessonProgressTx(
+    tx: Prisma.TransactionClient,
+    lessonId: string,
+    userId: string,
+  ): Promise<void> {
+    const lesson = await tx.lesson.findUnique({
+      where: { id: lessonId },
+      select: { progress: { where: { userId }, select: { id: true, progress: true } } },
+    });
+
+    if (!lesson) return;
+
+    const currentProgress = lesson.progress[0];
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (currentProgress) {
+      const hwProgress = Math.min(100, currentProgress.progress + 10);
+      await tx.lessonProgress.update({
         where: { id: currentProgress.id },
         data: { progress: hwProgress },
       });

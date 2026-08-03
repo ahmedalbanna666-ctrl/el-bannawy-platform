@@ -44,6 +44,14 @@ export class BootstrapService {
         data: { userId, balance: 0 },
       });
 
+      await tx.xPTransaction.create({
+        data: {
+          userId,
+          amount: 0,
+          reason: "Account created",
+        },
+      });
+
       const firstLesson = await tx.lesson.findFirst({
         where: lessonFilter,
         orderBy: [{ unit: { displayOrder: "asc" } }, { displayOrder: "asc" }],

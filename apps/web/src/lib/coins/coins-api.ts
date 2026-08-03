@@ -254,6 +254,14 @@ export function useToggleCodeActive(): UseMutationResult<unknown, Error, string>
   });
 }
 
+export function useDeleteUnlockCode(): UseMutationResult<unknown, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/coins/codes/${id}`),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: COINS_KEYS.codes }); },
+  });
+}
+
 export function useUnlockRequests(status?: string): UseQueryResult<UnlockRequestItem[]> {
   return useQuery({
     queryKey: [...COINS_KEYS.requests, status],

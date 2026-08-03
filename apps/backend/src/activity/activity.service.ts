@@ -1,12 +1,14 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
+import { CacheService } from "../common/services/cache.service";
 
 @Injectable()
 export class ActivityService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
+    private readonly cache: CacheService,
   ) {}
 
   private async verifyActivityAccess(userId: string, activityId: string): Promise<void> {
@@ -65,17 +67,21 @@ export class ActivityService {
     });
     if (!activity) throw new NotFoundException("Activity not found");
 
-    let score = clientScore;
+    let score: number | undefined;
 
     // Auto-grade from config for single-answer activities
-    if (score === undefined && activity.config !== null) {
-      const config = JSON.parse(activity.config) as Record<string, unknown>;
-      const correctAnswer = config.correctAnswer;
+    if (activity.config !== null) {
+      try {
+        const config = JSON.parse(activity.config) as Record<string, unknown>;
+        const correctAnswer = config.correctAnswer;
 
-      if (correctAnswer !== undefined && answers !== undefined && answers.length > 0) {
-        const correct = typeof correctAnswer === "string" ? correctAnswer.toLowerCase().trim() : "";
-        const studentAnswer = answers[0].toLowerCase().trim();
-        score = studentAnswer === correct ? 100 : 0;
+        if (correctAnswer !== undefined && answers !== undefined && answers.length > 0) {
+          const correct = typeof correctAnswer === "string" ? correctAnswer.trim().toLowerCase() : "";
+          const studentAnswer = answers[0].trim().toLowerCase();
+          score = studentAnswer === correct ? 100 : 0;
+        }
+      } catch {
+        // Invalid config JSON — skip auto-grade
       }
     }
 
@@ -86,12 +92,17 @@ export class ActivityService {
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
           if (typeof q.correctAnswer === "string") {
-          if (q.correctAnswer.toLowerCase().trim() === answers[i].toLowerCase().trim()) {
+          if (q.correctAnswer.trim().toLowerCase() === (answers[i] ?? "").trim().toLowerCase()) {
             correctCount++;
           }
         }
       }
       score = Math.round((correctCount / questions.length) * 100);
+    }
+
+    // Fallback: use server-side grading result or 0 if no answers provided
+    if (score === undefined) {
+      score = 0;
     }
 
     const finalScore = Math.min(100, Math.max(0, score ?? 0));
@@ -122,6 +133,8 @@ export class ActivityService {
     if (video !== null) {
       await this.updateVideoLessonProgress(video.lessonId, userId);
     }
+
+    await this.cache.del(this.cache.generateKey("dashboard", userId));
 
     return {
       ...progress,
@@ -177,7 +190,7 @@ export class ActivityService {
 
     await this.prisma.lessonProgress.upsert({
       where: { userId_lessonId: { userId, lessonId } },
-      update: updateData as never,
+      update: updateData,
       create: {
         userId,
         lessonId,

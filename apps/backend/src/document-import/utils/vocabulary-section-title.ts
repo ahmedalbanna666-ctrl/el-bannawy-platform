@@ -8,6 +8,10 @@ const SECTION_ALIASES_LOWER: readonly string[] = [
   "collocations",
   "prepositions & expressions",
   "prepositions and expressions",
+  "synonym & antonym",
+  "synonym and antonym",
+  "synonym",
+  "antonym",
 ];
 
 const SECTION_ALIASES_AR: readonly string[] = [
@@ -20,6 +24,11 @@ const SECTION_ALIASES_AR: readonly string[] = [
   "حروف الجر",
   "المصطلحات",
   "حروف الجر والمصطلحات",
+  "المرادفات والمضادات",
+  "مرادف ومضاد",
+  "المفردات",
+  "مرادف",
+  "مضاد",
 ];
 
 export function isSectionTitleRow(row: NormalizedRow): boolean {

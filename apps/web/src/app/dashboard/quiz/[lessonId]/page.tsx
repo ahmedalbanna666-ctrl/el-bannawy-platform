@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
+import { useEffect, useState, useRef, useCallback, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
 import { TeacherContextBanner } from "@/components/ui/teacher-context-banner";
+import { QuestionCard, groupQuestions, type StudentQuestion } from "@/components/questions/question-card";
 import {
   GraduationCap,
   ChevronLeft,
@@ -79,61 +81,101 @@ interface ReviewData {
   questions: ReviewQuestion[];
 }
 
-const QMAP: Record<string, string> = {
-  MULTIPLE_CHOICE: "MC",
-  MULTIPLE_RESPONSE: "MR",
-  TRUE_FALSE: "T/F",
-  FILL_IN_BLANKS: "Fill",
-  MATCHING: "Match",
-  ORDERING: "Order",
-};
+function translatePrereqReason(reason: string | null): string | null {
+  if (!reason) return null;
+  if (reason.includes("All lesson videos must be completed")) {
+    return "أكمل جميع فيديوهات الدرس قبل بدء الاختبار";
+  }
+  if (reason.includes("Homework must be submitted")) {
+    return "يجب تسليم واجب الدرس قبل بدء الاختبار";
+  }
+  if (reason.includes("Maximum attempts reached")) {
+    return "لقد استنفدت جميع محاولاتك لهذا الاختبار";
+  }
+  return reason;
+}
 
 export default function QuizPage(): ReactNode {
   const params = useParams();
   const lessonId = params.lessonId as string;
 
-  const [quiz, setQuiz] = useState<QuizData | null>(null);
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
   const [review, setReview] = useState<ReviewData | null>(null);
   const [viewingReview, setViewingReview] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [prereqError, setPrereqError] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchQuiz = useCallback(async (): Promise<void> => {
-    try {
-      setError(null);
-      setPrereqError(null);
-      const [qzRes, qRes, resultRes] = await Promise.all([
-        api.get<QuizData>(`/quizzes/${lessonId}`),
-        api.get<{ questions: QuizQuestion[] }>(`/quizzes/${lessonId}/questions`),
-        api.get<QuizResult>(`/quizzes/${lessonId}/result`),
-      ]);
+  const { data: quiz, isLoading: quizLoading } = useQuery({
+    queryKey: ["quiz", lessonId],
+    queryFn: async () => {
+      const res = await api.get<QuizData>(`/quizzes/${lessonId}`);
+      if (!res.data) throw new Error("Quiz not found");
+      return res.data;
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
 
-      if (qzRes.data) setQuiz(qzRes.data);
-      if (qRes.data?.questions) setQuestions(qRes.data.questions);
-      if (resultRes.data) setResult(resultRes.data);
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.message.includes("403")) {
-          setPrereqError(err.message);
-        } else if (!err.message.includes("404")) {
-          setError(err.message);
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [lessonId]);
+  const { data: questionsData, isLoading: questionsLoading } = useQuery({
+    queryKey: ["quiz-questions", lessonId],
+    queryFn: async () => {
+      const res = await api.get<{ questions: QuizQuestion[] }>(`/quizzes/${lessonId}/questions`);
+      return res.data?.questions ?? [];
+    },
+    enabled: !!quiz,
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const questions = questionsData ?? [];
+
+  const { isLoading: resultLoading } = useQuery({
+    queryKey: ["quiz-result", lessonId],
+    queryFn: async () => {
+      const res = await api.get<QuizResult>(`/quizzes/${lessonId}/result`);
+      if (res.data) setResult(res.data);
+      return res.data ?? null;
+    },
+    enabled: !!quiz,
+    staleTime: 0,
+    retry: false,
+  });
+
+  const { data: eligibility } = useQuery({
+    queryKey: ["quiz-eligibility", lessonId],
+    queryFn: async () => {
+      const res = await api.get<{ eligible: boolean; reason: string | null }>(
+        `/quizzes/${lessonId}/eligibility`,
+      );
+      return res.data ?? { eligible: true, reason: null };
+    },
+    enabled: !!quiz,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const isSubmitted = result !== null && result.passed !== null;
 
   useEffect(() => {
-    void fetchQuiz();
-  }, [fetchQuiz]);
+    if (!quiz) return;
+    if (isSubmitted || viewingReview) return;
+    if (eligibility) {
+      if (!eligibility.eligible) {
+        setPrereqError(translatePrereqReason(eligibility.reason));
+      } else if (prereqError) {
+        setPrereqError(null);
+      }
+    }
+  }, [quiz, eligibility, isSubmitted, viewingReview, prereqError]);
+
+  const loading = quizLoading || questionsLoading || resultLoading;
 
   useEffect(() => {
     if (result || viewingReview) return;
@@ -172,7 +214,9 @@ export default function QuizPage(): ReactNode {
       setReview(null);
       setViewingReview(false);
       setAnswers({});
-      void fetchQuiz();
+      void queryClient.invalidateQueries({ queryKey: ["quiz", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["quiz-questions", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["quiz-result", lessonId] });
     } catch (err) {
       if (err instanceof Error && err.message.includes("403")) {
         setPrereqError(err.message);
@@ -182,7 +226,7 @@ export default function QuizPage(): ReactNode {
     }
   };
 
-  const handleSubmit = async (): Promise<void> => {
+  const handleSubmit = useCallback(async (): Promise<void> => {
     if (!quiz) return;
     setSubmitting(true);
     setError(null);
@@ -197,11 +241,28 @@ export default function QuizPage(): ReactNode {
         if (saveTimerRef.current) clearInterval(saveTimerRef.current);
       }
     } catch (err) {
+      // If no active attempt, auto-start one and retry
+      if (err instanceof Error && err.message.includes("No active attempt")) {
+        try {
+          await api.post(`/quizzes/${lessonId}/start`);
+          const retryRes = await api.post<QuizResult>(`/quizzes/${lessonId}/submit`, {
+            answers: questions.map((_, i) => answers[i] ?? ""),
+          });
+          if (retryRes.data) {
+            setResult(retryRes.data);
+            if (saveTimerRef.current) clearInterval(saveTimerRef.current);
+            return;
+          }
+        } catch (startErr) {
+          setError(startErr instanceof Error ? startErr.message : "فشل بدء المحاولة");
+          return;
+        }
+      }
       setError(err instanceof Error ? err.message : "فشل تسليم الاختبار");
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [quiz, questions, answers, lessonId]);
 
   const handleRetry = async (): Promise<void> => {
     await handleStartAttempt();
@@ -223,6 +284,34 @@ export default function QuizPage(): ReactNode {
     setViewingReview(false);
     setReview(null);
   };
+
+  const allAnswered = questions.length > 0 && questions.every((_, i) => (answers[i] ?? "").trim() !== "");
+
+  useEffect(() => {
+    if (isSubmitted || viewingReview || questions.length === 0) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+    const savedEnd = localStorage.getItem("quiz_end_time");
+    let endTime: number;
+    if (savedEnd) {
+      endTime = parseInt(savedEnd, 10);
+      if (Date.now() >= endTime) { void handleSubmit(); return; }
+    } else {
+      endTime = Date.now() + 30 * 60 * 1000;
+      localStorage.setItem("quiz_end_time", String(endTime));
+    }
+    timerRef.current = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        localStorage.removeItem("quiz_end_time");
+        void handleSubmit();
+      }
+    }, 1000);
+    return (): void => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [questions.length, isSubmitted, viewingReview, handleSubmit]);
 
   if (loading) return <QuizSkeleton />;
   if (error) return <ErrorState title="فشل تحميل الاختبار" description={error} />;
@@ -252,12 +341,9 @@ export default function QuizPage(): ReactNode {
     );
   }
 
-  const allAnswered = questions.length > 0 && questions.every((_, i) => (answers[i] ?? "").trim() !== "");
-  const isSubmitted = result !== null && result.passed !== null;
-
   if (viewingReview && review) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         <TeacherContextBanner />
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={handleBackToResult}>
@@ -283,14 +369,14 @@ export default function QuizPage(): ReactNode {
                     <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                       {index + 1}
                     </span>
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{q.question}</p>
+                    <p className="flex-1 min-w-0 text-sm font-medium text-neutral-900 dark:text-neutral-100">{q.question}</p>
                     {q.isCorrect ? (
                       <CheckCircle className="ml-auto h-5 w-5 shrink-0 text-success-500" />
                     ) : (
                       <XCircle className="ml-auto h-5 w-5 shrink-0 text-danger-500" />
                     )}
                   </div>
-                  <div className="ps-8 space-y-1 text-sm">
+                  <div className="ps-4 sm:ps-8 space-y-1 text-sm">
                     <p>
                       <span className="text-neutral-500">إجابتك: </span>
                       <span className={q.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
@@ -315,7 +401,7 @@ export default function QuizPage(): ReactNode {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div data-card-border className="flex flex-col gap-4">
       <TeacherContextBanner />
       <div>
         <Link
@@ -352,7 +438,18 @@ href={`/dashboard/lessons/detail/${lessonId}`}
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {!isSubmitted && timeLeft !== null && (
+              <div className={`rounded-xl border px-4 py-2 text-sm font-bold tabular-nums ${
+                timeLeft < 60
+                  ? "border-red-500/40 bg-red-500/10 text-red-400"
+                  : timeLeft < 300
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                    : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+              }`}>
+                ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
+              </div>
+            )}
             {isSubmitted && quiz.showAnswers && (
               <Button variant="outline" size="sm" onClick={(): void => { void handleViewReview(); }}>
                 <Eye className="mr-2 h-4 w-4" />
@@ -429,17 +526,29 @@ href={`/dashboard/lessons/detail/${lessonId}`}
         </Card>
       )}
 
-      <div className="flex flex-col gap-4">
-        {questions.map((q, index) => (
-          <QuestionCard
-            key={q.id}
-            question={q}
-            index={index}
-            selectedAnswer={answers[index] ?? ""}
-            isSubmitted={isSubmitted}
-            result={result}
-            onAnswerChange={handleAnswerChange}
-          />
+      <div className="flex flex-col gap-4" dir="ltr">
+        {groupQuestions(questions as StudentQuestion[]).map((group, gi) => (
+          <div key={gi} className="flex flex-col gap-3">
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
+              {group.heading}
+            </h2>
+            <div className="flex flex-col gap-4">
+              {group.questions.map(({ question, originalIndex }) => (
+                <QuestionCard
+                  key={question.id}
+                  question={question}
+                  index={originalIndex}
+                  selectedAnswer={answers[originalIndex] ?? ""}
+                  isSubmitted={isSubmitted}
+                  showResult={isSubmitted}
+                  correctAnswer={getCorrectAnswer(question.id, result)}
+                  explanation={getExplanation(question.id, result)}
+                  isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
+                  onAnswerChange={handleAnswerChange}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
@@ -461,156 +570,25 @@ href={`/dashboard/lessons/detail/${lessonId}`}
   );
 }
 
-interface QuestionCardProps {
-  question: QuizQuestion;
-  index: number;
-  selectedAnswer: string;
-  isSubmitted: boolean;
-  result: QuizResult | null;
-  onAnswerChange: (index: number, value: string) => void;
+function getCorrectAnswer(questionId: string, result: QuizResult | null): string | null {
+  if (!result?.wrongAnswersList) return null;
+  const wrong = result.wrongAnswersList.find((w) => w.questionId === questionId);
+  return wrong?.correctAnswer ?? null;
 }
 
-function QuestionCard({ question, index, selectedAnswer, isSubmitted, result, onAnswerChange }: QuestionCardProps): ReactNode {
-  const options: string[] = ((): string[] => {
-    if (!question.options) return [];
-    try {
-      return JSON.parse(question.options) as string[];
-    } catch {
-      return [];
-    }
-  })();
+function getExplanation(_questionId: string, _result: QuizResult | null): string | null {
+  return null;
+}
 
-  const wrongAnswer = result?.wrongAnswersList?.find((w) => w.questionId === question.id);
-  const isWrong = wrongAnswer !== undefined;
-  const isCorrect = result !== null && !isWrong && selectedAnswer !== "";
-
-  return (
-    <Card
-      variant="outline"
-      padding="sm"
-      className={
-        isSubmitted
-          ? isWrong
-            ? "border-danger-500/50 bg-danger-500/5"
-            : isCorrect
-              ? "border-success-500/50 bg-success-500/5"
-              : ""
-          : ""
-      }
-    >
-      <CardContent>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-start gap-2">
-            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-medium text-primary-700 dark:bg-primary-900 dark:text-primary-300">
-              {index + 1}
-            </span>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{question.question}</p>
-                <Badge variant="secondary">{QMAP[question.type] ?? question.type}</Badge>
-              </div>
-            </div>
-          </div>
-
-          {question.type === "TRUE_FALSE" ? (
-            <div className="flex gap-3 ps-8">
-              {["صح", "خطأ"].map((label) => {
-                const optValue = label === "صح" ? "true" : "false";
-                const isSelected = selectedAnswer === optValue;
-                const isCorrectOpt = isSubmitted && wrongAnswer?.correctAnswer === optValue;
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={(): void => {
-                      if (!isSubmitted) onAnswerChange(index, optValue);
-                    }}
-                    disabled={isSubmitted}
-                    className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors ${
-                      isSubmitted
-                        ? isCorrectOpt
-                          ? "border-success-500 bg-success-500/10 text-success-700 dark:text-success-300"
-                          : isSelected
-                            ? "border-danger-500 bg-danger-500/10 text-danger-700 dark:text-danger-300"
-                            : "border-neutral-200 text-neutral-400 dark:border-neutral-700"
-                        : isSelected
-                          ? "border-primary-500 bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                          : "border-neutral-200 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800/50"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          ) : options.length > 0 ? (
-            <div className="flex flex-col gap-2 ps-8">
-              {options.map((option, optIndex) => {
-                const optValue = String(optIndex);
-                const isSelected = selectedAnswer === optValue;
-                const isCorrectOpt = isSubmitted && wrongAnswer?.correctAnswer === optValue;
-                return (
-                  <button
-                    key={optIndex}
-                    type="button"
-                    onClick={(): void => {
-                      if (!isSubmitted) onAnswerChange(index, optValue);
-                    }}
-                    disabled={isSubmitted}
-                    className={`rounded-lg border px-4 py-2.5 text-start text-sm transition-colors ${
-                      isSubmitted
-                        ? isCorrectOpt
-                          ? "border-success-500 bg-success-500/10 text-success-700 dark:text-success-300"
-                          : isSelected
-                            ? "border-danger-500 bg-danger-500/10 text-danger-700 dark:text-danger-300"
-                            : "border-neutral-200 text-neutral-400 dark:border-neutral-700"
-                        : isSelected
-                          ? "border-primary-500 bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                          : "border-neutral-200 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800/50"
-                    }`}
-                  >
-                    {option}
-                    {isSubmitted && isCorrectOpt && !isSelected && (
-                      <CheckCircle className="ms-2 inline h-4 w-4 text-success-500" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="ps-8">
-              <input
-                type="text"
-                value={selectedAnswer}
-                onChange={(e): void => {
-                  if (!isSubmitted) onAnswerChange(index, e.target.value);
-                }}
-                disabled={isSubmitted}
-                placeholder="اكتب إجابتك..."
-                className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 ${
-                  isSubmitted
-                    ? isWrong
-                      ? "border-danger-500 bg-danger-500/5 text-danger-700 dark:text-danger-300"
-                      : isCorrect
-                        ? "border-success-500 bg-success-500/5 text-success-700 dark:text-success-300"
-                        : "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800"
-                    : "border-neutral-200 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-                }`}
-              />
-              {isSubmitted && wrongAnswer !== undefined && (
-                <p className="mt-1 text-xs text-danger-500">الإجابة الصحيحة: {wrongAnswer.correctAnswer}</p>
-              )}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+function getIsCorrect(questionId: string, selectedAnswer: string, result: QuizResult | null): boolean | null {
+  if (!result || !selectedAnswer) return null;
+  if (result.wrongAnswersList?.some((w) => w.questionId === questionId)) return false;
+  return selectedAnswer !== "" ? true : null;
 }
 
 function QuizSkeleton(): ReactNode {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <Skeleton className="h-8 w-64" />
       <Skeleton className="h-20 w-full rounded-xl" />
       <Skeleton className="h-12 w-full rounded-xl" />

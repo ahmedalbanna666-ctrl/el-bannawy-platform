@@ -1,452 +1,50 @@
-# COINS_SYSTEM_MODULE.md
+# Coins And Content Unlock Module
 
-# El-bannawy Platform
-## Coins System Requirements
+Version: 2.0.0
+Source: `apps/backend/src/coins`
 
-Version: 1.0.0
+## Responsibility
 
----
+Manages coin packages, pending purchases, wallet crediting after verification, activation codes, dynamic unit/term unlock costs, content unlock records, and unlock requests.
 
-# Purpose
+## Persisted Model
 
-The Coins System is the premium virtual currency of the El-bannawy Platform.
+`CoinWallet`, `CoinPackage`, `CoinPurchase`, `Payment`, `UnlockCode`, `CodeRedemption`, `ContentUnlock`, `UnlockRequest`, and `SystemSetting`.
 
-Coins are used to purchase educational content and premium features.
+## Flows
 
-Unlike XP, Coins are NOT used for ranking.
+### Purchase
 
-Coins represent purchasing power only.
+```text
+Package -> pending Payment/CoinPurchase -> verify -> completed records -> wallet credit
+```
 
----
+Verification returns no additional credit for an already completed payment.
 
-# Objectives
+### Activation Code
 
-The Coins System must:
+Codes are generated or supplied by an administrator/teacher, may have expiry and usage limits, and may target a unit or a term. A code is redeemed once per user. A target code creates a content unlock; a coins-only code increments the wallet.
 
-- Support paid educational content.
-- Simplify content activation.
-- Support promotional campaigns.
-- Reward students through approved events.
-- Integrate with payment systems.
+### Paid Unlock
 
----
+The service reads `unit_unlock_cost` or `term_unlock_cost`, checks the wallet, decrements the balance, and creates a unique content unlock.
 
-# Core Principle
+- A `UNIT` unlock unlocks one unit.
+- A `TERM` unlock unlocks every unit belonging to that term for the student.
+- Lesson-level purchases are disabled; lessons inherit the lock state of their parent unit.
 
-Coins are a virtual currency.
+## Authorization
 
-Coins DO NOT measure learning.
+- Students can view wallet/packages, purchase, redeem, request, and unlock.
+- Teachers can manage codes/costs within controller rules and their effective permissions.
+- Administrators manage packages, codes, costs, and request resolution.
 
-Coins DO NOT affect student rankings.
+## Current Limitations
 
-Coins cannot replace XP.
+- Wallet balance is implemented, but a complete immutable coin transaction ledger is not.
+- Referral, reward, and refund flows are not exposed by the current module.
+- High-volume list endpoints need pagination.
 
----
-
-# Supported Users
-
-Primary User
-
-- Student
-
-Management Users
-
-- Teacher (View Only)
-- Secretary
-- Administrator
-
----
-
-# Coin Sources
-
-Students may obtain Coins through:
-
-- Purchasing Coin Packages
-- Promotional Campaigns
-- Referral Rewards
-- Special Events
-- Administrator Rewards
-
-Future Sources
-
-- Seasonal Campaigns
-- Achievement Rewards
-- Partner Promotions
-
----
-
-# Coin Packages
-
-Example
-
-Package 1
-
-100 Coins
-
-Package 2
-
-250 Coins
-
-Package 3
-
-500 Coins
-
-Package 4
-
-1000 Coins
-
-Package values are configurable.
-
----
-
-# Purchasing Flow
-
-Student
-
-↓
-
-Open Coin Store
-
-↓
-
-Select Package
-
-↓
-
-Choose Payment Method
-
-↓
-
-Payment Verification
-
-↓
-
-Coins Added
-
-↓
-
-Wallet Updated
-
----
-
-# Supported Payment Methods
-
-Version 1
-
-- Paymob
-- Fawry
-- Instapay
-
-Future Versions
-
-- Stripe
-- PayPal
-- Apple Pay
-- Google Pay
-
----
-
-# Coin Wallet
-
-Each student owns one Coin Wallet.
-
-Wallet contains:
-
-- Current Balance
-- Total Purchased
-- Total Earned
-- Total Spent
-- Pending Coins
-
----
-
-# Coin Usage
-
-Students may spend Coins to unlock:
-
-- Individual Lessons
-- Units
-- Complete Courses
-- Premium Educational Content
-- Special Events
-
-Coins must never unlock administrative features.
-
----
-
-# Lesson Purchase
-
-Student
-
-↓
-
-Choose Locked Lesson
-
-↓
-
-View Coin Cost
-
-↓
-
-Confirm Purchase
-
-↓
-
-Coins Deducted
-
-↓
-
-Lesson Activated
-
----
-
-# Unit Purchase
-
-Student
-
-↓
-
-Choose Locked Unit
-
-↓
-
-View Price
-
-↓
-
-Confirm
-
-↓
-
-Coins Deducted
-
-↓
-
-Unit Activated
-
----
-
-# Course Purchase
-
-Students may activate:
-
-Entire Curriculum
-
-using Coins.
-
----
-
-# Coin Transactions
-
-Every transaction must be recorded.
-
-Transaction Types
-
-- Purchase
-- Reward
-- Refund
-- Spend
-- Adjustment
-
-Each transaction stores:
-
-- Student ID
-- Amount
-- Source
-- Destination
-- Timestamp
-- Transaction Status
-
----
-
-# Refund Rules
-
-Refunds may occur when:
-
-- Payment Failure
-- Administrative Approval
-- Promotional Adjustment
-
-Students cannot request automatic refunds.
-
----
-
-# Coin Expiration
-
-Version 1
-
-Coins never expire.
-
-Future versions may introduce expiration policies.
-
----
-
-# Coin Transfer
-
-Students CANNOT:
-
-- Send Coins
-- Receive Coins
-- Exchange Coins
-- Sell Coins
-
-Coin transfers are prohibited.
-
----
-
-# Coin Notifications
-
-Examples
-
-Purchase Successful
-
-Coins Added
-
-Coins Deducted
-
-Insufficient Balance
-
-Reward Received
-
----
-
-# Teacher Features
-
-Teachers may:
-
-View Coin Status
-
-Teachers cannot:
-
-Modify Coin Balances
-
----
-
-# Secretary Features
-
-Secretaries may:
-
-- Verify Payments
-- View Purchase History
-- Resolve Payment Issues
-
----
-
-# Administrator Features
-
-Administrators may:
-
-- Configure Packages
-- Award Coins
-- Remove Coins
-- Refund Coins
-- View Transactions
-- Configure Promotions
-
----
-
-# Reports
-
-Generate:
-
-- Purchase Report
-- Spending Report
-- Wallet Report
-- Transaction Report
-- Revenue Report
-
----
-
-# Analytics
-
-Track:
-
-- Total Coins Sold
-- Total Coins Spent
-- Active Wallets
-- Average Purchase
-- Most Purchased Package
-- Revenue
-
----
-
-# Security
-
-Students cannot:
-
-- Modify Balance
-- Create Coins
-- Duplicate Transactions
-- Bypass Payments
-
-All Coin operations must be server-side.
-
----
-
-# Anti-Fraud Rules
-
-Prevent:
-
-- Duplicate Payments
-- Double Spending
-- Wallet Manipulation
-- Fake Rewards
-- Replay Attacks
-
-Every transaction must have a unique identifier.
-
----
-
-# Performance
-
-Wallet updates should occur immediately after successful payment.
-
-Transactions must be atomic.
-
----
-
-# Future Enhancements
-
-Future Versions
-
-- Subscription Plans
-- Gift Coins
-- Promotional Coupons
-- Coin Cashback
-- Premium Membership
-
----
-
-# Acceptance Criteria
-
-The Coins System is complete when:
-
-✓ Coin packages display correctly.
-
-✓ Payments are verified.
-
-✓ Wallet updates correctly.
-
-✓ Lesson purchases work.
-
-✓ Unit purchases work.
-
-✓ Transaction history is stored.
-
-✓ Reports are generated.
-
-✓ Analytics are collected.
-
-✓ Responsive design works.
-
----
-
-# Final Rule
-
-Coins are the premium currency of the platform.
-
-Coins are used only for purchasing educational content and approved rewards.
-
-Coins must never influence educational rankings or student performance.
+See `docs/05_API/COINS_SYSTEM_API.md` for the actual endpoint contract.
 
 End of Document.

@@ -17,6 +17,26 @@ export class AcademicContextController {
     private readonly prisma: PrismaService,
   ) {}
 
+  @Get("options")
+  async getOptions(): Promise<
+    ISuccessResponse<{
+      stages: { id: string; name: string; grades: { id: string; name: string }[] }[];
+      terms: { id: string; name: string }[];
+    }>
+  > {
+    const [stages, terms] = await Promise.all([
+      this.prisma.stage.findMany({
+        select: { id: true, name: true, grades: { select: { id: true, name: true }, orderBy: { displayOrder: "asc" } } },
+        orderBy: { displayOrder: "asc" },
+      }),
+      this.prisma.term.findMany({
+        select: { id: true, name: true },
+      }),
+    ]);
+
+    return successResponse({ stages, terms });
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   async getActiveContext(): Promise<ISuccessResponse<ContextResponse>> {

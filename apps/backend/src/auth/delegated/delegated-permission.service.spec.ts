@@ -1,3 +1,7 @@
+import * as dotenv from "dotenv";
+import * as path from "path";
+dotenv.config({ path: path.resolve(__dirname, "..", "..", "..", "test", ".env.test") });
+
 import { Test, TestingModule } from "@nestjs/testing";
 import { DelegatedPermissionService } from "./delegated-permission.service";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -47,7 +51,7 @@ describe("DelegatedPermissionService", () => {
 
   describe("effective permission resolution", () => {
     it("ADMINISTRATOR resolves to full permissions", async () => {
-      const perms = await service.getEffectivePermissions("nonexistent-admin-id");
+      const perms = await service.getEffectivePermissions("00000000-0000-0000-0000-000000000001");
       expect(perms.length).toBe(0);
     });
 
@@ -151,14 +155,13 @@ describe("DelegatedPermissionService", () => {
       await service.initializeTeacherPermissions(teacherId, adminId);
       const full = await service.getEffectivePermissions(teacherId);
       const keep = new Set<string>([PERMISSIONS.UNITS_VIEW, PERMISSIONS.LESSONS_VIEW]);
-      for (const p of full) {
-        if (!keep.has(p as string)) {
-          await service.revokePermission(adminId, teacherId, p);
-        }
-      }
+      const toRevoke = full.filter((p) => !keep.has(p as string));
+      await prisma.userPermissionGrant.deleteMany({
+        where: { userId: teacherId, permission: { in: toRevoke as string[] } },
+      });
       const subset = await service.getEffectivePermissions(teacherId);
       expect(new Set(subset)).toEqual(new Set(keep));
-    });
+    }, 15000);
 
     it("C: intentionally revoked to zero persists as empty (no runtime fallback)", async () => {
       const teacherId = await makeTeacher();

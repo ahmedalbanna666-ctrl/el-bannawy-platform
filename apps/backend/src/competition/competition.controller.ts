@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
   UseGuards,
   HttpCode,
@@ -37,8 +38,10 @@ export class CompetitionController {
   @RequirePermission("competition.manage")
   async getTeacherCompetitions(
     @CurrentUser() userId: string,
-  ): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.competitionService.listTeacherCompetitions(userId);
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.competitionService.listTeacherCompetitions(userId, Number(page) || 1, Number(limit) || 20);
     return successResponse(data, "Teacher competitions retrieved successfully");
   }
 

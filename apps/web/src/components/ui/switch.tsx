@@ -26,21 +26,23 @@ const Switch = forwardRef<HTMLInputElement, SwitchProps>(
               className="peer sr-only"
               {...props}
             />
-            <span
-              className={cn(
-                "block h-6 w-11 cursor-pointer rounded-full border-2 border-neutral-300 bg-neutral-200 transition-all duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500/20 peer-focus-visible:ring-offset-1 peer-disabled:cursor-not-allowed peer-disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-700",
-                checked &&
-                  "border-primary-500 bg-primary-500 dark:border-primary-400 dark:bg-primary-400",
-                className,
-              )}
-            >
+            <label htmlFor={switchId} className="block cursor-pointer">
               <span
                 className={cn(
-                  "block h-5 w-5 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform duration-150",
-                  checked && "translate-x-[22px]",
+                  "block h-6 w-11 rounded-full border-2 border-neutral-300 bg-neutral-200 transition-all duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500/20 peer-focus-visible:ring-offset-1 peer-disabled:cursor-not-allowed peer-disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-700",
+                  checked &&
+                    "border-primary-500 bg-primary-500 dark:border-primary-400 dark:bg-primary-400",
+                  className,
                 )}
-              />
-            </span>
+              >
+                <span
+                  className={cn(
+                    "block h-5 w-5 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform duration-150 rtl:-translate-x-0.5",
+                    checked && "translate-x-[22px] rtl:-translate-x-[22px]",
+                  )}
+                />
+              </span>
+            </label>
           </div>
           {label && (
             <label

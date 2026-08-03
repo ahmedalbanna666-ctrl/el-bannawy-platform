@@ -22,13 +22,14 @@ import {
   Volume2,
   CheckCircle2,
   XCircle,
-  ArrowRight,
+  ArrowLeft,
   Trophy,
   RotateCcw,
   ChevronLeft,
   Sparkles,
   BookOpen,
   AlertTriangle,
+  VolumeX,
 } from "lucide-react";
 
 type Phase = "select" | "playing" | "result";
@@ -37,13 +38,14 @@ interface ListeningChallengeProps {
   unitId?: string;
 }
 
+const LETTERS = ["أ", "ب", "ج", "د", "هـ", "و", "ز", "ح"];
+
 export function ListeningChallenge({
   unitId: forcedUnitId,
 }: ListeningChallengeProps): ReactNode {
   const { settings } = useGameSettings();
   const { speak, isSpeaking, isSupported } = usePronunciation();
   const { data: units, isLoading, isError, refetch } = useCurriculumUnits();
-
   const [phase, setPhase] = useState<Phase>("select");
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(
     forcedUnitId ?? null,
@@ -146,15 +148,35 @@ export function ListeningChallenge({
     }
   }, [phase, currentIndex, current, speakCurrent]);
 
+  if (!settings.listeningChallenge.enabled) {
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/15 text-primary-500">
+            <Volume2 className="h-6 w-6" />
+          </span>
+          تحدي الاستماع
+        </h1>
+        <EmptyState
+          title="اللعبة غير مفعّلة"
+          description="لم يقم المعلم بتفعيل تحدي الاستماع حالياً، جرّب لعبة أخرى."
+          icon={<BookOpen className="h-16 w-16" />}
+        />
+      </div>
+    );
+  }
+
   if (phase === "select") {
     return (
       <div className="flex flex-col gap-6">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            <Volume2 className="h-7 w-7 text-primary-500" />
-            تحدي الاستماع والنطق
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/15 text-primary-500">
+              <Volume2 className="h-6 w-6" />
+            </span>
+            تحدي الاستماع
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-2 text-sm text-neutral-500">
             اختر الوحدة التي تريد التحدي بكلماتها، ثم استمع للكلمة واختر معناها الصحيح.
           </p>
         </div>
@@ -213,6 +235,13 @@ export function ListeningChallenge({
               </div>
             )}
 
+            {!isSupported && (
+              <div className="flex items-center gap-2 rounded-xl bg-info-500/10 p-3 text-sm text-info-600 dark:text-info-400">
+                <VolumeX className="h-4 w-4 shrink-0" />
+                متصفحك لا يدعم تشغيل الصوت، سيتم عرض الكلمة نصياً.
+              </div>
+            )}
+
             <Button
               variant="primary"
               size="lg"
@@ -232,18 +261,25 @@ export function ListeningChallenge({
   if (phase === "result") {
     const total = questions.length;
     const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
+    const passed = accuracy >= 50;
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-        <Card variant="outline" padding="lg">
+        <Card variant={passed ? "gradient" : "outline"} padding="lg">
           <CardContent className="flex flex-col items-center gap-4 text-center">
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500">
+            <div
+              className={`flex h-20 w-20 items-center justify-center rounded-full ${
+                passed
+                  ? "bg-white/20 text-white"
+                  : "bg-warning-500/10 text-warning-500"
+              }`}
+            >
               <Trophy className="h-10 w-10" />
             </div>
-            <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-              أحسنت!
+            <h2 className="text-2xl font-black text-neutral-900 dark:text-neutral-100">
+              {passed ? "أحسنت!" : "نقطة جيدة للبداية"}
             </h2>
             <p className="text-sm text-neutral-500">
-              أكملت تحدي الاستماع والنطق
+              أكملت تحدي الاستماع
             </p>
             <div className="grid w-full grid-cols-3 gap-3">
               <div className="rounded-xl bg-neutral-100 p-3 dark:bg-neutral-700/50">
@@ -306,7 +342,7 @@ export function ListeningChallenge({
 
       <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
         <div
-          className="h-full rounded-full bg-primary-500 transition-all duration-300"
+          className="h-full rounded-full bg-gradient-to-r from-primary-500 to-secondary-500 transition-all duration-300"
           style={{
             width: `${String(((currentIndex + (answered ? 1 : 0)) / questions.length) * 100)}%`,
           }}
@@ -317,30 +353,45 @@ export function ListeningChallenge({
         سؤال {currentIndex + 1} من {questions.length}
       </p>
 
-      <Card variant="outline" padding="lg">
+      <Card variant="elevated" padding="lg">
         <CardContent className="flex flex-col items-center gap-4">
-          <button
-            type="button"
-            onClick={handleReplay}
-            disabled={replaysLeft <= 0 || !isSupported}
-            aria-label="إعادة تشغيل النطق"
-            className={`flex h-24 w-24 items-center justify-center rounded-full transition-all duration-200 ${
-              isSpeaking("lc-current")
-                ? "scale-105 bg-primary-500 text-white shadow-[0_0_30px_rgba(34,211,238,0.4)]"
-                : "bg-primary-500/10 text-primary-500 hover:bg-primary-500/20"
-            } ${replaysLeft <= 0 || !isSupported ? "cursor-not-allowed opacity-40" : ""}`}
-          >
-            <Volume2 className="h-10 w-10" />
-          </button>
+          {isSupported ? (
+            <>
+              <button
+                type="button"
+                onClick={handleReplay}
+                disabled={replaysLeft <= 0}
+                aria-label="إعادة تشغيل النطق"
+                className={`relative flex h-24 w-24 items-center justify-center rounded-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
+                  isSpeaking("lc-current")
+                    ? "scale-105 bg-primary-500 text-white shadow-[0_0_30px_rgba(34,211,238,0.4)]"
+                    : "bg-primary-500/10 text-primary-500 hover:bg-primary-500/20"
+                } ${replaysLeft <= 0 ? "cursor-not-allowed opacity-40" : ""}`}
+              >
+                <Volume2 className="h-10 w-10" />
+                {isSpeaking("lc-current") && (
+                  <span className="absolute inset-0 animate-ping rounded-full bg-primary-400/40" />
+                )}
+              </button>
 
-          <p className="text-sm text-neutral-500">استمع واختر المعنى الصحيح</p>
+              <p className="text-sm text-neutral-500">استمع واختر المعنى الصحيح</p>
 
-          <div className="flex items-center gap-2 text-xs font-semibold text-neutral-400">
-            <Volume2 className="h-3.5 w-3.5" />
-            {isSupported
-              ? `يمكنك إعادة التشغيل ${String(replaysLeft)} مرة أخرى`
-              : "المتصفح لا يدعم تشغيل الصوت"}
-          </div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-neutral-400">
+                <Volume2 className="h-3.5 w-3.5" />
+                يمكنك إعادة التشغيل {String(replaysLeft)} مرة أخرى
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-info-500/10 text-info-500">
+                <VolumeX className="h-10 w-10" />
+              </div>
+              <p dir="ltr" className="text-3xl font-black tracking-wide text-neutral-900 dark:text-neutral-100">
+                {current.word}
+              </p>
+              <p className="text-sm text-neutral-500">الكلمة ظاهرة لأن متصفحك لا يدعم الصوت</p>
+            </>
+          )}
 
           {answered && (
             <div
@@ -365,7 +416,7 @@ export function ListeningChallenge({
       </Card>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {current.options.map((option) => {
+        {current.options.map((option, idx) => {
           const isCorrect = option === current.correctTranslation;
           const isSelected = option === selectedOption;
           let tone =
@@ -387,9 +438,20 @@ export function ListeningChallenge({
               onClick={() => {
                 handleSelect(option);
               }}
-              className={`rounded-2xl border-2 p-4 text-center text-base font-bold transition-all duration-200 ${tone}`}
+              className={`flex items-center gap-3 rounded-2xl border-2 p-4 text-center text-base font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${tone}`}
             >
-              {option}
+              <span
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                  answered && isCorrect
+                    ? "bg-success-500 text-white"
+                    : answered && isSelected
+                      ? "bg-danger-500 text-white"
+                      : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"
+                }`}
+              >
+                {LETTERS[idx] ?? String(idx + 1)}
+              </span>
+              <span className="flex-1">{option}</span>
             </button>
           );
         })}
@@ -398,7 +460,7 @@ export function ListeningChallenge({
       {answered && (
         <Button variant="primary" fullWidth onClick={handleNext}>
           {isLast ? "عرض النتيجة" : "التالي"}
-          <ArrowRight className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" />
         </Button>
       )}
     </div>

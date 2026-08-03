@@ -240,28 +240,28 @@ describe("DocxExtractorService", () => {
 
   describe("extract — whitespace normalization", () => {
     it("normalizes repeated whitespace", () => {
-      const result = (service as unknown as { normalizeCellText: (t: string) => string }).normalizeCellText(
+      const result = (service as unknown as { normalizeText: (t: string) => string }).normalizeText(
         "hello    world",
       );
       expect(result).toBe("hello world");
     });
 
     it("normalizes CRLF sequences", () => {
-      const result = (service as unknown as { normalizeCellText: (t: string) => string }).normalizeCellText(
+      const result = (service as unknown as { normalizeText: (t: string) => string }).normalizeText(
         "hello\r\nworld",
       );
       expect(result).toBe("hello world");
     });
 
     it("normalizes tab characters", () => {
-      const result = (service as unknown as { normalizeCellText: (t: string) => string }).normalizeCellText(
+      const result = (service as unknown as { normalizeText: (t: string) => string }).normalizeText(
         "hello\tworld",
       );
       expect(result).toBe("hello world");
     });
 
     it("trims leading/trailing whitespace", () => {
-      const result = (service as unknown as { normalizeCellText: (t: string) => string }).normalizeCellText(
+      const result = (service as unknown as { normalizeText: (t: string) => string }).normalizeText(
         "  hello world  ",
       );
       expect(result).toBe("hello world");
@@ -273,7 +273,7 @@ describe("DocxExtractorService", () => {
   describe("resource limits", () => {
     it("enforces maximum cell text length", async () => {
       jest
-        .spyOn(service as unknown as { normalizeCellText: (t: string) => string }, "normalizeCellText")
+        .spyOn(service as unknown as { normalizeText: (t: string) => string }, "normalizeText")
         .mockReturnValue("x".repeat(5001));
       const buf = await createSimpleVocabTable();
       await expect(service.extract(buf)).rejects.toThrow(BadRequestException);

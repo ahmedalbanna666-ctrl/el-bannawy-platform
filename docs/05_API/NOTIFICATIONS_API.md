@@ -1,491 +1,153 @@
-# NOTIFICATIONS_API.md
+# Notifications API
 
-# El-bannawy Platform
-## Notifications API Specification
+Version: 2.0.0
+Source: `apps/backend/src/notifications/notifications.controller.ts`
+Base path: `/api/v1/notifications`
 
-Version: 1.0.0
+## User Endpoints
 
----
+`GET /` — List current-user notifications
 
-# Purpose
+| Query | Type | Default | Description |
+|-------|------|---------|-------------|
+| filter | string | — | `unread`, `read`, or empty for all |
+| page | number | 1 | Page number |
+| limit | number | 20 | Items per page (max 100) |
 
-This document defines all API endpoints related to the Notifications Module.
-
-The Notifications API is responsible for delivering intelligent, personalized, and automated notifications to students, parents, teachers, secretaries, support staff, and administrators.
-
-Notifications may be delivered through multiple communication channels depending on user preferences and system rules.
-
----
-
-# Base Endpoint
-
-/api/v1/notifications
+Response: `paginatedResponse` with `{ id, title, message, type, priority, isRead, createdAt }[]`
 
 ---
 
-# Authentication
+`GET /preferences` — Read current-user notification preferences
 
-Required
+`PATCH /preferences` — Update preferences (all fields optional boolean)
 
-JWT Access Token
-
-Role-Based Authorization
-
----
-
-# Supported Roles
-
-- Student
-- Parent
-- Teacher
-- Secretary
-- Support
-- Administrator
+| Field | Description |
+|-------|-------------|
+| lessonReminders | تذكير بالحصص |
+| homeworkReminders | تذكير بالواجبات |
+| liveSessionReminders | تذكير بالحصص المباشرة |
+| achievementNotifications | إشعارات الإنجازات |
+| motivationalMessages | رسائل تحفيزية |
+| studyTips | نصائح دراسية |
+| teacherAnnouncements | إعلانات المعلم |
 
 ---
 
-# ==========================
-# MY NOTIFICATIONS
-# ==========================
+`PATCH /read-all` — Mark all notifications as read for current user
 
-GET
+`GET /:notificationId` — Get single notification
 
-/notifications
+`PATCH /:notificationId/read` — Mark one notification as read
 
-Description
-
-Return authenticated user's notifications.
-
-Supported Filters
-
-- Unread
-- Read
-- Priority
-- Category
-
-Response
-
-```json
-[
-  {
-    "id": "",
-    "title": "",
-    "message": "",
-    "type": "lesson_reminder",
-    "priority": "medium",
-    "isRead": false,
-    "createdAt": ""
-  }
-]
-```
+`DELETE /:notificationId` — Soft-delete a notification
 
 ---
 
-# ==========================
-# NOTIFICATION DETAILS
-# ==========================
+## Admin Endpoints (ADMINISTRATOR)
 
-GET
+`GET /admin/config` — List all notification configs
 
-/notifications/{notificationId}
+`PATCH /admin/config/:key` — Update a notification config
 
-Description
-
-Return notification details.
-
----
-
-# ==========================
-# MARK AS READ
-# ==========================
-
-PATCH
-
-/notifications/{notificationId}/read
-
-Description
-
-Mark notification as read.
+| Body | Type | Description |
+|------|------|-------------|
+| isEnabled | boolean | Enable/disable this notification type |
+| channel | string | Channel: `IN_APP`, `WHATSAPP`, `PUSH`, `EMAIL` |
 
 ---
 
-PATCH
+`GET /admin/templates` — List all notification templates
 
-/notifications/read-all
-
-Description
-
-Mark all notifications as read.
+`PATCH /admin/templates/:key` — Update a template's title/message
 
 ---
 
-# ==========================
-# DELETE
-# ==========================
+`GET /admin/whatsapp` — Get WhatsApp settings (safe fields only)
 
-DELETE
+`PATCH /admin/whatsapp` — Update WhatsApp configuration
 
-/notifications/{notificationId}
-
-Description
-
-Soft delete notification for current user.
-
-Notification remains stored for auditing.
-
----
-
-# ==========================
-# USER PREFERENCES
-# ==========================
-
-GET
-
-/notifications/preferences
-
-Description
-
-Return notification settings.
+| Body | Type | Description |
+|------|------|-------------|
+| provider | string | `twilio` or custom |
+| accountSid | string | Twilio Account SID |
+| authToken | string | Twilio Auth Token |
+| phoneNumber | string | WhatsApp sender number |
+| apiKey | string | API key for custom provider |
+| apiUrl | string | API endpoint for custom provider |
+| isEnabled | boolean | Enable/disable WhatsApp |
 
 ---
 
-PATCH
+`GET /admin/whatsapp/logs` — Get paginated WhatsApp message logs
 
-/notifications/preferences
+`POST /admin/whatsapp/test` — Send a test WhatsApp message
 
-Description
+| Body | Type | Description |
+|------|------|-------------|
+| to | string | Recipient phone number |
+| message | string | Message text |
 
-Update preferences.
+---
 
-Request
+## Sender Endpoints
+
+`POST /send` — Send notification (TEACHER, SECRETARY, ADMINISTRATOR)
+
+| Body | Type | Description |
+|------|------|-------------|
+| type | string | Notification type |
+| title | string | Notification title |
+| message | string | Notification body |
+| targetType | string | `all_students`, `grade`, `individual` |
+| targetId | string? | Required for `grade` and `individual` |
+| channel | string? | `IN_APP` (default), `WHATSAPP` |
+| priority | string? | `LOW`, `MEDIUM` (default), `HIGH`, `URGENT` |
+
+---
+
+`POST /schedule` — Schedule notification (TEACHER, ADMINISTRATOR)
+
+Same body as `POST /send` plus:
+| Body | Type | Description |
+|------|------|-------------|
+| scheduledAt | string | ISO date string for scheduled delivery |
+
+The endpoint persists `Notification` rows with `scheduledAt` set and enqueues a delayed BullMQ job on the `scheduled-notifications` queue. A `ScheduledNotificationsProcessor` worker dispatches WhatsApp/Push channels when the job fires and sets `sentAt`. Rows are hidden from the user inbox until `sentAt` is set (delivered). Dispatch is idempotent — already-sent rows are skipped.
+
+---
+
+## Analytics
+
+`GET /analytics` — Notification analytics (ADMINISTRATOR)
+
+Returns: `{ totalSent, totalRead, readRate, deliveryRate, failedCount }`
+
+---
+
+## Response Format
+
+All endpoints return standard `ISuccessResponse`:
 
 ```json
 {
-    "lessonReminders": true,
-    "homeworkReminders": true,
-    "liveSessionReminders": true,
-    "achievementNotifications": true,
-    "motivationalMessages": true,
-    "studyTips": true,
-    "teacherAnnouncements": true
+  "success": true,
+  "message": "...",
+  "data": null,
+  "timestamp": "2026-07-30T..."
 }
 ```
 
-Critical notifications cannot be disabled.
-
----
-
-# ==========================
-# SEND NOTIFICATION
-# ==========================
-
-POST
-
-/notifications/send
-
-Administrator
-
-Secretary
-
-Teacher
-
-Description
-
-Send notification.
-
-Request
+Paginated endpoints return `paginatedResponse`:
 
 ```json
 {
-    "type": "motivational_message",
-    "title": "",
-    "message": "",
-    "channel": "push",
-    "targetType": "class",
-    "targetId": "uuid"
+  "success": true,
+  "message": "...",
+  "data": [],
+  "meta": { "page": 1, "limit": 20, "total": 0, "totalPages": 0 },
+  "timestamp": "2026-07-30T..."
 }
 ```
-
-Target Types
-
-- all_students
-- grade
-- class
-- individual
-
----
-
-# ==========================
-# SCHEDULE
-# ==========================
-
-POST
-
-/notifications/schedule
-
-Administrator
-
-Teacher
-
-Description
-
-Schedule notification.
-
-Request
-
-```json
-{
-    "type": "homework_reminder",
-    "title": "",
-    "message": "",
-    "channel": "push",
-    "targetType": "grade",
-    "targetId": "uuid",
-    "scheduledAt": "2026-07-01T09:00:00Z"
-}
-```
-
-Supported Notification Types
-
-- Live Lesson Reminder
-- Homework Reminder
-- Lesson Reminder
-- End Lesson Assessment Reminder
-- Motivational Messages
-- Daily Study Tips
-- Achievement Notifications
-- Teacher Announcements
-- New Lesson Published
-- New Homework Available
-- Upcoming Live Session
-- Weekly Progress Summary
-
----
-
-# ==========================
-# DELIVERY STATUS
-# ==========================
-
-GET
-
-/notifications/{notificationId}/status
-
-Description
-
-Return delivery status.
-
-Possible Values
-
-- Pending
-- Sent
-- Delivered
-- Read
-- Failed
-
----
-
-# ==========================
-# TEMPLATES
-# ==========================
-
-GET
-
-/notifications/templates
-
-Administrator
-
-Return available templates.
-
----
-
-POST
-
-/notifications/templates
-
-Create template.
-
----
-
-PATCH
-
-/notifications/templates/{templateId}
-
-Update template.
-
----
-
-DELETE
-
-/notifications/templates/{templateId}
-
-Archive template.
-
----
-
-# ==========================
-# ANALYTICS
-# ==========================
-
-GET
-
-/notifications/analytics
-
-Administrator
-
-Return
-
-- Delivery Rate
-- Open Rate
-- Read Rate
-- Failed Messages
-- Channel Performance
-- Most Used Templates
-
----
-
-# ==========================
-# VALIDATION
-# ==========================
-
-Validate
-
-- User Exists
-- Notification Exists
-- Channel Enabled
-- Template Exists
-- Schedule Time
-- Message Length
-- Notification Type
-- Target Type
-- Target ID
-- Teacher Authorization (target scope)
-
----
-
-# ==========================
-# SECURITY
-# ==========================
-
-Students may access only:
-
-Their own notifications.
-
-Teachers cannot broadcast system-wide notifications.
-
-Administrators have full notification privileges.
-
----
-
-# ==========================
-# RATE LIMIT
-# ==========================
-
-Read Notifications
-
-60 Requests / Minute
-
-Send Notification
-
-20 Requests / Minute
-
-Broadcast
-
-5 Requests / Minute
-
----
-
-# ==========================
-# STATUS CODES
-# ==========================
-
-200 OK
-
-201 Created
-
-204 No Content
-
-400 Bad Request
-
-401 Unauthorized
-
-403 Forbidden
-
-404 Not Found
-
-409 Conflict
-
-422 Validation Error
-
-429 Too Many Requests
-
-500 Internal Server Error
-
----
-
-# ==========================
-# PERFORMANCE
-# ==========================
-
-Notification List
-
-<200ms
-
-Read Notification
-
-<100ms
-
-Send Notification
-
-<500ms
-
-Broadcast Processing
-
-Asynchronous
-
----
-
-# ==========================
-# AUDIT LOGS
-# ==========================
-
-Record
-
-- Notification Sent
-- Notification Read
-- Notification Deleted
-- Broadcast Created
-- Template Created
-- Template Updated
-- Delivery Failed
-
----
-
-# ==========================
-# ACCEPTANCE CRITERIA
-# ==========================
-
-✓ Notification list works.
-
-✓ Read status works.
-
-✓ Preferences work.
-
-✓ Notification sending works.
-
-✓ Broadcast works.
-
-✓ Scheduling works.
-
-✓ Analytics work.
-
-✓ Authorization works.
-
----
-
-# Final Rule
-
-The Notifications API must ensure timely, secure and personalized communication while respecting user preferences and protecting sensitive information.
-
-Every notification must deliver meaningful value and avoid unnecessary interruptions.
 
 End of Document.

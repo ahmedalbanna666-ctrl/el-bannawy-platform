@@ -17,8 +17,8 @@ import {
 import { usePronunciation } from "@/lib/use-pronunciation";
 import { VocabCell } from "@/components/vocabulary/vocabulary-cell";
 import { VocabularyGroupHeader } from "@/components/vocabulary/vocabulary-group-header";
-import { VocabularyStats } from "@/components/vocabulary/vocabulary-stats";
 import { RelationVocabularyTable } from "@/components/vocabulary/relation-vocabulary-table";
+import { BackButton } from "@/components/ui/back-button";
 
 interface VocabWord {
   readonly id: string;
@@ -50,6 +50,9 @@ interface VocabApiResponse {
     readonly id: string;
     readonly title: string;
     readonly grade: { readonly id: string; readonly name: string };
+  };
+  readonly vocabulary: {
+    readonly groups: readonly VocabGroup[];
   };
 }
 
@@ -183,27 +186,13 @@ export default function StudentVocabularyPage(): ReactNode {
     },
   });
 
-  const {
-    data: vocabData,
-    isLoading: vocabLoading,
-    isError: vocabError,
-    error: vocabErr,
-  } = useQuery({
-    queryKey: ["lesson-vocabulary", lessonId],
-    queryFn: async () => {
-      const res = await api.get<{ groups: readonly VocabGroup[] }>(`/lessons/${lessonId}/vocabulary`);
-      return res.data?.groups ?? [];
-    },
-  });
+  const vocabGroups = lesson?.vocabulary.groups ?? [];
 
-  const isLoading = lessonLoading || vocabLoading;
-  const isError = lessonError || vocabError;
-  const error = lessonErr ?? vocabErr;
-  const groups = vocabData ?? [];
+  const isLoading = lessonLoading;
+  const isError = lessonError;
+  const error = lessonErr;
+  const groups = vocabGroups;
   const totalCount = groups.reduce((acc, g) => acc + g.items.length, 0);
-  const relationCount = groups
-    .filter((g) => g.kind === "SYNONYM_ANTONYM" || g.items.some((i) => i.synonym ?? i.antonym))
-    .reduce((acc, g) => acc + g.items.length, 0);
 
   if (isLoading) {
     return <VocabularySkeleton />;
@@ -221,9 +210,12 @@ export default function StudentVocabularyPage(): ReactNode {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
-      <nav className="mb-6 flex items-center gap-2 text-sm text-neutral-500">
-        <Link href="/dashboard/lessons" className="hover:text-primary-500 transition-colors">
+    <div className="mx-auto max-w-5xl px-3 py-3">
+      <div className="mb-2 flex items-center justify-between">
+        <BackButton fallbackHref="/dashboard/units" />
+      </div>
+      <nav className="mb-3 flex items-center gap-2 text-sm text-neutral-500">
+        <Link href="/dashboard/units" className="hover:text-primary-500 transition-colors">
           الدروس
         </Link>
         {lesson && (
@@ -241,27 +233,24 @@ export default function StudentVocabularyPage(): ReactNode {
         <span className="text-neutral-900 dark:text-neutral-100 font-medium">المفردات</span>
       </nav>
 
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-3 flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500/20 to-primary-500/5 shadow-sm">
           <Languages className="h-5 w-5 text-primary-600 dark:text-primary-400" />
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-            مفردات الدرس
-          </h1>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
+              مفردات الدرس
+            </h1>
+            {totalCount > 0 && (
+              <span className="inline-flex items-center rounded-full bg-primary-500/10 px-2.5 py-0.5 text-xs font-bold text-primary-600 dark:text-primary-400">
+                {totalCount} كلمة
+              </span>
+            )}
+          </div>
           <p className="text-sm text-neutral-500">كلمات ومفردات الدرس مع المرادفات والمضادات</p>
         </div>
       </div>
-
-      {totalCount > 0 && (
-        <div className="mb-6">
-          <VocabularyStats
-            words={totalCount}
-            groups={groups.length}
-            relations={relationCount}
-          />
-        </div>
-      )}
 
       {totalCount === 0 ? (
         <EmptyState
@@ -270,11 +259,11 @@ export default function StudentVocabularyPage(): ReactNode {
           icon={<BookX className="h-16 w-16 text-neutral-300 dark:text-neutral-600" />}
           actionLabel="تصفح الدروس"
           onAction={(): void => {
-            router.push("/dashboard/lessons");
+            router.push("/dashboard/units");
           }}
         />
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
           {groups.map((group) => {
             const isRelKind = group.kind === "SYNONYM_ANTONYM";
             const hasRelData = group.items.some((i) => i.synonym ?? i.antonym);
@@ -307,7 +296,7 @@ export default function StudentVocabularyPage(): ReactNode {
 
 function VocabularySkeleton(): ReactNode {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
+    <div className="mx-auto max-w-5xl px-3 py-4">
       <div className="mb-6 flex items-center gap-3">
         <Skeleton className="h-11 w-11 rounded-2xl" />
         <div>
@@ -322,7 +311,7 @@ function VocabularySkeleton(): ReactNode {
         ))}
       </div>
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         {Array.from({ length: 3 }, (_, gi) => (
           <div key={gi} className="flex flex-col gap-2">
             <div className="flex items-center justify-center gap-3 py-1.5">

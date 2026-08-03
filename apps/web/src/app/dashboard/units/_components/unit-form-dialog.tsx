@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select } from "@/components/ui/select";
+import { type UnitTypeValue, getUnitTypeCopy } from "@/lib/unit-type-config";
 
 interface AcademicYearLookup {
   readonly id: string;
@@ -44,6 +45,7 @@ interface UnitFormDialogProps {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly unit?: UnitEditData | null;
+  readonly unitType?: UnitTypeValue;
 }
 
 interface UnitFormData {
@@ -74,9 +76,11 @@ export function UnitFormDialog({
   open,
   onClose,
   unit,
+  unitType = "UNIT",
 }: UnitFormDialogProps): ReactNode {
   const queryClient = useQueryClient();
   const isEdit = unit !== null && unit !== undefined;
+  const copy = getUnitTypeCopy(unitType);
 
   const [formData, setFormData] = useState<UnitFormData>(EMPTY_FORM);
 
@@ -196,6 +200,7 @@ export function UnitFormDialog({
         payload.gradeId = resolvedGradeId;
         payload.academicYearId = resolvedAcademicYearId;
         payload.termId = resolvedTermId;
+        payload.unitType = unitType;
         payload.educationalSystem = educationalSystem;
         payload.published = formData.published;
         payload.isPremium = formData.isPremium;
@@ -237,19 +242,19 @@ export function UnitFormDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title={isEdit ? "تعديل الوحدة" : "إنشاء وحدة جديدة"}
+      title={isEdit ? `تعديل ${copy.singular}` : `إنشاء ${copy.singular} جديدة`}
     >
       <form onSubmit={handleSubmit}>
         <DialogContent className="flex flex-col gap-4">
           <Input
-            label="عنوان الوحدة"
-            placeholder="مثال: Unit 1 - Greetings"
+            label={`عنوان ${copy.singular}`}
+            placeholder={unitType === "STORY" ? "مثال: قصة الأشكال الهندسية" : "مثال: Unit 1 - Greetings"}
             value={formData.title}
             onChange={(e): void => { update("title", e.target.value); }}
           />
           <Textarea
             label="الوصف"
-            placeholder="وصف مختصر للوحدة"
+            placeholder={`وصف مختصر لـ${copy.singular}`}
             value={formData.description}
             onChange={(e): void => { update("description", e.target.value); }}
           />
@@ -277,7 +282,7 @@ export function UnitFormDialog({
             value={formData.lockedOverride}
             onChange={(e): void => { update("lockedOverride", e.target.value); }}
             options={[
-              { value: "auto", label: "تلقائي (حسب اجتياز امتحان الوحدة السابقة)" },
+              { value: "auto", label: `تلقائي (حسب اجتياز امتحان ${copy.singular} السابقة)` },
               { value: "open", label: "مفتوح دائماً" },
               { value: "locked", label: "مقفل دائماً" },
             ]}
@@ -294,7 +299,7 @@ export function UnitFormDialog({
             <p className="text-sm text-danger-500" role="alert">
               {mutation.error instanceof Error
                 ? mutation.error.message
-                : "فشل حفظ الوحدة"}
+                : `فشل حفظ ${copy.singular}`}
             </p>
           )}
         </DialogContent>

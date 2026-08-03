@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, type ReactNode } from "react";
-import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { PERMISSIONS } from "@el-bannawy/shared";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -28,88 +28,17 @@ import {
   Coins,
   type LucideIcon,
 } from "lucide-react";
+import {
+  useTeachers,
+  useTeacherDetail,
+  useStages,
+  LIST_STATUS_OPTIONS,
+  type AssignedGrade,
+  type Teacher,
+  type TeacherDetail,
 
-interface AssignedGrade {
-  id: string;
-  name: string;
-  stage: { id: string; name: string } | null;
-  _count?: { users: number; units: number };
-}
-
-interface Teacher {
-  id: string;
-  fullName: string;
-  englishName: string | null;
-  email: string | null;
-  mobileNumber: string | null;
-  role: string;
-  status: string;
-  governorate: string | null;
-  school: string | null;
-  createdAt: string;
-  updatedAt: string;
-  lastLogin: string | null;
-  assignedGrades: AssignedGrade[];
-}
-
-interface TeacherDetail extends Teacher {
-  deletedAt: string | null;
-}
-
-interface ListResponse {
-  teachers: Teacher[];
-  meta: { total: number; page: number; limit: number; totalPages: number };
-}
-
-interface StageItem {
-  id: string;
-  name: string;
-  grades: { id: string; name: string; displayOrder: number; _count?: { users: number } }[];
-}
-
-const LIST_STATUS_OPTIONS = [
-  { value: "", label: "الكل" },
-  { value: "ACTIVE", label: "نشط" },
-  { value: "SUSPENDED", label: "موقوف" },
-  { value: "BANNED", label: "محظور" },
-  { value: "DELETED", label: "محذوف" },
-];
-
-function useTeachers(params: Record<string, string>): UseQueryResult<ListResponse> {
-  const searchParams = new URLSearchParams(params);
-  return useQuery<ListResponse>({
-    queryKey: ["teachers", params],
-    queryFn: async () => {
-      const res = await api.get<ListResponse>(`/admin/teachers?${searchParams.toString()}`);
-      return res.data ?? { teachers: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } };
-    },
-    staleTime: 15_000,
-  });
-}
-
-function useTeacherDetail(id: string | null): UseQueryResult<TeacherDetail> {
-  return useQuery<TeacherDetail>({
-    queryKey: ["teacher", id],
-    queryFn: async () => {
-      const res = await api.get<TeacherDetail>(`/admin/teachers/${id ?? ""}`);
-      if (!res.data) throw new Error("Teacher not found");
-      return res.data;
-    },
-    enabled: !!id,
-    staleTime: 30_000,
-  });
-}
-
-function useStages(): UseQueryResult<StageItem[]> {
-  return useQuery<StageItem[]>({
-    queryKey: ["stages"],
-    queryFn: async () => {
-      const res = await api.get<StageItem[]>("/admin/stages");
-      return res.data ?? [];
-    },
-    staleTime: 300_000,
-  });
-}
+  type StageItem,
+} from "./_hooks/use-teachers";
 
 export default function TeachersPage(): ReactNode {
   const queryClient = useQueryClient();
@@ -138,10 +67,7 @@ export default function TeachersPage(): ReactNode {
 
   const [dialog, setDialog] = useState<{
     type: "create" | "edit" | "grades" | "status" | "delete" | null;
-    data?: Record<string, string>;
   }>({ type: null });
-
-  const [showSummary, setShowSummary] = useState(false);
 
   const teachers: Teacher[] = listData?.teachers ?? [];
   const meta = listData?.meta ?? { total: 0, page: 1, limit: 20, totalPages: 0 };
@@ -214,7 +140,6 @@ export default function TeachersPage(): ReactNode {
             detail={detail}
             detailLoading={detailLoading}
             setDialog={setDialog}
-            confirmAction={confirmAction}
           />
         )}
 
@@ -238,15 +163,7 @@ export default function TeachersPage(): ReactNode {
           teacherName={detail?.fullName ?? ""}
           currentStatus={detail?.status}
           teacherDetail={detail}
-          onSaved={() => { setShowSummary(true); }}
         />
-
-        {showSummary && detail && (
-          <AssignmentSummary
-            grades={detail.assignedGrades}
-            onClose={() => { setShowSummary(false); }}
-          />
-        )}
       </div>
     );
   }
@@ -391,12 +308,10 @@ function TeacherProfileTab({
   detail,
   detailLoading,
   setDialog,
-  confirmAction: _confirmAction,
 }: {
   detail: TeacherDetail | undefined;
   detailLoading: boolean;
   setDialog: (d: { type: "edit" | "grades" | "status" | "delete"; data?: Record<string, string> }) => void;
-  confirmAction: { mutate: (p: { method: string; endpoint: string; body?: unknown }) => void; isPending?: boolean };
 }): ReactNode {
   if (detailLoading) return <Skeleton className="h-64 rounded-xl" />;
   if (!detail) return <ErrorState title="خطأ" description="لم يتم العثور على بيانات المعلم" />;
@@ -541,11 +456,7 @@ function TeacherPermissionsTab({
     "vocabulary.manage": "إدارة المفردات",
     "homework.manage": "إدارة الواجبات",
     "quizzes.manage": "إدارة الاختبارات",
-    "story.view": "عرض القصص",
-    "story.edit": "تعديل القصص",
-    "story.publish": "نشر القصص",
-    "final_review.view": "عرض المراجعات",
-    "final_review.edit": "تعديل المراجعات",
+
     "live.view": "عرض البث المباشر",
     "live.create": "إنشاء بث مباشر",
     "live.edit": "تعديل البث المباشر",
@@ -574,8 +485,6 @@ function TeacherPermissionsTab({
     { label: "الوحدات", keys: [PERMISSIONS.UNITS_VIEW, PERMISSIONS.UNITS_CREATE, PERMISSIONS.UNITS_EDIT, PERMISSIONS.UNITS_DELETE] },
     { label: "الدروس", keys: [PERMISSIONS.LESSONS_VIEW, PERMISSIONS.LESSONS_CREATE, PERMISSIONS.LESSONS_EDIT, PERMISSIONS.LESSONS_DELETE] },
     { label: "المحتوى", keys: [PERMISSIONS.VIDEOS_UPLOAD, PERMISSIONS.PDFS_UPLOAD, PERMISSIONS.VOCABULARY_MANAGE, PERMISSIONS.HOMEWORK_MANAGE, PERMISSIONS.QUIZZES_MANAGE] },
-    { label: "القصة", keys: [PERMISSIONS.STORY_VIEW, PERMISSIONS.STORY_EDIT, PERMISSIONS.STORY_PUBLISH] },
-    { label: "المراجعة النهائية", keys: [PERMISSIONS.FINAL_REVIEW_VIEW, PERMISSIONS.FINAL_REVIEW_EDIT] },
     { label: "البث المباشر", keys: [PERMISSIONS.LIVE_VIEW, PERMISSIONS.LIVE_CREATE, PERMISSIONS.LIVE_EDIT, PERMISSIONS.LIVE_DELETE] },
     { label: "الطلاب", keys: [PERMISSIONS.STUDENTS_VIEW, PERMISSIONS.STUDENTS_CREATE] },
     { label: "الذكاء الاصطناعي", keys: [PERMISSIONS.AI_MANAGE] },
@@ -792,16 +701,14 @@ function ActionDialogs({
   teacherName,
   currentStatus,
   teacherDetail,
-  onSaved,
 }: {
-  dialog: { type: string | null; data?: Record<string, string> };
-  setDialog: (d: { type: "edit" | "grades" | "status" | "delete" | null; data?: Record<string, string> }) => void;
+  dialog: { type: string | null };
+  setDialog: (d: { type: "edit" | "grades" | "status" | "delete" | null }) => void;
   teacherId: string;
   confirmAction: { mutate: (p: { method: string; endpoint: string; body?: unknown }) => void; isPending?: boolean };
   teacherName: string;
   currentStatus: string | undefined;
   teacherDetail?: TeacherDetail;
-  onSaved: () => void;
 }): ReactNode {
   const [editFullName, setEditFullName] = useState("");
   const [editEnglishName, setEditEnglishName] = useState("");
@@ -868,7 +775,7 @@ function ActionDialogs({
       case "grades":
         return {
           title: "إدارة الصفوف الدراسية",
-          content: <GradeSelector teacherId={teacherId} confirmAction={confirmAction} onSaved={onSaved} />,
+          content: <GradeSelector teacherId={teacherId} confirmAction={confirmAction} />,
           disableSave: true,
           action: (): void => { void 0; },
         };
@@ -945,11 +852,9 @@ function ActionDialogs({
 function GradeSelector({
   teacherId,
   confirmAction,
-  onSaved,
 }: {
   teacherId: string;
   confirmAction: { mutate: (p: { method: string; endpoint: string; body?: unknown }) => void; isPending?: boolean };
-  onSaved: () => void;
 }): ReactNode {
   const [selectedGradeIds, setSelectedGradeIds] = useState<Set<string>>(new Set());
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
@@ -1048,7 +953,6 @@ function GradeSelector({
         return { id, name: gradeMap.get(id) ?? id, stageName, studentCount: grade?._count?.users ?? 0 };
       }),
     });
-    onSaved();
     setSaving(false);
   };
 
@@ -1212,61 +1116,6 @@ function GradeSummaryCard({
         <Button size="sm" variant="outline" onClick={onBack} className="mt-4">
           تعديل
         </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AssignmentSummary({
-  grades,
-  onClose,
-}: {
-  grades: AssignedGrade[];
-  onClose: () => void;
-}): ReactNode {
-  const totalStudents = grades.reduce((sum, g) => sum + (g._count?.users ?? 0), 0);
-  const grouped = grades.reduce<Record<string, AssignedGrade[]>>((acc, g) => {
-    const stageName = g.stage?.name ?? "أخرى";
-    (acc[stageName] ??= []).push(g);
-    return acc;
-  }, {});
-
-  return (
-    <Card variant="glass" padding="md">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-primary-500" />
-            <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">الصفوف المسندة</h3>
-          </div>
-          <Button size="sm" variant="ghost" onClick={onClose}>
-            ✕
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          <p className="text-xs text-neutral-500 mb-1">إجمالي الطلاب: {totalStudents} طالب</p>
-          {Object.entries(grouped).map(([stageName, gs]) => {
-            const stageTotal = gs.reduce((sum, g) => sum + (g._count?.users ?? 0), 0);
-            return (
-              <div key={stageName}>
-                <p className="text-xs font-bold text-neutral-500 dark:text-neutral-400 mb-1">
-                  {stageName} ({stageTotal} طالب)
-                </p>
-                <div className="flex flex-col gap-0.5 pr-2">
-                  {gs.map((g) => (
-                    <div key={g.id} className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-                      <span className="text-primary-500">•</span>
-                      <span>{g.name}</span>
-                      {g._count?.users ? <span className="text-neutral-400 text-xs">({g._count.users})</span> : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </CardContent>
     </Card>
   );

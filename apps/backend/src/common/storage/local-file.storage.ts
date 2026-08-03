@@ -1,12 +1,13 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import { Injectable, InternalServerErrorException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import type { FileStorage, StoredFile } from "./file-storage";
 
 const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads", "documents");
 
 @Injectable()
-export class LocalFileStorage {
-  async save(buffer: Buffer, originalName: string, id: string): Promise<{ fileUrl: string; storedName: string }> {
+export class LocalFileStorage implements FileStorage {
+  async save(buffer: Buffer, originalName: string, id: string): Promise<StoredFile> {
     await fs.mkdir(UPLOAD_ROOT, { recursive: true });
     const ext = path.extname(originalName).toLowerCase().slice(0, 12);
     const safeId = id.replace(/[^a-zA-Z0-9-]/g, "");
@@ -16,8 +17,12 @@ export class LocalFileStorage {
     return { fileUrl: `/files/documents/${storedName}`, storedName };
   }
 
+  async read(fileUrl: string): Promise<Buffer> {
+    return fs.readFile(this.resolve(fileUrl));
+  }
+
   async remove(fileUrl: string): Promise<void> {
-    if (!fileUrl || !fileUrl.startsWith("/files/documents/")) return;
+    if (!fileUrl.startsWith("/files/documents/")) return;
     const storedName = path.basename(fileUrl);
     const target = path.join(UPLOAD_ROOT, storedName);
     try {
@@ -52,5 +57,3 @@ export function resolveMimeType(fileName: string): string {
   };
   return map[ext] ?? "application/octet-stream";
 }
-
-export class FileStorageError extends InternalServerErrorException {}

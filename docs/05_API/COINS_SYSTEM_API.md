@@ -1,433 +1,56 @@
-# COINS_SYSTEM_API.md
-
-# El-bannawy Platform
-## Coins System API Specification
-
-Version: 1.0.0
-
----
-
-# Purpose
-
-This document defines all API endpoints related to the Coins System.
-
-The Coins API is responsible for:
-
-- Coin Wallet
-- Coin Packages
-- Coin Purchases
-- Coin Transactions
-- Wallet Balance
-- Coin Rewards
-- Spending History
-
-Coins are the premium virtual currency of the platform.
-
-Coins are never used for educational ranking.
-
----
-
-# Base Endpoint
-
-/api/v1/coins
-
----
-
-# Authentication
-
-Required
-
-JWT Access Token
-
-Role-Based Authorization
-
----
-
-# Supported Roles
-
-- Student
-- Secretary
-- Administrator
-
-Teachers have read-only access.
-
----
-
-# ==========================
-# WALLET
-# ==========================
-
-GET
-
-/coins/wallet
-
-Description
-
-Return student's wallet.
-
-Response
-
-```json
-{
-    "balance":350,
-    "totalPurchased":1200,
-    "totalSpent":850,
-    "pending":0
-}
-```
-
----
-
-# ==========================
-# TRANSACTIONS
-# ==========================
-
-GET
-
-/coins/transactions
-
-Description
-
-Return wallet transaction history.
-
-Response
-
-```json
-[
-    {
-        "id":"",
-        "type":"purchase",
-        "amount":500,
-        "balanceAfter":850,
-        "createdAt":""
-    }
-]
-```
-
----
-
-# ==========================
-# COIN PACKAGES
-# ==========================
-
-GET
-
-/coins/packages
-
-Description
-
-Return available Coin Packages.
-
-Response
-
-```json
-[
-    {
-        "id":"",
-        "coins":500,
-        "price":250
-    }
-]
-```
-
----
-
-GET
-
-/coins/packages/{packageId}
-
-Return package details.
-
----
-
-# ==========================
-# PURCHASE PACKAGE
-# ==========================
-
-POST
-
-/coins/purchase
-
-Description
-
-Purchase Coin Package.
-
-Request
-
-```json
-{
-    "packageId":"",
-    "paymentMethod":"paymob"
-}
-```
-
-Supported paymentMethod values
-
-- paymob
-- fawry
-- instapay
-- vodafone_cash
-- orange_cash
-- etisalat_cash
-
-The purchase endpoint creates a PENDING payment and returns a paymentUrl. No coins are credited until /coins/verify succeeds.
-
-Response
-
-```json
-{
-    "paymentUrl":"",
-    "status":"pending"
-}
-```
-
----
-
-# ==========================
-# PAYMENT VERIFICATION
-# ==========================
-
-POST
-
-/coins/verify
-
-Description
-
-Verify payment.
-
-Server verifies gateway response.
-
-Successful Response
-
-```json
-{
-    "verified":true,
-    "coinsAdded":500,
-    "walletBalance":850
-}
-```
-
----
-
-# ==========================
-# SPEND COINS
-# ==========================
-
-POST
-
-/coins/spend
-
-Internal API
-
-Used when purchasing:
-
-- Lesson
-- Unit
-- Full Course
-
-Students never call this endpoint directly.
-
----
-
-# ==========================
-# REWARD COINS
-# ==========================
-
-POST
-
-/coins/reward
-
-Administrator
-
-Award promotional Coins.
-
-Request
-
-```json
-{
-    "studentId":"",
-    "coins":100,
-    "reason":"Competition Winner"
-}
-```
-
----
-
-# ==========================
-# REMOVE COINS
-# ==========================
-
-POST
-
-/coins/remove
-
-Administrator
-
-Remove Coins.
-
-Every operation requires audit logging.
-
----
-
-# ==========================
-# ANALYTICS
-# ==========================
-
-GET
-
-/coins/analytics
-
-Administrator
-
-Return
-
-- Coins Sold
-- Coins Rewarded
-- Coins Spent
-- Active Wallets
-- Average Purchase
-
----
-
-# ==========================
-# VALIDATION
-# ==========================
-
-Validate
-
-- Wallet Exists
-- Package Exists
-- Payment Verified
-- Balance Available
-- Duplicate Payment
-- Fraud Detection
-
----
-
-# ==========================
-# SECURITY
-# ==========================
-
-Students cannot:
-
-- Modify Wallet
-- Create Coins
-- Spend Negative Balance
-- Modify Transactions
-
-All wallet operations occur server-side.
-
----
-
-# ==========================
-# RATE LIMIT
-# ==========================
-
-Wallet
-
-60 Requests / Minute
-
-Purchase
-
-10 Requests / Minute
-
-Verification
-
-10 Requests / Minute
-
----
-
-# ==========================
-# STATUS CODES
-# ==========================
-
-200 OK
-
-201 Created
-
-204 No Content
-
-400 Bad Request
-
-401 Unauthorized
-
-403 Forbidden
-
-404 Not Found
-
-409 Conflict
-
-422 Validation Error
-
-429 Too Many Requests
-
-500 Internal Server Error
-
----
-
-# ==========================
-# PERFORMANCE
-# ==========================
-
-Wallet
-
-<200ms
-
-Transactions
-
-<300ms
-
-Package List
-
-<200ms
-
-Purchase Verification
-
-<3 Seconds
-
----
-
-# ==========================
-# AUDIT LOGS
-# ==========================
-
-Record
-
-- Package Purchased
-- Coins Added
-- Coins Removed
-- Coins Spent
-- Wallet Updated
-- Payment Verified
-
----
-
-# ==========================
-# ACCEPTANCE CRITERIA
-# ==========================
-
-✓ Wallet works.
-
-✓ Package listing works.
-
-✓ Coin purchases work.
-
-✓ Payment verification works.
-
-✓ Spending works.
-
-✓ Transaction history works.
-
-✓ Analytics work.
-
-✓ Authorization works.
-
----
-
-# Final Rule
-
-The Coins API is the single source of truth for all virtual currency transactions.
-
-Every Coin operation must be secure, auditable, atomic and synchronized with the Payments Module.
+# Coins API
+
+Version: 2.0.0
+Source: `apps/backend/src/coins/coins.controller.ts`
+
+## Base And Authorization
+
+Base path: `/api/v1/coins`
+
+All routes require JWT authentication and the `RolesGuard`. Additional role restrictions are listed below. Responses use the normal success envelope.
+
+## Endpoints
+
+| Method | Path                            | Roles                 | Purpose                                                                                               |
+| ------ | ------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------- |
+| GET    | `/packages`                     | Authenticated         | List active packages; administrators can see all active/inactive records through the service behavior |
+| GET    | `/packages/all`                 | Administrator         | Administrative package listing                                                                        |
+| POST   | `/packages`                     | Administrator         | Create package: name, description, coinAmount, price                                                  |
+| PATCH  | `/packages/:id`                 | Administrator         | Update package fields and active state                                                                |
+| DELETE | `/packages/:id`                 | Administrator         | Delete package                                                                                        |
+| GET    | `/wallet`                       | Authenticated         | Get or initialize the current user's wallet                                                           |
+| POST   | `/purchase`                     | Authenticated         | Create pending coin purchase/payment and return checkout data                                         |
+| POST   | `/verify`                       | Authenticated         | Verify checkout and credit wallet once                                                                |
+| POST   | `/redeem`                       | Authenticated         | Redeem a coin or content activation code                                                              |
+| GET    | `/unlock-cost/:targetType`      | Authenticated         | Read current `UNIT` or `TERM` unlock cost                                                            |
+| POST   | `/unlock-cost`                  | Administrator/Teacher | Set unit or term unlock cost                                                                         |
+| GET    | `/codes`                        | Administrator/Teacher | List activation codes                                                                                 |
+| POST   | `/codes`                        | Administrator/Teacher | Create code, optional max uses/expiry/target                                                          |
+| POST   | `/codes/:id/toggle`             | Administrator/Teacher | Enable/disable code                                                                                   |
+| DELETE | `/codes/:id`                     | Administrator/Teacher | Delete a code and its redemptions                                                                     |
+| GET    | `/requests`                     | Authenticated         | List own requests; administrators can filter/list all                                                 |
+| POST   | `/requests`                     | Authenticated         | Submit pending unlock request                                                                         |
+| POST   | `/requests/:id/resolve`         | Administrator         | Resolve request with status/note                                                                      |
+| POST   | `/unlock`                       | Authenticated         | Unlock target with current wallet cost                                                                |
+| GET    | `/access/:targetType/:targetId` | Authenticated         | Check content unlock and progress state                                                               |
+| GET    | `/my-purchases`                 | Authenticated         | List own coin purchases                                                                               |
+| GET    | `/my-unlocks`                   | Authenticated         | List own content unlocks                                                                              |
+
+## Rules
+
+- Package purchase creates a pending `Payment` and `CoinPurchase`.
+- Verification is idempotent for already completed payments and credits the wallet only for an incomplete purchase.
+- Current dynamic costs are stored in `SystemSetting` under `unit_unlock_cost` (default 50) and `term_unlock_cost` (default 300); lesson-level purchases are disabled.
+- A content code creates a `ContentUnlock` with `unlockMethod: CODE` and does not credit coins.
+- A coin code credits the wallet and records a `CodeRedemption`.
+- Redemption checks usage limits and duplicate redemption inside a transaction.
+- A `TERM` unlock makes every unit of that term available; unit availability is derived from unit/term unlocks and `lockedOverride`.
+- Coins do not affect XP or leaderboard ranking.
+
+## Known Limitations
+
+- The current wallet schema stores balance only; it does not contain a full immutable coin transaction ledger.
+- List endpoints are not paginated.
+- Payment gateway verification and production webhook behavior require deployment-specific integration testing.
 
 End of Document.

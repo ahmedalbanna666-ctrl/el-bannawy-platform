@@ -5,29 +5,44 @@ import { PrismaService } from "../prisma/prisma.service";
 export class SupportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listTickets(userId: string, filters: { status?: string; priority?: string; category?: string; assignedAgentId?: string }) {
+  async listTickets(
+    userId: string,
+    filters: { status?: string; priority?: string; category?: string; assignedAgentId?: string },
+    page = 1,
+    limit = 20,
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!user) throw new NotFoundException("User not found");
 
     const where: Record<string, unknown> = {};
-    if (filters.status) where["status"] = filters.status;
-    if (filters.priority) where["priority"] = filters.priority;
-    if (filters.category) where["category"] = filters.category;
+    if (filters.status) where.status = filters.status;
+    if (filters.priority) where.priority = filters.priority;
+    if (filters.category) where.category = filters.category;
 
     if (user.role === "STUDENT" || user.role === "TEACHER") {
-      where["userId"] = userId;
+      where.userId = userId;
     } else if (filters.assignedAgentId) {
-      where["assignedAgentId"] = filters.assignedAgentId;
+      where.assignedAgentId = filters.assignedAgentId;
     }
 
-    return this.prisma.supportTicket.findMany({
-      where,
-      include: {
-        user: { select: { id: true, fullName: true, email: true } },
-        _count: { select: { messages: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const take = Math.min(100, Math.max(1, limit));
+    const skip = (Math.max(1, page) - 1) * take;
+
+    const [data, total] = await Promise.all([
+      this.prisma.supportTicket.findMany({
+        where,
+        include: {
+          user: { select: { id: true, fullName: true, email: true } },
+          _count: { select: { messages: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+      this.prisma.supportTicket.count({ where }),
+    ]);
+
+    return { data, meta: { page: Math.max(1, page), limit: take, total, totalPages: Math.ceil(total / take) } };
   }
 
   async getTicket(ticketId: string, userId: string) {
@@ -99,9 +114,9 @@ export class SupportService {
     if (!ticket) throw new NotFoundException("Ticket not found");
 
     const data: Record<string, unknown> = {};
-    if (dto.status !== undefined) data["status"] = dto.status;
-    if (dto.priority !== undefined) data["priority"] = dto.priority;
-    if (dto.assignedAgentId !== undefined) data["assignedAgentId"] = dto.assignedAgentId;
+    if (dto.status !== undefined) data.status = dto.status;
+    if (dto.priority !== undefined) data.priority = dto.priority;
+    if (dto.assignedAgentId !== undefined) data.assignedAgentId = dto.assignedAgentId;
 
     return this.prisma.supportTicket.update({
       where: { id: ticketId },
@@ -129,9 +144,19 @@ export class SupportService {
     });
   }
 
-  async closeTicket(ticketId: string) {
-    const ticket = await this.prisma.supportTicket.findUnique({ where: { id: ticketId } });
+  async closeTicket(ticketId: string, userId: string) {
+    const [ticket, user] = await Promise.all([
+      this.prisma.supportTicket.findUnique({ where: { id: ticketId } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+    ]);
     if (!ticket) throw new NotFoundException("Ticket not found");
+
+    const isAgent = user?.role === "SUPPORT" || user?.role === "ADMINISTRATOR" || user?.role === "STAFF";
+    const isOwner = ticket.userId === userId;
+
+    if (!isAgent && !isOwner) {
+      throw new ForbiddenException("Only support agents or the ticket owner can close tickets");
+    }
 
     return this.prisma.supportTicket.update({
       where: { id: ticketId },

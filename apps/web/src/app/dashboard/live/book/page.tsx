@@ -1,614 +1,337 @@
 "use client";
 
-import { useState, useMemo, useCallback, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { ErrorState } from "@/components/ui/error-state";
-import {
-  useAvailableSlots,
-  useBookBySlot,
-  type AvailableSlotItem,
-} from "@/lib/live-api";
-import {
-  User,
-  CalendarDays,
-  Clock,
-  CheckCircle2,
-  ArrowLeft,
-  BookOpen,
-  ChevronLeft,
-  CreditCard,
-} from "lucide-react";
+import { ArrowLeft, BookOpen, CalendarDays, Check, Clock, User, Zap } from "lucide-react";
+import { useAvailableSlots, useBookBySlot, type AvailableSlotItem } from "@/lib/live-api";
+import { formatTime, slotTone, weekdayName } from "@/lib/live-format";
+import { StepIndicator } from "@/components/live/step-indicator";
+import { BottomCta } from "@/components/live/bottom-cta";
+import { SummaryCard, SummaryRow } from "@/components/live/summary-card";
+import { LiveEmpty } from "@/components/live/live-empty";
+import { LiveError } from "@/components/live/live-error";
+import { SuccessOverlay } from "@/components/live/success-overlay";
+import { cn } from "@/lib/utils";
 
 const STEPS = [
-  { key: "teacher", label: "اختر المعلم" },
-  { key: "date", label: "اختر التاريخ" },
+  { key: "date", label: "اختر اليوم" },
   { key: "time", label: "اختر الوقت" },
-  { key: "confirm", label: "تأكيد ودفع" },
+  { key: "confirm", label: "تأكيد" },
 ] as const;
 
-const DAY_NAMES = [
-  "الأحد", "الإثنين", "الثلاثاء", "الأربعاء",
-  "الخميس", "الجمعة", "السبت",
-];
+type StepIndex = 0 | 1 | 2;
 
-const MONTH_NAMES = [
-  "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
-  "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
-];
+const toneClasses = {
+  available:
+    "border-emerald-400/50 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300",
+  few: "border-amber-400/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300",
+  full: "border-neutral-200 bg-neutral-100 text-neutral-400 line-through dark:border-white/5 dark:bg-white/5 dark:text-neutral-600",
+  unavailable:
+    "border-dashed border-neutral-200 bg-transparent text-neutral-300 dark:border-white/10 dark:text-neutral-700",
+} as const;
 
-function StepIndicator({ current }: { current: number }): ReactNode {
-  return (
-    <div className="flex items-center justify-center gap-0" dir="ltr">
-      {STEPS.map((step, i) => (
-        <div key={step.key} className="flex items-center">
-          <div className="flex flex-col items-center gap-1">
-            <div
-              className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                i <= current
-                  ? "bg-primary-500 text-white shadow-md"
-                  : "bg-neutral-100 text-neutral-400 dark:bg-neutral-800"
-              }`}
-            >
-              {i < current ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
-            </div>
-            <span
-              className={`text-[10px] font-medium ${
-                i <= current
-                  ? "text-primary-600 dark:text-primary-400"
-                  : "text-neutral-400"
-              }`}
-            >
-              {step.label}
-            </span>
-          </div>
-          {i < STEPS.length - 1 && (
-            <div
-              className={`mx-2 h-px w-8 sm:w-12 ${
-                i < current
-                  ? "bg-primary-500"
-                  : "bg-neutral-200 dark:bg-neutral-700"
-              }`}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
+const dateToneClasses: Record<SlotTone, string> = {
+  available: "border-emerald-400/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  few: "border-amber-400/50 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  full: "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-white/5 dark:bg-white/5 dark:text-neutral-600",
+  unavailable: "border-dashed border-neutral-200 text-neutral-300 dark:border-white/10 dark:text-neutral-700",
+};
+
+type SlotTone = "available" | "few" | "full" | "unavailable";
+
+function dateTone(slots: AvailableSlotItem[]): SlotTone {
+  const tones = slots.map(slotTone);
+  if (tones.includes("available")) return "available";
+  if (tones.includes("few")) return "few";
+  return "full";
 }
 
-function TeacherCard({
-  teacher,
-  selected,
-  onSelect,
-}: {
-  teacher: { id: string; name: string };
-  selected: boolean;
-  onSelect: () => void;
-}): ReactNode {
-  return (
-    <Card
-      variant={selected ? "elevated" : "outline"}
-      padding="md"
-      interactive
-      onClick={onSelect}
-      className={`transition-all ${
-        selected
-          ? "ring-2 ring-primary-500 shadow-primary-500/10"
-          : "hover:border-primary-300"
-      }`}
-    >
-      <CardContent>
-        <div className="flex flex-col items-center gap-3 py-2 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-xl font-bold text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
-            {teacher.name.charAt(0)}
-          </div>
-          <div>
-            <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-              {teacher.name}
-            </p>
-            <p className="text-xs text-neutral-500">معلم</p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DateGrid({
-  dates,
-  selected,
-  onSelect,
-}: {
-  dates: string[];
-  selected: string | null;
-  onSelect: (date: string) => void;
-}): ReactNode {
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay();
-
-  const dateSet = useMemo(() => new Set(dates), [dates]);
-
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-center text-sm font-semibold text-neutral-700 dark:text-neutral-300">
-        {MONTH_NAMES[currentMonth]} {currentYear}
-      </p>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs">
-        {DAY_NAMES.map((d) => (
-          <div key={d} className="py-1 font-medium text-neutral-500">
-            {d.slice(0, 2)}
-          </div>
-        ))}
-        {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-          <div key={`empty-${String(i)}`} />
-        ))}
-        {Array.from({ length: daysInMonth }).map((_, i) => {
-          const day = i + 1;
-          const dateStr = `${String(currentYear)}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          const isAvailable = dateSet.has(dateStr);
-          const isPast = new Date(currentYear, currentMonth, day) < now;
-          const isSelected = selected === dateStr;
-
-          return (
-            <button
-              key={dateStr}
-              disabled={!isAvailable || isPast}
-              onClick={() => { onSelect(dateStr); }}
-              className={`relative flex h-10 w-full items-center justify-center rounded-lg text-sm font-medium transition-all ${
-                isSelected
-                  ? "bg-primary-500 text-white shadow-sm"
-                  : isAvailable && !isPast
-                    ? "bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-900/20 dark:text-primary-300"
-                    : "text-neutral-300 dark:text-neutral-600"
-              }`}
-            >
-              {day}
-              {isAvailable && !isPast && (
-                <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary-500" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TimeSlotPicker({
-  slots,
-  selected,
-  onSelect,
-}: {
-  slots: AvailableSlotItem[];
-  selected: AvailableSlotItem | null;
-  onSelect: (slot: AvailableSlotItem) => void;
-}): ReactNode {
-  const formatTime = (d: Date): string =>
-    d.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
-
-  return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {slots.map((slot) => {
-        const start = new Date(slot.startTime);
-        const end = new Date(slot.endTime);
-        const isSelected = selected?.slotId === slot.slotId;
-
-        return (
-          <Card
-            key={slot.slotId}
-            variant={isSelected ? "elevated" : "outline"}
-            padding="sm"
-            interactive
-            onClick={() => { onSelect(slot); }}
-            className={`transition-all ${
-              isSelected
-                ? "ring-2 ring-primary-500"
-                : "hover:border-primary-300"
-            }`}
-          >
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock className={`h-4 w-4 ${isSelected ? "text-primary-500" : "text-neutral-400"}`} />
-                  <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                    {formatTime(start)} - {formatTime(end)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={slot.type === "PRIVATE" ? "primary" : "warning"} className="text-[10px]">
-                    {slot.type === "PRIVATE" ? "فردي" : "مجموعة"}
-                  </Badge>
-                  <span className="text-[10px] text-neutral-400">
-                    {String(slot.availableSeats)} مقعد
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
-}
-
-function ConfirmStep({
-  slot,
-  isBooking,
-  onConfirm,
-  onBack,
-}: {
-  slot: AvailableSlotItem;
-  isBooking: boolean;
-  onConfirm: () => void;
-  onBack: () => void;
-}): ReactNode {
-  const start = new Date(slot.startTime);
-  const end = new Date(slot.endTime);
-
-  const formatTime = (d: Date): string =>
-    d.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
-
-  const formatDate = (d: string): string => {
-    const dt = new Date(d + "T12:00:00");
-    return `${String(dt.getDate())} ${MONTH_NAMES[dt.getMonth()]} ${String(dt.getFullYear())}`;
-  };
-
-  return (
-    <Card variant="elevated" padding="lg">
-      <CardContent>
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500">
-              <BookOpen className="h-8 w-8" />
-            </div>
-            <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-              تأكيد الحجز
-            </h3>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 rounded-xl bg-neutral-50 px-4 py-3 dark:bg-neutral-800/50">
-              <User className="h-5 w-5 text-neutral-400" />
-              <div>
-                <p className="text-xs text-neutral-500">المعلم</p>
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {slot.teacherName}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl bg-neutral-50 px-4 py-3 dark:bg-neutral-800/50">
-              <CalendarDays className="h-5 w-5 text-neutral-400" />
-              <div>
-                <p className="text-xs text-neutral-500">التاريخ</p>
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {formatDate(slot.date)}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl bg-neutral-50 px-4 py-3 dark:bg-neutral-800/50">
-              <Clock className="h-5 w-5 text-neutral-400" />
-              <div>
-                <p className="text-xs text-neutral-500">الوقت</p>
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {formatTime(start)} - {formatTime(end)}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl bg-neutral-50 px-4 py-3 dark:bg-neutral-800/50">
-              <CreditCard className="h-5 w-5 text-neutral-400" />
-              <div>
-                <p className="text-xs text-neutral-500">نوع الحصة</p>
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {slot.type === "PRIVATE" ? "حصّة فردية" : "حصّة مجموعة"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Button
-              variant="primary"
-              size="md"
-              fullWidth
-              onClick={onConfirm}
-              loading={isBooking}
-            >
-              {isBooking ? "جاري تأكيد الحجز..." : "تأكيد الحجز والدفع"}
-            </Button>
-            <Button
-              variant="outline"
-              size="md"
-              fullWidth
-              onClick={onBack}
-              disabled={isBooking}
-            >
-              العودة
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function BookingSuccessView({
-  slot,
-  onDone,
-}: {
-  slot: AvailableSlotItem;
-  onDone: () => void;
-}): ReactNode {
-  const formatDate = (d: string): string => {
-    const dt = new Date(d + "T12:00:00");
-    return `${String(dt.getDate())} ${MONTH_NAMES[dt.getMonth()]} ${String(dt.getFullYear())}`;
-  };
-
-  return (
-    <Card variant="elevated" padding="lg">
-      <CardContent>
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-success-100 dark:bg-success-900/30">
-            <CheckCircle2 className="h-10 w-10 text-success-600 dark:text-success-400" />
-          </div>
-
-          <div>
-            <h3 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-              تم الحجز بنجاح! 🎉
-            </h3>
-            <p className="mt-1 text-sm text-neutral-500">
-              حصة مع {slot.teacherName} في {formatDate(slot.date)}
-            </p>
-          </div>
-
-          <div className="flex w-full max-w-xs flex-col gap-2">
-            <Button variant="primary" size="md" fullWidth onClick={onDone}>
-              عرض الحجوزات
-            </Button>
-            <Button variant="outline" size="md" fullWidth onClick={onDone}>
-              العودة للرئيسية
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-export default function BookPage(): ReactNode {
+export default function OneTimeBookPage(): ReactNode {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<StepIndex>(0);
   const [selectedTeacher, setSelectedTeacher] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlotItem | null>(null);
-  const [successSlot, setSuccessSlot] = useState<AvailableSlotItem | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const { data: slots, isLoading, isError, refetch: retry } = useAvailableSlots(
+  const { data: slots, isLoading, isError, refetch } = useAvailableSlots(
     selectedTeacher || undefined,
   );
 
-  const { mutateAsync: bookBySlot, isPending: isBooking } = useBookBySlot();
+  const { mutateAsync: bookBySlot, isPending: isBooking, error: bookingError } = useBookBySlot();
 
-  const uniqueTeachers = useMemo(() => {
-    if (!slots) return [];
+  const teachers = useMemo(() => {
     const map = new Map<string, string>();
-    slots.forEach((s) => map.set(s.teacherId, s.teacherName));
+    (slots ?? []).forEach((s) => map.set(s.teacherId, s.teacherName));
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [slots]);
 
-  const availableDates = useMemo(() => {
-    if (!slots) return [];
-    const set = new Set<string>();
-    slots.forEach((s) => set.add(s.date));
-    return Array.from(set).sort();
+  const byDate = useMemo(() => {
+    const map = new Map<string, AvailableSlotItem[]>();
+    (slots ?? []).forEach((s) => {
+      const arr = map.get(s.date) ?? [];
+      arr.push(s);
+      map.set(s.date, arr);
+    });
+    return Array.from(map.entries()).sort(
+      ([a], [b]) => new Date(a).getTime() - new Date(b).getTime(),
+    );
   }, [slots]);
 
-  const timeSlotsForDate = useMemo(() => {
-    if (!slots || !selectedDate) return [];
-    return slots.filter((s) => s.date === selectedDate);
-  }, [slots, selectedDate]);
+  const timeSlots = useMemo(
+    () => (selectedDate ? (byDate.find(([d]) => d === selectedDate)?.[1] ?? []) : []),
+    [byDate, selectedDate],
+  );
 
-  const handleSelectTeacher = useCallback((id: string) => {
-    setSelectedTeacher(id);
-    setSelectedDate(null);
+  const handleSelectDate = useCallback((date: string): void => {
+    setSelectedDate(date);
     setSelectedSlot(null);
     setStep(1);
   }, []);
 
-  const handleSelectDate = useCallback((date: string) => {
-    setSelectedDate(date);
-    setSelectedSlot(null);
+  const handleSelectSlot = useCallback((slot: AvailableSlotItem): void => {
+    setSelectedSlot(slot);
     setStep(2);
   }, []);
 
-  const handleSelectTime = useCallback((slot: AvailableSlotItem) => {
-    setSelectedSlot(slot);
-    setStep(3);
-  }, []);
-
-  const handleConfirm = async (): Promise<void> => {
-    if (!selectedSlot?.slotId) return;
-    try {
-      await bookBySlot({
-        slotId: selectedSlot.slotId,
-        date: selectedSlot.date,
-      });
-      setSuccessSlot(selectedSlot);
-    } catch {
-      // handled by mutation
-    }
-  };
-
-  const handleBack = useCallback(() => {
-    if (step === 3) { setStep(2); return; }
-    if (step === 2) { setSelectedSlot(null); setStep(1); return; }
-    if (step === 1) { setSelectedDate(null); setStep(0); return; }
+  const handleBack = useCallback((): void => {
+    if (step === 2) { setStep(1); return; }
+    if (step === 1) { setSelectedSlot(null); setStep(0); return; }
   }, [step]);
 
-  if (successSlot) {
-    return (
-      <div className="pb-4">
-        <div className="mb-6">
-          <button
-            onClick={() => { router.push("/dashboard/live"); }}
-            className="mb-3 flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            العودة للحصص المباشرة
-          </button>
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            تم الحجز بنجاح
-          </h1>
-        </div>
-        <BookingSuccessView
-          slot={successSlot}
-          onDone={() => { router.push("/dashboard/live"); }}
-        />
-      </div>
-    );
-  }
+  const handleConfirm = useCallback(async (): Promise<void> => {
+    if (!selectedSlot) return;
+    try {
+      await bookBySlot({ slotId: selectedSlot.slotId, date: selectedSlot.date });
+      setShowSuccess(true);
+    } catch {
+      // handled below
+    }
+  }, [bookBySlot, selectedSlot]);
 
   return (
     <div className="flex flex-col gap-6 pb-4">
       <div>
         <button
-          onClick={() => {
+          onClick={(): void => {
             if (step === 0) { router.push("/dashboard/live"); return; }
             handleBack();
           }}
           className="mb-3 flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
         >
-          <ChevronLeft className="h-4 w-4" />
-          {step === 0 ? "العودة للحصص المباشرة" : "الرجوع للخلف"}
+          <ArrowLeft className="h-4 w-4" />
+          {step === 0 ? "العودة للحصص المباشرة" : "رجوع"}
         </button>
-        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-          احجز حصة مباشرة
-        </h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          اتبع الخطوات التالية لحجز حصتك
-        </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-lg shadow-amber-500/30">
+            <Zap className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-50">
+              حصة منفردة
+            </h1>
+            <p className="mt-0.5 text-sm text-neutral-500">
+              اختر اليوم ثم الوقت — ثلاث خطوات فقط.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <StepIndicator current={step} />
+      <StepIndicator steps={STEPS} current={step} />
 
       {isError && (
-        <ErrorState
-          title="فشل تحميل المواعيد المتاحة"
-          onRetry={() => { void retry(); }}
+        <LiveError
+          kind="offline"
+          onAction={(): void => { void refetch(); }}
+          secondaryLabel="العودة"
+          onSecondary={(): void => { router.push("/dashboard/live"); }}
         />
       )}
 
       {isLoading && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} variant="outline" padding="md">
-              <CardContent>
-                <div className="flex flex-col items-center gap-3 py-4 animate-pulse">
-                  <div className="h-16 w-16 rounded-full bg-neutral-200 dark:bg-neutral-700" />
-                  <div className="h-4 w-24 rounded bg-neutral-200 dark:bg-neutral-700" />
-                  <div className="h-3 w-16 rounded bg-neutral-200 dark:bg-neutral-700" />
-                </div>
-              </CardContent>
-            </Card>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-20 animate-pulse rounded-2xl border border-neutral-200 bg-white/60 dark:border-white/10 dark:bg-white/5"
+            />
           ))}
         </div>
       )}
 
-      {!isLoading && step === 0 && (
-        <>
-          {uniqueTeachers.length === 0 ? (
-            <EmptyState
-              icon={<User className="h-16 w-16" />}
-              title="لا يوجد معلمون متاحون"
-              description="لم يتم العثور على معلمين متاحين حالياً"
-            />
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {uniqueTeachers.map((t) => (
-                <TeacherCard
+      {!isLoading && !isError && step === 0 && (
+        <div className="flex flex-col gap-4">
+          {teachers.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <span className="shrink-0 text-xs font-medium text-neutral-500">المعلم:</span>
+              {teachers.map((t) => (
+                <button
                   key={t.id}
-                  teacher={t}
-                  selected={selectedTeacher === t.id}
-                  onSelect={() => { handleSelectTeacher(t.id); }}
-                />
+                  onClick={() => {
+                    setSelectedTeacher(t.id === selectedTeacher ? "" : t.id);
+                    setSelectedDate(null);
+                    setStep(0);
+                  }}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-sm font-semibold transition-all",
+                    selectedTeacher === t.id
+                      ? "border-primary-400/50 bg-primary-500/15 text-primary-700 dark:text-primary-200"
+                      : "border-neutral-200 bg-white/60 text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-neutral-300",
+                  )}
+                >
+                  <User className="h-3.5 w-3.5" />
+                  {t.name}
+                </button>
               ))}
             </div>
           )}
-        </>
-      )}
 
-      {!isLoading && step === 1 && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300">
-              اختر التاريخ المناسب
-            </h2>
-            <span className="text-xs text-neutral-400">
-              {String(availableDates.length)} تاريخ متاح
-            </span>
-          </div>
-
-          {availableDates.length === 0 ? (
-            <EmptyState
-              icon={<CalendarDays className="h-16 w-16" />}
-              title="لا توجد تواريخ متاحة"
-              description="لم يتم العثور على تواريخ متاحة لهذا المعلم"
+          {byDate.length === 0 ? (
+            <LiveEmpty
+              tone="amber"
+              icon={<CalendarDays className="h-10 w-10" />}
+              title="لا توجد مواعيد متاحة حالياً"
+              description="سيتم إضافة مواعيد جديدة قريباً — تابع الإشعارات."
             />
           ) : (
-            <DateGrid
-              dates={availableDates}
-              selected={selectedDate}
-              onSelect={handleSelectDate}
+            <>
+              <p className="text-sm font-bold text-neutral-700 dark:text-neutral-300">
+                اختر اليوم المتاح
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {byDate.map(([date, daySlots]) => {
+                  const tone = dateTone(daySlots);
+                  const seats = daySlots.reduce((acc, s) => acc + s.availableSeats, 0);
+                  const selected = selectedDate === date;
+                  const day = new Date(date + "T12:00:00");
+                  return (
+                    <button
+                      key={date}
+                      onClick={() => { handleSelectDate(date); }}
+                      className={cn(
+                        "flex flex-col items-center gap-1 rounded-2xl border px-4 py-4 text-center transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+                        dateToneClasses[tone],
+                        selected && "ring-2 ring-primary-400 shadow-[0_0_18px_rgba(6,182,212,0.35)]",
+                      )}
+                    >
+                      {selected && (
+                        <Check className="h-4 w-4 text-primary-500" strokeWidth={3} />
+                      )}
+                      <span className="text-sm font-bold">{weekdayName(day)}</span>
+                      <span className="text-xs opacity-80">
+                        {day.getDate()}
+                      </span>
+                      <span className="text-[10px] opacity-70">
+                        {seats > 0 ? `${String(seats)} مقعد` : "ممتلئ"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {!isLoading && !isError && step === 1 && selectedDate && (
+        <div className="flex flex-col gap-4">
+          <p className="text-sm font-bold text-neutral-700 dark:text-neutral-300">
+            اختر الوقت المناسب
+          </p>
+          {timeSlots.length === 0 ? (
+            <LiveEmpty
+              tone="amber"
+              icon={<Clock className="h-10 w-10" />}
+              title="لا توجد مواعيد لهذا اليوم"
+              description="اختر يوماً آخر من المواعيد المتاحة."
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {timeSlots.map((slot) => {
+                const tone = slotTone(slot);
+                const selected = selectedSlot?.slotId === slot.slotId;
+                return (
+                  <button
+                    key={slot.slotId}
+                    onClick={() => { handleSelectSlot(slot); }}
+                    disabled={tone === "full"}
+                    className={cn(
+                      "flex flex-col items-center gap-1 rounded-2xl border px-4 py-4 text-center transition-all duration-200",
+                      toneClasses[tone],
+                      !tone.includes("full") && "hover:scale-[1.02] active:scale-[0.98]",
+                      selected && "ring-2 ring-primary-400 shadow-[0_0_18px_rgba(6,182,212,0.35)]",
+                    )}
+                  >
+                    <span className="text-base font-bold">
+                      {formatTime(slot.startTime)}
+                    </span>
+                    <span className="text-[11px] opacity-75">
+                      {slot.availableSeats > 0 ? `${String(slot.availableSeats)} مقعد` : "ممتلئ"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isLoading && !isError && step === 2 && selectedSlot && (
+        <div className="flex flex-col gap-4">
+          <SummaryCard title="ملخص الحجز">
+            <SummaryRow
+              icon={<User className="h-5 w-5" />}
+              label="المعلم"
+              value={selectedSlot.teacherName}
+            />
+            <SummaryRow
+              icon={<CalendarDays className="h-5 w-5" />}
+              label="التاريخ"
+              value={weekdayName(new Date(selectedSlot.date + "T12:00:00"))}
+              sub={new Date(selectedSlot.date + "T12:00:00").toLocaleDateString("ar-EG-u-nu-latn", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            />
+            <SummaryRow
+              icon={<Clock className="h-5 w-5" />}
+              label="الوقت"
+              value={`${formatTime(selectedSlot.startTime)} - ${formatTime(selectedSlot.endTime)}`}
+            />
+            <SummaryRow
+              icon={<BookOpen className="h-5 w-5" />}
+              label="النوع"
+              value={selectedSlot.type === "PRIVATE" ? "حصّة فردية" : "حصّة مجموعة"}
+            />
+          </SummaryCard>
+
+          {bookingError && (
+            <LiveError
+              kind="failed"
+              onAction={(): void => { void handleConfirm(); }}
             />
           )}
         </div>
       )}
 
-      {!isLoading && step === 2 && selectedDate && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-neutral-700 dark:text-neutral-300">
-              اختر الوقت المناسب
-            </h2>
-            <span className="text-xs text-neutral-400">
-              {String(timeSlotsForDate.length)} موعد متاح
-            </span>
-          </div>
-
-          {timeSlotsForDate.length === 0 ? (
-            <EmptyState
-              icon={<Clock className="h-16 w-16" />}
-              title="لا توجد مواعيد متاحة"
-              description="لم يتم العثور على مواعيد متاحة لهذا التاريخ"
-            />
-          ) : (
-            <TimeSlotPicker
-              slots={timeSlotsForDate}
-              selected={selectedSlot}
-              onSelect={handleSelectTime}
-            />
-          )}
-        </div>
-      )}
-
-      {step === 3 && selectedSlot && (
-        <ConfirmStep
-          slot={selectedSlot}
-          isBooking={isBooking}
-          onConfirm={() => { void handleConfirm(); }}
-          onBack={() => { setStep(2); }}
+      {!isLoading && !isError && step === 2 && (
+        <BottomCta
+          primaryLabel={isBooking ? "جاري الحجز..." : "تأكيد الحجز"}
+          onPrimary={(): void => { void handleConfirm(); }}
+          primaryLoading={isBooking}
+          secondaryLabel="رجوع"
+          onSecondary={handleBack}
+          hint="بعد التأكيد سيصلك تذكير قبل الحصة."
         />
       )}
+
+      <SuccessOverlay
+        open={showSuccess}
+        onDone={(): void => { router.push("/dashboard/live"); }}
+        title="تم تأكيد الحجز!"
+        subtitle="سيتم تذكيرك قبل بدء الحصة مباشرة."
+      />
     </div>
   );
 }

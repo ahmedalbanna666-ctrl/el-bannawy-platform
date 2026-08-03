@@ -1,218 +1,64 @@
-# PROJECT_REFERENCE.md
+# Project Reference
 
-# El-bannawy Platform
-## Project Reference
+Version: 2.0.0
+Status: Current implementation reference
 
-Version: 1.0.0
+## Source Of Truth
 
----
+Use the following order when a document conflicts with the code:
 
-# Purpose
+1. Current Prisma schema and migrations for persisted data.
+2. Backend controllers, DTOs, guards, and services for runtime API behavior.
+3. Web/mobile routes and shared contracts for client behavior.
+4. This documentation for intent, boundaries, and known limitations.
 
-Serves as the central reference for the entire project documentation.
+An old requirement document is not evidence that a feature exists.
 
-This file maps every major subsystem and document.
+## Repository Map
 
----
+| Area             | Location          | Responsibility                                                                 |
+| ---------------- | ----------------- | ------------------------------------------------------------------------------ |
+| Web              | `apps/web`        | Next.js dashboard, auth screens, learning players, admin/teacher/student views |
+| Mobile           | `apps/mobile`     | Expo Router authentication and initial dashboard/units flow                    |
+| API              | `apps/backend`    | NestJS modular monolith and `/api/v1` REST endpoints                           |
+| Database         | `database/prisma` | Prisma schema, migrations, and seed                                            |
+| Shared           | `packages/shared` | Permission map, roles, question contracts, utilities, live types               |
+| Runtime services | `docker`          | PostgreSQL, Redis, Mailpit, backend, and web containers                        |
 
-# Project Structure
+## Backend Modules
 
-00_PROJECT_OVERVIEW
+`auth`, `home`, `curriculum`, `lesson`, `video`, `video-question`, `video-event`, `activity`, `execution`, `homework`, `quiz`, `reports`, `payments`, `notifications`, `ai`, `profile`, `common`, `competition`, `document-import`, `admin`, `teachers`, `support`, `mistakes`, `coins`, `live`, and `scheduler`.
 
-01_ARCHITECTURE
+The Story (قصة المنهج) and Final Review (المراجعة النهائية) are delivered through the `curriculum` module using the `unitType` discriminator on `Unit` (`STORY`, `FINAL_REVIEW`); their chapters/sections are `Lesson` rows.
 
-02_DATABASE
+## Product Domains
 
-03_BACKEND
+- Identity: users, sessions, refresh tokens, login history, password resets, OAuth
+- Academic context: academic years, terms, stages, grades, books, units, lessons
+- Learning: videos, timeline events, activities, vocabulary, documents, progress
+- Assessment: questions, homework, quizzes, reusable assessments, attempts, answers
+- Content extensions: stories, final reviews, competitions, mistakes, games
+- Commercial access: payments, coin packages, wallets, purchases, codes, unlocks
+- Live learning: availability, sessions, subscriptions, bookings, attendance, announcements
+- Operations: notifications, support tickets, reports, audit logs, system settings
+- AI: conversations, messages, lesson context, provider-compatible response, recommendations
 
-04_SECURITY
+## API Conventions
 
-05_API
+- Base path: `/api/v1`
+- Success envelope: `{ success, message, data, timestamp }`
+- Authentication: `Authorization: Bearer <access-token>` on protected routes
+- Validation: NestJS global `ValidationPipe` with whitelist, transform, and forbidden unknown properties
+- IDs: UUIDs in persisted resources
+- Current client API base: `NEXT_PUBLIC_API_URL`, defaulting to `http://localhost:4000/api/v1`
 
-06_UI
+## Documentation Index
 
-07_AI
-
-08_DEVOPS
-
-09_TESTING
-
-10_DEPLOYMENT
-
-11_APPENDICES
-
----
-
-# Technology Stack
-
-Frontend
-
-Next.js
-
-Backend
-
-NestJS
-
-Database
-
-PostgreSQL
-
-ORM
-
-Prisma
-
-Cache
-
-Redis
-
-Queue
-
-BullMQ
-
-AI
-
-RAG
-
-GPT
-
-pgvector
-
----
-
-# Core Modules
-
-Authentication
-
-Users
-
-Curriculum
-
-Lessons
-
-Homework
-
-Quizzes
-
-Vocabulary
-
-Stories
-
-Payments
-
-Coins
-
-XP
-
-Achievements
-
-Reports
-
-Notifications
-
-AI
-
-Live Classes
-
-Administration
-
----
-
-# Architectural Principles
-
-Domain Driven Design
-
-Feature-based Structure
-
-Mobile First
-
-Dark Mode First
-
-API First
-
-AI First
-
-Scalable
-
-Secure
-
----
-
-# Engineering Principles
-
-SOLID
-
-DRY
-
-KISS
-
-YAGNI
-
-Clean Architecture
-
----
-
-# Documentation Rules
-
-Every module must have
-
-Purpose
-
-Responsibilities
-
-Architecture
-
-APIs
-
-Acceptance Criteria
-
-Final Rule
-
----
-
-# Reference Order
-
-Architecture
-
-↓
-
-Database
-
-↓
-
-Backend
-
-↓
-
-API
-
-↓
-
-Frontend
-
-↓
-
-AI
-
-↓
-
-Deployment
-
----
-
-# Acceptance Criteria
-
-✓ Complete
-
-✓ Up-to-date
-
-✓ Consistent
-
-✓ Searchable
-
----
-
-# Final Rule
-
-This document is the starting point for every engineer joining the El-bannawy Platform project.
+- `PROJECT_SUMMARY.md`: concise system description
+- `PROJECT_SCOPE.md`: implemented scope and explicitly planned items
+- `TECH_STACK.md`: dependencies that are actually present versus planned integrations
+- `USER_ROLES.md`: database roles and effective permission model
+- `BUSINESS_RULES.md`: behavior that current services enforce
+- `ROADMAP_CHANGELOG.md`: implementation history and next work
 
 End of Document.

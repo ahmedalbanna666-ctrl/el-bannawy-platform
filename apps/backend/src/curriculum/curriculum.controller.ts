@@ -28,8 +28,11 @@ export class CurriculumController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  async getCurriculum(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.curriculumService.getCurriculum(userId);
+  async getCurriculum(
+    @CurrentUser() userId: string,
+    @Query("unitType") unitType?: "UNIT" | "STORY" | "FINAL_REVIEW",
+  ): Promise<ISuccessResponse<unknown[]>> {
+    const data = await this.curriculumService.getCurriculum(userId, unitType);
     return successResponse(data, "Curriculum retrieved successfully");
   }
 
@@ -82,12 +85,20 @@ export class CurriculumController {
   @Roles("TEACHER", "ADMINISTRATOR")
   async getUnitsForManagement(
     @CurrentUser() userId: string,
+    @Query("unitType") unitType?: "UNIT" | "STORY" | "FINAL_REVIEW",
     @Query("academicYearId") academicYearId?: string,
     @Query("termId") termId?: string,
     @Query("gradeId") gradeId?: string,
     @Query("educationalSystem") educationalSystem?: string,
   ): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.curriculumService.getUnitsForManagement(userId, academicYearId, termId, gradeId, educationalSystem);
+    const data = await this.curriculumService.getUnitsForManagement(
+      userId,
+      unitType,
+      academicYearId,
+      termId,
+      gradeId,
+      educationalSystem,
+    );
     return successResponse(data, "Units retrieved successfully");
   }
 

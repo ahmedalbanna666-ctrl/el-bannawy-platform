@@ -5,6 +5,11 @@ import { TrueFalseActivity } from "./true-false";
 import { MatchingActivity } from "./matching";
 import { DragDropActivity } from "./drag-drop";
 import { VocabularyActivity } from "./vocabulary";
+import { ReadingActivity } from "./reading";
+import { ConversationActivity } from "./conversation";
+import { SpeakingActivity } from "./speaking";
+import { WritingActivity } from "./writing";
+import { ParagraphActivity } from "./paragraph";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HelpCircle } from "lucide-react";
@@ -18,7 +23,6 @@ export type ActivityType =
   | "DRAG_DROP"
   | "VOCABULARY"
   | "READING"
-  | "STORY_QUESTIONS"
   | "CONVERSATION"
   | "SPEAKING"
   | "WRITING"
@@ -40,15 +44,6 @@ export interface ActivityRendererProps {
   displayOrder: number;
   onSubmit: (activityId: string, answers: string[], response?: string) => Promise<void>;
 }
-
-const COMING_SOON_TYPES: ActivityType[] = [
-  "READING",
-  "STORY_QUESTIONS",
-  "CONVERSATION",
-  "SPEAKING",
-  "WRITING",
-  "PARAGRAPH",
-];
 
 export function ActivityRenderer({
   id,
@@ -139,19 +134,55 @@ export function ActivityRenderer({
             submitting={submitting}
           />
         );
+      case "READING":
+        return (
+          <ReadingActivity
+            config={configParsed}
+            onSubmit={handleSubmit}
+            submitted={submitted}
+            submitting={submitting}
+          />
+        );
+      case "CONVERSATION":
+        return (
+          <ConversationActivity
+            config={configParsed}
+            onSubmit={handleSubmit}
+            submitted={submitted}
+            submitting={submitting}
+          />
+        );
+      case "SPEAKING":
+        return (
+          <SpeakingActivity
+            config={configParsed}
+            onSubmit={handleSubmit}
+            submitted={submitted}
+            submitting={submitting}
+          />
+        );
+      case "WRITING":
+        return (
+          <WritingActivity
+            config={configParsed}
+            onSubmit={handleSubmit}
+            submitted={submitted}
+            submitting={submitting}
+          />
+        );
+      case "PARAGRAPH":
+        return (
+          <ParagraphActivity
+            config={configParsed}
+            onSubmit={handleSubmit}
+            submitted={submitted}
+            submitting={submitting}
+          />
+        );
       default:
-        if ((COMING_SOON_TYPES as string[]).includes(type)) {
-          return (
-            <div className="rounded-lg border border-neutral-200 p-6 text-center dark:border-neutral-700">
-              <p className="text-sm text-neutral-500">
-                {type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} activity is coming soon
-              </p>
-            </div>
-          );
-        }
         return (
           <div className="rounded-lg border border-neutral-200 p-6 text-center dark:border-neutral-700">
-            <p className="text-sm text-neutral-500">Activity type &quot;{type}&quot; is coming soon</p>
+            <p className="text-sm text-neutral-500">نوع النشاط غير مدعوم</p>
           </div>
         );
     }

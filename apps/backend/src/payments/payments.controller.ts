@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, UseGuards } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { PaymentsService } from "./payments.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -11,6 +12,12 @@ import { CheckoutDto, VerifyPaymentDto, CreateCouponDto, UpdateCouponDto, Valida
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  @Post("webhook")
+  async webhook(@Body() dto: { paymentId: string; gatewayRef: string; signature: string }): Promise<ISuccessResponse<unknown>> {
+    const data = await this.paymentsService.handleWebhook(dto);
+    return successResponse(data, "Webhook processed");
+  }
+
   @Get("methods")
   @UseGuards(JwtAuthGuard)
   getMethods(): ISuccessResponse<unknown> {
@@ -19,6 +26,7 @@ export class PaymentsController {
   }
 
   @Post("checkout")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   async checkout(
     @CurrentUser() userId: string,
@@ -29,6 +37,7 @@ export class PaymentsController {
   }
 
   @Post("verify")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   async verifyPayment(
     @CurrentUser() userId: string,
@@ -73,8 +82,11 @@ export class PaymentsController {
   @Post(":paymentId/refund")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("ADMINISTRATOR")
-  async refundPayment(@Param("paymentId", ParseUUIDPipe) paymentId: string): Promise<ISuccessResponse<unknown>> {
-    const data = await this.paymentsService.refundPayment(paymentId);
+  async refundPayment(
+    @Param("paymentId", ParseUUIDPipe) paymentId: string,
+    @Body("reason") reason?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.paymentsService.refundPayment(paymentId, reason);
     return successResponse(data, "Refund processed");
   }
 

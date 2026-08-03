@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { NormalizedDocument, NormalizedRow, NormalizedTable } from "../types/normalized-document.types";
+import type {
+  NormalizedDocument,
+  NormalizedRow,
+  NormalizedTable,
+  ContentEntry,
+} from "../types/normalized-document.types";
 import type { VocabularyPreviewStatus } from "../types/vocabulary-preview.types";
 import type {
   VocabularySectionDraft,
@@ -7,11 +12,16 @@ import type {
   VocabularyStructuredDraft,
 } from "../types/vocabulary-structured.types";
 import { isHeaderRow, isHeaderCell } from "../utils/vocabulary-header";
-import { getSectionTitleMetadata } from "../utils/vocabulary-section-title";
+import { getSectionTitleMetadata, isSectionTitleRow } from "../utils/vocabulary-section-title";
 import { classifyVocabularyTable } from "../utils/vocabulary-table-classifier";
 import { parseWord } from "../utils/word-normalizer";
 
 const MAX_VOCABULARY_ITEMS = 500;
+
+interface HeadingParts {
+  english: string | null;
+  arabic: string | null;
+}
 
 export class VocabularyTableV2Parser {
   parse(document: NormalizedDocument): VocabularyStructuredDraft {
@@ -33,16 +43,19 @@ export class VocabularyTableV2Parser {
       };
     }
 
+    const headingsByTable = this.extractHeadingsByTable(document);
+
     for (const table of document.tables) {
+      const tableHeading = headingsByTable.get(table.tableIndex) ?? null;
       const classification = classifyVocabularyTable(table);
 
       if (classification.kind === "SYNONYM_ANTONYM") {
         globalDisplayOrder = this.processSynonymAntonymTable(
-          table, sections, items, globalDisplayOrder, warnings, errors,
+          table, sections, items, globalDisplayOrder, warnings, errors, tableHeading,
         );
       } else {
         globalDisplayOrder = this.processStandardTable(
-          table, sections, items, globalDisplayOrder, warnings, errors,
+          table, sections, items, globalDisplayOrder, warnings, errors, tableHeading,
         );
       }
     }
@@ -52,6 +65,98 @@ export class VocabularyTableV2Parser {
     return this.buildResult(cleaned.sections, cleaned.items, warnings, errors);
   }
 
+  /**
+   * Collects section headings from top-level paragraphs and maps each heading
+   * to the table that immediately follows it in document order.
+   *
+   * Consecutive English + Arabic heading paragraphs that belong to the same
+   * section are combined into a single title, e.g.
+   * "المفردات الرئيسية - Key vocabularies".
+   */
+  private extractHeadingsByTable(document: NormalizedDocument): Map<number, string> {
+    const headingsByTable = new Map<number, string>();
+    const order = document.contentOrder ?? this.inferOrder(document);
+    let pendingTitle: string | null = null;
+    let pendingParts: HeadingParts = { english: null, arabic: null };
+
+    for (const entry of order) {
+      if (entry.kind === "paragraph") {
+        const paragraph = document.paragraphs[entry.index];
+        const text = paragraph.text.trim();
+        if (!text) continue;
+
+        const pseudoRow: NormalizedRow = {
+          rowIndex: paragraph.paragraphIndex,
+          cells: [{ columnIndex: 0, text }],
+        };
+        const isHeading = paragraph.headingLevel === 1;
+        const isTitle = isHeading || isSectionTitleRow(pseudoRow);
+        if (!isTitle) {
+          pendingTitle = this.combineHeadingParts(pendingParts);
+          pendingParts = { english: null, arabic: null };
+          continue;
+        }
+
+        const isArabic = /[\u0600-\u06FF]/.test(text);
+        if (isArabic) {
+          if (pendingParts.arabic === null) {
+            pendingParts.arabic = this.normalizeArabicTitle(text);
+          } else {
+            pendingTitle = this.combineHeadingParts(pendingParts);
+            pendingParts = { english: null, arabic: this.normalizeArabicTitle(text) };
+          }
+        } else {
+          if (pendingParts.english === null) {
+            pendingParts.english = text;
+          } else {
+            pendingTitle = this.combineHeadingParts(pendingParts);
+            pendingParts = { english: text, arabic: null };
+          }
+        }
+      } else {
+        if (pendingTitle === null) {
+          pendingTitle = this.combineHeadingParts(pendingParts);
+          pendingParts = { english: null, arabic: null };
+        }
+        if (pendingTitle !== null) {
+          headingsByTable.set(entry.index, pendingTitle);
+          pendingTitle = null;
+        }
+      }
+    }
+
+    return headingsByTable;
+  }
+
+  private inferOrder(document: NormalizedDocument): readonly ContentEntry[] {
+    const order: ContentEntry[] = [];
+    for (let i = 0; i < document.paragraphs.length; i++) {
+      order.push({ kind: "paragraph", index: i });
+    }
+    for (let i = 0; i < document.tables.length; i++) {
+      order.push({ kind: "table", index: i });
+    }
+    return order;
+  }
+
+  private combineHeadingParts(parts: HeadingParts): string | null {
+    const arabic = parts.arabic?.trim();
+    const english = parts.english?.trim();
+    if (arabic && english) return `${arabic} - ${english}`;
+    if (arabic) return arabic;
+    if (english) return english;
+    return null;
+  }
+
+  private normalizeArabicTitle(text: string): string {
+    return text
+      .replace(/\s+/g, " ")
+      .replace(/المفردات\s+الرئيسيه/g, "المفردات الرئيسية")
+      .replace(/المفردات\s+الاضافيه/g, "المفردات الإضافية")
+      .replace(/المفردات\s+الاضافية/g, "المفردات الإضافية")
+      .trim();
+  }
+
   private processStandardTable(
     table: NormalizedTable,
     sections: VocabularySectionDraft[],
@@ -59,6 +164,7 @@ export class VocabularyTableV2Parser {
     displayOrder: number,
     warnings: string[],
     errors: string[],
+    headingFromParagraph: string | null = null,
   ): number {
     let currentSection: VocabularySectionDraft | null = null;
     let headerSeen = false;
@@ -91,7 +197,7 @@ export class VocabularyTableV2Parser {
       if (currentSection === null) {
         currentSection = this.createSection(
           "STANDARD_VOCABULARY",
-          null,
+          headingFromParagraph,
           table.tableIndex,
           null,
           sections.length,
@@ -132,6 +238,7 @@ export class VocabularyTableV2Parser {
     displayOrder: number,
     warnings: string[],
     errors: string[],
+    headingFromParagraph: string | null = null,
   ): number {
     let sectionTitle: string | null = null;
     let sectionTitleRowIndex: number | null = null;
@@ -147,7 +254,7 @@ export class VocabularyTableV2Parser {
 
     const section = this.createSection(
       "SYNONYM_ANTONYM",
-      sectionTitle,
+      sectionTitle ?? headingFromParagraph,
       table.tableIndex,
       sectionTitleRowIndex,
       sections.length,

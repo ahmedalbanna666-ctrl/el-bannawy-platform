@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/providers/auth-provider";
@@ -18,6 +18,8 @@ import {
 import {
   School,
   Phone,
+  Mail,
+  MailCheck,
   Lock,
   UserPlus,
   Eye,
@@ -36,7 +38,8 @@ import {
 interface RegisterPayload {
   fullName: string;
   englishName?: string;
-  mobile: string;
+  email: string;
+  mobile?: string;
   parentMobile?: string;
   password: string;
   confirmPassword: string;
@@ -45,6 +48,8 @@ interface RegisterPayload {
   educationalSystem?: string;
   educationalStage?: string;
   grade?: string;
+  referralCode?: string;
+  firebaseIdToken?: string;
 }
 
 type Step = 1 | 2 | 3 | 4;
@@ -62,19 +67,19 @@ function PreparingScreen({ onDone }: { onDone: () => void }): ReactNode {
   ];
   const [visible, setVisible] = useState(0);
 
-  useState(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       setVisible((prev) => {
         if (prev >= steps.length - 1) {
           clearInterval(interval);
-              setTimeout(() => { onDone(); }, 600);
+          setTimeout(() => { onDone(); }, 600);
           return prev;
         }
         return prev + 1;
       });
     }, 800);
     return (): void => { clearInterval(interval); };
-  });
+  }, [onDone, steps.length]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4">
@@ -102,6 +107,121 @@ function PreparingScreen({ onDone }: { onDone: () => void }): ReactNode {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Verify Email Screen ──────────────────────────────────────────────
+
+function VerifyEmailScreen({
+  email,
+  onVerified,
+}: {
+  email: string;
+  onVerified: () => void;
+}): ReactNode {
+  const { verifyEmail, resendVerification } = useAuth();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const handleVerify = useCallback(async (): Promise<void> => {
+    if (!/^\d{6}$/.test(code)) { setError("يرجى إدخال كود التأكيد المكون من 6 أرقام"); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      await verifyEmail(email, code);
+      onVerified();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر تأكيد البريد الإلكتروني");
+      setLoading(false);
+    }
+  }, [code, email, verifyEmail, onVerified]);
+
+  const handleResend = useCallback(async (): Promise<void> => {
+    setResending(true);
+    setError(null);
+    try {
+      await resendVerification(email);
+      setSent(true);
+      setTimeout(() => { setSent(false); }, 4000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر إعادة إرسال الكود");
+    } finally {
+      setResending(false);
+    }
+  }, [email, resendVerification]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <Card variant="elevated" padding="lg" className="w-full max-w-md">
+        <CardHeader>
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-500">
+              <MailCheck className="h-8 w-8 text-white" />
+            </div>
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                تأكيد البريد الإلكتروني
+              </h1>
+              <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400" dir="ltr">
+                {email}
+              </p>
+              <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
+                أرسلنا كود تأكيد من 6 أرقام إلى بريدك الإلكتروني. أدخل الكود لتفعيل حسابك.
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-5">
+            <Input
+              label="كود التأكيد"
+              type="text"
+              inputMode="numeric"
+              dir="ltr"
+              placeholder="123456"
+              value={code}
+              onChange={(e): void => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); }}
+            />
+
+            {error && (
+              <p className="rounded-xl bg-danger-500/10 px-4 py-3 text-sm text-danger-500">
+                {error}
+              </p>
+            )}
+
+            {sent && (
+              <p className="rounded-xl bg-success-500/10 px-4 py-3 text-sm text-success-600 dark:text-success-400">
+                تم إعادة إرسال الكود بنجاح
+              </p>
+            )}
+
+            <Button variant="primary" size="md" fullWidth onClick={() => { void handleVerify(); }} loading={loading} disabled={code.length !== 6}>
+              <MailCheck className="h-5 w-5" />
+              تأكيد الحساب
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => { void handleResend(); }}
+              disabled={resending}
+              className="text-center text-sm text-primary-600 hover:text-primary-500 dark:text-primary-400 disabled:opacity-40"
+            >
+              {resending ? "جاري الإرسال..." : "لم يصلك الكود؟ أعد الإرسال"}
+            </button>
+
+            <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">
+              لديك حساب بالفعل؟{" "}
+              <Link href="/login" className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400">
+                تسجيل الدخول
+              </Link>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -135,15 +255,27 @@ export default function RegisterPage(): ReactNode {
   const verifiedEmail = searchParams.get("email");
   const isOAuth = oauthProvider === "google" || oauthProvider === "apple";
 
+  // Referral code prefill from ?ref=CODE
+  const refParam = searchParams.get("ref");
+  const [referralCode, setReferralCode] = useState<string>(refParam?.trim().toUpperCase() ?? "");
+
+  useEffect(() => {
+    if (refParam?.trim()) {
+      setReferralCode(refParam.trim().toUpperCase());
+    }
+  }, [refParam]);
+
   const [step, setStep] = useState<Step>(isOAuth ? 1 : 1);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   // Step 1 fields
   const [fullName, setFullName] = useState("");
   const [englishName, setEnglishName] = useState("");
+  const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [parentMobile, setParentMobile] = useState("");
   const [password, setPassword] = useState("");
@@ -163,8 +295,12 @@ export default function RegisterPage(): ReactNode {
   const validateStep1 = useCallback((): boolean => {
     if (!fullName || fullName.length < 2) { setError("الاسم العربي مطلوب"); return false; }
 
-    const mobileResult = validateEgyptMobile(mobile);
-    if (!mobileResult.valid) { setError(mobileResult.message ?? "رقم هاتف غير صحيح"); return false; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("يرجى إدخال بريد إلكتروني صحيح"); return false; }
+
+    if (mobile) {
+      const mobileResult = validateEgyptMobile(mobile);
+      if (!mobileResult.valid) { setError(mobileResult.message ?? "رقم هاتف غير صحيح"); return false; }
+    }
 
     if (parentMobile) {
       const parentResult = validateEgyptMobile(parentMobile);
@@ -178,7 +314,7 @@ export default function RegisterPage(): ReactNode {
 
     if (!governorate) { setError("يرجى اختيار المحافظة"); return false; }
     return true;
-  }, [fullName, mobile, parentMobile, password, confirmPassword, governorate, isOAuth]);
+  }, [fullName, email, mobile, parentMobile, password, confirmPassword, governorate, isOAuth]);
 
   const validateStep2 = useCallback((): boolean => {
     if (!educationalSystem) { setError("يرجى اختيار النظام التعليمي"); return false; }
@@ -225,7 +361,7 @@ export default function RegisterPage(): ReactNode {
           email: verifiedEmail,
           fullName,
           englishName: englishName || undefined,
-          mobile: normalizeEgyptMobile(mobile),
+          mobile: mobile ? normalizeEgyptMobile(mobile) : undefined,
           parentMobile: parentMobile ? normalizeEgyptMobile(parentMobile) : undefined,
           password: password || undefined,
           governorate: governorate || undefined,
@@ -233,12 +369,25 @@ export default function RegisterPage(): ReactNode {
           educationalSystem,
           educationalStage,
           grade,
+          referralCode: referralCode || undefined,
         });
+        setRegistered(true);
       } else {
+        let firebaseIdToken: string | undefined;
+        try {
+          const { createFirebaseUser, isFirebaseAuthConfigured } = await import("@/lib/firebase-auth");
+          if (isFirebaseAuthConfigured()) {
+            firebaseIdToken = (await createFirebaseUser(email, password)) ?? undefined;
+          }
+        } catch {
+          firebaseIdToken = undefined;
+        }
+
         const payload: RegisterPayload = {
           fullName,
           englishName: englishName || undefined,
-          mobile: normalizeEgyptMobile(mobile),
+          email: email.trim().toLowerCase(),
+          mobile: mobile ? normalizeEgyptMobile(mobile) : undefined,
           parentMobile: parentMobile ? normalizeEgyptMobile(parentMobile) : undefined,
           password,
           confirmPassword,
@@ -247,16 +396,22 @@ export default function RegisterPage(): ReactNode {
           educationalSystem,
           educationalStage,
           grade,
+          referralCode: referralCode || undefined,
+          firebaseIdToken,
         };
 
-        await register(payload);
+        const result = await register(payload);
+        if (result.requiresEmailVerification) {
+          setNeedsVerification(true);
+        } else {
+          setRegistered(true);
+        }
       }
-      setRegistered(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
       setLoading(false);
     }
-  }, [fullName, englishName, mobile, parentMobile, password, confirmPassword, governorate, school, educationalSystem, educationalStage, grade, register, oauthRegister, isOAuth, verifiedEmail]);
+  }, [fullName, englishName, email, mobile, parentMobile, password, confirmPassword, governorate, school, educationalSystem, educationalStage, grade, referralCode, register, oauthRegister, isOAuth, verifiedEmail]);
 
   const handlePreparingDone = useCallback((): void => {
     router.push("/dashboard");
@@ -264,6 +419,15 @@ export default function RegisterPage(): ReactNode {
 
   if (registered) {
     return <PreparingScreen onDone={handlePreparingDone} />;
+  }
+
+  if (needsVerification) {
+    return (
+      <VerifyEmailScreen
+        email={email.trim().toLowerCase()}
+        onVerified={() => { setNeedsVerification(false); setRegistered(true); }}
+      />
+    );
   }
 
   const stepTitle = [
@@ -294,14 +458,22 @@ export default function RegisterPage(): ReactNode {
             <Input label="الاسم بالعربية" placeholder="أحمد حسن" value={fullName} onChange={(e): void => { setFullName(e.target.value); }} required />
             <Input label="الاسم بالإنجليزية" placeholder="Ahmed Hassan" value={englishName} onChange={(e): void => { setEnglishName(e.target.value); }} leftIcon={<Globe className="h-5 w-5" />} />
             <Input
-              label="رقم الهاتف"
+              label="البريد الإلكتروني"
+              type="email"
+              placeholder="example@gmail.com"
+              value={email}
+              onChange={(e): void => { setEmail(e.target.value); }}
+              leftIcon={<Mail className="h-5 w-5" />}
+              required
+            />
+            <Input
+              label="رقم الهاتف (اختياري)"
               type="tel"
               placeholder="01234567890"
               value={mobile}
               onChange={(e): void => { setMobile(e.target.value); }}
-              onBlur={(): void => { setMobile(normalizeEgyptMobile(mobile)); }}
+              onBlur={(): void => { setMobile(mobile ? normalizeEgyptMobile(mobile) : ""); }}
               leftIcon={<Phone className="h-5 w-5" />}
-              required
             />
             <Input
               label="رقم ولي الأمر"

@@ -1,25 +1,36 @@
-import type { Metadata } from "next";
-import { Inter, Cairo } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
+import { SplashProvider } from "../components/splash/splash-provider";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const cairo = Cairo({
-  subsets: ["arabic"],
-  variable: "--font-cairo",
-  display: "swap",
-});
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "El-bannawy Platform",
   description: "AI-Powered English Learning Platform",
+  manifest: "/manifest.json",
   icons: {
-    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "192x192", type: "image/png" },
+    ],
+  },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+    "apple-mobile-web-app-title": "El-bannawy",
+    "mobile-web-app-capable": "yes",
+    "msapplication-TileColor": "#6366f1",
+    "msapplication-TileImage": "/icons/icon-144.png",
+    "application-name": "El-bannawy",
   },
 };
 
@@ -30,8 +41,29 @@ export default function RootLayout({
 }): React.ReactNode {
   return (
     <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning data-scroll-behavior="smooth">
-      <body className={`${inter.variable} ${cairo.variable}`}>
-        <Providers>{children}</Providers>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#6366f1" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="El-bannawy" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="msapplication-TileColor" content="#6366f1" />
+        <meta name="msapplication-TileImage" content="/icons/icon-144.png" />
+        <meta name="application-name" content="El-bannawy" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" sizes="192x192" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="32x32" />
+      </head>
+      <body>
+        <SplashProvider>
+          <Providers>{children}</Providers>
+        </SplashProvider>
       </body>
     </html>
   );

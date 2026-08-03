@@ -42,9 +42,9 @@ Students complete Lessons to complete a Unit.
 
 ## Story
 
-A Story is a curriculum section independent from Units.
+The curriculum story (قصة المنهج) is a `Unit` with `unitType = STORY`.
 
-It has its own Lessons, Videos, Homework and Quizzes.
+Its chapters are `Lesson` rows that reuse the full lesson content engine (videos, vocabulary, quiz, homework, PDF).
 
 ---
 

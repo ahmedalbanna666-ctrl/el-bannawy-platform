@@ -44,7 +44,7 @@ export function TeacherContextBanner({ className }: TeacherContextBannerProps): 
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 rounded-lg border border-primary-500/20 bg-primary-500/5 px-3 py-1.5 text-[11px] font-medium text-primary-700 dark:text-primary-300",
+        "flex flex-wrap items-center gap-1.5 rounded-lg border border-primary-500/20 bg-primary-500/5 px-3 py-1.5 text-[11px] font-medium text-primary-700 dark:text-primary-300",
         className,
       )}
       role="status"

@@ -1,9 +1,19 @@
-import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
+import { Injectable, NotFoundException, ForbiddenException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
+import { CacheService } from "../common/services/cache.service";
+import { EssayEvaluationService } from "../essay-evaluation/essay-evaluation.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationPriority, NotificationTargetType } from "../notifications/dto/notification.dto";
 import type { CreateQuizDto } from "./dto/create-quiz.dto";
 import type { UpdateQuizDto } from "./dto/update-quiz.dto";
 import type { SaveQuizAnswerDto } from "./dto/save-quiz.dto";
+import type { ReviewQuizDto } from "./dto/review-quiz.dto";
+import {
+  isMultipleChoice,
+  isMcqAnswerCorrect,
+  formatMcqStudentAnswer,
+} from "../common/utils/answer-evaluation";
 
 interface QuizSummary {
   id: string;
@@ -21,9 +31,14 @@ interface QuizSummary {
 
 @Injectable()
 export class QuizService {
+  private readonly logger = new Logger(QuizService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
+    private readonly essayEvaluation: EssayEvaluationService,
+    private readonly notifications: NotificationsService,
+    private readonly cache: CacheService,
   ) {}
 
   async getQuiz(lessonId: string, userId?: string): Promise<QuizSummary | null> {
@@ -49,6 +64,29 @@ export class QuizService {
       },
     });
 
+    if (!quiz) throw new NotFoundException("Quiz not found");
+    return quiz;
+  }
+
+  async getQuizForTeacher(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+    const quiz = await this.prisma.quiz.findFirst({
+      where: { lessonId, deletedAt: null },
+      include: {
+        questions: {
+          orderBy: { displayOrder: "asc" },
+          select: {
+            id: true,
+            type: true,
+            question: true,
+            options: true,
+            correctAnswer: true,
+            explanation: true,
+            displayOrder: true,
+          },
+        },
+      },
+    });
     if (!quiz) throw new NotFoundException("Quiz not found");
     return quiz;
   }
@@ -116,7 +154,17 @@ export class QuizService {
     const quiz = await this.prisma.quiz.findFirst({
       where: { lessonId, deletedAt: null },
       include: {
-        questions: { orderBy: { displayOrder: "asc" } },
+        questions: {
+          orderBy: { displayOrder: "asc" },
+          select: {
+            id: true,
+            type: true,
+            question: true,
+            options: true,
+            correctAnswer: true,
+            correctionMode: true,
+          },
+        },
       },
     });
 
@@ -129,21 +177,64 @@ export class QuizService {
 
     if (!latestAttempt) throw new ForbiddenException("No active attempt found. Start a new attempt first.");
 
-    const quizAnswerRecords: { attemptId: string; questionId: string; answer: string; isCorrect: boolean }[] = [];
-    const wrongAnswersList: { questionId: string; studentAnswer: string; correctAnswer: string }[] = [];
+    const quizAnswerRecords: {
+      attemptId: string; questionId: string; answer: string; isCorrect: boolean;
+      aiScore?: number; aiFeedback?: string; aiDetails?: unknown;
+      grammarScore?: number; grammarErrors?: unknown;
+      teacherReviewed?: boolean;
+    }[] = [];
+    const wrongAnswersList: { questionId: string; studentAnswer: string }[] = [];
     let correctCount = 0;
+
+    const TEXT_QUESTION_TYPES = new Set(["FILL_IN_BLANKS", "SHORT_ANSWER", "ESSAY", "WRITING"]);
+    const ESSAY_TYPES = new Set(["ESSAY", "WRITING"]);
 
     for (let i = 0; i < quiz.questions.length; i++) {
       const question = quiz.questions[i];
-      const studentAnswer = i < answers.length ? answers[i].trim().toLowerCase() : "";
-      const correct = (question.correctAnswer ?? "").trim().toLowerCase();
-      const isCorrect = studentAnswer === correct;
+      const rawAnswer = i < answers.length ? answers[i] : "";
+      const studentAnswer = TEXT_QUESTION_TYPES.has(question.type) ? rawAnswer.trim() : rawAnswer.trim().toLowerCase();
+      const correct = TEXT_QUESTION_TYPES.has(question.type) ? (question.correctAnswer ?? "").trim() : (question.correctAnswer ?? "").trim().toLowerCase();
+      let isCorrect = isMultipleChoice(question.type)
+        ? isMcqAnswerCorrect(question.options, question.correctAnswer, studentAnswer)
+        : studentAnswer === correct;
+      let aiScore: number | undefined;
+      let aiFeedback: string | undefined;
+      let aiDetails: unknown = undefined;
+      let grammarScore: number | undefined;
+      let grammarErrors: unknown = undefined;
+      let teacherReviewed: boolean | undefined;
+
+      // Run essay evaluation based on correction mode
+      if (ESSAY_TYPES.has(question.type) && rawAnswer.trim()) {
+        const mode = question.correctionMode;
+        if (mode === "AI") {
+          const aiResult = await this.essayEvaluation.evaluateAI(question.question, rawAnswer.trim());
+          aiScore = aiResult.score;
+          aiFeedback = aiResult.feedback;
+          aiDetails = aiResult;
+          isCorrect = aiResult.score >= 50;
+        } else if (mode === "GRAMMAR_CHECK") {
+          const grammarResult = this.essayEvaluation.evaluateGrammar(rawAnswer.trim());
+          grammarScore = grammarResult.score;
+          grammarErrors = grammarResult.errors;
+          isCorrect = grammarResult.score >= 50;
+        } else if (mode === "MANUAL") {
+          isCorrect = false;
+          teacherReviewed = false;
+        }
+      }
 
       quizAnswerRecords.push({
         attemptId: latestAttempt.id,
         questionId: question.id,
-        answer: studentAnswer,
+        answer: rawAnswer.trim(),
         isCorrect,
+        aiScore,
+        aiFeedback,
+        aiDetails,
+        grammarScore,
+        grammarErrors,
+        teacherReviewed,
       });
 
       if (isCorrect) {
@@ -151,8 +242,7 @@ export class QuizService {
       } else {
         wrongAnswersList.push({
           questionId: question.id,
-          studentAnswer,
-          correctAnswer: correct,
+          studentAnswer: rawAnswer.trim(),
         });
       }
     }
@@ -162,9 +252,9 @@ export class QuizService {
       : 0;
     const passed = score >= quiz.passingScore;
 
-    await this.prisma.$transaction([
-      this.prisma.quizAnswer.createMany({ data: quizAnswerRecords }),
-      this.prisma.quizAttempt.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.quizAnswer.createMany({ data: quizAnswerRecords as never });
+      await tx.quizAttempt.update({
         where: { id: latestAttempt.id },
         data: {
           submitted: true,
@@ -172,32 +262,37 @@ export class QuizService {
           score,
           passed,
         },
-      }),
-    ]);
+      });
+
+      if (passed) {
+        await tx.xPTransaction.create({
+          data: {
+            userId,
+            amount: quiz.xpReward,
+            reason: `Passed quiz for lesson ${lessonId}`,
+            reference: quiz.id,
+          },
+        });
+
+        await tx.lessonProgress.upsert({
+          where: { userId_lessonId: { userId, lessonId } },
+          update: { completed: true, completedAt: new Date(), progress: 100 },
+          create: { userId, lessonId, completed: true, completedAt: new Date(), progress: 100 },
+        });
+      }
+    });
+
+    if (passed) {
+      await this.cache.delByPattern(`curriculum:${userId}:*`);
+    }
+
+    await this.cache.del(this.cache.generateKey("dashboard", userId));
 
     let xpAwarded = 0;
     let nextLessonUnlocked = false;
 
     if (passed) {
-      // Award XP
       xpAwarded = quiz.xpReward;
-      await this.prisma.xPTransaction.create({
-        data: {
-          userId,
-          amount: quiz.xpReward,
-          reason: `Passed quiz for lesson ${lessonId}`,
-          reference: quiz.id,
-        },
-      });
-
-      // Mark lesson as completed
-      await this.prisma.lessonProgress.upsert({
-        where: { userId_lessonId: { userId, lessonId } },
-        update: { completed: true, completedAt: new Date(), progress: 100 },
-        create: { userId, lessonId, completed: true, completedAt: new Date(), progress: 100 },
-      });
-
-      // Unlock next lesson if configured
       nextLessonUnlocked = await this.unlockNextLesson(lessonId, userId);
     }
 
@@ -223,7 +318,7 @@ export class QuizService {
 
     if (!quiz) throw new NotFoundException("Quiz not found");
 
-    const latestAttempt = await this.prisma.quizAttempt.findFirst({
+    const latestSubmitted = await this.prisma.quizAttempt.findFirst({
       where: { userId, quizId: quiz.id, submitted: true },
       orderBy: { submittedAt: "desc" },
       select: {
@@ -235,9 +330,19 @@ export class QuizService {
       },
     });
 
-    if (!latestAttempt) return null;
+    const latestActive = await this.prisma.quizAttempt.findFirst({
+      where: { userId, quizId: quiz.id, submitted: false },
+      orderBy: { startedAt: "desc" },
+      select: { id: true, startedAt: true },
+    });
 
-    return latestAttempt;
+    // A newer active (unsubmitted) attempt means the student is mid-quiz:
+    // hide the stale result so they can keep answering.
+    if (latestActive && (!latestSubmitted || latestActive.startedAt > (latestSubmitted.submittedAt ?? new Date(0)))) {
+      return null;
+    }
+
+    return latestSubmitted;
   }
 
   async getHistory(lessonId: string, userId: string): Promise<unknown> {
@@ -315,7 +420,9 @@ export class QuizService {
           options: q.options,
           correctAnswer: q.correctAnswer,
           explanation: q.explanation,
-          studentAnswer: studentAnswer?.answer ?? null,
+          studentAnswer: isMultipleChoice(q.type)
+            ? formatMcqStudentAnswer(q.options, studentAnswer?.answer ?? null)
+            : (studentAnswer?.answer ?? null),
           isCorrect: studentAnswer?.isCorrect ?? null,
         };
       }),
@@ -356,6 +463,31 @@ export class QuizService {
     }
 
     return { lessonCompleted, nextLessonUnlocked };
+  }
+
+  async checkEligibility(lessonId: string, userId: string): Promise<unknown> {
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    const quiz = await this.getQuiz(lessonId, userId);
+    if (!quiz) throw new NotFoundException("Quiz not found");
+
+    try {
+      await this.validatePrerequisites(lessonId, userId);
+    } catch (err) {
+      if (err instanceof ForbiddenException) {
+        const message = (err as Error).message;
+        return { eligible: false, reason: message };
+      }
+      throw err;
+    }
+
+    const totalAttempts = await this.prisma.quizAttempt.count({
+      where: { userId, quizId: quiz.id },
+    });
+    if (totalAttempts >= quiz.maxAttempts) {
+      return { eligible: false, reason: "Maximum attempts reached" };
+    }
+
+    return { eligible: true, reason: null };
   }
 
   // --- Teacher / Admin Management ---
@@ -400,10 +532,27 @@ export class QuizService {
       },
     });
 
-    await this.prisma.lesson.update({
+    const updatedLesson = await this.prisma.lesson.update({
       where: { id: dto.lessonId },
       data: { quizEnabled: true },
+      include: { unit: { select: { gradeId: true } } },
     });
+
+    const gradeId = updatedLesson.unit.gradeId;
+    if (gradeId) {
+      this.notifications
+        .sendNotification(userId, {
+          type: "quiz_reminder",
+          title: "اختبار جديد",
+          message: `تم إضافة اختبار جديد لدرس: ${lesson.title}`,
+          priority: NotificationPriority.MEDIUM,
+          targetType: NotificationTargetType.GRADE,
+          targetId: gradeId,
+        })
+        .catch((err: unknown) => {
+          this.logger.error(`Failed to send quiz notification: ${err instanceof Error ? err.message : String(err)}`);
+        });
+    }
 
     return quiz;
   }
@@ -414,22 +563,25 @@ export class QuizService {
     await this.academicContext.verifyTeacherLessonAccess(userId, quiz.lessonId);
 
     if (dto.questions) {
-      await this.prisma.quizAnswer.deleteMany({ where: { question: { quizId } } });
-      await this.prisma.quizQuestion.deleteMany({ where: { quizId } });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.quizAnswer.deleteMany({ where: { question: { quizId } } });
+        await tx.quizQuestion.deleteMany({ where: { quizId } });
 
-      if (dto.questions.length > 0) {
-        await this.prisma.quizQuestion.createMany({
-          data: dto.questions.map((q) => ({
-            quizId,
-            type: q.type ?? "MULTIPLE_CHOICE",
-            question: q.question ?? "",
-            options: q.options,
-            correctAnswer: q.correctAnswer,
-            explanation: q.explanation,
-            displayOrder: q.displayOrder ?? 0,
-          })),
-        });
-      }
+        if (dto.questions && dto.questions.length > 0) {
+          await tx.quizQuestion.createMany({
+            data: dto.questions.map((q) => ({
+              quizId,
+              type: q.type ?? "MULTIPLE_CHOICE",
+              question: q.question ?? "",
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+              explanation: q.explanation,
+              correctionMode: q.correctionMode ?? "EXACT_MATCH",
+              displayOrder: q.displayOrder ?? 0,
+            })),
+          });
+        }
+      });
     }
 
     const updated = await this.prisma.quiz.update({
@@ -524,6 +676,7 @@ export class QuizService {
 
     const allAttempts = await this.prisma.quizAttempt.findMany({
       where: { quizId: quiz.id, submitted: true },
+      take: 500,
       select: { score: true, passed: true },
     });
 
@@ -536,6 +689,7 @@ export class QuizService {
         attempt: { quizId: quiz.id, submitted: true },
         isCorrect: false,
       },
+      take: 500,
       include: {
         question: { select: { id: true, question: true } },
       },
@@ -588,13 +742,15 @@ export class QuizService {
       select: { id: true },
     });
 
-    for (const video of videos) {
-      const progress = await this.prisma.videoProgress.findUnique({
-        where: { userId_videoId: { userId, videoId: video.id } },
-      });
-      if (!progress?.completed) {
-        throw new ForbiddenException("All lesson videos must be completed before taking the quiz");
-      }
+    const videoIds = videos.map((v) => v.id);
+    const progressRecords = await this.prisma.videoProgress.findMany({
+      where: { userId, videoId: { in: videoIds }, completed: true },
+      select: { videoId: true },
+    });
+    const completedVideoIds = new Set(progressRecords.map((p) => p.videoId));
+    const hasIncomplete = videoIds.some((vid) => !completedVideoIds.has(vid));
+    if (hasIncomplete) {
+      throw new ForbiddenException("All lesson videos must be completed before taking the quiz");
     }
 
     // Check homework submitted (if enabled)
@@ -642,5 +798,70 @@ export class QuizService {
     });
 
     return true;
+  }
+
+  // ── Teacher Review (Essay Grading) ──
+
+  async teacherReview(lessonId: string, dto: ReviewQuizDto): Promise<unknown> {
+    const quiz = await this.prisma.quiz.findFirst({
+      where: { lessonId, deletedAt: null },
+    });
+    if (!quiz) throw new NotFoundException("Quiz not found");
+
+    const updates = (dto.reviews ?? []).map((r) =>
+      this.prisma.quizAnswer.update({
+        where: { id: r.answerId },
+        data: {
+          teacherScore: r.teacherScore,
+          teacherFeedback: r.teacherFeedback ?? null,
+          teacherReviewed: true,
+          isCorrect: r.teacherScore >= 50,
+        },
+      }),
+    );
+
+    await this.prisma.$transaction(updates);
+
+    // Recalculate attempt score
+    const answers = await this.prisma.quizAnswer.findMany({
+      where: { attemptId: dto.attemptId },
+      select: { isCorrect: true },
+    });
+
+    const totalQuestions = answers.length;
+    const correctCount = answers.filter((a) => a.isCorrect).length;
+    const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+
+    await this.prisma.quizAttempt.update({
+      where: { id: dto.attemptId },
+      data: { score, passed: score >= quiz.passingScore },
+    });
+
+    return { attemptId: dto.attemptId, score, reviewed: updates.length };
+  }
+
+  async getPendingEssayReviews(lessonId: string): Promise<unknown> {
+    const quiz = await this.prisma.quiz.findFirst({
+      where: { lessonId, deletedAt: null },
+    });
+    if (!quiz) throw new NotFoundException("Quiz not found");
+
+    const attempts = await this.prisma.quizAttempt.findMany({
+      where: { quizId: quiz.id, submitted: true },
+      include: {
+        user: { select: { id: true, fullName: true } },
+        answers: {
+          where: { teacherReviewed: false },
+          include: {
+            question: {
+              select: { id: true, question: true, type: true, correctionMode: true },
+            },
+          },
+        },
+      },
+      orderBy: { submittedAt: "desc" },
+    });
+
+    return attempts;
   }
 }

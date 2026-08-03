@@ -1,9 +1,10 @@
-import { Controller, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, Body } from "@nestjs/common";
+import { Controller, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards, Body, Req } from "@nestjs/common";
 import { VideoService } from "./video.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
 import { UpdateVideoProgressDto } from "./dto/update-video-progress.dto";
+import type { Request } from "express";
 
 @Controller("videos")
 export class VideoController {
@@ -55,9 +56,12 @@ export class VideoController {
   @UseGuards(JwtAuthGuard)
   async getTimelineEvents(
     @Param("id", ParseUUIDPipe) id: string,
-    @CurrentUser() userId: string,
+    @CurrentUser() _userId: string,
+    @Req() req: Request,
   ): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.videoService.getTimelineEvents(id, userId);
+    const userRecord = req.user as Record<string, unknown> | undefined;
+    const isStudent = userRecord?.role === "STUDENT";
+    const data = await this.videoService.getTimelineEvents(id, _userId, isStudent);
     return successResponse(data, "Timeline events retrieved successfully");
   }
 

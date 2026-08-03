@@ -63,10 +63,7 @@ async function main() {
     prisma.conversationMessage.deleteMany(),
     prisma.conversation.deleteMany(),
     prisma.loginHistory.deleteMany(),
-    prisma.storyChapter.deleteMany(),
-    prisma.story.deleteMany(),
-    prisma.finalReviewSection.deleteMany(),
-    prisma.finalReview.deleteMany(),
+
     prisma.auditLog.deleteMany(),
     prisma.refreshToken.deleteMany(),
     prisma.session.deleteMany(),
@@ -98,11 +95,22 @@ async function main() {
     },
   });
 
-  await prisma.user.create({
+  const teacher2 = await prisma.user.create({
     data: {
       fullName: "Ahmed Albanna",
       email: "ahmed.albanna666@gmail.com",
       mobileNumber: "+201001234567",
+      passwordHash: hashedPassword,
+      role: "TEACHER",
+      status: "ACTIVE",
+    },
+  });
+
+  const admin2 = await prisma.user.create({
+    data: {
+      fullName: "مدير المنصة",
+      email: "ahmed.albanna6666@gmail.com",
+      mobileNumber: "+201001234568",
       passwordHash: hashedPassword,
       role: "ADMINISTRATOR",
       status: "ACTIVE",
@@ -141,10 +149,15 @@ async function main() {
     }
   }
 
+  const studentGradeId = stageGradeMap.get("primaryGrade1")!;
   const seedGradeId = stageGradeMap.get("primaryGrade1")!;
 
   await prisma.teacherGrade.create({
     data: { userId: teacher.id, gradeId: seedGradeId },
+  });
+
+  await prisma.teacherGrade.create({
+    data: { userId: teacher2.id, gradeId: seedGradeId },
   });
 
   const academicYear = await prisma.academicYear.upsert({
@@ -179,6 +192,21 @@ async function main() {
     update: { value: firstTermId ?? "" },
   });
 
+  const student = await prisma.user.create({
+    data: {
+      fullName: "طالب تجريبي",
+      email: "student@elbannawy.com",
+      mobileNumber: "+201009999999",
+      passwordHash: hashedPassword,
+      role: "STUDENT",
+      status: "ACTIVE",
+      gradeId: seedGradeId,
+      academicYearId: academicYear.id,
+      termId: firstTermId,
+      educationalSystem: "GENERAL",
+    },
+  });
+
   const unit1 = await prisma.unit.create({
     data: {
       id: uuidv4(),
@@ -204,6 +232,21 @@ async function main() {
       published: true,
     },
   });
+
+  const coinPackageSeeds = [
+    { name: "باقة 100 عملة", description: "100 عملة ذهبية لمحتويات المنصة المدفوعة", coinAmount: 100, price: 25 },
+    { name: "باقة 250 عملة", description: "250 عملة ذهبية - الأنسب للاستخدام المنتظم", coinAmount: 250, price: 50 },
+    { name: "باقة 550 عملة", description: "550 عملة ذهبية - الأعلى قيمة", coinAmount: 550, price: 100 },
+    { name: "باقة 1200 عملة", description: "1200 عملة ذهبية - للأداء المتميز", coinAmount: 1200, price: 200 },
+  ];
+  for (const seed of coinPackageSeeds) {
+    const existing = await prisma.coinPackage.findFirst({ where: { name: seed.name } });
+    if (!existing) {
+      await prisma.coinPackage.create({
+        data: { ...seed, active: true },
+      });
+    }
+  }
 
   const lesson1 = await prisma.lesson.create({
     data: {
@@ -386,9 +429,11 @@ async function main() {
   });
 
 
-  console.log(`Teacher: ${teacher.fullName} (${teacher.email} / +201009876543 / Test@1234)`);
+  console.log(`Teacher 1: ${teacher.fullName} (${teacher.email} / Test@1234)`);
+  console.log(`Teacher 2: ${teacher2.fullName} (${teacher2.email} / Test@1234)`);
   console.log(`Admin 1: admin@elbannawy.com / Test@1234`);
-  console.log(`Admin 2: ahmed.albanna666@gmail.com / Test@1234`);
+  console.log(`Admin 2: ${admin2.fullName} (${admin2.email} / Test@1234)`);
+  console.log(`Student: ${student.fullName} (${student.email} / Test@1234)`);
   console.log("Education: 3 stages, 12 grades, 1 academic year (2 terms), 2 units, 3 lessons");
   console.log("Content: 2 videos, 2 activities, 3 vocab, 1 homework, 1 quiz");
   console.log("Seeding complete!");

@@ -22,7 +22,11 @@ import {
 import { UnitFormDialog, type UnitEditData } from "./unit-form-dialog";
 import { TeacherContextBanner } from "@/components/ui/teacher-context-banner";
 import {
-  BookOpen,
+  type UnitTypeValue,
+  getUnitTypeCopy,
+  getDetailHref,
+} from "@/lib/unit-type-config";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -37,6 +41,7 @@ interface UnitManagement {
   readonly id: string;
   readonly title: string;
   readonly description: string | null;
+  readonly unitType: UnitTypeValue;
   readonly displayOrder: number;
   readonly published: boolean;
   readonly isPremium: boolean;
@@ -65,11 +70,16 @@ interface MyGradesResponse {
   grades: { id: string; name: string; stage: { id: string; name: string } }[];
 }
 
-export function TeacherUnitsView(): ReactNode {
+export function TeacherUnitsView({
+  unitType = "UNIT",
+}: {
+  readonly unitType?: UnitTypeValue;
+}): ReactNode {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const userId = useAuthStore((s) => s.user?.id);
+  const copy = getUnitTypeCopy(unitType);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<UnitEditData | null>(null);
@@ -95,17 +105,18 @@ export function TeacherUnitsView(): ReactNode {
 
   const filterParams = useMemo(() => {
     const params = new URLSearchParams();
+    params.set("unitType", unitType);
     if (academicContext.gradeId) params.set("gradeId", academicContext.gradeId);
     if (academicContext.academicYearId) params.set("academicYearId", academicContext.academicYearId);
     if (academicContext.termId) params.set("termId", academicContext.termId);
     if (academicContext.educationalSystem) params.set("educationalSystem", academicContext.educationalSystem);
     return params.toString();
-  }, [academicContext]);
+  }, [academicContext, unitType]);
 
   const { data: units, isLoading, isError, error } = useQuery({
-    queryKey: ["management-units", filterParams],
+    queryKey: ["management-units", unitType, filterParams],
     queryFn: async () => {
-      const endpoint = `/curriculum/units${filterParams ? `?${filterParams}` : ""}`;
+      const endpoint = `/curriculum/units?${filterParams}`;
       const res = await api.get<UnitManagement[]>(endpoint);
       return res.data ?? [];
     },
@@ -126,7 +137,7 @@ export function TeacherUnitsView(): ReactNode {
   );
 
   const openUnit = (unitId: string): void => {
-    router.push(`/dashboard/units/${unitId}`);
+    router.push(getDetailHref(unitType, unitId));
   };
 
   const handleEditClick = (unit: UnitManagement): void => {
@@ -147,7 +158,7 @@ export function TeacherUnitsView(): ReactNode {
   if (isError) {
     return (
       <ErrorState
-        title="فشل تحميل الوحدات"
+        title={`فشل تحميل ${copy.plural}`}
         description={error instanceof Error ? error.message : "حدث خطأ غير متوقع"}
       />
     );
@@ -159,12 +170,17 @@ export function TeacherUnitsView(): ReactNode {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            إدارة الوحدات
+            {copy.managementTitle}
           </h1>
           <p className="mt-1 text-sm text-neutral-500">
-            إنشاء وإدارة الوحدات التعليمية والدروس
+            إنشاء وإدارة {copy.plural} و{copy.childPlural}
           </p>
         </div>
+        {hasAssignedGrades && canCreate && (
+          <Button variant="primary" size="sm" onClick={(): void => { setCreateDialogOpen(true); }}>
+            <Plus className="h-4 w-4" /> {copy.singular} جديدة
+          </Button>
+        )}
       </div>
 
       {!hasAssignedGrades ? (
@@ -175,14 +191,14 @@ export function TeacherUnitsView(): ReactNode {
         />
       ) : sortedUnits.length === 0 ? (
         <EmptyState
-          title="لا توجد وحدات"
-          description="ابدأ بإنشاء وحدة تعليمية جديدة"
-          icon={<BookOpen className="h-16 w-16" />}
-          actionLabel={canCreate ? "إنشاء وحدة" : undefined}
+          title={`لا توجد ${copy.plural}`}
+          description={`ابدأ بإنشاء ${copy.singular} تعليمية جديدة`}
+          icon={<copy.icon className="h-16 w-16" />}
+          actionLabel={canCreate ? `إنشاء ${copy.singular}` : undefined}
           onAction={canCreate ? ((): void => { setCreateDialogOpen(true); }) : undefined}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sortedUnits.map((unit) => (
             <Card
               key={unit.id}
@@ -222,7 +238,7 @@ export function TeacherUnitsView(): ReactNode {
                 <div className="mt-auto flex items-center gap-4 text-[11px] text-neutral-400">
                   <span className="flex items-center gap-1">
                     <Layers className="h-3.5 w-3.5" />
-                    {String(unit._count.lessons)} دروس
+                    {String(unit._count.lessons)} {copy.childPlural}
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" />
@@ -277,21 +293,11 @@ export function TeacherUnitsView(): ReactNode {
         </div>
       )}
 
-      {hasAssignedGrades && canCreate && (
-        <Button
-          variant="primary"
-          className="fixed bottom-20 left-4 z-20 shadow-lg lg:bottom-6 lg:left-6"
-          onClick={(): void => { setCreateDialogOpen(true); }}
-        >
-          <Plus className="h-5 w-5" />
-          وحدة جديدة
-        </Button>
-      )}
-
       {canCreate && (
         <UnitFormDialog
           open={createDialogOpen}
           onClose={(): void => { setCreateDialogOpen(false); }}
+          unitType={unitType}
         />
       )}
 
@@ -300,6 +306,7 @@ export function TeacherUnitsView(): ReactNode {
           open={editTarget !== null}
           onClose={(): void => { setEditTarget(null); }}
           unit={editTarget}
+          unitType={unitType}
         />
       )}
 
@@ -310,17 +317,17 @@ export function TeacherUnitsView(): ReactNode {
       >
         <DialogContent>
           <p className="text-sm text-neutral-600 dark:text-neutral-300">
-            هل أنت متأكد من حذف الوحدة{" "}
+            هل أنت متأكد من حذف {copy.singular}{" "}
             <span className="font-bold">
               {deleteTarget?.title ?? ""}
             </span>
-            ؟ سيتم حذف جميع الدروس والمحتوى المرتبط بها.
+            ؟ سيتم حذف جميع {copy.childPlural} والمحتوى المرتبط بها.
           </p>
           {deleteMutation.isError && (
             <p className="text-sm text-danger-500" role="alert">
               {deleteMutation.error instanceof Error
                 ? deleteMutation.error.message
-                : "فشل حذف الوحدة"}
+                : `فشل حذف ${copy.singular}`}
             </p>
           )}
         </DialogContent>
@@ -356,7 +363,7 @@ function UnitsSkeleton(): ReactNode {
         <Skeleton className="h-8 w-48" />
         <Skeleton className="mt-2 h-5 w-64" />
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 6 }, (_, i) => (
           <Skeleton key={i} className="h-48 rounded-2xl" />
         ))}

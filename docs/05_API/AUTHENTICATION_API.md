@@ -61,6 +61,7 @@ Request
 
 {
   "fullName": "",
+  "email": "",
   "mobile": "",
   "password": "",
   "confirmPassword": ""
@@ -72,18 +73,125 @@ Response
 
 {
   "success": true,
-  "message": "Account created successfully.",
+  "message": "Account created. Please verify your email.",
   "data": {
     "userId": "",
-    "status": "pending_verification"
+    "requiresEmailVerification": true
   }
 }
 
 Validation
 
-- Mobile must be unique.
+- Email must be unique and a valid email address.
+- Mobile (optional) must be unique if provided.
 - Password must satisfy policy.
 - Confirm Password must match.
+
+---
+
+# Endpoint
+
+POST
+
+/auth/verify-email
+
+Description
+
+Confirm the email address with the 6-digit verification code sent to the registered email. On success the account status becomes ACTIVE.
+
+Authentication
+
+No
+
+Request
+
+{
+  "email": "",
+  "code": "123456"
+}
+
+Response
+
+200 OK
+
+{
+  "success": true,
+  "data": {
+    "verified": true,
+    "email": ""
+  }
+}
+
+---
+
+# Endpoint
+
+POST
+
+/auth/resend-verification
+
+Description
+
+Re-send the email verification code (rate-limited).
+
+Authentication
+
+No
+
+Request
+
+{
+  "email": ""
+}
+
+Response
+
+200 OK
+
+{
+  "success": true,
+  "data": {
+    "sent": true
+  }
+}
+
+---
+
+# Endpoint
+
+POST
+
+/auth/firebase-login
+
+Description
+
+Log in with a Firebase Authentication ID token (email/password sign-in on the client). The backend verifies the token with the Firebase Admin SDK and issues the platform JWT. The account must already be email-verified.
+
+Authentication
+
+No
+
+Request
+
+{
+  "idToken": "",
+  "rememberMe": false
+}
+
+Response
+
+200 OK
+
+{
+  "success": true,
+  "data": {
+    "userId": ""
+  }
+}
+
+Errors
+
+401 Unauthorized (invalid token or unverified email)
 
 ---
 
@@ -279,10 +387,12 @@ Password Hashing
 
 Validate:
 
-- Mobile
+- Email
+- Mobile (optional)
 - Password
 - Verification Code
 - Refresh Token
+- Firebase ID Token
 
 ---
 

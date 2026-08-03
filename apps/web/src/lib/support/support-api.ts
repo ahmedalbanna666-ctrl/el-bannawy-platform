@@ -62,8 +62,8 @@ export function useTickets(filters?: TicketFilters): UseQueryResult<TicketItem[]
       if (filters?.category) params.set("category", filters.category);
       if (filters?.assignedAgentId) params.set("assignedAgentId", filters.assignedAgentId);
       const qs = params.toString();
-      const res = await api.get<TicketItem[]>(`/support/tickets${qs ? `?${qs}` : ""}`);
-      return res.data ?? [];
+      const res = await api.get<{ data: TicketItem[]; meta: Record<string, unknown> }>(`/support/tickets${qs ? `?${qs}` : ""}`);
+      return res.data?.data ?? [];
     },
     staleTime: 15_000,
   });

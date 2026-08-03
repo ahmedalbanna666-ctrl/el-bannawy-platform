@@ -30,7 +30,7 @@ const Dialog = forwardRef<HTMLDivElement, DialogProps>(
         <div
           ref={ref}
           className={cn(
-            "w-full max-w-lg rounded-2xl bg-neutral-50 p-6 shadow-xl dark:bg-neutral-800",
+            "w-full max-w-lg rounded-2xl bg-surface-elevated p-6 shadow-xl",
             className,
           )}
           {...props}

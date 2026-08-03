@@ -73,18 +73,20 @@ export function AcademicSettings(): ReactNode {
       const stageKey = stageLabelToKey(g.stage.name) ?? g.stage.name;
       setEducationalSystem("");
       setStage(stageKey);
-      setGrade(g.name);
+      setGrade(g.name, g.id);
     } else if (gs.length > 1) {
       const storedGrade = useAcademicContextStore.getState().grade;
       if (!storedGrade || !gs.some((g) => g.name === storedGrade)) {
-        const stageKey = stageLabelToKey(gs[0].stage.name) ?? gs[0].stage.name;
-        setGrade(gs[0].name);
+        const first = gs[0];
+        const stageKey = stageLabelToKey(first.stage.name) ?? first.stage.name;
+        setGrade(first.name, first.id);
         setStage(stageKey);
       }
     }
   }, [myGrades, isTeacher, setEducationalSystem, setStage, setGrade]);
 
   const assignedGradeNames = new Set(myGrades?.grades.map((g) => g.name) ?? []);
+  const gradeNameToId = new Map(myGrades?.grades.map((g) => [g.name, g.id]) ?? []);
 
   const filteredStageOptions = STAGE_OPTIONS.filter(
     (s) => myGrades?.grades.some((g) => g.stage.name === s.value),
@@ -160,7 +162,7 @@ export function AcademicSettings(): ReactNode {
                     options={filteredGradeOptions.length > 0 ? filteredGradeOptions : gradeOptions}
                     placeholder="الصف الدراسي"
                     value={grade ?? ""}
-                    onChange={(e) => { setGrade(e.target.value); }}
+                    onChange={(e) => { setGrade(e.target.value, gradeNameToId.get(e.target.value) ?? null); }}
                   />
                 ) : (
                   <div className="flex flex-col gap-1">
@@ -175,7 +177,7 @@ export function AcademicSettings(): ReactNode {
                             onClick={() => {
                               const stageKey = stageLabelToKey(g.stage.name) ?? g.stage.name;
                               setStage(stageKey);
-                              setGrade(g.name);
+                              setGrade(g.name, g.id);
                             }}
                             className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
                               isActive

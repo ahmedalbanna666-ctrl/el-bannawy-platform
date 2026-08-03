@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useRef, type ChangeEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ContentBlock } from "@/components/units/content-block";
 import { UploadCard } from "@/components/units/upload-card";
 import { VocabularyImportDialog } from "./vocabulary-import-dialog";
-import { QuestionImportPreviewDialog } from "./question-import-preview-dialog";
+import { Switch } from "@/components/ui/switch";
+import { AssessmentQuestionManager } from "./assessment-question-manager";
 import { VocabCell } from "@/components/vocabulary/vocabulary-cell";
 import { VocabularyGroupHeader } from "@/components/vocabulary/vocabulary-group-header";
 import { VocabularyStats } from "@/components/vocabulary/vocabulary-stats";
@@ -20,7 +21,6 @@ import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { usePronunciation } from "@/lib/use-pronunciation";
 import { usePermissions } from "@/lib/use-permissions";
 import { cn } from "@/lib/utils";
-import { Switch } from "@/components/ui/switch";
 import {
   MonitorPlay,
   Languages,
@@ -36,10 +36,11 @@ import {
   Upload,
   ChevronDown,
   ChevronUp,
-  FileQuestion,
+  Sparkles,
   Clock,
   HelpCircle,
   Eye,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -47,13 +48,11 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
 async function uploadFile(endpoint: string, file: File): Promise<void> {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
   const formData = new FormData();
   formData.append("file", file);
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
     body: formData,
   });
   if (!response.ok) {
@@ -111,6 +110,21 @@ interface QuizData {
   readonly _count?: { readonly questions: number };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+interface QuizTeacherData {
+  readonly id: string;
+  readonly title: string;
+  readonly questions: readonly {
+    readonly id: string;
+    readonly type: string;
+    readonly question: string;
+    readonly options: string | null;
+    readonly correctAnswer: string | null;
+    readonly explanation: string | null;
+    readonly displayOrder: number;
+  }[];
+}
+
 interface HomeworkData {
   readonly id: string;
   readonly title: string;
@@ -157,10 +171,10 @@ export const CONTENT_BLOCKS: readonly ContentBlockDefinition[] = [
     icon: ClipboardList,
   },
   {
-    id: "questions",
-    title: "أسئلة الدرس",
-    description: "رفع ملف Word لاستيراد الأسئلة معاينةً قبل الحفظ",
-    icon: FileQuestion,
+    id: "games",
+    title: "أنشطة تعليمية",
+    description: "تفعيل الألعاب التعليمية للدرس (تستخدم كلمات الدرس تلقائياً)",
+    icon: Sparkles,
   },
 ] as const;
 
@@ -169,9 +183,13 @@ export const CONTENT_BLOCKS: readonly ContentBlockDefinition[] = [
 function VideoBlock({
   lessonId,
   videos,
+  expanded,
+  onToggle,
 }: {
   lessonId: string;
   videos: readonly LessonVideo[];
+  expanded?: boolean;
+  onToggle?: () => void;
 }): ReactNode {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
@@ -200,6 +218,8 @@ function VideoBlock({
       icon={MonitorPlay}
       title="فيديو الدرس"
       description="إدارة فيديوهات الدرس (YouTube)"
+      expanded={expanded}
+      onToggle={onToggle}
       statusBadge={
         videos.length > 0 ? (
           <Badge variant="primary" className="text-[10px]">
@@ -242,12 +262,12 @@ function VideoBlock({
           ))
         )}
 
-        <div className="flex items-center gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-700">
+        <div className="flex flex-col gap-2 border-t border-neutral-200 pt-3 sm:flex-row sm:items-center sm:gap-2 dark:border-neutral-700">
           <Input
             placeholder="https://www.youtube.com/watch?v=..."
             value={url}
             onChange={(e): void => { setUrl(e.target.value); }}
-            className="flex-1"
+            className="w-full sm:flex-1"
           />
           <Button
             variant="primary"
@@ -456,16 +476,20 @@ function StandardVocabularyTable({
 function VocabularyBlock({
   lessonId,
   vocabulary = [],
+  expanded,
+  onToggle,
 }: {
   lessonId: string;
   vocabulary?: readonly LessonVocabulary[];
+  expanded?: boolean;
+  onToggle?: () => void;
 }): ReactNode {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const canManage = can("vocabulary.manage");
   const { speak, isSpeaking, isSupported } = usePronunciation();
 
-  const [expanded, setExpanded] = useState(true);
+  const [vocabExpanded, setVocabExpanded] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [word, setWord] = useState("");
@@ -502,12 +526,6 @@ function VocabularyBlock({
     },
     onError: (err) => {
       console.error("Vocabulary add error:", err);
-      if (typeof window !== "undefined") {
-        const token = localStorage.getItem("el-bannawy-auth");
-        const parsed = token ? (JSON.parse(token) as { accessToken?: string } | null) : null;
-        const preview = parsed?.accessToken ? parsed.accessToken.substring(0, 20) : "null";
-        console.warn("Auth store:", preview + "...");
-      }
     },
   });
 
@@ -579,6 +597,8 @@ function VocabularyBlock({
       icon={Languages}
       title="مفردات الدرس"
       description="إضافة وتعديل وحذف المفردات"
+      expanded={expanded}
+      onToggle={onToggle}
       statusBadge={
         isVocabularyPopulated ? (
           <Badge variant="primary" className="text-[10px]">
@@ -625,11 +645,11 @@ function VocabularyBlock({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label={expanded ? "طي قسم المفردات" : "توسيع قسم المفردات"}
-            aria-expanded={expanded}
-            onClick={(): void => { setExpanded((prev) => !prev); }}
+            aria-label={vocabExpanded ? "طي قسم المفردات" : "توسيع قسم المفردات"}
+            aria-expanded={vocabExpanded}
+            onClick={(): void => { setVocabExpanded((prev) => !prev); }}
           >
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {vocabExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </div>
       }
@@ -637,7 +657,7 @@ function VocabularyBlock({
       <div
         className={cn(
           "grid transition-all duration-200 ease-out",
-          expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+          vocabExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
         )}
       >
         <div className="overflow-hidden">
@@ -654,7 +674,7 @@ function VocabularyBlock({
               <EmptyState
                 title="لا توجد مفردات مستوردة بعد"
                 description="استورد ملف Word أو أضف الكلمات يدوياً لبناء قائمة المفردات."
-                icon={<FileQuestion className="h-16 w-16 text-neutral-300 dark:text-neutral-600" />}
+                icon={<Languages className="h-16 w-16 text-neutral-300 dark:text-neutral-600" />}
                 actionLabel="استيراد مفردات"
                 onAction={(): void => { setShowImportDialog(true); }}
               />
@@ -720,18 +740,18 @@ function VocabularyBlock({
 
             {editingId === null && canManage && showAddForm && (
               <div className="flex animate-[vocab-fade-slide-up_200ms_ease-out] flex-col gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-700">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
                   <Input
                     placeholder="كلمة"
                     value={word}
                     onChange={(e): void => { setWord(e.target.value); }}
-                    className="flex-1"
+                    className="w-full sm:flex-1"
                   />
                   <Input
                     placeholder="ترجمة"
                     value={translation}
                     onChange={(e): void => { setTranslation(e.target.value); }}
-                    className="flex-1"
+                    className="w-full sm:flex-1"
                   />
                 </div>
                 <Input
@@ -850,9 +870,13 @@ function VocabularyBlock({
 function PdfBlock({
   lessonId,
   document,
+  expanded,
+  onToggle,
 }: {
   lessonId: string;
   document: LessonDocument | null;
+  expanded?: boolean;
+  onToggle?: () => void;
 }): ReactNode {
   const queryClient = useQueryClient();
 
@@ -895,6 +919,8 @@ function PdfBlock({
       icon={FileText}
       accept=".pdf"
       state={document ? "uploaded" : "empty"}
+      expanded={expanded}
+      onToggle={onToggle}
       fileInfo={
         document
           ? { name: document.fileName, size: formatFileSize(document.fileSize) }
@@ -936,47 +962,96 @@ function PdfBlock({
 function QuizBlock({
   lessonId,
   quiz,
+  expanded,
+  onToggle,
 }: {
   lessonId: string;
   quiz: QuizData | null;
+  expanded?: boolean;
+  onToggle?: () => void;
 }): ReactNode {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) =>
       uploadFile(`/lessons/${lessonId}/quiz/upload`, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["quiz", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["/quizzes", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      setUploadError(null);
+    },
+    onError: (err) => {
+      setUploadError(err instanceof Error ? err.message : "فشل رفع الملف");
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async () => api.delete(`/lessons/${lessonId}/quiz`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["quiz", lessonId] });
-    },
-  });
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadMutation.mutate(file);
+      setUploadError(null);
+    }
+    e.target.value = "";
+  };
 
   return (
-    <UploadCard
-      title="اختبار الدرس"
-      description="رفع ملف Word لإنشاء الاختبار تلقائياً"
-      icon={GraduationCap}
-      accept=".docx,.doc"
-      state={quiz ? "uploaded" : "empty"}
-      fileInfo={
-        quiz
-          ? {
-              name: quiz.title,
-              size: quiz._count
-                ? `${String(quiz._count.questions)} سؤال`
-                : "—",
-            }
-          : null
-      }
-      onFileSelect={(file): void => { uploadMutation.mutate(file); }}
-      onDelete={(): void => { deleteMutation.mutate(); }}
-    />
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".docx,.doc"
+        onChange={handleFileChange}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+      <ContentBlock
+        title="اختبار الدرس"
+        description="رفع ملف Word لإنشاء الاختبار تلقائياً"
+        icon={GraduationCap}
+        expanded={expanded}
+        onToggle={onToggle}
+        statusBadge={quiz ? <Badge variant="primary" className="text-[10px]">{quiz.title}</Badge> : undefined}
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={(): void => { fileInputRef.current?.click(); }}>
+              <Upload className="h-4 w-4" />
+              {quiz ? "استبدال" : "رفع وورد"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {uploadError && (
+            <p className="text-sm text-danger-500" role="alert">{uploadError}</p>
+          )}
+
+          {uploadMutation.isPending && (
+            <div className="flex items-center gap-2 text-sm text-neutral-500">
+              <Loader2 className="h-4 w-4 animate-spin text-primary-500" />
+              <span>جاري الرفع...</span>
+            </div>
+          )}
+
+          {quiz && (
+            <AssessmentQuestionManager
+              lessonId={lessonId}
+              assessmentId={quiz.id}
+              fetchEndpoint="/quizzes"
+              updateEndpoint="/quizzes/:id"
+              queryKey={["quiz", lessonId] as readonly string[]}
+              title="أسئلة الاختبار"
+              embedded
+              uploadEndpoint="/lessons/:id/quiz/upload"
+            />
+          )}
+        </div>
+      </ContentBlock>
+    </>
   );
 }
 
@@ -985,41 +1060,98 @@ function QuizBlock({
 function HomeworkBlock({
   lessonId,
   homework,
+  expanded,
+  onToggle,
 }: {
   lessonId: string;
   homework: HomeworkData | null;
+  expanded?: boolean;
+  onToggle?: () => void;
 }): ReactNode {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) =>
       uploadFile(`/lessons/${lessonId}/homework/upload`, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["homework", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["/homework", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      setUploadError(null);
+    },
+    onError: (err) => {
+      setUploadError(err instanceof Error ? err.message : "فشل رفع الملف");
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async () =>
-      api.delete(`/lessons/${lessonId}/homework`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["homework", lessonId] });
-    },
-  });
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadMutation.mutate(file);
+      setUploadError(null);
+    }
+    e.target.value = "";
+  };
+
+  const uploadState = uploadMutation.isPending ? "uploading" : homework ? "uploaded" : "empty";
 
   return (
-    <UploadCard
-      title="الواجب"
-      description="رفع ملف Word لإنشاء الواجب تلقائياً"
-      icon={ClipboardList}
-      accept=".docx,.doc"
-      state={homework ? "uploaded" : "empty"}
-      fileInfo={
-        homework ? { name: homework.title, size: "—" } : null
-      }
-      onFileSelect={(file): void => { uploadMutation.mutate(file); }}
-      onDelete={(): void => { deleteMutation.mutate(); }}
-    />
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".docx,.doc"
+        onChange={handleFileChange}
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+      <ContentBlock
+        title="الواجب"
+        description="رفع ملف Word لإنشاء الواجب تلقائياً"
+        icon={ClipboardList}
+        expanded={expanded}
+        onToggle={onToggle}
+        statusBadge={homework ? <Badge variant="primary" className="text-[10px]">{homework.title}</Badge> : undefined}
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={(): void => { fileInputRef.current?.click(); }}>
+              <Upload className="h-4 w-4" />
+              {homework ? "استبدال" : "رفع وورد"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {uploadError && (
+            <p className="text-sm text-danger-500" role="alert">{uploadError}</p>
+          )}
+
+          {uploadState === "uploading" && (
+            <div className="flex items-center gap-2 text-sm text-neutral-500">
+              <Loader2 className="h-4 w-4 animate-spin text-primary-500" />
+              <span>جاري الرفع...</span>
+            </div>
+          )}
+
+          {homework && (
+            <AssessmentQuestionManager
+              lessonId={lessonId}
+              assessmentId={homework.id}
+              fetchEndpoint="/homework"
+              updateEndpoint="/homework/:id"
+              uploadEndpoint="/lessons/:id/homework/upload"
+              queryKey={["homework", lessonId] as readonly string[]}
+              title="أسئلة الواجب"
+              embedded
+            />
+          )}
+        </div>
+      </ContentBlock>
+    </>
   );
 }
 
@@ -1037,14 +1169,21 @@ interface VideoQuestionItem {
 
 function parseTimestamp(input: string): number | null {
   const trimmed = input.trim();
-  if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
-  const parts = trimmed.split(":");
-  if (parts.length === 2) {
-    const m = parseInt(parts[0], 10);
-    const s = parseInt(parts[1], 10);
-    if (!isNaN(m) && !isNaN(s)) return m * 60 + s;
+  let seconds: number | null = null;
+  if (/^\d+$/.test(trimmed)) {
+    seconds = parseInt(trimmed, 10);
+  } else {
+    const parts = trimmed.split(":");
+    if (parts.length === 2) {
+      const m = parseInt(parts[0], 10);
+      const s = parseInt(parts[1], 10);
+      if (!isNaN(m) && !isNaN(s)) seconds = m * 60 + s;
+    }
   }
-  return null;
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0 || seconds > 86400) {
+    return null;
+  }
+  return seconds;
 }
 
 function formatTimestamp(seconds: number): string {
@@ -1056,9 +1195,13 @@ function formatTimestamp(seconds: number): string {
 function VideoQuestionBlock({
   lessonId,
   videos,
+  expanded,
+  onToggle,
 }: {
   lessonId: string;
   videos: readonly LessonVideo[];
+  expanded?: boolean;
+  onToggle?: () => void;
 }): ReactNode {
   const queryClient = useQueryClient();
 
@@ -1090,7 +1233,7 @@ function VideoQuestionBlock({
                 title: string;
                 type: string;
                 options: { id: string; text: string; isCorrect: boolean }[];
-              }>(`/video-questions/by-video-event/${evt.id}`);
+              }>(`/video-questions/by-video-event/${evt.id}/manage`);
               if (!qRes.data) continue;
               const question = qRes.data;
               results.push({
@@ -1208,6 +1351,8 @@ function VideoQuestionBlock({
       icon={HelpCircle}
       title="أسئلة الفيديو التفاعلية"
       description="إضافة أسئلة تظهر أثناء تشغيل الفيديو"
+      expanded={expanded}
+      onToggle={onToggle}
       statusBadge={
         allQuestions && allQuestions.length > 0 ? (
           <Badge variant="primary" className="text-[10px]">
@@ -1348,7 +1493,7 @@ function VideoQuestionBlock({
             </Button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {editingId ? (
               <>
                 <Button
@@ -1370,7 +1515,7 @@ function VideoQuestionBlock({
                 variant="primary"
                 size="sm"
                 loading={createMutation.isPending}
-                disabled={!questionTitle.trim() || optionsText.some((t) => !t.trim()) || parseTimestamp(timestampStr) === null}
+                disabled={!questionTitle.trim() || optionsText.some((t) => !t.trim()) || parseTimestamp(timestampStr) === null || !selectedVideoId}
                 onClick={(): void => { createMutation.mutate(); }}
               >
                 <Plus className="h-4 w-4" />
@@ -1400,34 +1545,126 @@ function VideoQuestionBlock({
   );
 }
 
-// ── Question Block ────────────────────────────────────────────────────
+// ── Games Block ───────────────────────────────────────────────────────
 
-function QuestionBlock({
+const GAME_TYPES: { id: string; label: string; description: string }[] = [
+  { id: "listening-challenge", label: "تحدي الاستماع", description: "استمع للكلمة واختر الترجمة الصحيحة" },
+  { id: "pronunciation-challenge", label: "تحدي النطق", description: "تدرب على نطق الكلمات باستخدام الميكروفون" },
+  { id: "matching", label: "المطابقة", description: "قم بمطابقة الكلمة مع ترجمتها" },
+  { id: "memory", label: "اختبار الذاكرة", description: "بطاقات الذاكرة: ابحث عن أزواج الكلمة والترجمة" },
+];
+
+function GamesBlock({
   lessonId,
+  expanded,
+  onToggle,
 }: {
   lessonId: string;
+  expanded?: boolean;
+  onToggle?: () => void;
 }): ReactNode {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const DEFAULT_WORDS = 10;
+
+  const { data: games } = useQuery({
+    queryKey: ["lesson-games", lessonId],
+    queryFn: async () => {
+      const res = await api.get<Record<string, { enabled: boolean; wordsPerGame?: number }>>(`/lessons/${lessonId}/games`);
+      return res.data ?? {};
+    },
+    staleTime: 30_000,
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (newGames: Record<string, { enabled: boolean; wordsPerGame?: number }>) => {
+      await api.patch(`/lessons/${lessonId}/games`, newGames);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["lesson-games", lessonId] });
+    },
+  });
+
+  const toggleGame = (gameId: string): void => {
+    const current = { ...games };
+    if (!(gameId in current)) {
+      current[gameId] = { enabled: false, wordsPerGame: DEFAULT_WORDS };
+    }
+    const prev = current[gameId];
+    const wasEnabled = prev.enabled;
+    current[gameId] = { enabled: !wasEnabled, wordsPerGame: prev.wordsPerGame ?? DEFAULT_WORDS };
+    mutation.mutate(current);
+  };
+
+  const setWordsPerGame = (gameId: string, words: number): void => {
+    const current = { ...games };
+    const capped = Math.max(5, Math.min(50, words));
+    if (!(gameId in current)) {
+      current[gameId] = { enabled: false, wordsPerGame: DEFAULT_WORDS };
+    }
+    const prev = current[gameId];
+    current[gameId] = { enabled: prev.enabled, wordsPerGame: capped };
+    mutation.mutate(current);
+  };
 
   return (
-    <>
-      <UploadCard
-        title="أسئلة الدرس"
-        description="رفع ملف Word لعرض الأسئلة المستخرجة وتعديلها قبل الحفظ"
-        icon={FileQuestion}
-        accept=".docx,.doc"
-        state="empty"
-        onFileSelect={(): void => { setDialogOpen(true); }}
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        onDelete={(): void => {}}
-      />
-      {dialogOpen && (
-        <QuestionImportPreviewDialog
-          lessonId={lessonId}
-          onClose={(): void => { setDialogOpen(false); }}
-        />
-      )}
-    </>
+    <ContentBlock
+      title="أنشطة تعليمية"
+      description="اختر أنواع الألعاب التي تظهر للطالب في هذا الدرس"
+      icon={Sparkles}
+      expanded={expanded}
+      onToggle={onToggle}
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-neutral-500">
+          الألعاب التالية تستخدم كلمات الدرس الحالي تلقائياً. فعّل ما يناسب طلابك.
+        </p>
+        <div className="flex flex-col gap-2">
+          {GAME_TYPES.map((game) => {
+            const enabled = games?.[game.id]?.enabled ?? false;
+            const wordsCount = games?.[game.id]?.wordsPerGame ?? DEFAULT_WORDS;
+            return (
+              <div
+                key={game.id}
+                className={`flex flex-col gap-2 rounded-lg border p-3 transition-colors ${
+                  enabled
+                    ? "border-primary-500/30 bg-primary-500/5"
+                    : "border-neutral-700/50 bg-transparent"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium text-neutral-200">{game.label}</span>
+                    <span className="text-[11px] text-neutral-500">{game.description}</span>
+                  </div>
+                  <Switch
+                    checked={enabled}
+                    onChange={(): void => { toggleGame(game.id); }}
+                    disabled={mutation.isPending}
+                  />
+                </div>
+                {enabled && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-neutral-500">عدد الكلمات:</span>
+                    <input
+                      type="number"
+                      min={5}
+                      max={50}
+                      value={wordsCount}
+                      onChange={(e): void => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val)) setWordsPerGame(game.id, val);
+                      }}
+                      className="w-20 rounded-lg border border-neutral-600 bg-transparent px-2 py-1 text-xs text-neutral-200 focus:border-primary-500 focus:outline-none"
+                      disabled={mutation.isPending}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </ContentBlock>
   );
 }
 
@@ -1450,15 +1687,55 @@ export function LessonContentBlocks({
   quiz,
   homework,
 }: LessonContentData): ReactNode {
+  const [expandedBlock, setExpandedBlock] = useState<string | null>("video");
+
+  const toggleBlock = (id: string): void => {
+    setExpandedBlock((prev) => (prev === id ? null : id));
+  };
+
   return (
     <div className="flex flex-col gap-4">
-      <VideoBlock lessonId={lessonId} videos={videos} />
-      <VideoQuestionBlock lessonId={lessonId} videos={videos} />
-      <VocabularyBlock lessonId={lessonId} vocabulary={vocabulary} />
-      <PdfBlock lessonId={lessonId} document={document} />
-      <QuizBlock lessonId={lessonId} quiz={quiz} />
-      <HomeworkBlock lessonId={lessonId} homework={homework} />
-      <QuestionBlock lessonId={lessonId} />
+      <VideoBlock
+        lessonId={lessonId}
+        videos={videos}
+        expanded={expandedBlock === "video"}
+        onToggle={(): void => { toggleBlock("video"); }}
+      />
+      <VideoQuestionBlock
+        lessonId={lessonId}
+        videos={videos}
+        expanded={expandedBlock === "video-questions"}
+        onToggle={(): void => { toggleBlock("video-questions"); }}
+      />
+      <VocabularyBlock
+        lessonId={lessonId}
+        vocabulary={vocabulary}
+        expanded={expandedBlock === "vocabulary"}
+        onToggle={(): void => { toggleBlock("vocabulary"); }}
+      />
+      <PdfBlock
+        lessonId={lessonId}
+        document={document}
+        expanded={expandedBlock === "pdf"}
+        onToggle={(): void => { toggleBlock("pdf"); }}
+      />
+      <HomeworkBlock
+        lessonId={lessonId}
+        homework={homework}
+        expanded={expandedBlock === "homework"}
+        onToggle={(): void => { toggleBlock("homework"); }}
+      />
+      <GamesBlock
+        lessonId={lessonId}
+        expanded={expandedBlock === "games"}
+        onToggle={(): void => { toggleBlock("games"); }}
+      />
+      <QuizBlock
+        lessonId={lessonId}
+        quiz={quiz}
+        expanded={expandedBlock === "quiz"}
+        onToggle={(): void => { toggleBlock("quiz"); }}
+      />
     </div>
   );
 }

@@ -16,11 +16,18 @@ export function UnitMapSelect({
   onSelect,
 }: UnitMapSelectProps): ReactNode {
   return (
-    <div className="relative mx-auto w-full max-w-md overflow-x-hidden py-2">
-      <div className="pointer-events-none absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 rounded-full bg-gradient-to-b from-primary-500/15 via-primary-500/45 to-primary-500/15" />
-      <div className="relative flex flex-col items-center gap-6">
+    <div className="flex w-full flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-bold text-neutral-700 dark:text-neutral-200">
+          اختر الوحدة
+        </p>
+        <span className="text-xs font-semibold text-neutral-400">
+          {String(units.length)} وحدة
+        </span>
+      </div>
+
+      <div className="flex w-full gap-2 overflow-x-auto pb-2 [scrollbar-width:thin]">
         {units.map((unit, idx) => {
-          const isOdd = idx % 2 === 0;
           const active = selectedId === unit.id;
           return (
             <button
@@ -29,29 +36,32 @@ export function UnitMapSelect({
               onClick={() => {
                 onSelect(unit.id);
               }}
-              className={`relative z-10 flex flex-col items-center gap-2 ${
-                isOdd ? "md:translate-x-14" : "md:-translate-x-14"
+              aria-pressed={active}
+              className={`flex shrink-0 flex-col items-center gap-1.5 rounded-2xl border-2 px-3 py-3 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
+                active
+                  ? "border-primary-500 bg-primary-500/10"
+                  : "border-neutral-200 bg-white hover:border-primary-500/40 dark:border-neutral-700 dark:bg-neutral-900/40"
               }`}
             >
               <span
-                className={`relative flex h-20 w-20 items-center justify-center rounded-full border-4 font-cairo text-3xl font-black transition-all duration-200 ${
+                className={`relative flex h-12 w-12 items-center justify-center rounded-full font-cairo text-lg font-black transition-all duration-200 ${
                   active
-                    ? "border-primary-500 bg-primary-500 text-white shadow-[0_0_24px_rgba(34,211,238,0.45)]"
-                    : "border-primary-500/30 bg-white text-primary-500 hover:border-primary-500/60 dark:bg-neutral-900/60"
+                    ? "bg-primary-500 text-white shadow-[0_0_16px_rgba(34,211,238,0.35)]"
+                    : "bg-primary-500/10 text-primary-500"
                 }`}
               >
                 {String(idx + 1)}
                 {unit.isPremium && (
-                  <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-white shadow-[0_0_10px_rgba(245,158,11,0.5)]">
-                    <Lock className="h-3 w-3" />
+                  <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white">
+                    <Lock className="h-2.5 w-2.5" />
                   </span>
                 )}
               </span>
               <span
-                className={`max-w-[150px] text-center text-sm font-bold ${
+                className={`max-w-[84px] truncate text-center text-xs font-bold ${
                   active
                     ? "text-primary-600 dark:text-primary-400"
-                    : "text-neutral-700 dark:text-neutral-200"
+                    : "text-neutral-600 dark:text-neutral-300"
                 }`}
               >
                 {unit.title}

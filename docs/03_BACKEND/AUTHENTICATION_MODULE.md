@@ -1,389 +1,58 @@
-# AUTHENTICATION_MODULE.md
+# Authentication Module
 
-# El-bannawy Platform
-## Authentication Module Requirements
+Version: 2.1.0
+Source: `apps/backend/src/auth`
 
-Version: 1.0.0
+## Implemented Flows
 
----
+- Register with full name, **required email**, optional mobile, password, and optional academic/profile data.
+- **Email verification**: a 6-digit code is sent to the registered email (via Brevo) and the account stays `PENDING_VERIFICATION` until the code is confirmed (`/auth/verify-email`).
+- Login is blocked until the email has been verified.
+- **Firebase Authentication (hybrid)**: the frontend signs in with Firebase email/password and submits the ID token to `/auth/firebase-login`. The backend verifies the token with the Firebase Admin SDK and issues the platform JWT, preserving the existing sessions/permissions/refresh-token model. `/auth/login` (bcrypt, email or mobile) remains supported for existing accounts and mobile-only users.
+- JWT access token and persisted refresh token issuance.
+- Logout with session/token invalidation.
+- Refresh token rotation/revocation behavior.
+- Forgot-password and reset-password verification-code flow.
+- Google OAuth start/callback and completion of OAuth registration.
+- Authenticated user profile (`/auth/me`) and session list/deletion.
 
-# Purpose
+## Roles
 
-The Authentication Module is responsible for securely identifying users and granting access to the platform.
+The database supports student, teacher, staff, secretary, support, and administrator. Effective shared permissions currently cover student, teacher, staff, and administrator; see `docs/00_PROJECT_OVERVIEW/USER_ROLES.md`.
 
-Every protected feature depends on this module.
+## Endpoint Prefix
 
-Authentication is mandatory.
+`/api/v1/auth`: `register`, `verify-email`, `resend-verification`, `firebase-login`, `login`, `google`, `google/callback`, `complete-oauth-registration`, `logout`, `refresh-token`, `forgot-password`, `reset-password`, `me`, `sessions`, and `sessions/:id`.
 
----
+## Registration & Verification Flow
 
-# Objectives
+1. Client calls `/auth/register` with `fullName`, `email`, optional `mobile`, `password`, `confirmPassword` and profile fields. A `firebaseIdToken` may be included if the client already created the Firebase Auth user.
+2. The backend creates the user with status `PENDING_VERIFICATION`, generates a 6-digit code, persists it in `email_verifications`, and emails it via Brevo.
+3. If a Firebase token was provided and Firebase reports the email verified, the account is activated immediately; otherwise the code must be confirmed.
+4. Client calls `/auth/verify-email` with `{ email, code }` → the user is set to `ACTIVE` with `emailVerifiedAt`.
+5. Client calls `/auth/firebase-login` with `{ idToken }` (Firebase sign-in) or `/auth/login` with email/mobile + password (bcrypt) to obtain the platform tokens.
 
-The Authentication Module must:
+## Environment Variables
 
-- Secure user accounts
-- Protect platform resources
-- Support multiple user roles
-- Maintain user sessions
-- Prevent unauthorized access
+- `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` — Brevo transactional email for verification codes.
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` — Firebase Admin (used for both FCM and verifying Firebase Auth ID tokens).
 
----
+## Security Controls
 
-# Supported Roles
+- Passwords are hashed with bcryptjs.
+- JWT configuration is loaded from validated environment variables.
+- Protected routes use `JwtAuthGuard`.
+- Login history is persisted.
+- Sessions and refresh tokens can be revoked.
+- Email verification codes are 6 digits, expire after 15 minutes, and are rate-limited (max 3 pending per user).
+- Firebase ID tokens are verified server-side with the Firebase Admin SDK before a platform JWT is issued.
 
-- Student
-- Teacher
-- Secretary
-- Support
-- Administrator
+## Open Hardening
 
----
-
-# Authentication Flow
-
-Open Application
-
-↓
-
-Splash Screen
-
-↓
-
-Check Existing Session
-
-↓
-
-Valid Session
-
-↓
-
-Go To Dashboard
-
-↓
-
-Invalid Session
-
-↓
-
-Login Screen
-
----
-
-# Registration Flow
-
-Student opens registration.
-
-↓
-
-Enter Full Name.
-
-↓
-
-Enter Mobile Number.
-
-↓
-
-Create Password.
-
-↓
-
-Confirm Password.
-
-↓
-
-Accept Terms & Conditions.
-
-↓
-
-Create Account.
-
-↓
-
-Verify Account.
-
-↓
-
-Login.
-
----
-
-# Login Flow
-
-Student enters:
-
-- Mobile Number
-- Password
-
-↓
-
-Validate Input
-
-↓
-
-Authenticate
-
-↓
-
-Generate Tokens
-
-↓
-
-Open Dashboard
-
----
-
-# Forgot Password Flow
-
-Student enters registered mobile number.
-
-↓
-
-Receive verification code.
-
-↓
-
-Verify code.
-
-↓
-
-Create new password.
-
-↓
-
-Login again.
-
----
-
-# Session Flow
-
-Login
-
-↓
-
-Access Token
-
-↓
-
-Refresh Token
-
-↓
-
-Session Active
-
-↓
-
-Logout
-
-↓
-
-Invalidate Tokens
-
----
-
-# Authentication Methods
-
-Version 1 supports:
-
-- Mobile Number
-- Password
-
-Future Versions:
-
-- Google Login
-- Apple Login
-- Facebook Login
-
-Not included in Version 1.
-
----
-
-# Password Rules
-
-Minimum Length
-
-8 Characters
-
-Must contain:
-
-- Uppercase Letter
-- Lowercase Letter
-- Number
-
-Recommended:
-
-- Special Character
-
-Passwords must always be hashed.
-
-Never store plain text passwords.
-
----
-
-# Mobile Number Rules
-
-Every account must have one unique mobile number.
-
-Duplicate mobile numbers are prohibited.
-
----
-
-# Account Status
-
-Possible statuses:
-
-- Active
-- Pending Verification
-- Suspended
-- Deleted
-
-Only Active accounts may login.
-
----
-
-# Token Rules
-
-The platform uses:
-
-JWT Access Token
-
-JWT Refresh Token
-
-Access Token
-
-Short Lifetime
-
-Refresh Token
-
-Long Lifetime
-
----
-
-# Authorization
-
-Authentication identifies the user.
-
-Authorization determines permissions.
-
-Role-Based Access Control (RBAC) is mandatory.
-
----
-
-# Logout
-
-Logout must:
-
-- Destroy Session
-- Revoke Refresh Token
-- Clear Local Storage
-- Redirect to Login
-
----
-
-# Security Rules
-
-Always:
-
-- Hash Passwords
-- Validate Tokens
-- Validate Sessions
-- Protect Private Routes
-- Validate Permissions
-
-Never expose:
-
-- Passwords
-- Secrets
-- Internal IDs
-
----
-
-# Validation Rules
-
-Every request must validate:
-
-- Required Fields
-- Mobile Number Format
-- Password Strength
-
----
-
-# Error Messages
-
-Use user-friendly messages.
-
-Examples:
-
-Invalid mobile number.
-
-Invalid password.
-
-Session expired.
-
-Access denied.
-
-Never expose internal server information.
-
----
-
-# Rate Limiting
-
-Login endpoint must be rate-limited.
-
-Prevent brute-force attacks.
-
----
-
-# Audit Logs
-
-Authentication events must be logged.
-
-Examples:
-
-- Login
-- Logout
-- Password Reset
-- Failed Login
-- Token Refresh
-
----
-
-# Future Enhancements
-
-Future versions may include:
-
-- Two-Factor Authentication (2FA)
-- Biometric Authentication
-- Passkeys
-- Device Management
-
----
-
-# Acceptance Criteria
-
-Authentication Module is complete when:
-
-✓ Registration works.
-
-✓ Login works.
-
-✓ Logout works.
-
-✓ Password Reset works.
-
-✓ JWT Authentication works.
-
-✓ Refresh Tokens work.
-
-✓ Role Authorization works.
-
-✓ Security validation passes.
-
-✓ Audit logging works.
-
----
-
-# Final Rule
-
-No protected resource may be accessed without successful authentication and authorization.
+- Add endpoint throttling and abuse controls.
+- Replace OAuth token query-string handoff with a secure cookie or one-time exchange.
+- Verify all identity/password DTO combinations and registration edge cases.
+- Avoid logging verification codes or sensitive authentication data.
+- Add resend-cooldown timing to the email verification flow.
 
 End of Document.

@@ -15,7 +15,7 @@ import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
-import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
+import { successResponse, paginatedResponse, type ISuccessResponse } from "../common/helpers/response.helper";
 
 @Controller("coins")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -114,9 +114,13 @@ export class CoinsController {
 
   @Get("codes")
   @Roles("ADMINISTRATOR", "TEACHER")
-  async listCodes(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.coins.listCodes(userId);
-    return successResponse(data);
+  async listCodes(
+    @CurrentUser() userId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<ISuccessResponse<unknown[]>> {
+    const { data, meta } = await this.coins.listCodes(userId, Number(page) || 1, Number(limit) || 20);
+    return paginatedResponse(data, meta);
   }
 
   @Post("codes")
@@ -139,12 +143,23 @@ export class CoinsController {
     return successResponse(data, "Code updated");
   }
 
+  @Delete("codes/:id")
+  @Roles("ADMINISTRATOR", "TEACHER")
+  async deleteCode(
+    @Param("id", ParseUUIDPipe) id: string,
+  ): Promise<ISuccessResponse<{ deleted: boolean }>> {
+    const data = await this.coins.removeCode(id);
+    return successResponse(data, "Code deleted");
+  }
+
   @Get("requests")
   async listRequests(
     @CurrentUser() userId: string,
     @Query("status") status?: string,
-  ): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.coins.listRequests(userId, status);
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.coins.listRequests(userId, status, Number(page) || 1, Number(limit) || 20);
     return successResponse(data);
   }
 
@@ -188,14 +203,22 @@ export class CoinsController {
   }
 
   @Get("my-purchases")
-  async myPurchases(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.coins.listMyPurchases(userId);
+  async myPurchases(
+    @CurrentUser() userId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.coins.listMyPurchases(userId, Number(page) || 1, Number(limit) || 20);
     return successResponse(data);
   }
 
   @Get("my-unlocks")
-  async myUnlocks(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.coins.listMyUnlocks(userId);
+  async myUnlocks(
+    @CurrentUser() userId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.coins.listMyUnlocks(userId, Number(page) || 1, Number(limit) || 20);
     return successResponse(data);
   }
 }

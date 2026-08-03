@@ -1,656 +1,117 @@
 # El-bannawy Platform
 
-> Next Generation AI-Powered English Learning Platform
-
-Version: 1.0.0
-
----
-
-# Welcome
-
-Welcome to the official documentation of the El-bannawy Platform.
-
-This repository contains the complete technical documentation required to design, develop, deploy and maintain the platform.
-
-The documentation is intended for:
-
-- Software Engineers
-- AI Engineers
-- Frontend Developers
-- Backend Developers
-- DevOps Engineers
-- QA Engineers
-- Product Managers
-- Technical Writers
-- AI Coding Agents
-
-Every architectural decision in the platform is documented here.
-
----
-
-# Vision
-
-The El-bannawy Platform is an AI-powered educational ecosystem designed to provide a personalized English learning experience for Arabic-speaking students.
-
-The platform combines:
-
-- Interactive Lessons
-- Recorded Videos
-- Live Classes
-- AI Tutoring
-- Adaptive Learning
-- Gamification
-- Analytics
-
-into one unified educational experience.
-
----
-
-# Core Principles
-
-Education First
-
-AI Assists Learning
-
-Mobile First
-
-Dark Mode First
-
-Accessibility First
-
-Performance First
-
-Security by Design
-
-Scalable Architecture
-
-Developer Experience
-
----
-
-# Target Users
-
-Students
-
-Teachers
-
-Parents (Future)
-
-Secretaries
-
-Support Team
-
-Administrators
-
-AI Services
-
----
-
-# Technology Stack
-
-## Frontend
-
-Next.js 15
-
-React
-
-TypeScript
-
-TailwindCSS
-
-TanStack Query
-
-Zustand
-
----
-
-## Backend
-
-NestJS
-
-TypeScript
-
-Prisma ORM
-
-REST API
-
-BullMQ
-
-Redis
-
----
-
-## Database
-
-PostgreSQL
-
-pgvector
-
-Redis
-
----
-
-## Artificial Intelligence
-
-OpenAI
-
-Google Gemini
-
-DeepSeek
-
-Claude
-
-RAG
-
-Vector Search
-
-Embeddings
-
----
-
-## Infrastructure
-
-Docker
-
-GitHub Actions
-
-Nginx
-
-Prometheus
-
-Grafana
-
-Loki
-
-Cloudflare
-
----
-
-# Project Architecture
-
-Frontend
-
-↓
-
-API
-
-↓
-
-Business Layer
-
-↓
-
-Database
-
-↓
-
-AI Layer
-
-↓
-
-Infrastructure
-
-Each layer is isolated.
-
----
-
-# Documentation Structure
-
-```
-docs/
-
-00_PROJECT_OVERVIEW/
-01_ARCHITECTURE/
-02_DATABASE/
-03_BACKEND/
-04_SECURITY/
-05_API/
-06_UI/
-07_AI/
-08_DEVOPS/
-09_TESTING/
-10_DEPLOYMENT/
-11_APPENDICES/
-```
-
----
-
-# Reading Order
-
-New developers should follow this order:
-
-1.
-
-Project Overview
-
-↓
-
-2.
-
-Architecture
-
-↓
-
-3.
-
-Database
-
-↓
-
-4.
-
-Backend
-
-↓
-
-5.
-
-Security
-
-↓
-
-6.
-
-API
-
-↓
-
-7.
-
-UI
-
-↓
-
-8.
-
-AI
-
-↓
-
-9.
-
-DevOps
-
-↓
-
-10.
-
-Testing
-
-↓
-
-11.
-
-Deployment
-
----
-
-# Main Features
-
-Authentication
-
-Authorization
-
-Student Dashboard
-
-Teacher Dashboard
-
-Administrator Dashboard
-
-Secretary Dashboard
-
-AI Assistant
-
-Lessons
-
-Homework
-
-Quizzes
-
-Vocabulary
-
-Stories
-
-Live Classes
-
-Payments
-
-XP
-
-Coins
-
-Achievements
-
-Notifications
-
-Reports
-
-Analytics
-
-Search
-
-File Storage
-
-Monitoring
-
-Audit Logs
-
----
-
-# Artificial Intelligence
-
-The AI system includes:
-
-Curriculum-Aware RAG
-
-Prompt Engine
-
-Memory
-
-Recommendation Engine
-
-Specialized Agents
-
-Context Builder
-
-Knowledge Base
-
-Provider Abstraction
-
-Streaming
-
-Safety Validation
-
----
-
-# Development Workflow
-
-Task
-
-↓
-
-Feature Branch
-
-↓
-
-Development
-
-↓
-
-Tests
-
-↓
-
-Pull Request
-
-↓
-
-Review
-
-↓
-
-CI
-
-↓
-
-Deployment
-
----
-
-# Code Standards
-
-TypeScript Only
-
-Strict Mode
-
-No any
-
-ESLint
-
-Prettier
-
-Feature-Based Architecture
-
-Clean Code
-
-SOLID Principles
-
----
-
-# Quality Standards
-
-Automated Testing
-
-Security Scanning
-
-Performance Monitoring
-
-Accessibility
-
-Documentation
-
-Code Review
-
----
-
-# Security
-
-JWT Authentication
-
-Role-Based Access Control
-
-Encrypted Secrets
-
-Rate Limiting
-
-Audit Logs
-
-OWASP Compliance
-
----
-
-# Performance Goals
-
-API
-
-<300ms
-
-AI
-
-<3 Seconds
-
-Dashboard
-
-<2 Seconds
-
-Database Queries
-
-<100ms
-
----
-
-# Scalability
-
-Horizontal Scaling
-
-Redis Cache
-
-BullMQ Workers
-
-Provider Abstraction
-
-Object Storage
-
-Stateless APIs
-
----
-
-# Folder Structure
-
-```
+Enterprise English-learning platform for Arabic-speaking students. The repository is a TypeScript monorepo containing the current web experience, NestJS API, Prisma database package, shared contracts, and an Expo mobile bootstrap.
+
+## Current Baseline
+
+- Release line: `1.0.x` development baseline
+- Backend API: NestJS 11 at `/api/v1`
+- Web client: Next.js 15 App Router
+- Mobile client: Expo Router bootstrap with shared API/auth utilities
+- Database: PostgreSQL through Prisma 6
+- Primary state: TanStack Query and Zustand on web
+- Authentication: JWT access/refresh tokens, password reset, Google OAuth path
+- UI: Tailwind CSS v4, semantic design tokens, dark/light mode, Arabic RTL support
+
+The code is the implementation baseline. Feature documents must distinguish implemented behavior from planned behavior.
+
+## Implemented Product Areas
+
+- Registration, login, logout, refresh tokens, sessions, password reset, and Google OAuth flow
+- Student, teacher, administrator, staff, secretary, and support account roles in the database
+- Role-aware dashboards and academic context: educational system, stage, grade, year, and term
+- Curriculum units, lessons, publication state, premium state, locked overrides, and progress
+- Multi-video lessons using a provider abstraction with the current YouTube provider
+- Interactive video timeline events and video questions
+- Activity engine with vocabulary, multiple choice, true/false, matching, fill-in-the-blanks, drag/drop, reading, story questions, conversation, speaking, writing, and paragraph types
+- DOCX extraction and preview/import workflows for questions and structured vocabulary, including synonym/antonym sections and part of speech
+- Lesson documents/PDF metadata and download flow
+- Homework, lesson quizzes, reusable assessments, attempts, autosave-oriented assessment player, scoring, and feedback policies
+- Stories with chapters, videos, vocabulary, questions, and student attempts
+- Final review with grade/year/term context, sections, videos, vocabulary, questions, and publication controls
+- Learn-from-mistakes views and mini exams
+- Educational games currently focused on listening and pronunciation challenges
+- XP, achievements, leaderboard views, and competitions with invitations, submissions, scoring, and leaderboard
+- Coins, coin packages, payment verification flow, wallet balance, content unlocks, activation codes, and unlock requests
+- Live sessions, teacher availability, date blocks, subscriptions, bookings, announcements, control logs, and attendance
+- In-app notifications and notification preferences
+- Support tickets, messages, assignment, resolution, and grade support contacts
+- Reports for student, teacher, and administrator views
+- AI conversations, recent conversation context, lesson context, provider-compatible chat call, rule-based fallback, and recommendations
+- Shared permission constants and delegated teacher/staff permissions with audit logging
+
+## Repository Layout
+
+```text
 apps/
-
-database/
-
-docs/
-
-packages/
-
-scripts/
-
-docker/
-
-.github/
+  backend/       NestJS modular monolith
+  mobile/        Expo Router mobile bootstrap
+  web/           Next.js web application
+database/        Prisma schema, migrations, and seed
+packages/shared/ Shared TypeScript contracts, question types, permissions, utilities
+docs/            Current and planned project documentation
+docker/          Local PostgreSQL, Redis, Mailpit, backend, and web compose setup
+scripts/         Setup scripts
 ```
 
----
-
-# Getting Started
-
-Clone Repository
-
-↓
-
-Install Dependencies
-
-↓
-
-Configure Environment
-
-↓
-
-Run Database
-
-↓
-
-Run Redis
-
-↓
-
-Start Backend
-
-↓
-
-Start Frontend
-
-↓
-
-Open Browser
-
----
-
-# Contribution Rules
-
-Read Documentation First
-
-Follow Coding Standards
-
-Write Tests
-
-Update Documentation
-
-Pass CI
-
-Request Review
-
----
-
-# Documentation Rules
-
-Every new module must include:
-
-Purpose
-
-Responsibilities
-
-Architecture
-
-Data Flow
-
-Interfaces
-
-Acceptance Criteria
-
-Final Rule
-
----
-
-# Release Strategy
-
-Semantic Versioning
-
-MAJOR.MINOR.PATCH
-
-Example
-
-1.0.0
-
----
-
-# Long-Term Goals
-
-AI Personalized Learning
-
-Adaptive Curriculum
-
-Voice Tutor
-
-Speaking Evaluation
-
-Parent Dashboard
-
-Native Mobile Apps
-
-Marketplace
-
-Offline Learning
-
-International Expansion
-
----
-
-# Engineering Philosophy
-
-Readable code is better than clever code.
-
-Automation is better than manual work.
-
-Documentation is part of the product.
-
-Security is never optional.
-
-Performance is a feature.
-
-AI should assist teachers, not replace them.
-
-Students should always remain the center of every technical decision.
-
----
-
-# Final Notes
-
-This repository represents the complete technical blueprint of the El-bannawy Platform.
-
-Every subsystem—from authentication and curriculum management to AI orchestration and production deployment—has been documented to ensure consistency, maintainability and long-term scalability.
-
-All future development must follow the architecture, standards and engineering practices defined throughout this documentation.
-
----
-
-# License
-
-Private Project
-
-Copyright © El-bannawy Platform
-
-All Rights Reserved.
-
----
-
-# Final Rule
-
-If any implementation conflicts with this documentation, the documentation must be updated first or the implementation must be revised.
-
-The documentation is the single source of truth for the El-bannawy Platform.
+## Technology Reality
+
+The repository contains Docker services for PostgreSQL, Redis, and Mailpit. The backend uses Prisma directly; it does not yet wire Redis caching, email delivery, or WhatsApp/FCM delivery. A BullMQ scheduler queue (`scheduler` module, `scheduled-notifications` queue) is provisioned but no job consumers/workers are implemented yet. The AI module currently uses a configurable OpenAI-compatible chat endpoint with a rule-based fallback; a production RAG/vector pipeline is planned, not implemented.
+
+## Local Setup
+
+Prerequisites:
+
+- Node.js 20 or newer
+- pnpm 9 or newer; the repository is pinned to pnpm 11
+- Docker Desktop, or a reachable PostgreSQL instance
+
+```powershell
+pnpm install
+Copy-Item .env.example .env
+docker compose -f docker/docker-compose.yml up -d postgres redis mailpit
+pnpm --filter @el-bannawy/database generate
+pnpm --filter @el-bannawy/database migrate:deploy
+pnpm --filter @el-bannawy/database seed
+pnpm dev
+```
+
+The local API listens on `http://localhost:4000/api/v1` and the web client on `http://localhost:3000`. When using the compose PostgreSQL service, its host port is `5433`; update `DATABASE_URL` accordingly.
+
+Required backend secrets are `JWT_SECRET` and `PAYMENT_WEBHOOK_SECRET`, each at least 16 characters. Do not use the example values outside local development.
+
+## Verification
+
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm --filter @el-bannawy/backend test
+pnpm --filter @el-bannawy/web test
+```
+
+## Documentation Map
+
+- `MASTER_EXECUTION_PLAN.md`: implementation status and delivery gates
+- `docs/00_PROJECT_OVERVIEW/`: current product scope, roles, rules, and technology
+- `docs/01_ARCHITECTURE/`: runtime and API architecture
+- `docs/02_DATABASE/`: Prisma-backed data model and migration policy
+- `docs/03_BACKEND/`: module behavior and boundaries
+- `docs/05_API/`: endpoint inventory and API conventions
+- `docs/06_UI/`: implemented design system and screen conventions
+- `docs/07_AI/`: current AI boundary and future AI architecture
+- `docs/08_DEVOPS/`, `docs/09_TESTING/`, `docs/10_DEPLOYMENT/`: operational status and procedures
+
+## Out of Current Baseline
+
+The following are not to be described as completed until code and tests exist:
+
+- Parent portal and desktop client
+- Full production RAG, embeddings, pgvector retrieval, memory, and streaming orchestration
+- Redis cache and BullMQ workers
+- Native push, email, WhatsApp, and SMS delivery
+- Public Swagger contract for every endpoint
+- Production monitoring, metrics, and distributed tracing
+- Offline learning and marketplace
 
 End of Document.

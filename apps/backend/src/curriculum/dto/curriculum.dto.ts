@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsInt,
   IsUUID,
+  IsEnum,
   Min,
 } from "class-validator";
 
@@ -14,6 +15,10 @@ export class CreateUnitDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsEnum(["UNIT", "STORY", "FINAL_REVIEW"])
+  unitType?: "UNIT" | "STORY" | "FINAL_REVIEW";
 
   @IsUUID()
   gradeId!: string;
@@ -58,6 +63,10 @@ export class UpdateUnitDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsEnum(["UNIT", "STORY", "FINAL_REVIEW"])
+  unitType?: "UNIT" | "STORY" | "FINAL_REVIEW";
 
   @IsOptional()
   @IsUUID()

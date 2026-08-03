@@ -3,12 +3,12 @@ import { PrismaService } from "../prisma/prisma.service";
 
 export interface MyGradesResponse {
   gradeIds: string[];
-  grades: Array<{
+  grades: {
     id: string;
     name: string;
     stage: { id: string; name: string };
     _count?: { users: number };
-  }>;
+  }[];
 }
 
 @Injectable()

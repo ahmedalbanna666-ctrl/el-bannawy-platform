@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { Strategy, type VerifyCallback } from "passport-google-oauth20";
 import { ConfigurationService } from "../../config/configuration.service";
@@ -11,9 +11,23 @@ interface GoogleProfile {
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
   constructor(config: ConfigurationService) {
+    const clientId = config.auth.googleClientId;
+    const clientSecret = config.auth.googleClientSecret;
+
+    if (!clientId || !clientSecret) {
+      Logger.warn("Google OAuth credentials not configured. Google login disabled.", "GoogleStrategy");
+      super({
+        clientID: "unconfigured",
+        clientSecret: "unconfigured",
+        callbackURL: config.auth.googleCallbackUrl,
+        scope: ["email", "profile"],
+      });
+      return;
+    }
+
     super({
-      clientID: config.auth.googleClientId,
-      clientSecret: config.auth.googleClientSecret,
+      clientID: clientId,
+      clientSecret: clientSecret,
       callbackURL: config.auth.googleCallbackUrl,
       scope: ["email", "profile"],
     });

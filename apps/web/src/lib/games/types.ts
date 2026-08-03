@@ -36,7 +36,13 @@ export interface PronunciationQuestion {
   readonly translation: string;
 }
 
+export interface MemoryGameSettings {
+  readonly enabled: boolean;
+  readonly wordsPerRound: number;
+}
+
 export interface GameSettingsStore {
   readonly listeningChallenge: ListeningChallengeSettings;
   readonly pronunciationChallenge: PronunciationChallengeSettings;
+  readonly memoryGame: MemoryGameSettings;
 }

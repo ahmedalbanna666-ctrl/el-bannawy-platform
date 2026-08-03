@@ -29,6 +29,31 @@ function doc(tables: NormalizedTable[]): NormalizedDocument {
   };
 }
 
+function docWithHeadings(
+  headings: readonly { text: string; headingLevel?: number }[],
+  tables: NormalizedTable[],
+): NormalizedDocument {
+  const paragraphs = headings.map((h, i) => ({
+    paragraphIndex: i,
+    text: h.text,
+    ...(h.headingLevel !== undefined ? { headingLevel: h.headingLevel } : {}),
+  }));
+  const contentOrder = [
+    ...headings.map((_, i) => ({ kind: "paragraph" as const, index: i })),
+    ...tables.map((t) => ({ kind: "table" as const, index: t.tableIndex })),
+  ];
+  let totalRows = 0;
+  for (const t of tables) {
+    totalRows += t.rows.length;
+  }
+  return {
+    tables,
+    paragraphs,
+    contentOrder,
+    metadata: { totalTables: tables.length, totalParagraphs: paragraphs.length, totalRows },
+  };
+}
+
 describe("VocabularyTableV2Parser", () => {
   let parser: VocabularyTableV2Parser;
 
@@ -81,6 +106,50 @@ describe("VocabularyTableV2Parser", () => {
       expect(result.sections.length).toBe(2);
       expect(result.sections[0].kind).toBe("STANDARD_VOCABULARY");
       expect(result.sections[1].kind).toBe("STANDARD_VOCABULARY");
+    });
+
+    it("pairs Heading 1 paragraphs (English + Arabic) to the tables that follow them", () => {
+      const input = docWithHeadings(
+        [
+          { text: "Key vocabularies", headingLevel: 1 },
+          { text: "المفردات الرئيسيه", headingLevel: 1 },
+          { text: "Extra vocabularies", headingLevel: 1 },
+          { text: "المفردات الاضافيه", headingLevel: 1 },
+        ],
+        [
+          table(0, [
+            row(0, ["communicate with", "يتواصل مع", "sibling", "شقيق"]),
+            row(1, ["connection", "اتصال", "conflict", "صراع"]),
+          ]),
+          table(1, [
+            row(0, ["text message", "رسالة نصية", "avoid", "يتجنب"]),
+            row(1, ["care", "يهتم", "upset", "منزعج"]),
+          ]),
+        ],
+      );
+      const result = parser.parse(input);
+      expect(result.sections.length).toBe(2);
+      expect(result.sections[0].title).toBe("المفردات الرئيسية - Key vocabularies");
+      expect(result.sections[1].title).toBe("المفردات الإضافية - Extra vocabularies");
+      expect(result.sections[0].sourceTableIndex).toBe(0);
+      expect(result.sections[1].sourceTableIndex).toBe(1);
+    });
+
+    it("combines English and Arabic headings without Heading1 style via section aliases", () => {
+      const input = docWithHeadings(
+        [
+          { text: "Collocations, Prepositions & Expressions" },
+          { text: "حروف الجر والمصطلحات" },
+        ],
+        [
+          table(0, [
+            row(0, ["make time", "يخصص وقت", "have a look", "يلقي نظرة"]),
+          ]),
+        ],
+      );
+      const result = parser.parse(input);
+      expect(result.sections.length).toBe(1);
+      expect(result.sections[0].title).toBe("حروف الجر والمصطلحات - Collocations, Prepositions & Expressions");
     });
 
     it("creates one section per SYNONYM_ANTONYM table", () => {

@@ -31,6 +31,8 @@ import {
   School,
   Layers,
   Shield,
+  BadgeCheck,
+  CalendarDays,
 } from "lucide-react";
 
 // ── Query Hook ──────────────────────────────────────────────────────
@@ -46,6 +48,63 @@ function useProfile(userId: string | undefined): UseQueryResult<UserProfileRespo
     enabled: !!userId,
     staleTime: 60_000,
   });
+}
+
+// ── Shared Layout Primitives ────────────────────────────────────────
+
+function SectionCard({
+  icon,
+  title,
+  action,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}): ReactNode {
+  return (
+    <Card variant="glass" padding="lg">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10">
+              {icon}
+            </div>
+            <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">{title}</h2>
+          </div>
+          {action}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-3">{children}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FieldRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}): ReactNode {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-neutral-200/70 bg-neutral-50/60 px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500 dark:text-primary-400">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{label}</p>
+        <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+          {value || <span className="font-normal text-neutral-400 dark:text-neutral-500">غير محدد</span>}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 // ── Inline Edit Field ────────────────────────────────────────────────
@@ -107,11 +166,13 @@ function EditableField({
   }, [draft, value, fieldKey, onSave, normalizeOnSave]);
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-white/10 p-3 transition-colors hover:border-white/20">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-neutral-50/60 p-3 transition-colors hover:border-neutral-300 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/20">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <span className="shrink-0 text-neutral-400">{icon}</span>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500 dark:text-primary-400">
+          {icon}
+        </span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-neutral-500">{label}</p>
+          <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{label}</p>
           {editing ? (
             renderEditor ? (
               <div className="mt-1">
@@ -128,8 +189,8 @@ function EditableField({
               />
             )
           ) : (
-            <p className="truncate text-sm font-medium text-neutral-200">
-              {value || <span className="text-neutral-600">غير محدد</span>}
+            <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+              {value || <span className="font-normal text-neutral-400 dark:text-neutral-500">غير محدد</span>}
             </p>
           )}
         </div>
@@ -149,7 +210,7 @@ function EditableField({
               <button
                 onClick={handleCancel}
                 disabled={saving}
-                className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-500/10 transition-colors"
+                className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-500/10 transition-colors dark:text-neutral-500"
                 aria-label="إلغاء"
               >
                 <X className="h-4 w-4" />
@@ -158,7 +219,7 @@ function EditableField({
           ) : (
             <button
               onClick={handleEdit}
-              className="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-500/10 hover:text-primary-400 transition-colors"
+              className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-500/10 hover:text-primary-500 transition-colors dark:text-neutral-500 dark:hover:text-primary-400"
               aria-label={`تعديل ${label}`}
             >
               <Pencil className="h-4 w-4" />
@@ -175,8 +236,7 @@ function EditableField({
 export default function ProfilePage(): ReactNode {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user: authUser } = useAuthStore();
-  const { setUser } = useAuthStore();
+  const { user: authUser, setUser } = useAuthStore();
   const { logout } = useAuth();
 
   const { data: profile, isLoading, isError, error, refetch } = useProfile(authUser?.id);
@@ -189,13 +249,15 @@ export default function ProfilePage(): ReactNode {
     onSuccess: async (data) => {
       if (data) {
         queryClient.setQueryData(["profile", data.id], data);
-        await queryClient.invalidateQueries({ queryKey: ["sidebar-profile", data.id] });
+        await queryClient.invalidateQueries({ queryKey: ["profile", data.id] });
         setUser({
           id: data.id,
           fullName: data.fullName,
           mobileNumber: data.mobileNumber,
           role: data.role,
           status: data.status,
+          gradeId: data.gradeId,
+          educationalSystem: data.educationalSystem,
         });
       }
     },
@@ -224,7 +286,7 @@ export default function ProfilePage(): ReactNode {
   const p = profile;
 
   const firstName = p.fullName ? p.fullName.split(" ")[0] : "";
-  const avatarUrl = p.avatarUrl ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName || "User")}&background=22D3EE&color=fff&bold=true&font-size=0.33&size=128`;
+  const avatarUrl = p.avatarUrl ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName || "User")}&background=06B6D4&color=fff&bold=true&font-size=0.33&size=128`;
 
   const statusLabel = p.status === "ACTIVE" ? "نشط" : p.status === "PENDING_VERIFICATION" ? "قيد التحقق" : p.status;
   const formattedDate = p.createdAt
@@ -233,181 +295,177 @@ export default function ProfilePage(): ReactNode {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
+      {/* Page header */}
+      <div className="flex flex-col gap-1">
+        <h1 className="text-xl font-extrabold text-neutral-900 dark:text-neutral-50">الملف الشخصي</h1>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">
+          إدارة بياناتك الشخصية ومعلومات حسابك
+        </p>
+      </div>
+
       {/* Personal Information */}
       <Card variant="glass" padding="lg">
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-primary-400" />
-            <h2 className="text-base font-extrabold text-neutral-100">المعلومات الشخصية</h2>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-            <img
-              src={avatarUrl}
-              alt=""
-              className="h-24 w-24 shrink-0 rounded-full border-2 border-primary-400 shadow-[0_0_20px_rgba(34,211,238,0.25)] object-cover"
-            />
-            <div className="flex flex-1 flex-col gap-3 text-center sm:text-start">
-              <div>
-                <p className="text-lg font-extrabold text-neutral-50">{p.fullName}</p>
-                <p className="text-sm text-neutral-400">
-                  {ROLE_LABELS[p.role] ?? p.role}
-                </p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <EditableField
-                  label="الاسم بالعربية"
-                  value={p.fullName}
-                  fieldKey="fullName"
-                  icon={<User className="h-4 w-4" />}
-                  onSave={handleFieldSave}
-                  placeholder="الاسم الكامل"
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+              <div className="relative shrink-0">
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="h-24 w-24 rounded-2xl border-2 border-primary-500/40 bg-neutral-100 object-cover shadow-[0_0_24px_rgba(6,182,212,0.25)] dark:bg-neutral-800"
                 />
-                {p.email && (
-                  <span className="flex items-center gap-2 px-1 text-sm text-neutral-400">
-                    <Mail className="h-4 w-4 text-neutral-500" />
-                    {p.email}
+                {p.status === "ACTIVE" && (
+                  <span className="absolute -bottom-1 -end-1 flex h-6 w-6 items-center justify-center rounded-full bg-success-500 text-white shadow-sm">
+                    <BadgeCheck className="h-4 w-4" />
                   </span>
                 )}
-                <span className="flex items-center gap-2 px-1 text-sm text-neutral-400">
-                  <Phone className="h-4 w-4 text-neutral-500" />
-                  {p.mobileNumber}
+              </div>
+              <div className="flex flex-1 flex-col items-center gap-1 text-center sm:items-start sm:text-start">
+                <p className="text-xl font-extrabold text-neutral-900 dark:text-neutral-50">{p.fullName}</p>
+                <p className="text-sm font-medium text-primary-600 dark:text-primary-400">
+                  {ROLE_LABELS[p.role] ?? p.role}
+                </p>
+                <span
+                  className={`mt-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    p.status === "ACTIVE"
+                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                      : "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                  }`}
+                >
+                  {p.status === "ACTIVE" ? <BadgeCheck className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}
+                  {statusLabel}
                 </span>
-                <EditableField
-                  label="النظام التعليمي"
-                  value={p.educationalSystem ?? ""}
-                  fieldKey="educationalSystem"
-                  icon={<Layers className="h-4 w-4" />}
-                  onSave={handleFieldSave}
-                  renderEditor={(draft, setDraft, disabled): ReactNode => (
-                    <Select
-                      label=""
-                      value={draft}
-                      onChange={(e): void => { setDraft(e.target.value); }}
-                      options={SYSTEM_OPTIONS}
-                      placeholder="اختر النظام التعليمي"
-                      disabled={disabled}
-                    />
-                  )}
-                />
               </div>
             </div>
+            <div className="h-px bg-neutral-200/70 dark:bg-white/10" />
+            <div className="flex flex-col gap-2">
+              <EditableField
+                label="الاسم بالعربية"
+                value={p.fullName}
+                fieldKey="fullName"
+                icon={<User className="h-4 w-4" />}
+                onSave={handleFieldSave}
+                placeholder="الاسم الكامل"
+              />
+              <FieldRow
+                label="البريد الإلكتروني"
+                value={p.email ?? ""}
+                icon={<Mail className="h-4 w-4" />}
+              />
+              <FieldRow
+                label="رقم الهاتف"
+                value={p.mobileNumber ?? ""}
+                icon={<Phone className="h-4 w-4" />}
+              />
+              <EditableField
+                label="النظام التعليمي"
+                value={p.educationalSystem ?? ""}
+                fieldKey="educationalSystem"
+                icon={<Layers className="h-4 w-4" />}
+                onSave={handleFieldSave}
+                renderEditor={(draft, setDraft, disabled): ReactNode => (
+                  <Select
+                    label=""
+                    value={draft}
+                    onChange={(e): void => { setDraft(e.target.value); }}
+                    options={SYSTEM_OPTIONS}
+                    placeholder="اختر النظام التعليمي"
+                    disabled={disabled}
+                  />
+                )}
+              />
+            </div>
           </div>
-        </CardContent>
+        </CardHeader>
       </Card>
 
-       {/* Role-Specific Profile Section */}
-       <RoleProfileSection profile={profile} onSave={handleFieldSave} />
+      {/* Role-Specific Profile Section */}
+      <RoleProfileSection profile={profile} onSave={handleFieldSave} />
 
       {/* Location */}
-      <Card variant="glass" padding="lg">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-primary-400" />
-            <h2 className="text-base font-extrabold text-neutral-100">الموقع</h2>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-2">
-            <EditableField
-              label="المحافظة"
-              value={p.governorate ?? ""}
-              fieldKey="governorate"
-              icon={<MapPin className="h-4 w-4" />}
-              onSave={handleFieldSave}
-              renderEditor={(draft, setDraft, disabled): ReactNode => (
-                <GovernorateSelect
-                  value={draft}
-                  onChange={setDraft}
-                  label=""
-                  disabled={disabled}
-                />
-              )}
+      <SectionCard
+        icon={<MapPin className="h-5 w-5 text-primary-500 dark:text-primary-400" />}
+        title="الموقع"
+      >
+        <EditableField
+          label="المحافظة"
+          value={p.governorate ?? ""}
+          fieldKey="governorate"
+          icon={<MapPin className="h-4 w-4" />}
+          onSave={handleFieldSave}
+          renderEditor={(draft, setDraft, disabled): ReactNode => (
+            <GovernorateSelect
+              value={draft}
+              onChange={setDraft}
+              label=""
+              disabled={disabled}
             />
-            <EditableField
-              label="المدرسة"
-              value={p.school ?? ""}
-              fieldKey="school"
-              icon={<School className="h-4 w-4" />}
-              onSave={handleFieldSave}
-              placeholder="اسم المدرسة"
-            />
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        />
+        <EditableField
+          label="المدرسة"
+          value={p.school ?? ""}
+          fieldKey="school"
+          icon={<School className="h-4 w-4" />}
+          onSave={handleFieldSave}
+          placeholder="اسم المدرسة"
+        />
+      </SectionCard>
 
       {/* Account Information */}
-      <Card variant="glass" padding="lg">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-primary-400" />
-            <h2 className="text-base font-extrabold text-neutral-100">معلومات الحساب</h2>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-neutral-400">حالة الحساب</span>
-              <span className={`text-sm font-extrabold ${p.status === "ACTIVE" ? "text-success-500" : "text-warning-500"}`}>
-                {statusLabel}
-              </span>
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-neutral-400">تاريخ التسجيل</span>
-              <span className="text-sm font-medium text-neutral-300">{formattedDate}</span>
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-neutral-400">نوع الحساب</span>
-              <span className="text-sm font-extrabold text-primary-400">مجاني</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <SectionCard
+        icon={<Shield className="h-5 w-5 text-primary-500 dark:text-primary-400" />}
+        title="معلومات الحساب"
+      >
+        <FieldRow
+          label="حالة الحساب"
+          value={statusLabel}
+          icon={<BadgeCheck className="h-4 w-4" />}
+        />
+        <FieldRow
+          label="تاريخ التسجيل"
+          value={formattedDate}
+          icon={<CalendarDays className="h-4 w-4" />}
+        />
+        <FieldRow
+          label="نوع الحساب"
+          value="مجاني"
+          icon={<Crown className="h-4 w-4" />}
+        />
+      </SectionCard>
 
       {/* Security */}
-      <Card variant="glass" padding="lg">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Lock className="h-4 w-4 text-primary-400" />
-            <h2 className="text-base font-extrabold text-neutral-100">الأمان</h2>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Button
-            variant="outline"
-            size="md"
-            fullWidth
-            className="justify-start gap-3"
-            onClick={(): void => { router.push("/reset-password"); }}
-          >
-            <Lock className="h-4 w-4" />
-            تغيير كلمة المرور
-          </Button>
-        </CardContent>
-      </Card>
+      <SectionCard
+        icon={<Lock className="h-5 w-5 text-primary-500 dark:text-primary-400" />}
+        title="الأمان"
+      >
+        <Button
+          variant="outline"
+          size="md"
+          fullWidth
+          className="justify-start gap-3"
+          onClick={(): void => { router.push("/reset-password"); }}
+        >
+          <Lock className="h-4 w-4" />
+          تغيير كلمة المرور
+        </Button>
+      </SectionCard>
 
       {/* Subscription */}
-      <Card variant="glass" padding="lg">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Crown className="h-4 w-4 text-yellow-400" />
-            <h2 className="text-base font-extrabold text-neutral-100">الاشتراك</h2>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between rounded-xl border border-white/10 p-3">
-              <span className="text-sm text-neutral-400">الخطة الحالية</span>
-              <span className="text-sm font-extrabold text-primary-400">مجاني</span>
-            </div>
-            <Button variant="primary" size="sm" fullWidth className="mt-1">
-              <Crown className="h-4 w-4" />
-              تجديد الاشتراك
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <SectionCard
+        icon={<Crown className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />}
+        title="الاشتراك"
+      >
+        <FieldRow
+          label="الخطة الحالية"
+          value="مجاني"
+          icon={<Crown className="h-4 w-4" />}
+        />
+        <Button variant="primary" size="sm" fullWidth>
+          <Crown className="h-4 w-4" />
+          تجديد الاشتراك
+        </Button>
+      </SectionCard>
 
       {/* Logout */}
       <Card variant="glass" padding="lg">
@@ -416,9 +474,11 @@ export default function ProfilePage(): ReactNode {
             variant="danger"
             size="md"
             fullWidth
-            onClick={() => {
-              void logout();
-              router.push("/login");
+            onClick={(): void => {
+              void (async (): Promise<void> => {
+                await logout();
+                router.push("/login");
+              })();
             }}
           >
             <LogOut className="h-4 w-4" />
@@ -435,11 +495,11 @@ export default function ProfilePage(): ReactNode {
 function ProfileSkeleton(): ReactNode {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <Skeleton className="h-48 w-full rounded-2xl" />
+      <Skeleton className="h-10 w-48 rounded-xl" />
       <Skeleton className="h-64 w-full rounded-2xl" />
+      <Skeleton className="h-56 w-full rounded-2xl" />
       <Skeleton className="h-40 w-full rounded-2xl" />
       <Skeleton className="h-32 w-full rounded-2xl" />
-      <Skeleton className="h-24 w-full rounded-2xl" />
     </div>
   );
 }

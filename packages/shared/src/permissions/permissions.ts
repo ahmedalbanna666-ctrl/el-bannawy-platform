@@ -21,12 +21,6 @@ export const PERMISSIONS = {
   HOMEWORK_MANAGE: "homework.manage",
   QUIZZES_MANAGE: "quizzes.manage",
 
-  STORY_VIEW: "story.view",
-  STORY_EDIT: "story.edit",
-  STORY_PUBLISH: "story.publish",
-
-  FINAL_REVIEW_VIEW: "final_review.view",
-  FINAL_REVIEW_EDIT: "final_review.edit",
 
   LIVE_VIEW: "live.view",
   LIVE_CREATE: "live.create",
@@ -38,6 +32,7 @@ export const PERMISSIONS = {
   STUDENTS_CREATE: "students.create",
 
   AI_MANAGE: "ai.manage",
+  AI_SETTINGS_MANAGE: "ai_settings.manage",
 
   REPORTS_VIEW: "reports.view",
   REPORTS_EXPORT: "reports.export",
@@ -66,6 +61,14 @@ export const PERMISSIONS = {
 
   COMPETITION_MANAGE: "competition.manage",
   COMPETITION_VIEW: "competition.view",
+
+  SAVED_PDFS_VIEW: "saved_pdfs.view",
+  SAVED_PDFS_DELETE: "saved_pdfs.delete",
+  SAVED_PDFS_DOWNLOAD: "saved_pdfs.download",
+
+  UI_SETTINGS_MANAGE: "ui_settings.manage",
+
+  REFERRALS_MANAGE: "referrals.manage",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

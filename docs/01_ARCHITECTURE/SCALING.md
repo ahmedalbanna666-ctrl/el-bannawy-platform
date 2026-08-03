@@ -1,178 +1,31 @@
-# SCALING.md
+# Scaling Strategy
 
-# El-bannawy Platform
-## Scalability Strategy
+Version: 2.0.0
+Status: Capacity risks and future direction
 
-Version: 1.0.0
+## Current Runtime Shape
 
----
+The backend is a stateless NestJS modular monolith with PostgreSQL persistence. Web state is client-side/API-backed. Redis is provisioned but not used for cache or sessions by the current application.
 
-# Purpose
+## Current Bottlenecks To Address
 
-Defines how the platform scales from hundreds to hundreds of thousands of students.
+- Several list queries are unpaginated.
+- Some hot service paths perform repeated per-record queries.
+- No shared cache layer is active.
+- No queue worker exists for heavy AI, notification, import, or report work.
+- No request/latency metrics exist to establish real capacity.
 
----
+## Safe Scaling Sequence
 
-# Scaling Philosophy
+1. Add query limits, pagination, indexes, and transaction boundaries.
+2. Measure API/database latency and connection usage.
+3. Introduce Redis for explicitly selected read-heavy data with invalidation rules.
+4. Move long-running import, report, notification, and AI work to a queue after idempotency is defined.
+5. Run multiple API/web instances behind a managed reverse proxy.
+6. Evaluate database replicas/partitioning only from measured workload.
 
-Horizontal First
+## Targets
 
-Stateless Services
-
-Independent Workers
-
-Database Optimization
-
-Caching Everywhere
-
----
-
-# Scaling Layers
-
-Frontend
-
-↓
-
-API
-
-↓
-
-Workers
-
-↓
-
-Database
-
-↓
-
-Storage
-
----
-
-# Horizontal Scaling
-
-Frontend
-
-Multiple Instances
-
-Backend
-
-Multiple Instances
-
-Workers
-
-Auto Scaling
-
-Redis
-
-Dedicated Instance
-
-Database
-
-Primary + Read Replicas (Future)
-
----
-
-# Cache Strategy
-
-Redis
-
-Application Cache
-
-Query Cache
-
-Session Cache
-
-AI Cache
-
----
-
-# Queue Scaling
-
-BullMQ
-
-Separate Queues
-
-- AI
-- Email
-- WhatsApp
-- Notifications
-- Reports
-
-Independent Workers
-
----
-
-# Database Scaling
-
-Indexes
-
-Connection Pooling
-
-Read Replicas
-
-Partitioning (Future)
-
-Archiving
-
----
-
-# Storage Scaling
-
-Object Storage
-
-CDN
-
-Image Optimization
-
-Video Streaming
-
----
-
-# AI Scaling
-
-Provider Abstraction
-
-Streaming
-
-Context Compression
-
-Embedding Cache
-
-Response Cache
-
----
-
-# Performance Targets
-
-Concurrent Users
-
-10,000+
-
-API Response
-
-<300ms
-
-AI Response
-
-<3 Seconds
-
----
-
-# Acceptance Criteria
-
-✓ Horizontal Scaling
-
-✓ Queue Scaling
-
-✓ Cache Strategy
-
-✓ Database Optimization
-
----
-
-# Final Rule
-
-Every system component must scale independently without affecting other services.
+The original `<300ms` API and `<3s` AI targets are goals, not verified current measurements. Load-test curriculum, assessment, coin, live, support, and AI paths before making concurrency claims.
 
 End of Document.

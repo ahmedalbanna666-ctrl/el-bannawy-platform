@@ -38,6 +38,10 @@ export class UpdateHomeworkQuestionDto {
   @IsOptional()
   @IsInt()
   displayOrder?: number;
+
+  @IsOptional()
+  @IsString()
+  correctionMode?: string;
 }
 
 export class UpdateHomeworkDto {

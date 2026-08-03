@@ -2,6 +2,7 @@ import { IsString, IsInt, IsOptional, IsBoolean, Min, IsEnum } from "class-valid
 
 export class CheckoutDto {
   @IsString()
+  @IsEnum(["COINS", "LESSON", "UNIT"])
   productType!: string;
 
   @IsString()
@@ -21,6 +22,14 @@ export class VerifyPaymentDto {
 
   @IsString()
   gatewayRef!: string;
+
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
+
+  @IsOptional()
+  @IsString()
+  signature?: string;
 }
 
 export class CreateCouponDto {

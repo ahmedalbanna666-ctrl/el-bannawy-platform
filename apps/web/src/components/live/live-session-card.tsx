@@ -175,7 +175,7 @@ export function LiveSessionCard({
               {session.title}
             </h3>
             <p className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
-              {session.teacher.name}
+              {session.teacher.fullName}
             </p>
           </div>
           <Badge variant={config.badgeVariant} className="shrink-0">

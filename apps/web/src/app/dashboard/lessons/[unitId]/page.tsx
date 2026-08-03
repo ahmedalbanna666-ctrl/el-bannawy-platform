@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ interface UnitDetail {
   displayOrder: number;
   isPremium: boolean;
   unlocked: boolean;
+  termId: string | null;
   lessons: LessonSummary[];
 }
 
@@ -58,49 +60,31 @@ export default function LessonListPage(): ReactNode {
   const { isAdmin, isTeacher } = usePermissions();
   const isManagement = isAdmin || isTeacher;
 
-  const [unit, setUnit] = useState<UnitDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: stages, isLoading, isError, error } = useQuery<Stage[]>({
+    queryKey: ["curriculum"],
+    queryFn: async () => {
+      const res = await api.get<Stage[]>("/curriculum");
+      return res.data ?? [];
+    },
+    staleTime: 15_000,
+  });
 
-  const fetchUnit = useCallback(async (): Promise<void> => {
-    try {
-      const response = await api.get<Stage[]>("/curriculum");
-      if (!response.data) {
-        setError("فشل تحميل بيانات الوحدة");
-        return;
-      }
-
-      let found: UnitDetail | null = null;
-      for (const stage of response.data) {
-        for (const grade of stage.grades) {
-          const match = grade.units.find((u) => u.id === unitId);
-          if (match) {
-            found = match;
-            break;
-          }
+  let unit: UnitDetail | null = null;
+  if (stages) {
+    for (const stage of stages) {
+      for (const grade of stage.grades) {
+        const match = grade.units.find((u) => u.id === unitId);
+        if (match) {
+          unit = match;
+          break;
         }
-        if (found) break;
       }
-
-      if (!found) {
-        setError("الوحدة غير موجودة");
-        return;
-      }
-
-      setUnit(found);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل تحميل بيانات الوحدة");
-    } finally {
-      setLoading(false);
+      if (unit) break;
     }
-  }, [unitId]);
+  }
 
-  useEffect(() => {
-    void fetchUnit();
-  }, [fetchUnit]);
-
-  if (loading) return <LessonListSkeleton />;
-  if (error) return <ErrorState title="خطأ" description={error} />;
+  if (isLoading) return <LessonListSkeleton />;
+  if (isError) return <ErrorState title="خطأ" description={error instanceof Error ? error.message : "حدث خطأ"} />;
   if (!unit) {
     return (
       <EmptyState
@@ -114,16 +98,16 @@ export default function LessonListPage(): ReactNode {
   const unitLocked = !isManagement && unit.isPremium && !unit.unlocked;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
           Unit {unit.displayOrder}
         </h1>
-        <p className="mt-1 text-sm text-neutral-500">اختر الدرس الذي تريد دراسته</p>
+        <p className="mt-0.5 text-sm text-neutral-500">اختر الدرس الذي تريد دراسته</p>
       </div>
 
       {unitLocked && (
-        <UnitLockOverlay unitId={unit.id} unitTitle={unit.title} />
+        <UnitLockOverlay unitId={unit.id} unitTitle={unit.title} termId={unit.termId ?? undefined} />
       )}
 
       <div className="flex flex-col gap-3">
@@ -216,7 +200,7 @@ export default function LessonListPage(): ReactNode {
 
 function LessonListSkeleton(): ReactNode {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <Skeleton className="h-8 w-48" />
       <Skeleton className="h-6 w-64" />
       <div className="flex flex-col gap-3">

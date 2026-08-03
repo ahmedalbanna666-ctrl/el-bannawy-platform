@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -9,6 +10,7 @@ interface BottomNavItem {
   label: string;
   icon: LucideIcon;
   activeIcon?: LucideIcon;
+  href?: string;
   onClick?: () => void;
   active?: boolean;
   badge?: number;
@@ -23,30 +25,72 @@ export function BottomNav({ items, className }: BottomNavProps): ReactNode {
   return (
     <nav
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-30 flex h-[72px] items-center justify-around border-t border-neutral-200 bg-neutral-50/90 backdrop-blur-md dark:border-neutral-700 dark:bg-neutral-900/90 lg:hidden",
+        "sticky bottom-0 start-0 end-0 z-30 flex h-[72px] items-center justify-around border-t border-white/15 bg-white/40 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-colors dark:border-white/10 dark:bg-neutral-950/30 dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] pb-[env(safe-area-inset-bottom,0px)]",
         className,
       )}
     >
       {items.map((item) => {
         const Icon = item.active && item.activeIcon ? item.activeIcon : item.icon;
+        const inner = (
+          <>
+            <div
+              className={cn(
+                "relative flex items-center justify-center rounded-2xl transition-all duration-200",
+                item.active
+                  ? "-translate-y-1.5 bg-purple-500/10 px-4 py-2 dark:bg-purple-400/10"
+                  : "px-3 py-1.5",
+              )}
+            >
+              {item.badge !== undefined && item.badge > 0 && (
+                <span className="absolute -end-1 -top-0.5 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-500 px-1 text-[10px] font-bold text-white">
+                  {item.badge > 99 ? "99+" : item.badge}
+                </span>
+              )}
+              <Icon
+                className={cn(
+                  "h-6 w-6 transition-all duration-200",
+                  item.active
+                    ? "text-purple-500"
+                    : "text-neutral-400 group-hover:text-neutral-600 dark:text-neutral-500 dark:group-hover:text-neutral-300",
+                )}
+              />
+            </div>
+            <span
+              className={cn(
+                "transition-all duration-200",
+                item.active
+                  ? "text-purple-600 dark:text-purple-400"
+                  : "text-neutral-400 dark:text-neutral-500",
+              )}
+            >
+              {item.label}
+            </span>
+          </>
+        );
+
+        const className = "group relative flex flex-col items-center gap-0.5 px-3 py-0 text-xs font-medium transition-all duration-200";
+
+        if (item.href) {
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              onClick={item.onClick}
+              className={className}
+              aria-label={item.label}
+            >
+              {inner}
+            </Link>
+          );
+        }
+
         return (
           <button
             key={item.id}
             onClick={item.onClick}
-            className={cn(
-              "relative flex flex-col items-center gap-0.5 px-3 py-2 text-xs font-medium transition-colors",
-              item.active
-                ? "text-primary-600 dark:text-primary-400"
-                : "text-neutral-400 dark:text-neutral-500",
-            )}
+            className={className}
           >
-            <Icon className="h-6 w-6" />
-            <span>{item.label}</span>
-            {item.badge !== undefined && item.badge > 0 && (
-              <span className="absolute -end-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-500 px-1 text-[10px] font-bold text-white">
-                {item.badge > 99 ? "99+" : item.badge}
-              </span>
-            )}
+            {inner}
           </button>
         );
       })}

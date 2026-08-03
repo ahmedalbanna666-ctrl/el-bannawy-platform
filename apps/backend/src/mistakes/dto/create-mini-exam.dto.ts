@@ -34,14 +34,6 @@ export class CreateMiniExamDto {
   lessonId?: string;
 
   @IsOptional()
-  @IsUUID()
-  storyId?: string;
-
-  @IsOptional()
-  @IsUUID()
-  chapterId?: string;
-
-  @IsOptional()
   @IsEnum(MistakeSource)
   source?: MistakeSource;
 

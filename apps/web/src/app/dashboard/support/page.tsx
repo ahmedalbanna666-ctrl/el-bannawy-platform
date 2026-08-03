@@ -677,7 +677,7 @@ export default function SupportPage(): ReactNode {
             </CardContent>
           </Card>
           <Link
-            href="/dashboard/admin/support-contacts"
+            href="/dashboard/admin/communication"
             className="flex items-center gap-2 self-start rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition-colors hover:border-primary-500/40 hover:text-primary-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
           >
             <Smartphone className="h-4 w-4" />

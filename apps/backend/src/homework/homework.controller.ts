@@ -63,6 +63,17 @@ export class HomeworkController {
     return successResponse(data, "Analytics retrieved successfully");
   }
 
+  @Get(":lessonId/teacher")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async getHomeworkForTeacher(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.homeworkService.getHomeworkForTeacher(lessonId, userId);
+    return successResponse(data, "Homework data retrieved");
+  }
+
   // --- Student Endpoints ---
 
   @Get(":lessonId")

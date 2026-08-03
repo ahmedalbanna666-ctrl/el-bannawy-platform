@@ -1,9 +1,13 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { LessonService } from "./lesson.service";
+import { LessonRepository } from "./lesson.repository";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
 import { VocabularyPreviewService } from "../document-import/services/vocabulary-preview.service";
+import { QuestionPreviewService } from "../document-import/services/question-preview.service";
+import { QuestionPersistenceService } from "../document-import/services/question-persistence.service";
+import { FILE_STORAGE } from "../common/storage/file-storage";
 
 type MockPrismaService = {
   lessonVocabulary: {
@@ -13,6 +17,7 @@ type MockPrismaService = {
     deleteMany: jest.Mock;
     findFirst: jest.Mock;
     findMany: jest.Mock;
+    createMany: jest.Mock;
   };
   lesson: {
     findUnique: jest.Mock;
@@ -23,7 +28,26 @@ type MockPrismaService = {
   lessonProgress: {
     findUnique: jest.Mock;
   };
-  $transaction: jest.Mock;
+    vocabularyRelation: {
+      findMany: jest.Mock;
+      createMany: jest.Mock;
+      deleteMany: jest.Mock;
+    };
+    vocabularySection: {
+      findMany: jest.Mock;
+      deleteMany: jest.Mock;
+    };
+    questionGroup: {
+      create: jest.Mock;
+    };
+    $transaction: jest.Mock;
+};
+
+type MockTx = {
+  lessonVocabulary: MockPrismaService["lessonVocabulary"];
+  vocabularyRelation: MockPrismaService["vocabularyRelation"];
+  vocabularySection: MockPrismaService["vocabularySection"];
+  questionGroup: MockPrismaService["questionGroup"];
 };
 
 type MockAcademicContext = {
@@ -32,7 +56,7 @@ type MockAcademicContext = {
 };
 
 function createMockPrisma(): MockPrismaService {
-  return {
+  const tx = {
     lessonVocabulary: {
       create: jest.fn(),
       update: jest.fn(),
@@ -40,7 +64,24 @@ function createMockPrisma(): MockPrismaService {
       deleteMany: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      createMany: jest.fn(),
     },
+    vocabularyRelation: {
+      findMany: jest.fn().mockResolvedValue([]),
+      createMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    vocabularySection: {
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn(),
+    },
+    questionGroup: {
+      create: jest.fn(),
+    },
+  } as const;
+
+  return {
+    lessonVocabulary: tx.lessonVocabulary,
     lesson: {
       findUnique: jest.fn(),
     },
@@ -50,7 +91,17 @@ function createMockPrisma(): MockPrismaService {
     lessonProgress: {
       findUnique: jest.fn(),
     },
-    $transaction: jest.fn(),
+    vocabularyRelation: tx.vocabularyRelation,
+    vocabularySection: tx.vocabularySection,
+    questionGroup: tx.questionGroup,
+    $transaction: jest.fn().mockImplementation(
+      (arg: unknown) => {
+        if (typeof arg === "function") {
+          return arg(tx as MockTx);
+        }
+        return Promise.all((arg as unknown[]).map((op) => (typeof op === "function" ? op(tx) : op)));
+      },
+    ),
   };
 }
 
@@ -90,7 +141,11 @@ describe("LessonService — Vocabulary", () => {
         LessonService,
         { provide: PrismaService, useValue: prisma },
         { provide: AcademicContextService, useValue: academic },
+        { provide: LessonRepository, useValue: { findById: jest.fn(), findByIdWithFullContent: jest.fn() } },
         { provide: VocabularyPreviewService, useValue: { preview: jest.fn() } },
+        { provide: QuestionPreviewService, useValue: { preview: jest.fn() } },
+        { provide: QuestionPersistenceService, useValue: { persistQuestions: jest.fn() } },
+        { provide: FILE_STORAGE, useValue: { save: jest.fn(), read: jest.fn(), remove: jest.fn(), resolve: jest.fn(), exists: jest.fn() } },
       ],
     }).compile();
 
@@ -377,7 +432,7 @@ describe("LessonService — Vocabulary", () => {
       expect(txSpy).toHaveBeenCalled();
     });
 
-    it("deletes specified existing items", async () => {
+    it("replaces all existing vocabulary content on re-import", async () => {
       prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
       prisma.lessonVocabulary.findMany.mockResolvedValue([]);
       await service.commitVocabularyImport(
@@ -386,11 +441,17 @@ describe("LessonService — Vocabulary", () => {
         userId,
       );
       expect(prisma.lessonVocabulary.deleteMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: { in: [vocabId] }, lessonId } }),
+        expect.objectContaining({ where: { lessonId } }),
+      );
+      expect(prisma.vocabularyRelation.deleteMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { lessonId } }),
+      );
+      expect(prisma.vocabularySection.deleteMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { lessonId } }),
       );
     });
 
-    it("replaces existing item when replaceVocabId is set", async () => {
+    it("does not delete individual items when replaceVocabId is set", async () => {
       prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
       prisma.lessonVocabulary.findMany.mockResolvedValue([]);
       await service.commitVocabularyImport(
@@ -398,9 +459,7 @@ describe("LessonService — Vocabulary", () => {
         { items: [{ ...commitItem, replaceVocabId: vocabId }] },
         userId,
       );
-      expect(prisma.lessonVocabulary.delete).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: vocabId } }),
-      );
+      expect(prisma.lessonVocabulary.delete).not.toHaveBeenCalled();
     });
 
     it("creates all new items with displayOrder", async () => {
@@ -411,25 +470,23 @@ describe("LessonService — Vocabulary", () => {
         { items: [commitItem, commitItem2] },
         userId,
       );
-      expect(prisma.lessonVocabulary.create).toHaveBeenCalledTimes(2);
-      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ word: "hello", displayOrder: 0 }),
-        }),
-      );
-      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ word: "world", displayOrder: 1 }),
-        }),
-      );
+      expect(prisma.lessonVocabulary.createMany).toHaveBeenCalledTimes(1);
+      expect(prisma.lessonVocabulary.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ word: "hello", displayOrder: 0 }),
+          expect.objectContaining({ word: "world", displayOrder: 1 }),
+        ]),
+      });
     });
 
     it("returns the final vocabulary list", async () => {
       const finalList = [{ id: "new-id", lessonId, word: "hello", translation: "مرحبا", definition: null, example: null, displayOrder: 0, createdAt: new Date() }];
-      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma));
+      prisma.$transaction.mockImplementation(async (fn: (tx: MockTx) => Promise<unknown>) => fn(prisma as unknown as MockTx));
       prisma.lessonVocabulary.findMany.mockResolvedValue(finalList);
+      (prisma.vocabularyRelation.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.vocabularySection.findMany as jest.Mock).mockResolvedValue([]);
       const result = await service.commitVocabularyImport(lessonId, { items: [commitItem] }, userId);
-      expect(result).toEqual(finalList);
+      expect(result).toEqual({ vocabulary: finalList, relations: [], sections: [] });
     });
 
     it("performs zero mutation on access failure", async () => {
@@ -449,11 +506,11 @@ describe("LessonService — Vocabulary", () => {
         { items: [{ ...commitItem, partOfSpeech: "n" }] },
         userId,
       );
-      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ partOfSpeech: "n" }),
-        }),
-      );
+      expect(prisma.lessonVocabulary.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ partOfSpeech: "n" }),
+        ]),
+      });
     });
 
     it("persists null partOfSpeech when omitted in commit", async () => {
@@ -464,11 +521,11 @@ describe("LessonService — Vocabulary", () => {
         { items: [commitItem] },
         userId,
       );
-      expect(prisma.lessonVocabulary.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ partOfSpeech: null }),
-        }),
-      );
+      expect(prisma.lessonVocabulary.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ partOfSpeech: null }),
+        ]),
+      });
     });
   });
 });

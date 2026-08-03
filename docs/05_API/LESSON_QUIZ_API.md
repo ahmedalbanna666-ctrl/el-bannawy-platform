@@ -266,6 +266,42 @@ Response
 ---
 
 # ==========================
+# ELIGIBILITY
+# ==========================
+
+GET
+
+/quizzes/{lessonId}/eligibility
+
+Description
+
+Check whether the student may start the quiz WITHOUT creating an attempt. Used by the quiz page to show the lock reason before the student answers.
+
+Prerequisites validated
+
+- All lesson videos completed.
+- Homework submitted (when `homeworkEnabled`).
+- Attempts remaining (below `maxAttempts`).
+
+Response
+
+```json
+{
+  "eligible": true,
+  "reason": null
+}
+```
+
+```json
+{
+  "eligible": false,
+  "reason": "All lesson videos must be completed before taking the quiz"
+}
+```
+
+---
+
+# ==========================
 # TEACHER MANAGEMENT
 # ==========================
 

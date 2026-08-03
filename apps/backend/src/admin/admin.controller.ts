@@ -318,8 +318,10 @@ export class AdminController {
   async getStudentProgress(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() _userId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.adminService.getStudentProgress(id);
+    const data = await this.adminService.getStudentProgress(id, Number(page) || 1, Number(limit) || 20);
     return successResponse(data);
   }
 
@@ -327,8 +329,10 @@ export class AdminController {
   async getStudentAttendance(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() _userId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.adminService.getStudentAttendance(id);
+    const data = await this.adminService.getStudentAttendance(id, Number(page) || 1, Number(limit) || 20);
     return successResponse(data);
   }
 
@@ -336,8 +340,10 @@ export class AdminController {
   async getStudentLoginHistory(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() _userId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.adminService.getStudentLoginHistory(id);
+    const data = await this.adminService.getStudentLoginHistory(id, Number(page) || 1, Number(limit) || 20);
     return successResponse(data);
   }
 
@@ -345,8 +351,10 @@ export class AdminController {
   async getStudentSubscription(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() _userId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.adminService.getStudentSubscription(id);
+    const data = await this.adminService.getStudentSubscription(id, Number(page) || 1, Number(limit) || 20);
     return successResponse(data);
   }
 }

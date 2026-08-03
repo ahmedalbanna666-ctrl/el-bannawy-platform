@@ -122,10 +122,11 @@ Return all available units.
 
 Filters
 
-- grade
-- stage
-- completed
-- locked
+- unitType (`UNIT` | `STORY` | `FINAL_REVIEW`) — management list filters by type; story/review content stays isolated
+- academicYearId
+- termId
+- gradeId
+- educationalSystem
 
 Response
 
@@ -134,11 +135,28 @@ Response
   {
     "id": "",
     "title": "",
+    "unitType": "UNIT",
     "progress": 65,
-    "status": "current"
+    "status": "current",
+    "completed": false,
+    "totalLessons": 5,
+    "completedLessons": 3,
+    "unlocked": true
   }
 ]
 ```
+
+Unit status values
+
+- `completed` — every published lesson in the unit is completed; rendered green
+- `current` — the first non-completed unit; marked with "أنت هنا"
+- `upcoming` — after the current unit
+
+Unlock rules (students)
+
+- A purchased unit (unit unlock) or a term the student bought (term unlock) is always open.
+- Free units open sequentially: a free unit is unlocked only when the previous unit is completed.
+- Completing the tests of the previous unit's lessons moves "أنت هنا" forward automatically.
 
 ---
 
@@ -166,7 +184,11 @@ Teacher
 
 Administrator
 
-Create new unit.
+Permission
+
+UNITS_CREATE
+
+Create new unit. Optional `unitType` field (`UNIT | STORY | FINAL_REVIEW`, defaults to `UNIT`) marks the unit as a regular unit, a curriculum story, or a final review.
 
 ---
 
@@ -174,7 +196,7 @@ PATCH
 
 /curriculum/units/{id}
 
-Update unit.
+Update unit. Optional `unitType` field.
 
 ---
 
@@ -182,9 +204,9 @@ DELETE
 
 /curriculum/units/{id}
 
-Soft Delete.
+Delete unit (cascades to lessons and content).
 
-Administrator only.
+Administrator / Teacher with grade access.
 
 ---
 
@@ -316,6 +338,60 @@ PATCH
 Update progress.
 
 Server-side validation required.
+
+---
+
+# ==========================
+# CERTIFICATES
+# ==========================
+
+GET
+
+/certificates/config
+
+Return the certificate threshold.
+
+```json
+{
+  "threshold": 80
+}
+```
+
+GET
+
+/certificates
+
+List the current student's unit certificates (one per unit), including unit title and earned date.
+
+POST
+
+/certificates/{unitId}
+
+Issue a certificate.
+
+Body
+
+- fileName (`string`)
+- mimeType (`string`, optional)
+- data (`string`) — base64-encoded PDF generated client-side (html2canvas → jspdf)
+
+Server-side rules
+
+- Verifies the unit belongs to the student's grade.
+- Verifies the unit progress is >= the configured `certificate_threshold`.
+- Idempotent: returns the existing certificate if already issued.
+
+GET
+
+/certificates/{id}/download
+
+Download the certificate PDF as an attachment.
+
+GET
+
+/certificates/{id}/view
+
+View the certificate PDF inline.
 
 ---
 

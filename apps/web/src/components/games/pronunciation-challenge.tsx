@@ -9,6 +9,7 @@ import { useSpeechRecognition } from "@/lib/games/use-speech-recognition";
 import { UnitMapSelect } from "@/components/games/unit-map-select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -16,7 +17,7 @@ import {
   Mic,
   CheckCircle2,
   XCircle,
-  ArrowRight,
+  ArrowLeft,
   Trophy,
   RotateCcw,
   ChevronLeft,
@@ -25,6 +26,7 @@ import {
   AlertTriangle,
   Award,
   Coins,
+  MicOff,
 } from "lucide-react";
 
 type Phase = "select" | "playing" | "result";
@@ -61,6 +63,7 @@ export function PronunciationChallenge({
   const [rewardsCoins, setRewardsCoins] = useState(0);
   const [totalScore, setTotalScore] = useState(0);
   const [resolvedCount, setResolvedCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
 
   const safeUnits = units ?? [];
   const selectedUnit = useMemo(
@@ -92,6 +95,7 @@ export function PronunciationChallenge({
     setRewardsCoins(0);
     setTotalScore(0);
     setResolvedCount(0);
+    setSkippedCount(0);
     setPhase("playing");
   }, [pool, canStart, config]);
 
@@ -119,7 +123,16 @@ export function PronunciationChallenge({
     start();
   }, [reset, start]);
 
+  const handleSkip = useCallback((): void => {
+    stop();
+    reset();
+    setAttemptScore(null);
+    setAnswered(true);
+    setSkippedCount((prev) => prev + 1);
+  }, [stop, reset]);
+
   const handleNext = useCallback((): void => {
+    stop();
     reset();
     setAttemptScore(null);
     setAnswered(false);
@@ -128,7 +141,7 @@ export function PronunciationChallenge({
       return;
     }
     setCurrentIndex((prev) => prev + 1);
-  }, [reset, isLast]);
+  }, [stop, reset, isLast]);
 
   const restart = useCallback((): void => {
     if (!pool) return;
@@ -141,18 +154,39 @@ export function PronunciationChallenge({
     setRewardsCoins(0);
     setTotalScore(0);
     setResolvedCount(0);
+    setSkippedCount(0);
     setPhase("playing");
   }, [pool, config]);
+
+  if (!config.enabled) {
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning-500/15 text-warning-500">
+            <Mic className="h-6 w-6" />
+          </span>
+          تحدي النطق
+        </h1>
+        <EmptyState
+          title="اللعبة غير مفعّلة"
+          description="لم يقم المعلم بتفعيل تحدي النطق حالياً، جرّب لعبة أخرى."
+          icon={<BookOpen className="h-16 w-16" />}
+        />
+      </div>
+    );
+  }
 
   if (phase === "select") {
     return (
       <div className="flex flex-col gap-6">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            <Mic className="h-7 w-7 text-primary-500" />
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning-500/15 text-warning-500">
+              <Mic className="h-6 w-6" />
+            </span>
             تحدي النطق
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-2 text-sm text-neutral-500">
             اختر الوحدة، ثم انطق الكلمة الظاهرة أمامك. كلما زادت دقتك، زادت مكافاتك.
           </p>
         </div>
@@ -211,6 +245,13 @@ export function PronunciationChallenge({
               </div>
             )}
 
+            {!supported && (
+              <div className="flex items-center gap-2 rounded-xl bg-warning-500/10 p-3 text-sm text-warning-600 dark:text-warning-400">
+                <MicOff className="h-4 w-4 shrink-0" />
+                متصفحك لا يدعم التعرف على الصوت، يمكنك المرور على الكلمات بدون نطق.
+              </div>
+            )}
+
             <Button
               variant="primary"
               size="lg"
@@ -232,9 +273,9 @@ export function PronunciationChallenge({
       resolvedCount > 0 ? Math.round((totalScore / resolvedCount) * 100) : 0;
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-        <Card variant="outline" padding="lg">
+        <Card variant="elevated" padding="lg">
           <CardContent className="flex flex-col items-center gap-4 text-center">
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-warning-500/10 text-warning-500">
               <Trophy className="h-10 w-10" />
             </div>
             <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
@@ -243,7 +284,7 @@ export function PronunciationChallenge({
             <p className="text-sm text-neutral-500">
               أكملت تحدي النطق
             </p>
-            <div className="grid w-full grid-cols-2 gap-3">
+            <div className="grid w-full grid-cols-3 gap-3">
               <div className="rounded-xl bg-neutral-100 p-3 dark:bg-neutral-700/50">
                 <p className="text-2xl font-black text-primary-500">
                   {String(resolvedCount)}
@@ -255,6 +296,12 @@ export function PronunciationChallenge({
                   {String(accuracy)}%
                 </p>
                 <p className="text-[11px] text-neutral-500">متوسط الدقة</p>
+              </div>
+              <div className="rounded-xl bg-neutral-100 p-3 dark:bg-neutral-700/50">
+                <p className="text-2xl font-black text-neutral-900 dark:text-neutral-100">
+                  {String(skippedCount)}
+                </p>
+                <p className="text-[11px] text-neutral-500">تم المرور عليها</p>
               </div>
             </div>
 
@@ -318,7 +365,7 @@ export function PronunciationChallenge({
 
       <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
         <div
-          className="h-full rounded-full bg-primary-500 transition-all duration-300"
+          className="h-full rounded-full bg-gradient-to-r from-warning-500 to-rose-500 transition-all duration-300"
           style={{
             width: `${String(((currentIndex + (answered ? 1 : 0)) / questions.length) * 100)}%`,
           }}
@@ -329,8 +376,9 @@ export function PronunciationChallenge({
         سؤال {String(currentIndex + 1)} من {String(questions.length)}
       </p>
 
-      <Card variant="outline" padding="lg">
+      <Card variant="elevated" padding="lg">
         <CardContent className="flex flex-col items-center gap-4">
+          <Badge variant="warning">المفردات</Badge>
           <p
             dir="ltr"
             className="text-4xl font-black tracking-wide text-neutral-900 dark:text-neutral-100"
@@ -341,36 +389,59 @@ export function PronunciationChallenge({
             حد الأدنى للنجاح {String(config.threshold)}%
           </p>
 
-          <button
-            type="button"
-            onClick={handleSpeak}
-            disabled={listening || !supported}
-            aria-label="انطق الكلمة"
-            className={`flex h-24 w-24 items-center justify-center rounded-full transition-all duration-200 ${
-              listening
-                ? "scale-105 bg-danger-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)]"
-                : "bg-primary-500/10 text-primary-500 hover:bg-primary-500/20"
-            } ${!supported || listening ? "cursor-not-allowed" : ""}`}
-          >
-            <Mic className="h-10 w-10" />
-          </button>
+          {supported ? (
+            <>
+              <button
+                type="button"
+                onClick={handleSpeak}
+                disabled={listening}
+                aria-label="انطق الكلمة"
+                className={`relative flex h-24 w-24 items-center justify-center rounded-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-500 focus-visible:ring-offset-2 ${
+                  listening
+                    ? "scale-105 bg-danger-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)]"
+                    : "bg-warning-500/10 text-warning-500 hover:bg-warning-500/20"
+                } ${listening ? "cursor-not-allowed" : ""}`}
+              >
+                <Mic className="h-10 w-10" />
+                {listening && (
+                  <span className="absolute inset-0 animate-ping rounded-full bg-danger-400/40" />
+                )}
+              </button>
 
-          <p className="text-sm text-neutral-500">
-            {listening
-              ? "يتنصت..."
-              : supported
-                ? "اضغط وانطق الكلمة بوضوح"
-                : "المتصفح لا يدعم التعرف على الصوت"}
-          </p>
+              <p className="text-sm text-neutral-500">
+                {listening ? "يتنصت..." : "اضغط وانطق الكلمة بوضوح"}
+              </p>
 
-          {speechError && (
-            <p className="text-xs text-danger-500">{speechError}</p>
-          )}
+              {speechError && (
+                <p className="text-xs text-danger-500">
+                  {speechError === "not-allowed"
+                    ? "تم رفض الوصول للميكروفون"
+                    : speechError === "no-speech"
+                      ? "لم نسمع كلاماً واضحاً، حاول مرة أخرى"
+                      : speechError === "network"
+                        ? "خطأ في التعرف على الصوت، حاول مرة أخرى"
+                        : `تعذر التعرف على الصوت: ${speechError}`}
+                </p>
+              )}
 
-          {transcript && (
-            <p dir="ltr" className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
-              {transcript}
-            </p>
+              {transcript && (
+                <p dir="ltr" className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+                  {transcript}
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="flex w-full flex-col items-center gap-3">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-warning-500/10 text-warning-500">
+                <MicOff className="h-9 w-9" />
+              </div>
+              <p className="text-sm text-neutral-500">
+                متصفحك لا يدعم التعرف على الصوت
+              </p>
+              <p className="rounded-xl bg-neutral-100 p-3 text-sm font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                المعنى: {current.translation}
+              </p>
+            </div>
           )}
 
           {answered && attemptScore !== null && (
@@ -388,7 +459,7 @@ export function PronunciationChallenge({
               )}
               <span>دقتك: {String(attemptScore)}%</span>
               {passed && (
-                <span className="mr-auto flex items-center gap-3 font-bold">
+                <span className="ms-auto flex items-center gap-3 font-bold">
                   <span className="flex items-center gap-1">
                     <Award className="h-3.5 w-3.5" />
                     +{String(config.xpReward)} XP
@@ -412,7 +483,7 @@ export function PronunciationChallenge({
 
       {answered && (
         <div className="flex flex-col gap-3 sm:flex-row">
-          {!passed && (
+          {!passed && supported && (
             <Button variant="outline" fullWidth onClick={handleSpeak}>
               <Mic className="h-4 w-4" />
               حاول مرة أخرى
@@ -420,9 +491,16 @@ export function PronunciationChallenge({
           )}
           <Button variant="primary" fullWidth onClick={handleNext}>
             {isLast ? "عرض النتيجة" : "التالي"}
-            <ArrowRight className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4" />
           </Button>
         </div>
+      )}
+
+      {!answered && !supported && (
+        <Button variant="outline" fullWidth onClick={handleSkip}>
+          المرور على الكلمة
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
       )}
     </div>
   );

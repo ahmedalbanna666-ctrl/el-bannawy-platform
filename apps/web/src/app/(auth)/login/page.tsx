@@ -1,27 +1,39 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/providers/auth-provider";
+import { useAuth, DeviceConfirmationError } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { School, Phone, Lock, LogIn, Eye, EyeOff } from "lucide-react";
+import { Dialog } from "@/components/ui/dialog";
+import { School, Mail, Lock, LogIn, Eye, EyeOff, AlertTriangle } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
 export default function LoginPage(): ReactNode {
+  return (
+    <Suspense fallback={<div className="flex min-h-[200px] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm(): ReactNode {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login } = useAuth();
+  const { login, confirmLogin, firebaseLogin } = useAuth();
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(() => searchParams.get("error") ?? null);
   const [loading, setLoading] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmToken, setConfirmToken] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -29,13 +41,53 @@ export default function LoginPage(): ReactNode {
     setLoading(true);
 
     try {
-      await login(mobile, password, rememberMe);
+      const identifier = mobile.trim();
+      const isEmail = identifier.includes("@");
+
+      if (isEmail) {
+        await firebaseLogin(identifier, password, rememberMe);
+      } else {
+        await login(identifier, password, rememberMe);
+      }
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      if (err instanceof DeviceConfirmationError) {
+        setConfirmToken(err.confirmToken);
+        setShowConfirmDialog(true);
+      } else {
+        setError(err instanceof Error ? err.message : "Login failed");
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmLogin = async (): Promise<void> => {
+    if (!confirmToken) return;
+    setConfirming(true);
+    try {
+      await confirmLogin(confirmToken);
+      setShowConfirmDialog(false);
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Confirmation failed");
+      setShowConfirmDialog(false);
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleCancelLogin = async (): Promise<void> => {
+    if (confirmToken) {
+      try {
+        const { api } = await import("@/lib/api-client");
+        await api.post("/auth/cancel-login", { confirmToken });
+      } catch {
+        // ignore
+      }
+    }
+    setShowConfirmDialog(false);
+    setConfirmToken(null);
   };
 
   return (
@@ -61,7 +113,7 @@ export default function LoginPage(): ReactNode {
             placeholder="Enter your email or mobile number"
             value={mobile}
             onChange={(e): void => { setMobile(e.target.value); }}
-            leftIcon={<Phone className="h-5 w-5" />}
+            leftIcon={<Mail className="h-5 w-5" />}
             required
           />
 
@@ -149,23 +201,6 @@ export default function LoginPage(): ReactNode {
             Continue with Google
           </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            fullWidth
-            onClick={(): void => {
-              window.location.href = `${API_URL}/auth/apple`;
-            }}
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24">
-              <path
-                d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
-                fill="currentColor"
-              />
-            </svg>
-            Continue with Apple
-          </Button>
-
           <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">
             Don&apos;t have an account?{" "}
             <Link
@@ -176,6 +211,26 @@ export default function LoginPage(): ReactNode {
             </Link>
           </p>
         </form>
+
+        <Dialog open={showConfirmDialog} onClose={() => { void handleCancelLogin(); }} title="">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Confirm New Device
+            </div>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              You already have an active session on another device. Logging in here will log you out of the other device.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => { void handleCancelLogin(); }} disabled={confirming}>
+                Cancel
+              </Button>
+              <Button onClick={() => { void handleConfirmLogin(); }} loading={confirming}>
+                Yes, Log Me In
+              </Button>
+            </div>
+          </div>
+        </Dialog>
       </CardContent>
     </Card>
   );

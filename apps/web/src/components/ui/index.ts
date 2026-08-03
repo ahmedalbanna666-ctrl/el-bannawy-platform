@@ -46,5 +46,6 @@ export type { SwitchProps } from "./switch";
 
 export { AcademicContextBar } from "./academic-context-bar";
 export type { AcademicContextBarProps } from "./academic-context-bar";
+export { AcademicContextInit } from "./academic-context-init";
 
 export { TeacherContextBanner } from "./teacher-context-banner";

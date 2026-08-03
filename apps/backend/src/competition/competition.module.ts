@@ -6,12 +6,14 @@ import { NotificationsModule } from "../notifications/notifications.module";
 import { CommonModule } from "../common/common.module";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { PermissionGuard } from "../common/guards/permission.guard";
+import { CompetitionRepository } from "./competition.repository";
 
 @Module({
   controllers: [CompetitionController],
-  providers: [CompetitionService, RolesGuard, PermissionGuard],
+  providers: [CompetitionService, RolesGuard, PermissionGuard, CompetitionRepository],
   imports: [DelegatedPermissionModule, NotificationsModule, CommonModule],
   exports: [CompetitionService],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class CompetitionModule {}
+

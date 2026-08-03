@@ -78,10 +78,10 @@ export class VideoEventController {
   @HttpCode(HttpStatus.ACCEPTED)
   async dispatch(
     @Param("id", ParseUUIDPipe) id: string,
-    @CurrentUser() _userId: string,
+    @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<{ dispatched: boolean }>> {
     const event = (await this.videoEventService.findById(id)) as VideoEventPayload;
-    await this.dispatcher.dispatch(event);
+    await this.dispatcher.dispatch(event, userId);
     return successResponse({ dispatched: true }, "Event dispatched");
   }
 

@@ -1,156 +1,33 @@
-# AI_RAG_ARCHITECTURE.md
+# AI RAG Architecture
 
-# El-bannawy Platform
-## Retrieval-Augmented Generation (RAG)
+Version: 2.1.0
+Status: Active; pgvector retrieval runtime wired
 
-Version: 1.0.0
+## Current State
 
----
+The `AiKnowledgeBaseService` indexes approved content into `AiKnowledgeChunk` records with 1536-dimensional pgvector embeddings. `SearchService.semanticSearch` runs a pgvector cosine-similarity query (`<=>`) scoped by grade/term/subject and authorized source filters, then falls back to `keywordSearch`. `AiService` retrieves RAG results via `searchKnowledge` before building the response.
 
-# Purpose
+## Target Flow
 
-Defines the Retrieval-Augmented Generation architecture.
+```text
+Authenticated question -> academic context -> approved content retrieval (pgvector)
+-> prompt builder -> provider -> response validation -> safe response + audit/usage event
+```
 
-RAG is the only approved knowledge source for educational responses.
+## Required Future Inputs
 
----
+Lesson documents, structured vocabulary, questions, stories, final review content, and approved teacher notes must be indexed with academic-context metadata and content versioning.
 
-# Knowledge Sources
+## Required Guardrails
 
-Lesson Content
+- Retrieval must be scoped by the student's authorized academic context.
+- No answer may expose hidden prompts, private records, or internal documentation.
+- No-citation/no-evidence behavior must be defined before allowing curriculum claims.
+- Prompt injection, stale content, deletion, and reindex behavior need tests.
+- Model responses require a typed validation layer and fallback behavior.
 
-Vocabulary
+## Dependencies Wired
 
-Grammar Notes
-
-Stories
-
-Homework
-
-Teacher Notes
-
-Official Curriculum
-
-Platform Documentation
-
----
-
-# Retrieval Flow
-
-Student Question
-
-↓
-
-Embedding
-
-↓
-
-Vector Search
-
-↓
-
-Top K Results
-
-↓
-
-Prompt Builder
-
-↓
-
-LLM
-
-↓
-
-Validated Response
-
----
-
-# Vector Database
-
-Provider Agnostic
-
-Examples
-
-Qdrant
-
-Pinecone
-
-Weaviate
-
-pgvector
-
-Version 1
-
-PostgreSQL + pgvector
-
----
-
-# Chunk Size
-
-500–1000 Tokens
-
-Overlap
-
-100 Tokens
-
----
-
-# Metadata
-
-Lesson
-
-Unit
-
-Grade
-
-Difficulty
-
-Language
-
-Topic
-
-Version
-
----
-
-# Ranking
-
-Semantic Similarity
-
-Curriculum Priority
-
-Lesson Priority
-
-Recency
-
-Confidence
-
----
-
-# Response Rules
-
-Never answer without retrieved evidence.
-
-Always cite lesson context internally.
-
----
-
-# Acceptance Criteria
-
-✓ Accurate Retrieval
-
-✓ Fast Search
-
-✓ Curriculum Aware
-
-✓ Scalable
-
----
-
-# Final Rule
-
-RAG is the primary knowledge source.
-
-The LLM is responsible for explanation, not knowledge storage.
+pgvector (`pgvector/pgvector:pg16`, extension `vector`), embedding provider (`text-embedding-3-small` with 1536-dim fallback), chunking/index service, pgvector retrieval service. Prompt registry, response validator, and usage analytics remain future work.
 
 End of Document.

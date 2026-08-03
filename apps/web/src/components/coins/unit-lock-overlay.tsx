@@ -14,11 +14,13 @@ import {
   CheckCircle2,
   AlertCircle,
   ShoppingCart,
+  Layers,
 } from "lucide-react";
 
 interface UnitLockOverlayProps {
   unitId: string;
   unitTitle: string;
+  termId?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -26,12 +28,13 @@ interface UnitLockOverlayProps {
 export function UnitLockOverlay({
   unitId,
   unitTitle,
+  termId,
   open: controlledOpen,
   onOpenChange,
 }: UnitLockOverlayProps): ReactNode {
   const router = useRouter();
   const { data: wallet } = useCoinWallet();
-  const { unlock, redeem, unlocking, redeeming, cost } = useUnitUnlock(unitId);
+  const { unlock, unlockTerm, redeem, unlocking, unlockingTerm, redeeming, cost, termCost } = useUnitUnlock(unitId, { termId });
   const [code, setCode] = useState("");
 
   const isControlled = controlledOpen !== undefined;
@@ -59,6 +62,19 @@ export function UnitLockOverlay({
       setTimeout(() => { setOpen(false); }, 800);
     });
   }, [unlock]);
+
+  const handleUnlockTerm = useCallback(() => {
+    if (!termId) return;
+    setFeedback(null);
+    unlockTerm((err) => {
+      if (err) {
+        setFeedback({ type: "error", message: err instanceof Error ? err.message : "تعذر فتح الترم" });
+        return;
+      }
+      setFeedback({ type: "success", message: "تم فتح الترم بالكامل بنجاح" });
+      setTimeout(() => { setOpen(false); }, 800);
+    });
+  }, [termId, unlockTerm]);
 
   const handleRedeem = useCallback(() => {
     if (!code.trim()) return;
@@ -124,6 +140,42 @@ export function UnitLockOverlay({
                 <AlertCircle className="h-4 w-4" />
               )}
               {feedback.message}
+            </div>
+          )}
+
+          {termId && termCost > 0 && (
+            <div className="flex flex-col gap-3 rounded-xl border border-primary-500/30 bg-primary-500/5 p-4 dark:border-primary-500/40">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-500/10">
+                  <Layers className="h-5 w-5 text-primary-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">افتح الترم بالكامل</p>
+                  <p className="text-xs text-neutral-500">
+                    اشترِ جميع وحدات الترم دفعة واحدة
+                    {termCost > 0 && (
+                      <span className="text-primary-500"> — {termCost.toLocaleString()} عملة</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {insufficient ? (
+                <Button variant="outline" onClick={handleBuyCoins} className="w-full">
+                  <ShoppingCart className="h-4 w-4" />
+                  اشحن رصيدك من المتجر
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={handleUnlockTerm}
+                  loading={unlockingTerm}
+                  className="w-full"
+                >
+                  <Coins className="h-4 w-4" />
+                  افتح الترم بـ {termCost.toLocaleString()} عملة
+                </Button>
+              )}
             </div>
           )}
 

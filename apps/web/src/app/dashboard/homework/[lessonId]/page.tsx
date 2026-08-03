@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
+import { useEffect, useState, useRef, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,9 +12,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
 import { TeacherContextBanner } from "@/components/ui/teacher-context-banner";
+import { QuestionCard, groupQuestions, type StudentQuestion } from "@/components/questions/question-card";
 import {
   ClipboardList,
   ChevronLeft,
+  Check,
+  X,
   CheckCircle,
   XCircle,
   Trophy,
@@ -75,55 +79,57 @@ interface ReviewData {
   questions: ReviewQuestion[];
 }
 
-const QMAP: Record<string, string> = {
-  MULTIPLE_CHOICE: "MC",
-  MULTIPLE_RESPONSE: "MR",
-  TRUE_FALSE: "T/F",
-  FILL_IN_BLANKS: "Fill",
-  MATCHING: "Match",
-  ORDERING: "Order",
-};
-
 export default function HomeworkPage(): ReactNode {
   const params = useParams();
   const lessonId = params.lessonId as string;
 
-  const [homework, setHomework] = useState<HomeworkData | null>(null);
-  const [questions, setQuestions] = useState<HomeworkQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [result, setResult] = useState<HomeworkResult | null>(null);
   const [review, setReview] = useState<ReviewData | null>(null);
   const [viewingReview, setViewingReview] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchHomework = useCallback(async (): Promise<void> => {
-    try {
-      setError(null);
-      const [hwRes, qRes, resultRes] = await Promise.all([
-        api.get<HomeworkData>(`/homework/${lessonId}`),
-        api.get<{ questions: HomeworkQuestion[] }>(`/homework/${lessonId}/questions`),
-        api.get<HomeworkResult>(`/homework/${lessonId}/result`),
-      ]);
+  const { data: homework, isLoading: hwLoading } = useQuery({
+    queryKey: ["homework", lessonId],
+    queryFn: async () => {
+      const res = await api.get<HomeworkData>(`/homework/${lessonId}`);
+      if (!res.data) throw new Error("Homework not found");
+      return res.data;
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
 
-      if (hwRes.data) setHomework(hwRes.data);
-      if (qRes.data?.questions) setQuestions(qRes.data.questions);
-      if (resultRes.data) setResult(resultRes.data);
-    } catch (err) {
-      if (err instanceof Error && !err.message.includes("404")) {
-        setError(err.message);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [lessonId]);
+  const { data: questionsData, isLoading: questionsLoading } = useQuery({
+    queryKey: ["homework-questions", lessonId],
+    queryFn: async () => {
+      const res = await api.get<{ questions: HomeworkQuestion[] }>(`/homework/${lessonId}/questions`);
+      return res.data?.questions ?? [];
+    },
+    enabled: !!homework,
+    staleTime: 60_000,
+    retry: false,
+  });
 
-  useEffect(() => {
-    void fetchHomework();
-  }, [fetchHomework]);
+  const questions = questionsData ?? [];
+
+  const { isLoading: resultLoading } = useQuery({
+    queryKey: ["homework-result", lessonId],
+    queryFn: async () => {
+      const res = await api.get<HomeworkResult>(`/homework/${lessonId}/result`);
+      if (res.data) setResult(res.data);
+      return res.data ?? null;
+    },
+    enabled: !!homework,
+    staleTime: 0,
+    retry: false,
+  });
+
+  const loading = hwLoading || questionsLoading || resultLoading;
 
   useEffect(() => {
     if (result || viewingReview) return;
@@ -164,7 +170,9 @@ export default function HomeworkPage(): ReactNode {
       setReview(null);
       setViewingReview(false);
       setAnswers({});
-      void fetchHomework();
+      void queryClient.invalidateQueries({ queryKey: ["homework", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["homework-questions", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["homework-result", lessonId] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "فشل بدء المحاولة");
     }
@@ -187,6 +195,19 @@ export default function HomeworkPage(): ReactNode {
         }
       }
     } catch (err) {
+      if (err instanceof Error && err.message.includes("No active attempt")) {
+        try {
+          await api.post(`/homework/${lessonId}/start`);
+          const retryRes = await api.post<HomeworkResult>(`/homework/${lessonId}/submit`, {
+            answers: questions.map((_, i) => answers[i] ?? ""),
+          });
+          if (retryRes.data) {
+            setResult(retryRes.data);
+            if (saveTimerRef.current) clearInterval(saveTimerRef.current);
+            return;
+          }
+        } catch { /* fall through to error state */ }
+      }
       setError(err instanceof Error ? err.message : "فشل تسليم الواجب");
     } finally {
       setSubmitting(false);
@@ -231,7 +252,7 @@ export default function HomeworkPage(): ReactNode {
 
   if (viewingReview && review) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4" dir="ltr">
         <TeacherContextBanner />
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={handleBackToResult}>
@@ -245,58 +266,186 @@ export default function HomeworkPage(): ReactNode {
         </div>
 
         <div className="flex flex-col gap-4">
-          {review.questions.map((q, index) => (
-            <Card
-              key={q.id}
-              variant="outline"
-              padding="sm"
-              className={
-                q.isCorrect
-                  ? "border-success-500/50 bg-success-500/5"
-                  : "border-danger-500/50 bg-danger-500/5"
-              }
-            >
-              <CardContent>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-start gap-2">
-                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                      {index + 1}
+          {review.questions.map((q, index) => {
+            const optionStates = resolveReviewOptions(q);
+            const isMcq = q.type === "MULTIPLE_CHOICE";
+            const isTrueFalse = q.type === "TRUE_FALSE";
+            const isDialogue = q.type === "DIALOGUE";
+            const dialogueLines = parseReviewDialogueLines(q.options);
+            const dialogueSegments = dialogueLines.map((l) => splitReviewDialogueSegments(l.text));
+            const dialogueBlankCount = dialogueSegments.reduce(
+              (sum, segs) => sum + segs.filter((s) => s.type === "blank").length,
+              0,
+            );
+            const dialogueAnswers = parseReviewDialogueAnswers(q.studentAnswer, dialogueBlankCount);
+            let dialogueBlankIndex = 0;
+            return (
+              <Card
+                key={q.id}
+                variant="outline"
+                padding="none"
+                className={`relative overflow-hidden ${q.isCorrect ? "border-success-500/50" : "border-danger-500/50"}`}
+              >
+                <div
+                  className={`absolute inset-y-0 left-0 w-1.5 ${q.isCorrect ? "bg-success-500" : "bg-danger-500"}`}
+                />
+                <CardContent className="flex flex-col gap-3 p-4 pl-6 sm:pl-7">
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white ${
+                        q.isCorrect ? "bg-success-500" : "bg-danger-500"
+                      }`}
+                    >
+                      {q.isCorrect ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
                     </span>
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{q.question}</p>
-                    {q.isCorrect ? (
-                      <CheckCircle className="ml-auto h-5 w-5 shrink-0 text-success-500" />
-                    ) : (
-                      <XCircle className="ml-auto h-5 w-5 shrink-0 text-danger-500" />
-                    )}
-                  </div>
-                  <div className="ps-8 space-y-1 text-sm">
-                    <p>
-                      <span className="text-neutral-500">إجابتك: </span>
-                      <span className={q.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
-                        {q.studentAnswer ?? "(فارغ)"}
-                      </span>
+                    <p className="min-w-0 flex-1 text-sm font-bold leading-relaxed text-neutral-900 dark:text-neutral-100">
+                      <span className="ms-1 text-neutral-400">{index + 1}.</span>
+                      {q.question}
                     </p>
-                    {!q.isCorrect && q.correctAnswer && (
-                      <p>
-                        <span className="text-neutral-500">الإجابة الصحيحة: </span>
-                        <span className="font-medium text-success-600">{q.correctAnswer}</span>
-                      </p>
-                    )}
-                    {q.explanation && (
-                      <p className="text-neutral-400 italic">{q.explanation}</p>
-                    )}
+                    <Badge
+                      variant={q.isCorrect ? "success" : "danger"}
+                      className="shrink-0 text-[10px]"
+                    >
+                      {q.isCorrect ? "صحيحة" : "خاطئة"}
+                    </Badge>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                  {isMcq ? (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4" dir="ltr">
+                      {optionStates.map((opt) => {
+                        const rowCls = opt.correct
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
+                          : opt.selected
+                            ? "border-red-500 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                            : "border-neutral-200 text-neutral-700 dark:border-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-900";
+                        const badgeCls = opt.correct
+                          ? "bg-emerald-500 text-white"
+                          : opt.selected
+                            ? "bg-red-500 text-white"
+                            : "bg-neutral-200 text-neutral-500 dark:bg-neutral-700";
+                        return (
+                          <div
+                            key={opt.letter}
+                            className={`flex flex-row items-center gap-2 rounded-lg border px-3 py-2 text-sm shadow-sm ${rowCls}`}
+                          >
+                            <span
+                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold ${badgeCls}`}
+                            >
+                              {opt.letter}
+                            </span>
+                            <span className="min-w-0 flex-1 leading-relaxed">{opt.text}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : isTrueFalse ? (
+                    <div className="flex gap-2" dir="ltr">
+                      {optionStates.map((opt) => {
+                        const isTrue = opt.label.toLowerCase() === "true";
+                        const pillCls = opt.correct
+                          ? "border-emerald-500 bg-emerald-500 text-white"
+                          : opt.selected
+                            ? "border-red-500 bg-red-500 text-white"
+                            : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400";
+                        return (
+                          <div
+                            key={opt.label}
+                            className={`flex h-9 min-w-[64px] items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-bold ${pillCls}`}
+                          >
+                            {opt.correct ? (
+                              <Check className="h-4 w-4" />
+                            ) : opt.selected ? (
+                              <X className="h-4 w-4" />
+                            ) : null}
+                            <span>{isTrue ? "T" : "F"}</span>
+                            <span className="font-semibold">{opt.text}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : isDialogue ? (
+                    <div
+                      className="flex flex-col gap-2 rounded-lg border border-dashed border-primary-300 bg-primary-50/50 p-4 dark:border-primary-700 dark:bg-primary-900/10"
+                      dir="ltr"
+                    >
+                      {dialogueLines.map((line, li) => {
+                        const segments = dialogueSegments[li];
+                        const hasBlank = segments.some((s) => s.type === "blank");
+                        return (
+                          <div key={li} className="flex items-start gap-2 text-sm">
+                            <span className="mt-0.5 shrink-0 rounded-md bg-primary-100 px-2 py-0.5 text-[11px] font-bold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                              {line.speaker}
+                            </span>
+                            {hasBlank ? (
+                              <span className="text-neutral-600 dark:text-neutral-400">
+                                {segments.map((seg, si) => {
+                                  if (seg.type === "text") return <span key={si}>{seg.value}</span>;
+                                  const numMatch = /\((\d+)\)/.exec(seg.value);
+                                  const bi = dialogueBlankIndex;
+                                  dialogueBlankIndex += 1;
+                                  return (
+                                    <span key={si} className="inline-flex items-center gap-1 align-middle">
+                                      {numMatch && (
+                                        <span className="text-[11px] font-bold text-primary-500">
+                                          {numMatch[1]}.
+                                        </span>
+                                      )}
+                                      <span className="inline-block min-w-[6rem] rounded border-b-2 border-primary-300 bg-white px-2 py-0.5 font-semibold text-neutral-900 dark:border-primary-500 dark:bg-neutral-800 dark:text-neutral-100">
+                                        {dialogueAnswers[bi] || "..."}
+                                      </span>
+                                    </span>
+                                  );
+                                })}
+                              </span>
+                            ) : (
+                              <span className="text-neutral-700 dark:text-neutral-300">{line.text}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2 ps-2 text-sm sm:ps-10">
+                      <div className="flex items-start gap-2">
+                        <span className="shrink-0 text-neutral-500">إجابتك:</span>
+                        <span
+                          className={
+                            q.isCorrect
+                              ? "font-semibold text-success-600 dark:text-success-400"
+                              : "font-semibold text-danger-600 dark:text-danger-400"
+                          }
+                        >
+                          {q.studentAnswer ?? "(فارغ)"}
+                        </span>
+                      </div>
+                      {!q.isCorrect && q.correctAnswer && (
+                        <div className="flex items-start gap-2">
+                          <span className="shrink-0 text-neutral-500">الإجابة الصحيحة:</span>
+                          <span className="font-semibold text-success-600 dark:text-success-400">
+                            {q.correctAnswer}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {q.explanation && (
+                    <p className="flex items-start gap-2 ps-2 text-xs italic text-neutral-400 sm:ps-10">
+                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      {q.explanation}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <TeacherContextBanner />
       <div>
         <Link
@@ -398,17 +547,29 @@ export default function HomeworkPage(): ReactNode {
         </Card>
       )}
 
-      <div className="flex flex-col gap-4">
-        {questions.map((q, index) => (
-          <QuestionCard
-            key={q.id}
-            question={q}
-            index={index}
-            selectedAnswer={answers[index] ?? ""}
-            isSubmitted={isSubmitted}
-            result={result}
-            onAnswerChange={handleAnswerChange}
-          />
+      <div className="flex flex-col gap-4" dir="ltr">
+        {groupQuestions(questions as StudentQuestion[]).map((group, gi) => (
+          <div key={gi} className="flex flex-col gap-3">
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
+              {group.heading}
+            </h2>
+            <div className="flex flex-col gap-4">
+              {group.questions.map(({ question, originalIndex }) => (
+                <QuestionCard
+                  key={question.id}
+                  question={question}
+                  index={originalIndex}
+                  selectedAnswer={answers[originalIndex] ?? ""}
+                  isSubmitted={isSubmitted}
+                  showResult={isSubmitted}
+                  correctAnswer={getCorrectAnswer(question.id, result)}
+                  explanation={getExplanation(question.id, result)}
+                  isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
+                  onAnswerChange={handleAnswerChange}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
@@ -430,160 +591,142 @@ export default function HomeworkPage(): ReactNode {
   );
 }
 
-interface QuestionCardProps {
-  question: HomeworkQuestion;
-  index: number;
-  selectedAnswer: string;
-  isSubmitted: boolean;
-  result: HomeworkResult | null;
-  onAnswerChange: (index: number, value: string) => void;
+function getCorrectAnswer(questionId: string, result: HomeworkResult | null): string | null {
+  if (!result?.wrongAnswersList) return null;
+  const wrong = result.wrongAnswersList.find((w) => w.questionId === questionId);
+  return wrong?.correctAnswer ?? null;
 }
 
-function QuestionCard({ question, index, selectedAnswer, isSubmitted, result, onAnswerChange }: QuestionCardProps): ReactNode {
-  const options: string[] = ((): string[] => {
-    if (!question.options) return [];
-    try {
-      return JSON.parse(question.options) as string[];
-    } catch {
-      return [];
+function getExplanation(_questionId: string, _result: HomeworkResult | null): string | null {
+  return null;
+}
+
+function getIsCorrect(questionId: string, selectedAnswer: string, result: HomeworkResult | null): boolean | null {
+  if (!result || !selectedAnswer) return null;
+  if (result.wrongAnswersList?.some((w) => w.questionId === questionId)) return false;
+  return selectedAnswer !== "" ? true : null;
+}
+
+interface ReviewOptionState {
+  letter: string;
+  label: string;
+  text: string;
+  selected: boolean;
+  correct: boolean;
+}
+
+function parseReviewOptionItems(options: string | null): { label: string; text: string }[] {
+  if (!options) return [];
+  try {
+    const parsed: unknown = JSON.parse(options);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((o) => {
+      if (typeof o === "string") return { label: "", text: o };
+      const obj = o as { label?: unknown; text?: unknown };
+      return {
+        label: typeof obj.label === "string" ? obj.label : "",
+        text: typeof obj.text === "string" ? obj.text : "",
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+function resolveReviewOptions(q: ReviewQuestion): ReviewOptionState[] {
+  const items = parseReviewOptionItems(q.options);
+  if (items.length === 0) return [];
+
+  const resolveIndex = (value: string): number => {
+    const v = value.trim().toLowerCase();
+    if (!v) return -1;
+    if (/^[a-z]$/.test(v)) {
+      const byLetter = items.findIndex((_, i) => String.fromCharCode(97 + i) === v);
+      if (byLetter >= 0) return byLetter;
     }
-  })();
+    const byLabel = items.findIndex((o) => o.label.toLowerCase() === v);
+    if (byLabel >= 0) return byLabel;
+    const byText = items.findIndex((o) => o.text.trim().toLowerCase() === v);
+    if (byText >= 0) return byText;
+    const idx = Number.parseInt(v, 10);
+    if (!Number.isNaN(idx) && idx >= 0 && idx < items.length) return idx;
+    return -1;
+  };
 
-  const wrongAnswer = result?.wrongAnswersList?.find((w) => w.questionId === question.id);
-  const isWrong = wrongAnswer !== undefined;
-  const isCorrect = result !== null && !isWrong && selectedAnswer !== "";
+  const selectedIndex = resolveIndex(q.studentAnswer ?? "");
+  const correctIndex = resolveIndex(q.correctAnswer ?? "");
 
-  return (
-    <Card
-      variant="outline"
-      padding="sm"
-      className={
-        isSubmitted
-          ? isWrong
-            ? "border-danger-500/50 bg-danger-500/5"
-            : isCorrect
-              ? "border-success-500/50 bg-success-500/5"
-              : ""
-          : ""
-      }
-    >
-      <CardContent>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-start gap-2">
-            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-medium text-primary-700 dark:bg-primary-900 dark:text-primary-300">
-              {index + 1}
-            </span>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{question.question}</p>
-              <Badge variant="secondary">{QMAP[question.type] ?? question.type}</Badge>
-              </div>
-            </div>
-          </div>
+  return items.map((item, i) => ({
+    letter: String.fromCharCode(65 + i),
+    label: item.label,
+    text: item.text.length > 0 ? item.text : item.label,
+    selected: i === selectedIndex,
+    correct: i === correctIndex,
+  }));
+}
 
-          {question.type === "TRUE_FALSE" ? (
-            <div className="flex gap-3 ps-8">
-              {["صح", "خطأ"].map((label) => {
-                const optValue = label === "صح" ? "true" : "false";
-                const isSelected = selectedAnswer === optValue;
-                const isCorrectOpt = isSubmitted && wrongAnswer?.correctAnswer === optValue;
+interface ReviewDialogueLine {
+  speaker: string;
+  text: string;
+  hasBlank: boolean;
+}
 
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={(): void => {
-                      if (!isSubmitted) onAnswerChange(index, optValue);
-                    }}
-                    disabled={isSubmitted}
-                    className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors ${
-                      isSubmitted
-                        ? isCorrectOpt
-                          ? "border-success-500 bg-success-500/10 text-success-700 dark:text-success-300"
-                          : isSelected
-                            ? "border-danger-500 bg-danger-500/10 text-danger-700 dark:text-danger-300"
-                            : "border-neutral-200 text-neutral-400 dark:border-neutral-700"
-                        : isSelected
-                          ? "border-primary-500 bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                          : "border-neutral-200 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800/50"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          ) : options.length > 0 ? (
-            <div className="flex flex-col gap-2 ps-8">
-              {options.map((option, optIndex) => {
-                const optValue = String(optIndex);
-                const isSelected = selectedAnswer === optValue;
-                const isCorrectOpt = isSubmitted && wrongAnswer?.correctAnswer === optValue;
+function parseReviewDialogueLines(options: string | null): ReviewDialogueLine[] {
+  if (!options) return [];
+  try {
+    const parsed: unknown = JSON.parse(options);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((o) => {
+      const obj = o as { speaker?: unknown; text?: unknown; hasBlank?: unknown };
+      return {
+        speaker: typeof obj.speaker === "string" ? obj.speaker : "",
+        text: typeof obj.text === "string" ? obj.text : "",
+        hasBlank: obj.hasBlank === true,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
 
-                return (
-                  <button
-                    key={optIndex}
-                    type="button"
-                    onClick={(): void => {
-                      if (!isSubmitted) onAnswerChange(index, optValue);
-                    }}
-                    disabled={isSubmitted}
-                    className={`rounded-lg border px-4 py-2.5 text-start text-sm transition-colors ${
-                      isSubmitted
-                        ? isCorrectOpt
-                          ? "border-success-500 bg-success-500/10 text-success-700 dark:text-success-300"
-                          : isSelected
-                            ? "border-danger-500 bg-danger-500/10 text-danger-700 dark:text-danger-300"
-                            : "border-neutral-200 text-neutral-400 dark:border-neutral-700"
-                        : isSelected
-                          ? "border-primary-500 bg-primary-500/10 text-primary-700 dark:text-primary-300"
-                          : "border-neutral-200 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800/50"
-                    }`}
-                  >
-                    {option}
-                    {isSubmitted && isCorrectOpt && !isSelected && (
-                      <CheckCircle className="ms-2 inline h-4 w-4 text-success-500" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="ps-8">
-              <input
-                type="text"
-                value={selectedAnswer}
-                onChange={(e): void => {
-                  if (!isSubmitted) onAnswerChange(index, e.target.value);
-                }}
-                disabled={isSubmitted}
-                placeholder="اكتب إجابتك..."
-                className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 ${
-                  isSubmitted
-                    ? isWrong
-                      ? "border-danger-500 bg-danger-500/5 text-danger-700 dark:text-danger-300"
-                      : isCorrect
-                        ? "border-success-500 bg-success-500/5 text-success-700 dark:text-success-300"
-                        : "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800"
-                    : "border-neutral-200 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-                }`}
-              />
-              {isSubmitted && wrongAnswer !== undefined && (
-                <p className="mt-1 text-xs text-danger-500">
-                  الإجابة الصحيحة: {wrongAnswer.correctAnswer}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+function splitReviewDialogueSegments(text: string): { type: "text" | "blank"; value: string }[] {
+  const segments: { type: "text" | "blank"; value: string }[] = [];
+  const regex = /(?:\(\d+\)\s*)?(?:\.{2,}|_{2,})|\(\d+\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: "text", value: text.slice(lastIndex, match.index) });
+    }
+    segments.push({ type: "blank", value: match[0] });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    segments.push({ type: "text", value: text.slice(lastIndex) });
+  }
+  if (segments.length === 0) {
+    segments.push({ type: "text", value: text });
+  }
+  return segments;
+}
+
+function parseReviewDialogueAnswers(selectedAnswer: string | null, count: number): string[] {
+  const empty = Array.from({ length: count }, () => "");
+  if (!selectedAnswer) return empty;
+  try {
+    const parsed: unknown = JSON.parse(selectedAnswer);
+    if (!Array.isArray(parsed)) return empty;
+    return Array.from({ length: count }, (_, i) =>
+      typeof parsed[i] === "string" ? parsed[i] : "",
+    );
+  } catch {
+    return empty;
+  }
 }
 
 function HomeworkSkeleton(): ReactNode {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <Skeleton className="h-8 w-64" />
       <Skeleton className="h-20 w-full rounded-xl" />
       <Skeleton className="h-12 w-full rounded-xl" />

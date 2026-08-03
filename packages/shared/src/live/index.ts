@@ -15,6 +15,17 @@ export enum LiveSessionTypeEnum {
   GROUP = "GROUP",
 }
 
+/**
+ * Unified booking session kind resolved deterministically by SessionKindResolver.
+ * Precedence: GROUP session type > PRIVATE + PRIVATE_MONTHLY > PRIVATE + ONE_TIME_PRIVATE > FREE.
+ */
+export enum LiveSessionKindEnum {
+  PRIVATE_MONTHLY = "PRIVATE_MONTHLY",
+  GROUP = "GROUP",
+  ONE_TIME = "ONE_TIME",
+  FREE = "FREE",
+}
+
 export enum LiveBookingStatusEnum {
   CONFIRMED = "CONFIRMED",
   CANCELLED = "CANCELLED",
@@ -42,6 +53,26 @@ export enum LiveSubscriptionStatusEnum {
   SUSPENDED = "SUSPENDED",
 }
 
+export enum LiveWaitingListStatusEnum {
+  WAITING = "WAITING",
+  PROMOTED = "PROMOTED",
+  CANCELLED = "CANCELLED",
+  EXPIRED = "EXPIRED",
+}
+
+export enum LiveBookingRescheduleStatusEnum {
+  REQUESTED = "REQUESTED",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+}
+
+export enum LiveRefundStatusEnum {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  PROCESSED = "PROCESSED",
+  REJECTED = "REJECTED",
+}
+
 export enum MeetingProviderEnum {
   EXTERNAL_URL = "EXTERNAL_URL",
   ZOOM_SDK = "ZOOM_SDK",
@@ -50,8 +81,11 @@ export enum MeetingProviderEnum {
 export interface ILiveSession {
   readonly id: string;
   readonly title: string;
+  readonly description: string | null;
   readonly teacherId: string;
   readonly gradeId: string | null;
+  readonly lessonId: string | null;
+  readonly courseId: string | null;
   readonly groupId: string | null;
   readonly availabilitySlotId: string | null;
   readonly date: string;
@@ -65,6 +99,11 @@ export interface ILiveSession {
   readonly meetingUrl: string | null;
   readonly meetingPassword: string | null;
   readonly meetingProvider: MeetingProviderEnum;
+  readonly zoomMeetingId: string | null;
+  readonly zoomPassword: string | null;
+  readonly zoomJoinUrl: string | null;
+  readonly waitingRoom: boolean;
+  readonly autoRecord: boolean;
   readonly notes: string | null;
   readonly publishedAt: string | null;
   readonly scheduledAt: string | null;
@@ -83,10 +122,51 @@ export interface ILiveBooking {
   readonly studentId: string;
   readonly subscriptionId: string | null;
   readonly status: LiveBookingStatusEnum;
+  readonly rescheduleRequestedAt: string | null;
+  readonly rescheduleReason: string | null;
+  readonly rescheduleStatus: LiveBookingRescheduleStatusEnum | null;
+  readonly rescheduleResolvedAt: string | null;
+  readonly rescheduleResolvedById: string | null;
   readonly cancelledAt: string | null;
   readonly cancelReason: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+export interface ILiveWaitingListEntry {
+  readonly id: string;
+  readonly sessionId: string;
+  readonly studentId: string;
+  readonly status: LiveWaitingListStatusEnum;
+  readonly position: number;
+  readonly joinedAt: string;
+  readonly promotedAt: string | null;
+  readonly cancelledAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ILiveRefund {
+  readonly id: string;
+  readonly paymentId: string;
+  readonly userId: string;
+  readonly amount: number;
+  readonly currency: string;
+  readonly reason: string | null;
+  readonly status: LiveRefundStatusEnum;
+  readonly processedById: string | null;
+  readonly processedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface IRescheduleBookingDto {
+  readonly reason: string;
+  readonly targetSessionId?: string;
+}
+
+export interface IJoinWaitingListDto {
+  readonly sessionId: string;
 }
 
 export interface ILiveSubscription {
@@ -120,6 +200,8 @@ export interface ILiveAttendance {
   readonly durationMinutes: number | null;
   readonly markedBy: string;
   readonly markedById: string | null;
+  readonly device: string | null;
+  readonly ip: string | null;
   readonly notes: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -179,8 +261,11 @@ export interface ITeacherLiveSettings {
 
 export interface ICreateLiveSessionDto {
   readonly title: string;
+  readonly description?: string;
   readonly teacherId: string;
   readonly gradeId?: string;
+  readonly lessonId?: string;
+  readonly courseId?: string;
   readonly availabilitySlotId?: string;
   readonly date: string;
   readonly startTime: string;
@@ -191,11 +276,17 @@ export interface ICreateLiveSessionDto {
   readonly meetingUrl?: string;
   readonly meetingPassword?: string;
   readonly meetingProvider?: MeetingProviderEnum;
+  readonly waitingRoom?: boolean;
+  readonly autoRecord?: boolean;
   readonly notes?: string;
 }
 
 export interface IUpdateLiveSessionDto {
   readonly title?: string;
+  readonly description?: string;
+  readonly gradeId?: string;
+  readonly lessonId?: string;
+  readonly courseId?: string;
   readonly date?: string;
   readonly startTime?: string;
   readonly endTime?: string;
@@ -204,13 +295,77 @@ export interface IUpdateLiveSessionDto {
   readonly meetingUrl?: string;
   readonly meetingPassword?: string;
   readonly meetingProvider?: MeetingProviderEnum;
+  readonly waitingRoom?: boolean;
+  readonly autoRecord?: boolean;
   readonly notes?: string;
   readonly status?: LiveSessionStatusEnum;
+}
+
+export interface ICreateZoomMeetingDto {
+  readonly topic?: string;
+  readonly durationMinutes?: number;
+  readonly startTime?: string;
+  readonly timezone?: string;
+  readonly password?: string;
+  readonly waitingRoom?: boolean;
+  readonly autoRecord?: boolean;
+  readonly muteUponEntry?: boolean;
+  readonly joinBeforeHost?: boolean;
+  readonly hostVideo?: boolean;
+  readonly participantVideo?: boolean;
+}
+
+export interface IUpdateZoomMeetingDto {
+  readonly topic?: string;
+  readonly durationMinutes?: number;
+  readonly startTime?: string;
+  readonly timezone?: string;
+  readonly password?: string;
+  readonly waitingRoom?: boolean;
+  readonly autoRecord?: boolean;
+  readonly muteUponEntry?: boolean;
+  readonly joinBeforeHost?: boolean;
+  readonly hostVideo?: boolean;
+  readonly participantVideo?: boolean;
+}
+
+export interface IZoomMeetingJoinConfig {
+  readonly sessionId: string;
+  readonly sessionTitle: string;
+  readonly meetingNumber: string;
+  readonly password: string | null;
+  readonly sdkKey: string;
+  readonly signature: string;
+  readonly userName: string;
+  readonly userEmail: string;
+  readonly role: 0 | 1;
+  readonly provider: MeetingProviderEnum;
+  readonly zoomJoinUrl: string | null;
+  readonly leaveUrl: string | null;
+  readonly startedAt: string;
+}
+
+export interface IJoinSessionDto {
+  readonly device?: string;
+}
+
+export interface ILeaveSessionDto {
+  readonly device?: string;
+}
+
+export interface ILessonLiveSessionView {
+  readonly session: ILiveSession;
+  readonly isBooked: boolean;
+  readonly hasActiveSubscription: boolean;
+  readonly canJoin: boolean;
+  readonly myAttendance: ILiveAttendance | null;
 }
 
 export interface IBookSessionDto {
   readonly sessionId: string;
   readonly subscriptionId?: string;
+  /** Optional hint; the engine resolves the authoritative kind deterministically. */
+  readonly bookingKind?: LiveSessionKindEnum;
 }
 
 export interface IRecordAttendanceDto {
@@ -223,6 +378,8 @@ export interface IRecordAttendanceDto {
 export interface IBookBySlotDto {
   readonly date: string;
   readonly subscriptionId?: string;
+  /** Optional hint; the engine resolves the authoritative kind deterministically. */
+  readonly bookingKind?: LiveSessionKindEnum;
 }
 
 export interface IAvailableSlotQuery {

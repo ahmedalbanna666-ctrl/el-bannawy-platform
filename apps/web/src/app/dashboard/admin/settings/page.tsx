@@ -19,6 +19,7 @@ import {
   BookOpen,
   Layers,
   CheckCircle2,
+  Award,
 } from "lucide-react";
 
 interface SystemSettings {
@@ -28,6 +29,7 @@ interface SystemSettings {
   autoTermStartDate: string | null;
   autoTermEndDate: string | null;
   maintenanceMode: boolean;
+  certificateThreshold: number;
 }
 
 interface Term {
@@ -86,6 +88,7 @@ export default function AdminSettingsPage(): ReactNode {
 
   const [autoStartDate, setAutoStartDate] = useState("");
   const [autoEndDate, setAutoEndDate] = useState("");
+  const [certificateThreshold, setCertificateThreshold] = useState("");
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (payload: Partial<SystemSettings>) => {
@@ -184,6 +187,13 @@ export default function AdminSettingsPage(): ReactNode {
     });
   };
 
+  const handleSaveCertificateThreshold = (): void => {
+    const value = Number(certificateThreshold);
+    if (Number.isInteger(value) && value >= 0 && value <= 100) {
+      updateSettingsMutation.mutate({ certificateThreshold: value });
+    }
+  };
+
   if (settingsLoading || yearsLoading) return <AdminSettingsSkeleton />;
   if (settingsError) return <ErrorState title="فشل التحميل" description={settingsErr instanceof Error ? settingsErr.message : "حدث خطأ"} />;
 
@@ -278,6 +288,40 @@ export default function AdminSettingsPage(): ReactNode {
                 })()}
               </p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Certificate Threshold */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Award className="h-5 w-5 text-primary-500" />
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">شهادات التقدير</h2>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-neutral-500">
+            النسبة المئوية التي يجب أن يصل إليها الطالب في الوحدة ليحصل تلقائياً على شهادة تقدير تُخزن في صفحة الإنجازات بصيغة PDF.
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                نسبة الإتمام المطلوبة (%)
+              </label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={certificateThreshold || String(settings?.certificateThreshold ?? 80)}
+                onChange={(e): void => { setCertificateThreshold(e.target.value); }}
+                className="w-36"
+              />
+            </div>
+            <Button size="sm" onClick={handleSaveCertificateThreshold}>
+              <CheckCircle2 className="ml-1 h-4 w-4" />
+              حفظ
+            </Button>
           </div>
         </CardContent>
       </Card>

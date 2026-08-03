@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Card } from "@/components/ui/card";
-import { CardEdge } from "@/components/ui/card-edge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuthStore } from "@/lib/auth-store";
@@ -32,6 +31,7 @@ export function TeacherDashboard(): ReactNode {
   const { can } = usePermissions();
   const fullName = useAuthStore((s) => s.user?.fullName ?? "");
   const userId = useAuthStore((s) => s.user?.id);
+  const userRole = useAuthStore((s) => s.user?.role);
   const firstName = fullName.split(" ")[0];
 
   const { data: allLiveSessions } = useLiveSessions();
@@ -69,7 +69,7 @@ export function TeacherDashboard(): ReactNode {
 
   const hasAssignedGrades = (myGrades?.grades.length ?? 0) > 0;
 
-  const modules = getDashboardModules(can);
+  const modules = getDashboardModules(can, userRole);
   const primaryModules = modules.filter((m) => m.category === "content");
   const moreModules = modules.filter((m) => m.category !== "content");
 
@@ -135,7 +135,6 @@ export function TeacherDashboard(): ReactNode {
                 tabIndex={0}
                 onKeyDown={(e): void => { if (e.key === "Enter") router.push(m.route); }}
               >
-                <CardEdge variant="primary" />
                 <div className="flex flex-col gap-3 px-5 py-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 ring-1 ring-primary-500/10">
                     <m.icon className="h-5 w-5 text-primary-500" />

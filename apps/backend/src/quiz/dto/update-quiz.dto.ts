@@ -34,6 +34,10 @@ export class UpdateQuizQuestionDto {
   @IsOptional()
   @IsInt()
   displayOrder?: number;
+
+  @IsOptional()
+  @IsString()
+  correctionMode?: string;
 }
 
 export class UpdateQuizDto {

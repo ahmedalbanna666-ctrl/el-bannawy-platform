@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { VideoQuestionRepository, VIDEO_QUESTION_INCLUDE } from "./video-question.repository";
+import { VideoQuestionRepository } from "./video-question.repository";
 import { VideoQuestionMapper } from "./video-question.mapper";
 import type {
   CreateVideoQuestionDto,
@@ -11,10 +11,7 @@ import type {
 } from "./dto";
 import type { IVideoQuestion, IVideoQuestionPublic, IVideoQuestionResult } from "./interfaces";
 import { VideoQuestionExecutor } from "./video-question.executor";
-
-type VideoQuestionWithOptions = Prisma.VideoQuestionGetPayload<{
-  include: typeof VIDEO_QUESTION_INCLUDE;
-}>;
+import { AcademicContextService } from "../common/services/academic-context.service";
 
 @Injectable()
 export class VideoQuestionService {
@@ -23,12 +20,19 @@ export class VideoQuestionService {
     private readonly repository: VideoQuestionRepository,
     private readonly mapper: VideoQuestionMapper,
     private readonly executor: VideoQuestionExecutor,
+    private readonly academicContext: AcademicContextService,
   ) {}
 
   async getByVideoEventId(videoEventId: string): Promise<IVideoQuestionPublic | null> {
     const record = await this.repository.findByVideoEventId(videoEventId);
     if (!record) return null;
     return this.mapper.toPublic(record);
+  }
+
+  async getByVideoEventIdFull(videoEventId: string): Promise<IVideoQuestion | null> {
+    const record = await this.repository.findByVideoEventId(videoEventId);
+    if (!record) return null;
+    return this.mapper.toDomain(record);
   }
 
   async getById(id: string): Promise<IVideoQuestionPublic | null> {
@@ -63,7 +67,14 @@ export class VideoQuestionService {
     return this.mapper.toDomain(record);
   }
 
-  async createWithEvent(dto: CreateVideoQuestionWithEventDto): Promise<{ event: unknown; question: IVideoQuestion }> {
+  async createWithEvent(dto: CreateVideoQuestionWithEventDto, userId: string): Promise<{ event: unknown; question: IVideoQuestion }> {
+    const video = await this.prisma.lessonVideo.findUnique({
+      where: { id: dto.videoId },
+      select: { lessonId: true },
+    });
+    if (!video) throw new NotFoundException("Video not found");
+    await this.academicContext.verifyTeacherLessonAccess(userId, video.lessonId);
+
     return this.prisma.$transaction(async (tx) => {
       const event = await tx.videoEvent.create({
         data: {
@@ -103,7 +114,7 @@ export class VideoQuestionService {
         },
       });
 
-      const questionDomain = this.mapper.toDomain(question as VideoQuestionWithOptions);
+      const questionDomain = this.mapper.toDomain(question);
       return { event, question: questionDomain };
     });
   }
@@ -168,12 +179,23 @@ export class VideoQuestionService {
     });
   }
 
-  async answer(dto: AnswerVideoQuestionDto): Promise<IVideoQuestionResult> {
+  async answer(dto: AnswerVideoQuestionDto, userId: string): Promise<IVideoQuestionResult> {
     const result = await this.executor.execute(dto.questionId, {
       questionId: dto.questionId,
       selectedOptionIds: dto.selectedOptionIds,
       text: dto.text,
     });
+
+    await this.repository.upsertAnswer({
+      questionId: dto.questionId,
+      userId,
+      selectedOptionIds: dto.selectedOptionIds,
+      text: dto.text ?? null,
+      correct: result.correct,
+      score: result.score,
+      maxScore: result.maxScore,
+    });
+
     return result;
   }
 }

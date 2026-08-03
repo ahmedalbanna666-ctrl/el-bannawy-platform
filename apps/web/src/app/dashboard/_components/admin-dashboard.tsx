@@ -5,9 +5,21 @@ import { useRouter } from "next/navigation";
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuthStore } from "@/lib/auth-store";
 import { getDashboardModules } from "@/lib/nav-registry";
-import { Card } from "@/components/ui/card";
-import { CardEdge } from "@/components/ui/card-edge";
-import { ChevronLeft } from "lucide-react";
+import { useLiveAnalyticsOverview } from "@/lib/live-api";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChevronLeft, Video, Users, Activity, Star, Bell } from "lucide-react";
+
+function useLiveWindow(): { from: string; to: string } {
+  return useMemo(() => {
+    const now = new Date();
+    const to = now.toISOString().split("T")[0];
+    const from = new Date(now);
+    from.setDate(from.getDate() - 30);
+    return { from: from.toISOString().split("T")[0], to };
+  }, []);
+}
 
 function formatTodayArabic(): string {
   return new Date().toLocaleDateString("ar-EG", {
@@ -18,13 +30,88 @@ function formatTodayArabic(): string {
   });
 }
 
+function LiveAnalyticsWidget(): ReactNode {
+  const router = useRouter();
+  const { from, to } = useLiveWindow();
+  const { data, isLoading, isError } = useLiveAnalyticsOverview(from, to);
+
+  return (
+    <Card variant="gradient" padding="none" className="overflow-hidden">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Video className="h-5 w-5 text-white" />
+            <h2 className="text-sm font-bold text-white">الحصص المباشرة</h2>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+            onClick={(): void => { router.push("/dashboard/live"); }}
+          >
+            إدارة الحصص
+          </Button>
+        </div>
+
+        {isLoading && (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-20 rounded-xl bg-white/15" />
+            ))}
+          </div>
+        )}
+
+        {isError && (
+          <p className="mt-4 text-sm text-white/60">
+            تعذر تحميل مؤشرات الحصص المباشرة.
+          </p>
+        )}
+
+        {data && (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <LiveMetric icon={<Video className="h-4 w-4" />} label="حصص مباشرة الآن" value={data.liveNowSessions} />
+            <LiveMetric icon={<Users className="h-4 w-4" />} label="إجمالي الحجوزات" value={data.totalBookings} />
+            <LiveMetric icon={<Star className="h-4 w-4" />} label="اشتراكات نشطة" value={data.activeSubscriptions} />
+            <LiveMetric icon={<Activity className="h-4 w-4" />} label="نسبة الحضور" value={`${String(data.attendanceRate)}%`} />
+            <LiveMetric icon={<Bell className="h-4 w-4" />} label="قائمة الانتظار" value={data.waitlistEntries} />
+            <LiveMetric icon={<Video className="h-4 w-4" />} label="حصص مكتملة" value={data.completedSessions} />
+            <LiveMetric icon={<Users className="h-4 w-4" />} label="طلاب" value={data.totalStudents} />
+            <LiveMetric icon={<Activity className="h-4 w-4" />} label="استغلال السعة" value={`${String(data.capacityUtilization)}%`} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LiveMetric({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: number | string;
+}): ReactNode {
+  return (
+    <div className="flex flex-col gap-1 rounded-xl bg-white/10 p-3">
+      <div className="flex items-center gap-1.5 text-white/60">
+        {icon}
+        <span className="text-[11px] font-medium">{label}</span>
+      </div>
+      <span className="text-xl font-bold text-white">{value}</span>
+    </div>
+  );
+}
+
 export function AdminDashboard(): ReactNode {
   const router = useRouter();
   const { can } = usePermissions();
   const fullName = useAuthStore((s) => s.user?.fullName ?? "");
+  const role = useAuthStore((s) => s.user?.role);
   const firstName = fullName.split(" ")[0];
 
-  const modules = getDashboardModules(can);
+  const modules = getDashboardModules(can, role);
   const primaryModules = modules.filter((m) => m.category === "content");
   const moreModules = modules.filter((m) => m.category !== "content");
 
@@ -44,6 +131,8 @@ export function AdminDashboard(): ReactNode {
         </p>
       </div>
 
+      <LiveAnalyticsWidget />
+
       {primaryModules.length > 0 && (
         <div>
           <h2 className="mb-3 text-sm font-bold text-neutral-900 dark:text-neutral-100">
@@ -61,7 +150,6 @@ export function AdminDashboard(): ReactNode {
                 tabIndex={0}
                 onKeyDown={(e): void => { if (e.key === "Enter") router.push(m.route); }}
               >
-                <CardEdge variant="primary" />
                 <div className="flex flex-col gap-3 px-5 py-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 ring-1 ring-primary-500/10">
                     <m.icon className="h-5 w-5 text-primary-500" />

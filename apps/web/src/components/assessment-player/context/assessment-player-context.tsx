@@ -311,6 +311,8 @@ export function AssessmentPlayerProvider({
       saveAnswer,
       getAnswer: (questionId: string): AnswerRecord | undefined => snapshot.answers.get(questionId),
       hasAnswered: (questionId: string): boolean => engine?.hasAnswered(questionId) ?? false,
+      timerState: snapshot.timerState,
+      autosaveState: snapshot.autosaveState,
     };
   }, [snapshot, attemptId, syncEngine]);
 

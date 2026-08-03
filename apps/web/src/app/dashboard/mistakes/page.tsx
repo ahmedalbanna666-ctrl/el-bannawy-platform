@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { BookOpen, ScrollText, GraduationCap, AlertTriangle, Clock, CheckCircle2, Play, RotateCcw, ArrowLeft, Layers, X, Target } from "lucide-react";
+import { BookOpen, GraduationCap, AlertTriangle, CheckCircle2, Play, RotateCcw, ArrowLeft, Layers, X, Target, Trophy } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { QuestionCard, groupQuestions, type StudentQuestion } from "@/components/questions/question-card";
 import {
   useMistakes,
   useMistakeFilters,
@@ -26,21 +27,21 @@ const SOURCE_LABEL: Record<MistakeSource, string> = {
   ASSESSMENT: "تقييم",
   QUIZ: "اختبار",
   HOMEWORK: "واجب",
-  STORY: "قصة",
+  VIDEO_QUESTION: "سؤال فيديو",
 };
 
 const SOURCE_ICON: Record<MistakeSource, ReactNode> = {
   ASSESSMENT: <GraduationCap className="h-4 w-4" />,
   QUIZ: <BookOpen className="h-4 w-4" />,
   HOMEWORK: <BookOpen className="h-4 w-4" />,
-  STORY: <ScrollText className="h-4 w-4" />,
+  VIDEO_QUESTION: <GraduationCap className="h-4 w-4" />,
 };
 
 const SOURCE_COLOR: Record<MistakeSource, "primary" | "info" | "warning" | "success"> = {
   ASSESSMENT: "info",
   QUIZ: "primary",
   HOMEWORK: "warning",
-  STORY: "success",
+  VIDEO_QUESTION: "info",
 };
 
 function SkeletonCard(): ReactNode {
@@ -249,7 +250,7 @@ export default function MistakesPage(): ReactNode {
                   src === "QUIZ" && "bg-primary-500/10 text-primary-500",
                   src === "ASSESSMENT" && "bg-info-500/10 text-info-500",
                   src === "HOMEWORK" && "bg-warning-500/10 text-warning-500",
-                  src === "STORY" && "bg-success-500/10 text-success-500",
+
                 )}>
                   {SOURCE_ICON[src]}
                 </div>
@@ -367,7 +368,7 @@ function FilterBar({
 }: {
   params: MistakeQueryParams;
   setParams: (u: (p: MistakeQueryParams) => MistakeQueryParams) => void;
-  filters?: { units: { id: string; title: string }[]; lessons: { id: string; title: string }[]; stories: { id: string; title: string }[]; chapters: { id: string; title: string }[]; sources: MistakeSource[] };
+  filters?: { units: { id: string; title: string }[]; lessons: { id: string; title: string }[]; sources: MistakeSource[] };
 }): ReactNode {
   const [searchText, setSearchText] = useState(params.search ?? "");
   return (
@@ -384,12 +385,7 @@ function FilterBar({
             {filters.sources.map((s) => <option key={s} value={s}>{SOURCE_LABEL[s]}</option>)}
           </select>
         )}
-        {filters && filters.stories.length > 0 && (
-          <select className="h-9 rounded-md border bg-background px-3 text-sm" value={params.storyId ?? ""} onChange={(e) => { setParams((p) => ({ ...p, storyId: e.target.value || undefined, chapterId: undefined, page: 1 })); }}>
-            <option value="">جميع القصص</option>
-            {filters.stories.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
-          </select>
-        )}
+
         <div className="relative mr-auto">
           <Input
             placeholder="بحث في الأسئلة..."
@@ -426,7 +422,7 @@ function MistakeCard({ item }: { item: WrongAnswerItem }): ReactNode {
             <Badge variant="secondary" className="text-xs">{item.unitTitle}</Badge>
           )}
           {item.lessonTitle && <span className="text-xs text-neutral-400">{item.lessonTitle}</span>}
-          {item.storyTitle && <span className="text-xs text-neutral-400">{item.storyTitle}</span>}
+
         </div>
 
         <p className="mb-3 text-sm font-medium text-neutral-900 dark:text-neutral-100">{item.question}</p>
@@ -471,17 +467,19 @@ function ExamOrResultsView({
 }): ReactNode {
   const [exam, setExam] = useState<MiniExamSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   useEffect(() => {
     if (!examId) return;
+    setLoading(true);
     void api.get<MiniExamSummary>(`/mistakes/mini-exam/${examId}`)
       .then((res) => {
         if (res.data) setExam(res.data);
         setLoading(false);
       })
       .catch(() => { setLoading(false); });
-  }, [examId]);
+  }, [examId, view]);
 
   useEffect(() => {
     if (!exam || view !== "exam") return;
@@ -494,7 +492,19 @@ function ExamOrResultsView({
         setQuizEnded(true);
       }
     }, 1000);
-    return (): void => { clearInterval(timerRef.current); };
+    setTimeLeft(totalSec);
+    const countdown = setInterval((): void => {
+      remaining -= 1;
+      setTimeLeft(Math.max(0, remaining));
+      if (remaining <= 0) {
+        clearInterval(countdown);
+        setQuizEnded(true);
+      }
+    }, 1000);
+    return (): void => {
+      clearInterval(timerRef.current);
+      clearInterval(countdown);
+    };
   }, [exam, view, setQuizEnded]);
 
   if (loading || !exam) return <PageSkeleton />;
@@ -508,14 +518,27 @@ function ExamOrResultsView({
     const max = exam.maxScore;
     return (
       <div className="mx-auto max-w-xl flex flex-col gap-6">
-        <Card>
-          <CardHeader>
-            <h3 className="text-center text-lg font-semibold">نتيجة الاختبار</h3>
-            <p className="text-center text-sm text-neutral-500">تم التقييم</p>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-2">
-            <div className="text-4xl font-bold text-neutral-900 dark:text-neutral-100">{score}/{max}</div>
-            <Badge variant={exam.passed ? "success" : "danger"}>{exam.passed ? "ناجح" : "راجع إجاباتك"}</Badge>
+        <Card
+          variant={exam.passed ? "gradient" : "outline"}
+          padding="md"
+          className={exam.passed ? "" : "border-warning-500/50"}
+        >
+          <CardContent>
+            <div className="flex flex-col items-center gap-3 text-center">
+              {exam.passed ? (
+                <CheckCircle2 className="h-12 w-12 text-success-500" />
+              ) : (
+                <AlertTriangle className="h-12 w-12 text-warning-500" />
+              )}
+              <div>
+                <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
+                  النتيجة: {score}/{max}
+                </h2>
+                <Badge variant={exam.passed ? "success" : "warning"} className="mt-2">
+                  {exam.passed ? "ناجح" : "حاول مرة أخرى"}
+                </Badge>
+              </div>
+            </div>
           </CardContent>
           <CardFooter className="justify-center">
             <Button leftIcon={<RotateCcw className="h-4 w-4" />} onClick={onBack}>العودة للأخطاء</Button>
@@ -525,41 +548,91 @@ function ExamOrResultsView({
     );
   }
 
+  const studentQuestions: StudentQuestion[] = questions.map((q) => {
+    const hasOptions = q.options.length > 0;
+    return {
+      id: q.questionId,
+      type: hasOptions ? "MULTIPLE_CHOICE" : "FILL_IN_BLANKS",
+      question: q.question,
+      options: hasOptions ? JSON.stringify(q.options.map((o) => o.text)) : null,
+      displayOrder: 0,
+    };
+  });
+
+  const getSelectedIndex = (questionId: string): string => {
+    const q = questions.find((x) => x.questionId === questionId);
+    if (!q) return "";
+    if (q.options.length === 0) return examAnswers[questionId] ?? "";
+    const idx = q.options.findIndex((o) => o.text === examAnswers[questionId]);
+    return idx >= 0 ? String(idx) : "";
+  };
+
+  const handleAnswerChange = (index: number, value: string): void => {
+    const q = questions[index];
+    const opt = q.options[Number(value)] as { text: string } | undefined;
+    setExamAnswers({ ...examAnswers, [q.questionId]: opt ? opt.text : value });
+  };
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={onBack}>رجوع</Button>
-        <div className="flex items-center gap-2 font-mono text-lg" dir="ltr">
-          <Clock className="h-5 w-5" />
-          {quizEnded ? "انتهى الوقت" : "مؤقت"}
+        <Button variant="ghost" size="sm" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={onBack}>رجوع</Button>
+        <div className="flex items-center gap-2">
+          {timeLeft !== null && (
+            <div
+              dir="ltr"
+              className={`rounded-xl border px-4 py-2 text-sm font-bold tabular-nums ${
+                quizEnded
+                  ? "border-red-500/40 bg-red-500/10 text-red-400"
+                  : timeLeft < 60
+                    ? "border-red-500/40 bg-red-500/10 text-red-400"
+                    : timeLeft < 300
+                      ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                      : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+              }`}
+            >
+              ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
+            </div>
+          )}
+          <Badge variant="primary">{answeredCount}/{questions.length}</Badge>
         </div>
-        <Badge variant="primary">{answeredCount}/{questions.length}</Badge>
       </div>
 
-      {questions.map((q, idx) => (
-        <Card key={q.questionId}>
-          <CardHeader>
-            <h3 className="text-base font-medium"><span className="ml-2 text-neutral-400">{idx + 1}.</span>{q.question}</h3>
-            <p className="text-xs text-neutral-400">{SOURCE_LABEL[q.source as MistakeSource]}</p>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {q.options.map((opt, oi) => (
-              <Button
-                key={oi}
-                variant={examAnswers[q.questionId] === opt.text ? "primary" : "outline"}
-                className="justify-start text-sm"
-                onClick={() => { setExamAnswers({ ...examAnswers, [q.questionId]: opt.text }); }}
-              >
-                {opt.text}
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
-      ))}
+      <div className="flex flex-col gap-4" dir="ltr">
+        {groupQuestions(studentQuestions).map((group, gi) => (
+          <div key={gi} className="flex flex-col gap-3">
+            <h2 className="border-b border-neutral-200 pb-2 text-lg font-bold text-neutral-900 dark:border-neutral-700 dark:text-neutral-100">
+              {group.heading}
+            </h2>
+            <div className="flex flex-col gap-4">
+              {group.questions.map(({ question, originalIndex }) => (
+                <QuestionCard
+                  key={question.id}
+                  question={question}
+                  index={originalIndex}
+                  selectedAnswer={getSelectedIndex(question.id)}
+                  isSubmitted={false}
+                  showResult={false}
+                  onAnswerChange={handleAnswerChange}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
 
-      <Button className="w-full" size="lg" onClick={onSubmit} disabled={submitting || !allAnswered} loading={submitting}>
-        {allAnswered ? "إنهاء الاختبار" : "أكمل جميع الأسئلة"}
-      </Button>
+      <div className="flex justify-end">
+        <Button
+          variant="primary"
+          size="md"
+          onClick={onSubmit}
+          disabled={!allAnswered}
+          loading={submitting}
+        >
+          <Trophy className="mr-2 h-4 w-4" />
+          {allAnswered ? "إنهاء الاختبار" : "أكمل جميع الأسئلة"}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -11,11 +11,16 @@ export class RegisterDto {
   @MaxLength(100)
   englishName?: string;
 
+  @IsEmail()
+  @MaxLength(255)
+  email!: string;
+
+  @IsOptional()
   @IsString()
   @Matches(/^\+?[1-9]\d{6,14}$/, {
     message: "Invalid mobile number format",
   })
-  mobile!: string;
+  mobile?: string;
 
   @IsOptional()
   @IsString()
@@ -60,6 +65,43 @@ export class RegisterDto {
   @IsString()
   @MaxLength(50)
   grade?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  referralCode?: string;
+
+  /** Firebase ID token minted on the client after creating the Firebase Auth user. */
+  @IsOptional()
+  @IsString()
+  firebaseIdToken?: string;
+}
+
+export class VerifyEmailDto {
+  @IsEmail()
+  @MaxLength(255)
+  email!: string;
+
+  @IsString()
+  @Matches(/^\d{6}$/, {
+    message: "Verification code must be 6 digits",
+  })
+  code!: string;
+}
+
+export class ResendVerificationDto {
+  @IsEmail()
+  @MaxLength(255)
+  email!: string;
+}
+
+export class FirebaseLoginDto {
+  @IsString()
+  idToken!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  rememberMe?: boolean;
 }
 
 export class LoginDto {
@@ -94,11 +136,12 @@ export class CompleteOAuthRegistrationDto {
   @MaxLength(100)
   englishName?: string;
 
+  @IsOptional()
   @IsString()
   @Matches(/^\+?[1-9]\d{6,14}$/, {
     message: "Invalid mobile number format",
   })
-  mobile!: string;
+  mobile?: string;
 
   @IsOptional()
   @IsString()
@@ -140,27 +183,29 @@ export class CompleteOAuthRegistrationDto {
   @IsString()
   @MaxLength(50)
   grade?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  referralCode?: string;
 }
 
 export class RefreshTokenDto {
+  @IsOptional()
   @IsString()
-  refreshToken!: string;
+  refreshToken?: string;
 }
 
 export class ForgotPasswordDto {
   @IsString()
-  @Matches(/^\+?[1-9]\d{6,14}$/, {
-    message: "Invalid mobile number format",
-  })
-  mobile!: string;
+  @MaxLength(255)
+  identifier!: string;
 }
 
 export class ResetPasswordDto {
   @IsString()
-  @Matches(/^\+?[1-9]\d{6,14}$/, {
-    message: "Invalid mobile number format",
-  })
-  mobile!: string;
+  @MaxLength(255)
+  identifier!: string;
 
   @IsString()
   verificationCode!: string;

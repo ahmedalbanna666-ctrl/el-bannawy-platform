@@ -1,463 +1,61 @@
 # FINAL_REVIEW_API.md
 
 # El-bannawy Platform
-## Final Review API Specification
+## Final Review API (المراجعة النهائية)
 
-Version: 1.0.0
-
----
-
-# Purpose
-
-This document defines all API endpoints related to the Final Review Module.
-
-The Final Review API manages:
-
-- Final Review Availability
-- Review Lessons
-- Review Videos
-- Review Vocabulary
-- Practice Questions
-- Final Exams
-- Readiness Reports
-
-The Final Review Module is activated only during the revision period configured by teachers or administrators.
+Version: 2.0.0
 
 ---
 
-# Base Endpoint
+# Overview
 
-/api/v1/final-review
+The Final Review no longer has a dedicated API surface. It reuses the curriculum endpoints with the `unitType=FINAL_REVIEW` discriminator.
 
----
-
-# Authentication
-
-Required
-
-JWT Access Token
-
-Role-Based Authorization
+There is no `/api/v1/final-reviews` namespace anymore.
 
 ---
 
-# Supported Roles
+# Student Endpoints
 
-- Student
-- Teacher
-- Administrator
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/curriculum?unitType=FINAL_REVIEW` | Final review list (with sections) |
+| GET | `/api/v1/lessons/:lessonId` | Section content |
+| GET | `/api/v1/lessons/:lessonId/quiz` | Section quiz |
+| GET | `/api/v1/lessons/:lessonId/homework` | Section homework |
 
----
-
-# ==========================
-# MODULE STATUS
-# ==========================
-
-GET
-
-/final-review/status
-
-Description
-
-Return module availability.
-
-Response
-
-```json
-{
-    "enabled":true,
-    "message":"Final Review is available."
-}
-```
-
-When disabled
-
-```json
-{
-    "enabled":false,
-    "message":"Final Review will be available during the official revision period."
-}
-```
+JWT-protected; filtered by the student's academic context (grade, academic year, term, educational system).
 
 ---
 
-# ==========================
-# REVIEW UNITS
-# ==========================
+# Management Endpoints
 
-GET
+| Method | Path | Roles | Purpose |
+|---|---|---|---|
+| GET | `/api/v1/curriculum/units?unitType=FINAL_REVIEW` | Management view | List final reviews |
+| POST | `/api/v1/curriculum/units` | Teacher/Administrator | Create final review (`unitType: "FINAL_REVIEW"`) |
+| PATCH | `/api/v1/curriculum/units/:id` | Teacher/Administrator | Update final review |
+| DELETE | `/api/v1/curriculum/units/:id` | Teacher/Administrator | Delete final review |
+| POST | `/api/v1/curriculum/lessons` | Teacher/Administrator | Create lecture |
+| PATCH | `/api/v1/curriculum/lessons/:id` | Teacher/Administrator | Update lecture |
+| DELETE | `/api/v1/curriculum/lessons/:id` | Teacher/Administrator | Delete lecture |
 
-/final-review/units
-
-Description
-
-Return all review units.
-
-Response
-
-```json
-[
-    {
-        "id":"",
-        "title":"",
-        "progress":60
-    }
-]
-```
+Permissions reuse `UNITS_*` permissions.
 
 ---
 
-GET
+# Query Parameters
 
-/final-review/units/{unitId}
-
-Return complete review unit.
-
-Includes
-
-- Lessons
-- Practice
-- Final Exam
+`unitType` is a `UnitType` enum value (`UNIT`, `STORY`, `FINAL_REVIEW`). It defaults to `UNIT` so existing clients keep working unchanged.
 
 ---
 
-# ==========================
-# REVIEW LESSONS
-# ==========================
+# Removed API
 
-GET
+The old `/api/v1/final-reviews` base path, management/section/publish/reorder routes, and review-exam/readiness routes are no longer exposed.
 
-/final-review/lessons/{lessonId}
+# Student Flow
 
-Return review lesson.
-
-Includes
-
-- Review Video
-- Vocabulary
-- Summary Notes
-- Practice Questions
-- Files
-
----
-
-# ==========================
-# PRACTICE QUESTIONS
-# ==========================
-
-GET
-
-/final-review/practice/{lessonId}
-
-Return practice questions.
-
----
-
-POST
-
-/final-review/practice/{lessonId}/submit
-
-Submit answers.
-
-Response
-
-```json
-{
-    "score":90,
-    "correctAnswers":18,
-    "wrongAnswers":2
-}
-```
-
-Practice questions do not unlock content.
-
----
-
-# ==========================
-# FINAL EXAM
-# ==========================
-
-GET
-
-/final-review/exams/{unitId}
-
-Return final unit exam.
-
----
-
-POST
-
-/final-review/exams/{unitId}/submit
-
-Submit exam.
-
-Response
-
-```json
-{
-    "score":88,
-    "passed":true,
-    "xpAwarded":100
-}
-```
-
----
-
-# ==========================
-# FULL COURSE EXAM
-# ==========================
-
-GET
-
-/final-review/exams/final
-
-Return complete curriculum exam.
-
----
-
-POST
-
-/final-review/exams/final/submit
-
-Submit complete final exam.
-
----
-
-# ==========================
-# READINESS REPORT
-# ==========================
-
-GET
-
-/final-review/readiness
-
-Return student readiness.
-
-Response
-
-```json
-{
-    "overallScore":86,
-    "status":"Ready",
-    "weakTopics":[]
-}
-```
-
----
-
-# ==========================
-# REVIEW PROGRESS
-# ==========================
-
-GET
-
-/final-review/progress
-
-Return:
-
-- Completed Lessons
-- Completed Units
-- Progress Percentage
-
----
-
-# ==========================
-# TEACHER MANAGEMENT
-# ==========================
-
-POST
-
-/final-review/open
-
-Enable Final Review.
-
-Teacher
-
-Administrator
-
----
-
-POST
-
-/final-review/close
-
-Disable Final Review.
-
----
-
-POST
-
-/final-review/units
-
-Create review unit.
-
----
-
-POST
-
-/final-review/lessons
-
-Create review lesson.
-
----
-
-PATCH
-
-/final-review/lessons/{lessonId}
-
-Update lesson.
-
----
-
-DELETE
-
-/final-review/lessons/{lessonId}
-
-Soft Delete.
-
----
-
-# ==========================
-# ANALYTICS
-# ==========================
-
-GET
-
-/final-review/analytics
-
-Teacher
-
-Administrator
-
-Return
-
-- Participation Rate
-- Average Score
-- Readiness Distribution
-- Weak Topics
-- Completion Rate
-
----
-
-# ==========================
-# VALIDATION
-# ==========================
-
-Validate
-
-- Review Period Enabled
-- Student Enrollment
-- Lesson Exists
-- Unit Exists
-- Exam Eligibility
-
----
-
-# ==========================
-# SECURITY
-# ==========================
-
-Students may access only:
-
-Final Review assigned to their educational stage and grade.
-
-When the module is disabled,
-
-students cannot access any review content.
-
----
-
-# ==========================
-# STATUS CODES
-# ==========================
-
-200 OK
-
-201 Created
-
-204 No Content
-
-400 Bad Request
-
-401 Unauthorized
-
-403 Forbidden
-
-404 Not Found
-
-409 Conflict
-
-422 Validation Error
-
-429 Too Many Requests
-
-500 Internal Server Error
-
----
-
-# ==========================
-# PERFORMANCE
-# ==========================
-
-Review Loading
-
-<300ms
-
-Exam Loading
-
-<300ms
-
-Submission
-
-<500ms
-
-Readiness Report
-
-<500ms
-
----
-
-# ==========================
-# AUDIT LOGS
-# ==========================
-
-Record
-
-- Final Review Opened
-- Final Review Closed
-- Review Lesson Created
-- Review Lesson Updated
-- Exam Submitted
-- Readiness Generated
-
----
-
-# ==========================
-# ACCEPTANCE CRITERIA
-# ==========================
-
-✓ Final Review availability works.
-
-✓ Review lessons load correctly.
-
-✓ Practice questions work.
-
-✓ Final exams work.
-
-✓ Readiness reports work.
-
-✓ Progress tracking works.
-
-✓ Analytics work.
-
-✓ Authorization works.
-
----
-
-# Final Rule
-
-The Final Review API must remain inaccessible until officially activated by the teacher or administrator.
-
-Its purpose is to provide students with a focused exam preparation experience without affecting the normal curriculum flow.
+`GET /api/v1/curriculum?unitType=FINAL_REVIEW` returns all final-review units. The web app flattens their lessons into a single "محاضرات المراجعات" list; each lecture opens at `/dashboard/lessons/detail/:lectureId`.
 
 End of Document.

@@ -12,8 +12,10 @@ export interface ContentAccess {
   hasProgress: boolean;
 }
 
+export type UnlockTargetType = "UNIT" | "LESSON" | "TERM";
+
 export function useContentAccess(
-  targetType: "UNIT" | "LESSON",
+  targetType: UnlockTargetType,
   targetId: string | undefined,
 ): UseQueryResult<ContentAccess> {
   return useQuery({
@@ -38,20 +40,31 @@ export interface UseUnitUnlockResult {
   requesting: boolean;
   redeeming: boolean;
   cost: number;
+  termCost: number;
+  unlockTerm: (onDone?: (err?: unknown) => void) => void;
+  unlockingTerm: boolean;
 }
 
-export function useUnitUnlock(unitId: string | undefined): UseUnitUnlockResult {
+interface UseUnitUnlockOptions {
+  termId?: string;
+}
+
+export function useUnitUnlock(unitId: string | undefined, options?: UseUnitUnlockOptions): UseUnitUnlockResult {
   const qc = useQueryClient();
   const access = useContentAccess("UNIT", unitId);
   const { data: costData } = useUnlockCost("UNIT");
+  const { data: termCostData } = useUnlockCost("TERM");
   const unlockMut = useUnlockContent();
   const requestMut = useSubmitUnlockRequest();
   const redeemMut = useRedeemCode();
 
   const cost = costData?.cost ?? 50;
+  const termCost = termCostData?.cost ?? 0;
+  const termId = options?.termId;
 
   const invalidate = (): void => {
     void qc.invalidateQueries({ queryKey: ["coins", "access", "UNIT", unitId] });
+    void qc.invalidateQueries({ queryKey: ["coins", "access", "TERM", termId] });
     void qc.invalidateQueries({ queryKey: ["curriculum"] });
     void qc.invalidateQueries({ queryKey: ["coins", "wallet"] });
   };
@@ -59,6 +72,17 @@ export function useUnitUnlock(unitId: string | undefined): UseUnitUnlockResult {
   const unlock = (onDone?: (err?: unknown) => void): void => {
     unlockMut.mutate(
       { targetType: "UNIT", targetId: unitId ?? "" },
+      {
+        onSuccess: () => { invalidate(); onDone?.(); },
+        onError: (err) => { onDone?.(err); },
+      },
+    );
+  };
+
+  const unlockTerm = (onDone?: (err?: unknown) => void): void => {
+    if (!termId) return;
+    unlockMut.mutate(
+      { targetType: "TERM", targetId: termId },
       {
         onSuccess: () => { invalidate(); onDone?.(); },
         onError: (err) => { onDone?.(err); },
@@ -96,5 +120,8 @@ export function useUnitUnlock(unitId: string | undefined): UseUnitUnlockResult {
     requesting: requestMut.isPending,
     redeeming: redeemMut.isPending,
     cost,
+    termCost,
+    unlockTerm,
+    unlockingTerm: unlockMut.isPending,
   };
 }

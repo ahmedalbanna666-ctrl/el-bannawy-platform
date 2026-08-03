@@ -7,6 +7,9 @@ import {
   useCreateAvailability,
   useDeleteAvailability,
   useBlockDate,
+  useUnblockDate,
+  useDateBlocks,
+  useUpdateAvailability,
   type TeacherAvailabilityItem,
 } from "@/lib/live-api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +23,7 @@ import {
   Trash2,
   CalendarOff,
   ArrowLeft,
+  Pencil,
 } from "lucide-react";
 import { LiveSessionTypeEnum } from "@el-bannawy/shared";
 
@@ -86,33 +90,52 @@ function AvailabilityTabBar({
 function AddSlotForm({
   dayOfWeek,
   onClose,
+  editing,
 }: {
   dayOfWeek: number;
   onClose: () => void;
+  editing?: TeacherAvailabilityItem | null;
 }): ReactNode {
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("10:00");
-  const [maxStudents, setMaxStudents] = useState("5");
-  const [isRecurring, setIsRecurring] = useState(true);
+  const [startTime, setStartTime] = useState(editing?.startTime.slice(0, 5) ?? "09:00");
+  const [endTime, setEndTime] = useState(editing?.endTime.slice(0, 5) ?? "10:00");
+  const [maxStudents, setMaxStudents] = useState(String(editing?.maxStudents ?? 5));
+  const [isRecurring, setIsRecurring] = useState(editing?.isRecurring ?? true);
   const [slotType, setSlotType] = useState<LiveSessionTypeEnum>(
-    LiveSessionTypeEnum.PRIVATE,
+    (editing?.type as LiveSessionTypeEnum | undefined) ?? LiveSessionTypeEnum.PRIVATE,
   );
 
-  const { mutateAsync: createAvailability, isPending } =
+  const { mutateAsync: createAvailability, isPending: isCreating } =
     useCreateAvailability();
+  const { mutateAsync: updateAvailability, isPending: isUpdating } =
+    useUpdateAvailability();
+
+  const isPending = isCreating || isUpdating;
 
   const handleSubmit = async (): Promise<void> => {
     if (!startTime || !endTime) return;
 
     try {
-      await createAvailability({
-        dayOfWeek,
-        startTime,
-        endTime,
-        maxStudents: parseInt(maxStudents, 10) || 5,
-        type: slotType,
-        isRecurring,
-      });
+      if (editing) {
+        await updateAvailability({
+          id: editing.id,
+          dto: {
+            startTime,
+            endTime,
+            maxStudents: parseInt(maxStudents, 10) || 5,
+            type: slotType,
+            isRecurring,
+          },
+        });
+      } else {
+        await createAvailability({
+          dayOfWeek,
+          startTime,
+          endTime,
+          maxStudents: parseInt(maxStudents, 10) || 5,
+          type: slotType,
+          isRecurring,
+        });
+      }
       onClose();
     } catch {
       // handled by mutation
@@ -124,7 +147,7 @@ function AddSlotForm({
       <CardContent>
         <div className="flex flex-col gap-3">
           <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-            إضافة موعد جديد
+            {editing ? "تعديل الموعد" : "إضافة موعد جديد"}
           </h4>
 
           <div className="grid grid-cols-2 gap-3">
@@ -209,7 +232,7 @@ function AddSlotForm({
               onClick={(): void => { void handleSubmit(); }}
               loading={isPending}
             >
-              إضافة
+              {editing ? "حفظ التعديلات" : "إضافة"}
             </Button>
           </div>
         </div>
@@ -284,6 +307,7 @@ export default function AvailabilityPage(): ReactNode {
   const router = useRouter();
   const [activeDay, setActiveDay] = useState(6);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<TeacherAvailabilityItem | null>(null);
 
   const {
     data: availabilities,
@@ -293,6 +317,8 @@ export default function AvailabilityPage(): ReactNode {
   } = useAvailabilities();
   const { mutateAsync: deleteAvailability, isPending: isDeleting } =
     useDeleteAvailability();
+  const { data: dateBlocks } = useDateBlocks();
+  const { mutateAsync: unblockDate, isPending: isUnblocking } = useUnblockDate();
 
   const dayMap = useMemo(() => {
     if (!availabilities) return new Map<number, TeacherAvailabilityItem[]>();
@@ -352,6 +378,7 @@ export default function AvailabilityPage(): ReactNode {
         onSelect={(d): void => {
           setActiveDay(d);
           setShowAddForm(false);
+          setEditingSlot(null);
         }}
       />
 
@@ -379,7 +406,7 @@ export default function AvailabilityPage(): ReactNode {
 
       {!isLoading && (
         <>
-          {activeSlots.length === 0 && !showAddForm && (
+          {activeSlots.length === 0 && !showAddForm && !editingSlot && (
             <EmptyState
               icon={<Clock className="h-16 w-16" />}
               title="لا توجد مواعيد لهذا اليوم"
@@ -432,15 +459,25 @@ export default function AvailabilityPage(): ReactNode {
                         </div>
                       </div>
 
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={(): void => { void handleDelete(slot.id); }}
-                        disabled={isDeleting}
-                        className="text-danger-500 hover:bg-danger-500/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={(): void => { setEditingSlot(slot); }}
+                          aria-label="تعديل الموعد"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={(): void => { void handleDelete(slot.id); }}
+                          disabled={isDeleting}
+                          className="text-danger-500 hover:bg-danger-500/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -448,14 +485,18 @@ export default function AvailabilityPage(): ReactNode {
             </div>
           )}
 
-          {showAddForm && (
+          {(showAddForm || editingSlot) && (
             <AddSlotForm
               dayOfWeek={activeDay}
-              onClose={(): void => { setShowAddForm(false); }}
+              editing={editingSlot}
+              onClose={(): void => {
+                setShowAddForm(false);
+                setEditingSlot(null);
+              }}
             />
           )}
 
-          {!showAddForm && (
+          {!showAddForm && !editingSlot && (
             <Button
               variant="outline"
               size="md"
@@ -467,6 +508,45 @@ export default function AvailabilityPage(): ReactNode {
           )}
 
           <BlockDateSection />
+
+          {(dateBlocks ?? []).length > 0 && (
+            <Card variant="outline" padding="md">
+              <CardContent>
+                <div className="flex flex-col gap-2">
+                  <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                    التواريخ المحظورة
+                  </h4>
+                  {(dateBlocks ?? []).map((block) => (
+                    <div
+                      key={block.id}
+                      className="flex items-center justify-between gap-3 rounded-xl bg-neutral-50 px-4 py-2.5 dark:bg-neutral-800/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <CalendarOff className="h-4 w-4 text-danger-500" />
+                        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                          {block.date}
+                        </span>
+                        {block.reason && (
+                          <span className="text-xs text-neutral-500">
+                            {block.reason}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(): void => { void unblockDate(block.id); }}
+                        disabled={isUnblocking}
+                        className="text-danger-500 hover:bg-danger-500/10"
+                      >
+                        فك الحظر
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

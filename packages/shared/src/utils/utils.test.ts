@@ -1,4 +1,15 @@
-import { generateTimestamp, clamp, paginate, isNullOrUndefined, isEmpty } from "./index";
+import {
+  generateTimestamp,
+  clamp,
+  paginate,
+  isNullOrUndefined,
+  isEmpty,
+  PLATFORM_TIMEZONE,
+  getDateInTimeZone,
+  getTimeInTimeZone,
+  toLocalIsoInTimeZone,
+  combineLocalDateAndTime,
+} from "./index";
 
 describe("Shared Utils", () => {
   describe("generateTimestamp", () => {
@@ -110,6 +121,36 @@ describe("Shared Utils", () => {
 
     it("should return true for undefined", () => {
       expect(isEmpty(undefined)).toBe(true);
+    });
+  });
+
+  describe("timezone utilities", () => {
+    it("should expose the platform timezone", () => {
+      expect(PLATFORM_TIMEZONE).toBe("Africa/Cairo");
+    });
+
+    it("should format a UTC instant in the platform timezone", () => {
+      const cairoNoonUtc = new Date("2026-08-01T09:00:00.000Z");
+      expect(getDateInTimeZone(cairoNoonUtc)).toBe("2026-08-01");
+      expect(getTimeInTimeZone(cairoNoonUtc)).toBe("12:00");
+    });
+
+    it("should produce a local ISO string in the platform timezone", () => {
+      const cairoNoonUtc = new Date("2026-08-01T09:00:00.000Z");
+      expect(toLocalIsoInTimeZone(cairoNoonUtc)).toBe("2026-08-01T12:00:00");
+    });
+
+    it("should combine wall-clock date and time into the correct instant", () => {
+      const combined = combineLocalDateAndTime("2026-08-01", "12:00", PLATFORM_TIMEZONE);
+      expect(combined.toISOString()).toBe("2026-08-01T09:00:00.000Z");
+    });
+
+    it("should round-trip through the platform timezone", () => {
+      const original = new Date("2026-01-15T10:30:00.000Z");
+      const local = toLocalIsoInTimeZone(original);
+      const [datePart, timePart] = local.split("T");
+      const roundTripped = combineLocalDateAndTime(datePart, timePart.slice(0, 5), PLATFORM_TIMEZONE);
+      expect(roundTripped.toISOString()).toBe(original.toISOString());
     });
   });
 });

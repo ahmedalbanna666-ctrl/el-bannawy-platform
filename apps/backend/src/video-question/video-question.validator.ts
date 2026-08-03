@@ -14,7 +14,7 @@ export class VideoQuestionValidator {
       case "FILL_BLANK":
         return this.validateFillBlank(question, answer);
       case "MATCHING":
-        return this.validateMatching(question);
+        return this.validateMatching(question, answer);
       case "ORDERING":
         return this.validateOrdering(question, answer);
       default:
@@ -23,7 +23,7 @@ export class VideoQuestionValidator {
           correct: false,
           score: 0,
           maxScore: 1,
-          errors: [`Unknown question type: ${question.type}`],
+          errors: [`Unknown question type: ${String(question.type)}`],
         };
     }
   }
@@ -146,13 +146,58 @@ export class VideoQuestionValidator {
     };
   }
 
-  private validateMatching(question: IVideoQuestion): IVideoQuestionValidationResult {
+  private validateMatching(question: IVideoQuestion, answer: IVideoQuestionAnswer): IVideoQuestionValidationResult {
+    if (answer.selectedOptionIds.length === 0) {
+      return {
+        isValid: false,
+        correct: false,
+        score: 0,
+        maxScore: question.options.length,
+        errors: ["No matching pairs provided"],
+      };
+    }
+
+    const correctPairs = question.options.filter((o) => o.isCorrect);
+    const pairs = answer.text
+      ? (JSON.parse(answer.text) as readonly { readonly left: string; readonly right: string }[])
+      : [];
+
+    if (pairs.length === 0) {
+      return {
+        isValid: true,
+        correct: false,
+        score: 0,
+        maxScore: correctPairs.length,
+        errors: ["No matching pairs submitted"],
+      };
+    }
+
+    let correctCount = 0;
+    const errors: string[] = [];
+    for (const pair of pairs) {
+      const matched = correctPairs.find(
+        (cp) => cp.id === pair.left || cp.text === pair.left,
+      );
+      if (matched) {
+        const rightMatch = correctPairs.find(
+          (cp) => cp.id === pair.right || cp.text === pair.right,
+        );
+        if (rightMatch?.id === matched.id) {
+          correctCount++;
+        } else {
+          errors.push(`Pair "${pair.left} → ${pair.right}" is incorrect`);
+        }
+      } else {
+        errors.push(`Pair "${pair.left} → ${pair.right}" is incorrect`);
+      }
+    }
+
     return {
-      isValid: false,
-      correct: false,
-      score: 0,
-      maxScore: question.options.length,
-      errors: ["Matching validation not yet implemented"],
+      isValid: true,
+      correct: correctCount === correctPairs.length,
+      score: correctCount,
+      maxScore: correctPairs.length,
+      errors,
     };
   }
 
@@ -161,7 +206,7 @@ export class VideoQuestionValidator {
       .filter((o) => o.isCorrect)
       .sort((a, b) => a.displayOrder - b.displayOrder)
       .map((o) => o.id);
-    const matches = answer.selectedOptionIds.every((id, idx) => idx < correctOrder.length && id === correctOrder[idx]);
+    const matches = answer.selectedOptionIds.every((id, idx) => id === correctOrder[idx]);
     return {
       isValid: true,
       correct: matches,

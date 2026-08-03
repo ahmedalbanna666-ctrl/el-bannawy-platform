@@ -1,389 +1,98 @@
-# NOTIFICATIONS_MODULE.md
+# Notifications Module
 
-# El-bannawy Platform
-## Communication & Notification Engine
+Version: 2.1.0
+Source: `apps/backend/src/notifications`
 
-Version: 2.0.0
+## Responsibility
 
----
+Persists in-app notifications, read state, soft deletion, notification preferences, admin notification configs/templates, and WhatsApp delivery.
 
-# Purpose
+## Persisted Models
 
-The Communication & Notification Engine is a centralized platform responsible for all communication between the platform and students.
+| Model | Purpose |
+|-------|---------|
+| `Notification` | User notification with title, message, type, priority, channel, read state |
+| `NotificationPreference` | Per-user toggle for each notification type (lesson, homework, live, etc.) |
+| `NotificationConfig` | Admin global settings per notification type (isEnabled, channel) |
+| `NotificationTemplate` | Pre-defined message templates with placeholders |
+| `WhatsAppConfig` | Singleton WhatsApp API configuration (provider, credentials) |
+| `WhatsAppMessage` | Log of sent WhatsApp messages with delivery status |
 
-Every notification must provide value.
+## Current API Behavior
 
-The platform must communicate intelligently, not excessively.
+The controller exposes:
 
----
+### User Endpoints
+- `GET /notifications` — paginated list for current user
+- `GET /notifications/preferences` — read user preferences
+- `PATCH /notifications/preferences` — update user preferences
+- `PATCH /notifications/read-all` — mark all as read
+- `GET /notifications/:id` — single notification detail
+- `PATCH /notifications/:id/read` — mark one as read
+- `DELETE /notifications/:id` — soft delete
 
-# Objectives
+### Admin Endpoints (`ADMINISTRATOR` role)
+- `GET /notifications/admin/config` — list all notification configs
+- `PATCH /notifications/admin/config/:key` — toggle or change channel
+- `GET /notifications/admin/templates` — list templates
+- `PATCH /notifications/admin/templates/:key` — update template
+- `GET /notifications/admin/whatsapp` — get WhatsApp settings
+- `PATCH /notifications/admin/whatsapp` — update WhatsApp settings
+- `GET /notifications/admin/whatsapp/logs` — paginated message logs
+- `POST /notifications/admin/whatsapp/test` — send test message
 
-The Communication & Notification Engine must:
+### Sender Endpoints (`TEACHER`, `SECRETARY`, `ADMINISTRATOR`)
+- `POST /notifications/send` — send notification to target (all_students, grade, individual)
+- `POST /notifications/schedule` — schedule notification for later delivery
 
-- Deliver timely, personalized notifications.
-- Support multiple delivery channels.
-- Give teachers complete control over notifications.
-- Allow students to manage notification preferences.
-- Remain extensible for future notification types and channels.
+## Scheduled Notifications (PMS §9.3)
 
----
+Scheduled notifications use real `scheduledAt`/`sentAt` columns on `Notification`. `POST /notifications/schedule` persists rows with `scheduledAt` set and enqueues a delayed BullMQ job on the `scheduled-notifications` queue. The `ScheduledNotificationsProcessor` (BullMQ worker in `apps/backend/src/notifications/scheduled-notifications.processor.ts`) fires when the job is due, dispatches WhatsApp/Push channels, and sets `sentAt`. Rows are hidden from the inbox until `sentAt` is set (i.e. delivered). Dispatch is idempotent: rows already marked sent are skipped.
 
-# Supported Users
+### Bulk Scheduling (`scheduleToUserIds`)
 
-- Student
-- Parent
-- Teacher
-- Secretary
-- Administrator
+`NotificationsService.scheduleToUserIds(senderId, dto, userIds, scheduledAt)` schedules one notification to an **explicit list of users** with a single delayed BullMQ job — no role/grade target resolution. It de-duplicates the user list, applies per-type `NotificationPreference` filtering (users who opted out are dropped), and returns `{ scheduled: false, reason }` when no targets remain. Used by the live module to schedule session-start reminders for a session's subscribers.
 
----
+### Analytics
+- `GET /notifications/analytics` — total sent, read rate, delivery rate
 
-# Notification Types
+## Delivery Channels
 
-The following notification types are supported:
+| Channel | Status |
+|---------|--------|
+| IN_APP (database) | ✅ Active |
+| WhatsApp | ✅ Architecture ready (Twilio REST API or custom HTTP provider) |
+| Firebase Push | 🔧 Planned |
+| Email | 🔧 Planned |
+| SMS | 🔧 Planned |
 
-- Live Lesson Reminder
-- Homework Reminder
-- Lesson Reminder
-- End Lesson Assessment Reminder
-- Motivational Messages
-- Daily Study Tips
-- Achievement Notifications
-- Teacher Announcements
-- New Lesson Published
-- New Homework Available
-- Upcoming Live Session
-- Weekly Progress Summary
+## WhatsApp Service
 
-The architecture must support adding future notification types without changing the existing architecture.
+The `WhatsAppService` supports:
+- **Twilio**: Via REST API (`api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json`) — no Twilio npm package needed
+- **Custom HTTP provider**: Any API that accepts POST with JSON body `{to, message, phoneNumber}` and Bearer token auth
 
----
+All sent messages are logged in `WhatsAppMessage` with delivery status tracking.
 
-# Delivery Channels
+## Default Configs
 
-Current Channels
+The module seeds 7 default `NotificationConfig` entries on startup:
+1. `live_session_reminder` — تذكير بالحصص المباشرة
+2. `homework_reminder` — تذكير بالواجبات
+3. `lesson_reminder` — تذكير بالحصص المسجلة
+4. `report_ready` — التقارير الشهرية
+5. `payment_receipt` — إيصالات الدفع
+6. `achievement` — الإنجازات
+7. `teacher_announcement` — إعلانات المعلم
 
-- Mobile Push Notifications
-- In-App Notifications
+Each has a corresponding `NotificationTemplate` with Arabic placeholders.
 
-The architecture must support future channels without redesign.
+## Rules
 
-Future Channels
-
-- Email
-- SMS
-- WhatsApp
-- Browser Push
-
----
-
-# Notification Flow
-
-Notification Trigger
-
-↓
-
-Validation
-
-↓
-
-Target Selection
-
-↓
-
-Channel Selection
-
-↓
-
-Send Notification
-
-↓
-
-Delivery Status
-
-↓
-
-Log Result
-
----
-
-# Teacher Notification Controls
-
-Teachers have complete control over notifications.
-
-Teachers can:
-
-- Enable or Disable notifications
-- Send immediately
-- Schedule notifications
-- Target all students
-- Target specific grades
-- Target specific classes
-- Target individual students
-
-Supported teacher-sendable types:
-
-- Motivational Messages
-- Lesson Announcements
-- Homework Reminders
-- Live Session Reminders
-- Study Tips
-
----
-
-# Student Notification Preferences
-
-Students can manage notification preferences.
-
-Supported preference toggles:
-
-- Lesson Reminders
-- Homework Reminders
-- Live Session Reminders
-- Achievement Notifications
-- Motivational Messages
-- Study Tips
-- Teacher Announcements
-
-Critical notifications cannot be disabled.
-
----
-
-# Smart Scheduling
-
-The system automatically schedules reminders.
-
-Live Class Reminder
-
-24 Hours Before
-
-↓
-
-1 Hour Before
-
-↓
-
-15 Minutes Before
-
----
-
-Homework Reminder
-
-One Day Before
-
-↓
-
-Due Date
-
-↓
-
-Overdue Reminder
-
----
-
-Continue Learning Reminder
-
-Student inactive for:
-
-24 Hours
-
-↓
-
-Reminder Sent
-
----
-
-# Notification Priority
-
-High
-
-- Live Class
-- Payment
-- Security
-
-Medium
-
-- Homework
-- Lessons
-- Assessments
-
-Low
-
-- Achievements
-- XP
-- Motivational
-- Tips
-
----
-
-# Delivery Status
-
-Possible Status
-
-- Pending
-- Sent
-- Delivered
-- Read
-- Failed
-
----
-
-# Retry Policy
-
-Failed notifications retry automatically.
-
-Default
-
-3 Attempts
-
-Configurable by administrators.
-
----
-
-# Quiet Hours
-
-Administrators may configure:
-
-Do Not Disturb Hours
-
-Example
-
-11:00 PM
-
-↓
-
-8:00 AM
-
-Non-urgent notifications wait during quiet hours.
-
----
-
-# Notification History
-
-Each notification stores:
-
-- User
-- Title
-- Message
-- Type
-- Channel
-- Status
-- Sent Time
-- Read Time
-- Target (grade, class, individual)
-
-History cannot be deleted by users.
-
----
-
-# Teacher Features
-
-Teachers may:
-
-- Enable or disable notifications
-- Send notifications immediately
-- Schedule notifications
-- Target specific students, grades, or classes
-- Send motivational messages
-- Send lesson announcements
-- Send homework reminders
-- Send live session reminders
-- Send study tips
-
-Teachers cannot send system-wide notifications to all teachers or administrators.
-
----
-
-# Secretary Features
-
-Secretaries may:
-
-- Send Payment Notifications
-- Registration Updates
-- Parent Messages
-
----
-
-# Administrator Features
-
-Administrators may:
-
-- Configure Channels
-- Configure Templates
-- Configure Retry Policy
-- Configure Quiet Hours
-- View Analytics
-- Broadcast Platform Announcements
-- Manage Global Notification Settings
-
----
-
-# Performance
-
-Notification processing should begin within:
-
-5 Seconds
-
-Critical notifications are prioritized.
-
----
-
-# Security
-
-Notifications must never expose:
-
-- Passwords
-- Tokens
-- Private Student Data
-- Internal Errors
-
-Sensitive notifications must be encrypted when required.
-
----
-
-# Future Scalability
-
-The architecture must support:
-
-- Adding future notification types without changing existing architecture
-- Adding future delivery channels without redesign
-- AI notification timing optimization
-- Smart learning reminders
-- Personalized motivation messages
-- Calendar integration
-- Rich push notifications
-
----
-
-# Acceptance Criteria
-
-The Communication & Notification Engine is complete when:
-
-✓ Notifications are delivered correctly.
-
-✓ Channel selection works.
-
-✓ Teacher notification controls work (enable/disable, send, schedule, target).
-
-✓ Student notification preferences work.
-
-✓ Smart reminders work.
-
-✓ Delivery tracking works.
-
-✓ Analytics are collected.
-
-✓ Reports are generated.
-
----
-
-# Final Rule
-
-Every notification should provide value.
-
-The platform should communicate intelligently, not excessively.
-
-Quality is more important than quantity.
+- Users may access their own notification records.
+- Notification operations must not expose secrets or private data.
+- Admin endpoints require `ADMINISTRATOR` role.
+- WhatsApp credentials are stored encrypted in the database (singleton row).
+- List endpoints use pagination with configurable page/limit.
 
 End of Document.

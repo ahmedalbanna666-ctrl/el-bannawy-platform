@@ -1,7 +1,7 @@
 import { api } from "@/lib/api-client";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult, type UseMutationResult } from "@tanstack/react-query";
 
-export type MistakeSource = "ASSESSMENT" | "QUIZ" | "HOMEWORK" | "STORY";
+export type MistakeSource = "ASSESSMENT" | "QUIZ" | "HOMEWORK" | "VIDEO_QUESTION";
 
 export interface MistakeOption {
   text: string;
@@ -20,20 +20,14 @@ export interface WrongAnswerItem {
   attemptId: string;
   unitId: string | null;
   lessonId: string | null;
-  storyId: string | null;
-  chapterId: string | null;
   unitTitle: string | null;
   lessonTitle: string | null;
-  storyTitle: string | null;
-  chapterTitle: string | null;
   termId: string | null;
 }
 
 export interface MistakeFilters {
   units: { id: string; title: string }[];
   lessons: { id: string; title: string }[];
-  stories: { id: string; title: string }[];
-  chapters: { id: string; title: string }[];
   sources: MistakeSource[];
 }
 
@@ -64,8 +58,6 @@ export interface MistakeQueryParams {
   unitId?: string;
   unitIds?: string[];
   lessonId?: string;
-  storyId?: string;
-  chapterId?: string;
   source?: MistakeSource;
   search?: string;
   studentId?: string;
@@ -79,8 +71,6 @@ export interface CreateMiniExamDto {
   unitId?: string;
   unitIds?: string[];
   lessonId?: string;
-  storyId?: string;
-  chapterId?: string;
   source?: MistakeSource;
   search?: string;
   studentId?: string;
@@ -112,8 +102,6 @@ export function useMistakes(params: MistakeQueryParams): UseQueryResult<{ items:
     for (const id of params.unitIds) qp.append("unitIds", id);
   }
   if (params.lessonId) qp.set("lessonId", params.lessonId);
-  if (params.storyId) qp.set("storyId", params.storyId);
-  if (params.chapterId) qp.set("chapterId", params.chapterId);
   if (params.source) qp.set("source", params.source);
   if (params.search) qp.set("search", params.search);
   if (params.studentId) qp.set("studentId", params.studentId);
@@ -124,13 +112,22 @@ export function useMistakes(params: MistakeQueryParams): UseQueryResult<{ items:
   return useQuery({
     queryKey: MISTAKES_KEYS.list(params),
     queryFn: async () => {
-      const res = await api.get<{ items: WrongAnswerItem[]; total: number; page: number; limit: number; sourceCounts: Partial<Record<MistakeSource, number>> }>(`/mistakes${qs ? `?${qs}` : ""}`);
+      const res = await api.get<{
+        data: WrongAnswerItem[];
+        meta: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+          sourceCounts: Partial<Record<MistakeSource, number>>;
+        };
+      }>(`/mistakes${qs ? `?${qs}` : ""}`);
       return {
-        items: res.data?.items ?? [],
-        total: res.data?.total ?? 0,
-        page: res.data?.page ?? 1,
-        limit: res.data?.limit ?? 20,
-        sourceCounts: res.data?.sourceCounts ?? {},
+        items: res.data?.data ?? [],
+        total: res.data?.meta.total ?? 0,
+        page: res.data?.meta.page ?? 1,
+        limit: res.data?.meta.limit ?? 20,
+        sourceCounts: res.data?.meta.sourceCounts ?? {},
       };
     },
     staleTime: 15_000,

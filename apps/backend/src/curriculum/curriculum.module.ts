@@ -4,11 +4,13 @@ import { CurriculumService } from "./curriculum.service";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { PermissionGuard } from "../common/guards/permission.guard";
 import { AuthModule } from "../auth/auth.module";
+import { CurriculumRepository } from "./curriculum.repository";
 
 @Module({
   imports: [AuthModule],
   controllers: [CurriculumController],
-  providers: [CurriculumService, RolesGuard, PermissionGuard],
+  providers: [CurriculumService, RolesGuard, PermissionGuard, CurriculumRepository],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class CurriculumModule {}
+

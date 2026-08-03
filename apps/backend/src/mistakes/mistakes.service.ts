@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unnecessary-optional-chain, @typescript-eslint/no-unsafe-assignment */
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import type { MistakeQueryDto, MistakeSource } from "./dto/mistake-query.dto";
+import { MistakeSource, type MistakeQueryDto } from "./dto/mistake-query.dto";
 import type { CreateMiniExamDto } from "./dto/create-mini-exam.dto";
 import type { SubmitMiniExamDto } from "./dto/submit-mini-exam.dto";
 
@@ -22,12 +22,8 @@ interface WrongAnswerItem {
   attemptId: string;
   unitId: string | null;
   lessonId: string | null;
-  storyId: string | null;
-  chapterId: string | null;
   unitTitle: string | null;
   lessonTitle: string | null;
-  storyTitle: string | null;
-  chapterTitle: string | null;
   termId: string | null;
 }
 
@@ -54,11 +50,14 @@ interface MiniExamSummary {
 }
 
 interface PaginatedResult<T> {
-  items: T[];
-  total: number;
-  page: number;
-  limit: number;
-  sourceCounts: Partial<Record<MistakeSource, number>>;
+  data: T[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    sourceCounts: Partial<Record<MistakeSource, number>>;
+  };
 }
 
 @Injectable()
@@ -71,11 +70,53 @@ export class MistakesService {
   ): MistakeOption[] {
     if (!optionsRaw) return [];
     try {
-      const parsed: string[] = JSON.parse(optionsRaw) as string[];
+      const parsed: unknown = JSON.parse(optionsRaw);
       if (!Array.isArray(parsed)) return [];
-      return parsed.map((text) => ({
-        text,
-        isCorrect: text === correctAnswer,
+
+      const options = parsed.map((entry) => {
+        if (typeof entry === "string") {
+          return { label: "", text: entry };
+        }
+        if (typeof entry === "object" && entry !== null) {
+          const option = entry as { label?: unknown; text?: unknown; isCorrect?: unknown };
+          const text =
+            typeof option.text === "string"
+              ? option.text
+              : option.text === null || option.text === undefined
+                ? ""
+                : typeof option.text === "number" || typeof option.text === "boolean"
+                  ? String(option.text)
+                  : "";
+          return {
+            label: typeof option.label === "string" ? option.label.trim().toLowerCase() : "",
+            text,
+            isCorrect: typeof option.isCorrect === "boolean" ? option.isCorrect : undefined,
+          };
+        }
+        return { label: "", text: String(entry), isCorrect: undefined };
+      });
+
+      let correctIndex = -1;
+      const explicit = options.findIndex((o) => o.isCorrect === true);
+      if (explicit >= 0) {
+        correctIndex = explicit;
+      } else {
+        const correct = (correctAnswer ?? "").trim().toLowerCase();
+        if (/^[a-z]$/.test(correct)) {
+          const byLabel = options.findIndex((o) => o.label === correct);
+          if (byLabel >= 0) correctIndex = byLabel;
+        } else if (/^\d+$/.test(correct)) {
+          const byIndex = Number.parseInt(correct, 10);
+          if (byIndex >= 0 && byIndex < options.length) correctIndex = byIndex;
+        } else if (correct !== "") {
+          const byText = options.findIndex((o) => o.text.trim().toLowerCase() === correct);
+          if (byText >= 0) correctIndex = byText;
+        }
+      }
+
+      return options.map((o, i) => ({
+        text: o.text,
+        isCorrect: i === correctIndex,
       }));
     } catch {
       return [];
@@ -89,38 +130,35 @@ export class MistakesService {
     const { studentId } = await this.resolveUserContext(userId, params.studentId);
     const scopeFilter = this.getScopeDateFilter(params.scope);
 
-    const [quizItems, homeworkItems, assessmentItems, storyItems] = await Promise.all([
-      this.getQuizWrongAnswers(studentId, scopeFilter),
-      this.getHomeworkWrongAnswers(studentId, scopeFilter),
-      this.getAssessmentWrongAnswers(studentId, scopeFilter),
-      this.getStoryWrongAnswers(studentId, scopeFilter),
+    const skipSources = params.source ? [params.source] : undefined;
+
+    const [quizItems, homeworkItems, assessmentItems, videoQuestionItems] = await Promise.all([
+      skipSources && !skipSources.includes(MistakeSource.QUIZ) ? [] : this.getQuizWrongAnswers(studentId, scopeFilter, params.unitId, params.lessonId),
+      skipSources && !skipSources.includes(MistakeSource.HOMEWORK) ? [] : this.getHomeworkWrongAnswers(studentId, scopeFilter, params.unitId, params.lessonId),
+      skipSources && !skipSources.includes(MistakeSource.ASSESSMENT) ? [] : this.getAssessmentWrongAnswers(studentId, scopeFilter),
+      skipSources && !skipSources.includes(MistakeSource.VIDEO_QUESTION) ? [] : this.getVideoQuestionWrongAnswers(studentId, scopeFilter, params.unitId, params.lessonId),
     ]);
 
     let all: WrongAnswerItem[] = [
       ...quizItems,
       ...homeworkItems,
       ...assessmentItems,
-      ...storyItems,
+      ...videoQuestionItems,
     ];
 
-    if (params.source) {
-      all = all.filter((item) => item.source === params.source);
+    // Deduplicate by questionId: keep only the most recent entry per questionId
+    const seen = new Map<string, WrongAnswerItem>();
+    for (const item of all) {
+      const existing = seen.get(item.questionId);
+      if (!existing || item.answeredAt > existing.answeredAt) {
+        seen.set(item.questionId, item);
+      }
     }
-    if (params.unitId) {
-      all = all.filter((item) => item.unitId === params.unitId);
-    }
+    all = Array.from(seen.values());
+
     if (params.unitIds && params.unitIds.length > 0) {
       const selected = new Set(params.unitIds);
       all = all.filter((item) => item.unitId !== null && selected.has(item.unitId));
-    }
-    if (params.lessonId) {
-      all = all.filter((item) => item.lessonId === params.lessonId);
-    }
-    if (params.storyId) {
-      all = all.filter((item) => item.storyId === params.storyId);
-    }
-    if (params.chapterId) {
-      all = all.filter((item) => item.chapterId === params.chapterId);
     }
     if (params.search) {
       const q = params.search.toLowerCase();
@@ -144,9 +182,10 @@ export class MistakesService {
     const total = all.length;
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
+    const totalPages = Math.ceil(total / limit);
     const items = all.slice((page - 1) * limit, page * limit);
 
-    return { items, total, page, limit, sourceCounts };
+    return { data: items, meta: { page, limit, total, totalPages, sourceCounts } };
   }
 
   async getFilters(
@@ -155,52 +194,39 @@ export class MistakesService {
   ): Promise<{
     units: { id: string; title: string }[];
     lessons: { id: string; title: string }[];
-    stories: { id: string; title: string }[];
-    chapters: { id: string; title: string }[];
     sources: MistakeSource[];
   }> {
     const { studentId } = await this.resolveUserContext(userId, studentIdParam);
 
-    const [quizItems, homeworkItems, assessmentItems, storyItems] =
+    const [quizItems, homeworkItems, assessmentItems, videoQuestionItems] =
       await Promise.all([
         this.getQuizWrongAnswers(studentId, null),
         this.getHomeworkWrongAnswers(studentId, null),
         this.getAssessmentWrongAnswers(studentId, null),
-        this.getStoryWrongAnswers(studentId, null),
+        this.getVideoQuestionWrongAnswers(studentId, null),
       ]);
 
     const all = [
       ...quizItems,
       ...homeworkItems,
       ...assessmentItems,
-      ...storyItems,
+      ...videoQuestionItems,
     ];
 
     const unitMap = new Map<string, string>();
     const lessonMap = new Map<string, string>();
-    const storyMap = new Map<string, string>();
-    const chapterMap = new Map<string, string>();
     const sourceSet = new Set<MistakeSource>();
 
     for (const item of all) {
       if (item.unitId && item.unitTitle) unitMap.set(item.unitId, item.unitTitle);
       if (item.lessonId && item.lessonTitle)
         lessonMap.set(item.lessonId, item.lessonTitle);
-      if (item.storyId && item.storyTitle)
-        storyMap.set(item.storyId, item.storyTitle);
-      if (item.chapterId && item.chapterTitle)
-        chapterMap.set(item.chapterId, item.chapterTitle);
       sourceSet.add(item.source);
     }
 
     return {
       units: Array.from(unitMap.entries()).map(([id, title]) => ({ id, title })),
       lessons: Array.from(lessonMap.entries()).map(([id, title]) => ({
-        id,
-        title,
-      })),
-      stories: Array.from(storyMap.entries()).map(([id, title]) => ({ id, title })),
-      chapters: Array.from(chapterMap.entries()).map(([id, title]) => ({
         id,
         title,
       })),
@@ -215,20 +241,30 @@ export class MistakesService {
     const { studentId } = await this.resolveUserContext(userId, dto.studentId);
     const scopeFilter = this.getScopeDateFilter("all");
 
-    const [quizItems, homeworkItems, assessmentItems, storyItems] =
+    const [quizItems, homeworkItems, assessmentItems, videoQuestionItems] =
       await Promise.all([
         this.getQuizWrongAnswers(studentId, scopeFilter),
         this.getHomeworkWrongAnswers(studentId, scopeFilter),
         this.getAssessmentWrongAnswers(studentId, scopeFilter),
-        this.getStoryWrongAnswers(studentId, scopeFilter),
+        this.getVideoQuestionWrongAnswers(studentId, scopeFilter),
       ]);
 
     let pool = [
       ...quizItems,
       ...homeworkItems,
       ...assessmentItems,
-      ...storyItems,
+      ...videoQuestionItems,
     ];
+
+    // Deduplicate for mini exam pool
+    const seen = new Map<string, WrongAnswerItem>();
+    for (const item of pool) {
+      const existing = seen.get(item.questionId);
+      if (!existing || item.answeredAt > existing.answeredAt) {
+        seen.set(item.questionId, item);
+      }
+    }
+    pool = Array.from(seen.values());
 
     if (dto.source) {
       pool = pool.filter((item) => item.source === dto.source);
@@ -242,12 +278,6 @@ export class MistakesService {
     }
     if (dto.lessonId) {
       pool = pool.filter((item) => item.lessonId === dto.lessonId);
-    }
-    if (dto.storyId) {
-      pool = pool.filter((item) => item.storyId === dto.storyId);
-    }
-    if (dto.chapterId) {
-      pool = pool.filter((item) => item.chapterId === dto.chapterId);
     }
     if (dto.search) {
       const q = dto.search.toLowerCase();
@@ -439,12 +469,21 @@ export class MistakesService {
   private async getQuizWrongAnswers(
     studentId: string,
     scopeFilter: Date | null,
+    unitId?: string,
+    lessonId?: string,
   ): Promise<WrongAnswerItem[]> {
+    const lessonFilter = lessonId ? { lessonId } : unitId ? { unit: { id: unitId } } : undefined;
+
     const answers = await this.prisma.quizAnswer.findMany({
+      take: 200,
       where: {
         isCorrect: false,
         createdAt: scopeFilter ? { gte: scopeFilter } : undefined,
-        attempt: { userId: studentId, submitted: true },
+        attempt: {
+          userId: studentId,
+          submitted: true,
+          quiz: lessonFilter ? { lesson: lessonFilter } : undefined,
+        },
       },
       include: {
         question: {
@@ -502,12 +541,8 @@ export class MistakesService {
           attemptId: a.attempt.id,
           unitId: unit?.id ?? null,
           lessonId: lesson?.id ?? null,
-          storyId: null,
-          chapterId: null,
           unitTitle: unit?.title ?? null,
           lessonTitle: lesson?.title ?? null,
-          storyTitle: null,
-          chapterTitle: null,
           termId: unit?.termId ?? null,
         };
       });
@@ -516,12 +551,21 @@ export class MistakesService {
   private async getHomeworkWrongAnswers(
     studentId: string,
     scopeFilter: Date | null,
+    unitId?: string,
+    lessonId?: string,
   ): Promise<WrongAnswerItem[]> {
+    const lessonFilter = lessonId ? { lessonId } : unitId ? { unit: { id: unitId } } : undefined;
+
     const answers = await this.prisma.homeworkAnswer.findMany({
+      take: 200,
       where: {
         isCorrect: false,
         createdAt: scopeFilter ? { gte: scopeFilter } : undefined,
-        attempt: { userId: studentId, submitted: true },
+        attempt: {
+          userId: studentId,
+          submitted: true,
+          homework: lessonFilter ? { lesson: lessonFilter } : undefined,
+        },
       },
       include: {
         question: {
@@ -579,12 +623,8 @@ export class MistakesService {
           attemptId: a.attempt.id,
           unitId: unit?.id ?? null,
           lessonId: lesson?.id ?? null,
-          storyId: null,
-          chapterId: null,
           unitTitle: unit?.title ?? null,
           lessonTitle: lesson?.title ?? null,
-          storyTitle: null,
-          chapterTitle: null,
           termId: unit?.termId ?? null,
         };
       });
@@ -595,6 +635,7 @@ export class MistakesService {
     scopeFilter: Date | null,
   ): Promise<WrongAnswerItem[]> {
     const answers = await this.prisma.assessmentAnswer.findMany({
+      take: 200,
       where: {
         isCorrect: false,
         createdAt: scopeFilter ? { gte: scopeFilter } : undefined,
@@ -676,55 +717,50 @@ export class MistakesService {
           attemptId: a.attempt.id,
           unitId: unit?.id ?? null,
           lessonId: lesson?.id ?? null,
-          storyId: null,
-          chapterId: null,
           unitTitle: unit?.title ?? null,
           lessonTitle: lesson?.title ?? null,
-          storyTitle: null,
-          chapterTitle: null,
           termId: unit?.termId ?? null,
         };
       });
   }
 
-  private async getStoryWrongAnswers(
+  private async getVideoQuestionWrongAnswers(
     studentId: string,
     scopeFilter: Date | null,
+    unitId?: string,
+    lessonId?: string,
   ): Promise<WrongAnswerItem[]> {
-    const answers = await this.prisma.storyChapterAnswer.findMany({
+    const lessonFilter = lessonId ? { id: lessonId } : unitId ? { unitId } : undefined;
+
+    const answers = await this.prisma.videoQuestionAnswer.findMany({
+      take: 200,
       where: {
-        isCorrect: false,
+        correct: false,
+        userId: studentId,
         createdAt: scopeFilter ? { gte: scopeFilter } : undefined,
-        attempt: { userId: studentId, submitted: true },
+        question: {
+          videoEvent: {
+            video: lessonFilter ? { lesson: lessonFilter } : undefined,
+          },
+        },
       },
       include: {
         question: {
-          select: {
-            id: true,
-            question: true,
-            explanation: true,
-            storyChapterId: true,
-            chapter: {
-              select: {
-                id: true,
-                title: true,
-              },
-            },
-            options: {
-              select: { text: true, isCorrect: true },
-              orderBy: { displayOrder: "asc" },
-            },
-          },
-        },
-        attempt: {
-          select: {
-            id: true,
-            storyId: true,
-            story: {
-              select: {
-                id: true,
-                title: true,
-                termId: true,
+          include: {
+            options: true,
+            videoEvent: {
+              include: {
+                video: {
+                  include: {
+                    lesson: {
+                      include: {
+                        unit: {
+                          select: { id: true, title: true, termId: true },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -733,33 +769,29 @@ export class MistakesService {
     });
 
     return answers
-      .filter((a) => a.question && a.attempt)
+      .filter((a) => a.question?.videoEvent?.video?.lesson)
       .map((a) => {
+        const lesson = a.question.videoEvent.video.lesson;
+        const unit = lesson?.unit;
         const correctOption = a.question.options.find((o) => o.isCorrect);
-        const story = a.attempt.story;
-        const chapter = a.question.chapter;
         return {
           questionId: a.question.id,
-          source: "STORY" as MistakeSource,
-          question: a.question.question,
+          source: "VIDEO_QUESTION" as MistakeSource,
+          question: a.question.title,
           options: a.question.options.map((o) => ({
             text: o.text,
             isCorrect: o.isCorrect,
           })),
           correctAnswer: correctOption?.text ?? "",
-          studentAnswer: a.answer ?? null,
-          explanation: a.question.explanation,
+          studentAnswer: a.text ?? a.selectedOptionIds?.toString() ?? null,
+          explanation: null,
           answeredAt: a.createdAt.toISOString(),
-          attemptId: a.attempt.id,
-          unitId: null,
-          lessonId: null,
-          storyId: story?.id ?? null,
-          chapterId: chapter?.id ?? null,
-          unitTitle: null,
-          lessonTitle: null,
-          storyTitle: story?.title ?? null,
-          chapterTitle: chapter?.title ?? null,
-          termId: story?.termId ?? null,
+          attemptId: a.id,
+          unitId: unit?.id ?? null,
+          lessonId: lesson?.id ?? null,
+          unitTitle: unit?.title ?? null,
+          lessonTitle: lesson?.title ?? null,
+          termId: unit?.termId ?? null,
         };
       });
   }

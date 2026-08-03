@@ -9,6 +9,7 @@ import { SubmitQuizDto } from "./dto/submit-quiz.dto";
 import { CreateQuizDto } from "./dto/create-quiz.dto";
 import { UpdateQuizDto } from "./dto/update-quiz.dto";
 import { SaveQuizDto } from "./dto/save-quiz.dto";
+import { ReviewQuizDto } from "./dto/review-quiz.dto";
 
 @Controller("quizzes")
 export class QuizController {
@@ -63,6 +64,17 @@ export class QuizController {
     return successResponse(data, "Analytics retrieved successfully");
   }
 
+  @Get(":lessonId/teacher")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async getQuizForTeacher(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.quizService.getQuizForTeacher(lessonId, userId);
+    return successResponse(data, "Quiz data retrieved");
+  }
+
   // --- Student Endpoints ---
 
   @Get(":lessonId")
@@ -93,6 +105,16 @@ export class QuizController {
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.quizService.getUnlockStatus(lessonId, userId);
     return successResponse(data, "Unlock status retrieved successfully");
+  }
+
+  @Get(":lessonId/eligibility")
+  @UseGuards(JwtAuthGuard)
+  async checkEligibility(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.quizService.checkEligibility(lessonId, userId);
+    return successResponse(data, "Quiz eligibility retrieved successfully");
   }
 
   @Patch(":lessonId/save")
@@ -155,5 +177,28 @@ export class QuizController {
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.quizService.reviewAnswers(lessonId, userId);
     return successResponse(data, "Quiz review retrieved successfully");
+  }
+
+  // ── Teacher Review (Essay Grading) ──
+
+  @Post(":lessonId/teacher-review")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async teacherReview(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @Body() dto: ReviewQuizDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.quizService.teacherReview(lessonId, dto);
+    return successResponse(data, "Essay review saved successfully");
+  }
+
+  @Get(":lessonId/pending-reviews")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async getPendingReviews(
+    @Param("lessonId", ParseUUIDPipe) lessonId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.quizService.getPendingEssayReviews(lessonId);
+    return successResponse(data, "Pending reviews retrieved successfully");
   }
 }

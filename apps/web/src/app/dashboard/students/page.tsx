@@ -205,7 +205,6 @@ export default function StudentsPage(): ReactNode {
 
   const [dialog, setDialog] = useState<{
     type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "status" | "delete" | null;
-    data?: Record<string, string>;
   }>({ type: null });
 
   const students: Student[] = listData?.students ?? [];
@@ -430,7 +429,7 @@ function StudentProfileTab({
 }: {
   detail: StudentDetail | undefined;
   detailLoading: boolean;
-  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "status" | "delete"; data?: Record<string, string> }) => void;
+  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "status" | "delete" }) => void;
   confirmAction: { mutate: (p: { method: string; endpoint: string; body?: unknown }) => void; isPending?: boolean };
 }): ReactNode {
   if (detailLoading) return <Skeleton className="h-64 rounded-xl" />;
@@ -533,8 +532,14 @@ function StudentProgressTab({ studentId }: { studentId: string }): ReactNode {
   const { data, isLoading } = useQuery({
     queryKey: ["student-progress", studentId],
     queryFn: async () => {
-      const res = await api.get(`/admin/students/${studentId}/progress`);
-      return res.data as {
+      const res = await api.get<{
+        data: {
+          lessonProgress: { lessonId: string; completed: boolean; progress: number }[];
+          quizAttempts: { quizId: string; score: number | null; passed: boolean | null }[];
+          homeworkAttempts: { homeworkId: string; score: number | null; submitted: boolean }[];
+        };
+      }>(`/admin/students/${studentId}/progress`);
+      return res.data?.data as {
         lessonProgress: { lessonId: string; completed: boolean; progress: number }[];
         quizAttempts: { quizId: string; score: number | null; passed: boolean | null }[];
         homeworkAttempts: { homeworkId: string; score: number | null; submitted: boolean }[];
@@ -583,8 +588,8 @@ function StudentAttendanceTab({ studentId }: { studentId: string }): ReactNode {
   const { data, isLoading } = useQuery({
     queryKey: ["student-attendance", studentId],
     queryFn: async () => {
-      const res = await api.get<{ id: string; date: string; present: boolean }[]>(`/admin/students/${studentId}/attendance`);
-      return res.data ?? [];
+      const res = await api.get<{ data: { id: string; date: string; present: boolean }[] }>(`/admin/students/${studentId}/attendance`);
+      return res.data?.data ?? [];
     },
     enabled: !!studentId,
   });
@@ -617,8 +622,8 @@ function StudentLoginHistoryTab({ studentId }: { studentId: string }): ReactNode
   const { data, isLoading } = useQuery({
     queryKey: ["student-login-history", studentId],
     queryFn: async () => {
-      const res = await api.get<{ id: string; createdAt: string; success: boolean; ipAddress: string | null; failureReason: string | null }[]>(`/admin/students/${studentId}/login-history`);
-      return res.data ?? [];
+      const res = await api.get<{ data: { id: string; createdAt: string; success: boolean; ipAddress: string | null; failureReason: string | null }[] }>(`/admin/students/${studentId}/login-history`);
+      return res.data?.data ?? [];
     },
     enabled: !!studentId,
   });
@@ -650,8 +655,8 @@ function StudentSubscriptionTab({ studentId }: { studentId: string }): ReactNode
   const { data, isLoading } = useQuery({
     queryKey: ["student-subscription", studentId],
     queryFn: async () => {
-      const res = await api.get<{ payments: { id: string; productType: string; amount: number; status: string; createdAt: string }[] }>(`/admin/students/${studentId}/subscription`);
-      return res.data ?? { payments: [] };
+      const res = await api.get<{ data: { id: string; productType: string; amount: number; status: string; createdAt: string }[] }>(`/admin/students/${studentId}/subscription`);
+      return { payments: res.data?.data ?? [] };
     },
     enabled: !!studentId,
   });
@@ -693,28 +698,27 @@ function ActionDialogs({
   studentName,
   currentStatus,
 }: {
-  dialog: { type: string | null; data?: Record<string, string> };
-  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "status" | "delete" | null; data?: Record<string, string> }) => void;
+  dialog: { type: string | null };
+  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "status" | "delete" | null }) => void;
   studentId: string;
   confirmAction: { mutate: (p: { method: string; endpoint: string; body?: unknown }) => void; isPending?: boolean };
   studentName: string;
   currentStatus: string | undefined;
 }): ReactNode {
-  const [fieldValue, setFieldValue] = useState("");
-  const [fieldValue2, setFieldValue2] = useState("");
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
 
   const close = (): void => {
     setDialog({ type: null });
-    setFieldValue("");
-    setFieldValue2("");
+    setFieldValues({});
   };
 
   if (!dialog.type) return null;
 
-  const dialogConfig = ((): { title: string; fields: { label: string; placeholder: string; type?: string; key: string }[]; action: () => void } => {
-    // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-    const makeAction = (fn: () => void) => fn;
+  const setValue = (key: string, value: string): void => {
+    setFieldValues((prev) => ({ ...prev, [key]: value }));
+  };
 
+  const dialogConfig = ((): { title: string; fields: { label: string; placeholder: string; type?: string; key: string }[]; action: () => void; requiredKey?: string } => {
     switch (dialog.type) {
       case "edit":
         return {
@@ -725,89 +729,110 @@ function ActionDialogs({
             { label: "المحافظة", placeholder: "المحافظة", key: "governorate" },
             { label: "المدرسة", placeholder: "المدرسة", key: "school" },
           ],
-          action: makeAction((): void => {
-            confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}`, body: { fullName: fieldValue || undefined } });
-          }),
+          requiredKey: "fullName",
+          action: (): void => {
+            confirmAction.mutate({
+              method: "patch",
+              endpoint: `/admin/students/${studentId}`,
+              body: {
+                fullName: fieldValues.fullName || undefined,
+                englishName: fieldValues.englishName || undefined,
+                governorate: fieldValues.governorate || undefined,
+                school: fieldValues.school || undefined,
+              },
+            });
+          },
         };
       case "phone":
         return {
           title: "تغيير رقم الهاتف",
           fields: [{ label: "رقم الهاتف الجديد", placeholder: "رقم الهاتف", key: "newMobileNumber" }],
-          action: makeAction((): void => { confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/phone`, body: { newMobileNumber: fieldValue } }); }),
+          requiredKey: "newMobileNumber",
+          action: (): void => { confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/phone`, body: { newMobileNumber: fieldValues.newMobileNumber } }); },
         };
       case "password":
         return {
           title: "إعادة تعيين كلمة المرور",
           fields: [{ label: "كلمة المرور الجديدة", placeholder: "كلمة المرور", type: "password", key: "newPassword" }],
-          action: makeAction((): void => { confirmAction.mutate({ method: "post", endpoint: `/admin/students/${studentId}/reset-password`, body: { newPassword: fieldValue } }); }),
+          requiredKey: "newPassword",
+          action: (): void => { confirmAction.mutate({ method: "post", endpoint: `/admin/students/${studentId}/reset-password`, body: { newPassword: fieldValues.newPassword } }); },
         };
       case "coins-add":
         return {
           title: "إضافة عملات",
-          fields: [{ label: "العدد", placeholder: "عدد العملات", type: "number", key: "amount" }],
-          action: makeAction((): void => { confirmAction.mutate({ method: "post", endpoint: `/admin/students/${studentId}/coins/add`, body: { amount: Number(fieldValue), reason: fieldValue2 || undefined } }); }),
+          fields: [
+            { label: "العدد", placeholder: "عدد العملات", type: "number", key: "amount" },
+            { label: "السبب (اختياري)", placeholder: "سبب الإضافة", key: "reason" },
+          ],
+          requiredKey: "amount",
+          action: (): void => { confirmAction.mutate({ method: "post", endpoint: `/admin/students/${studentId}/coins/add`, body: { amount: Number(fieldValues.amount), reason: fieldValues.reason || undefined } }); },
         };
       case "coins-remove":
         return {
           title: "خصم عملات",
-          fields: [{ label: "العدد", placeholder: "عدد العملات", type: "number", key: "amount" }],
-          action: makeAction((): void => { confirmAction.mutate({ method: "post", endpoint: `/admin/students/${studentId}/coins/remove`, body: { amount: Number(fieldValue), reason: fieldValue2 || undefined } }); }),
+          fields: [
+            { label: "العدد", placeholder: "عدد العملات", type: "number", key: "amount" },
+            { label: "السبب (اختياري)", placeholder: "سبب الخصم", key: "reason" },
+          ],
+          requiredKey: "amount",
+          action: (): void => { confirmAction.mutate({ method: "post", endpoint: `/admin/students/${studentId}/coins/remove`, body: { amount: Number(fieldValues.amount), reason: fieldValues.reason || undefined } }); },
         };
       case "xp":
         return {
           title: "تعديل نقاط XP",
-          fields: [{ label: "العدد", placeholder: "قيمة XP (موجب أو سالب)", type: "number", key: "amount" }],
-          action: makeAction((): void => { confirmAction.mutate({ method: "post", endpoint: `/admin/students/${studentId}/xp/adjust`, body: { amount: Number(fieldValue), reason: fieldValue2 || undefined } }); }),
+          fields: [
+            { label: "العدد", placeholder: "قيمة XP (موجب أو سالب)", type: "number", key: "amount" },
+            { label: "السبب (اختياري)", placeholder: "سبب التعديل", key: "reason" },
+          ],
+          requiredKey: "amount",
+          action: (): void => { confirmAction.mutate({ method: "post", endpoint: `/admin/students/${studentId}/xp/adjust`, body: { amount: Number(fieldValues.amount), reason: fieldValues.reason || undefined } }); },
         };
       case "status":
         return {
-          title: `تغيير حالة الطالب`,
-          fields: [
-            { label: "الحالة", placeholder: "اختر الحالة", key: "status" },
-          ],
-          action: makeAction((): void => {
+          title: "تغيير حالة الطالب",
+          fields: [{ label: "السبب (اختياري)", placeholder: "سبب تغيير الحالة", key: "reason" }],
+          action: (): void => {
             let status = "ACTIVE";
             if (currentStatus === "ACTIVE") status = "SUSPENDED";
             else if (currentStatus === "SUSPENDED" || currentStatus === "BANNED") status = "ACTIVE";
-            confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/status`, body: { status, reason: fieldValue || undefined } });
-          }),
+            confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/status`, body: { status, reason: fieldValues.reason || undefined } });
+          },
         };
       case "delete":
         return {
           title: "حذف الحساب",
           fields: [{ label: "السبب", placeholder: "سبب الحذف (اختياري)", key: "reason" }],
-          action: makeAction((): void => { confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/status`, body: { status: "DELETED", reason: fieldValue || undefined } }); }),
+          action: (): void => { confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/status`, body: { status: "DELETED", reason: fieldValues.reason || undefined } }); },
         };
       default:
         return {
           title: "",
           fields: [],
-          action: makeAction((): void => { void 0; }),
+          action: (): void => { void 0; },
         };
     }
   })();
 
+  const requiredKey = dialogConfig.requiredKey;
+  const disableSave =
+    dialog.type === "status" || dialog.type === "delete"
+      ? false
+      : requiredKey
+        ? !(fieldValues[requiredKey] ?? "").trim()
+        : false;
+
   return (
     <Dialog open={!!dialog.type} onClose={close} title={dialogConfig.title}>
       <DialogContent className="space-y-3">
-        {dialogConfig.fields.map((f, i) => (
+        {dialogConfig.fields.map((f) => (
           <div key={f.key}>
             <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">{f.label}</label>
-            {i === 0 ? (
-              <Input
-                placeholder={f.placeholder}
-                type={f.type ?? "text"}
-                value={fieldValue}
-                onChange={(e) => { setFieldValue(e.target.value); }}
-              />
-            ) : (
-              <Input
-                placeholder={f.placeholder}
-                type={f.type ?? "text"}
-                value={fieldValue2}
-                onChange={(e) => { setFieldValue2(e.target.value); }}
-              />
-            )}
+            <Input
+              placeholder={f.placeholder}
+              type={f.type ?? "text"}
+              value={fieldValues[f.key] ?? ""}
+              onChange={(e) => { setValue(f.key, e.target.value); }}
+            />
           </div>
         ))}
         {dialog.type === "delete" && (
@@ -818,12 +843,7 @@ function ActionDialogs({
         <Button variant="outline" onClick={close}>إلغاء</Button>
         <Button
           onClick={dialogConfig.action}
-          disabled={
-            dialog.type === "status" ? false
-            : dialog.type === "edit" ? false
-            : dialog.type === "delete" ? false
-            : !fieldValue
-          }
+          disabled={disableSave}
           variant={dialog.type === "delete" ? "danger" : "primary"}
         >
           تأكيد

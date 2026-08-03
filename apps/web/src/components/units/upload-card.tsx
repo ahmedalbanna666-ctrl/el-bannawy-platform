@@ -4,7 +4,7 @@ import { useRef, type ChangeEvent, type ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Upload, FileText, Trash2, Loader2, type LucideIcon } from "lucide-react";
+import { Upload, FileText, Trash2, Loader2, ChevronDown, type LucideIcon } from "lucide-react";
 
 type UploadState = "empty" | "uploaded" | "uploading";
 
@@ -23,8 +23,12 @@ interface UploadCardProps {
   uploadProgress?: number;
   onFileSelect: (file: File) => void;
   onDelete: () => void;
+  headerActions?: ReactNode;
+  children?: ReactNode;
   footer?: ReactNode;
   className?: string;
+  expanded?: boolean;
+  onToggle?: () => void;
 }
 
 export function UploadCard({
@@ -37,8 +41,12 @@ export function UploadCard({
   uploadProgress = 0,
   onFileSelect,
   onDelete,
+  headerActions,
+  children,
   footer,
   className,
+  expanded = true,
+  onToggle,
 }: UploadCardProps): ReactNode {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -66,7 +74,13 @@ export function UploadCard({
         tabIndex={-1}
       />
 
-      <div className="flex items-center gap-3 border-b border-neutral-200 px-5 py-3 dark:border-neutral-700">
+      <div
+        role={onToggle ? "button" : undefined}
+        tabIndex={onToggle ? 0 : undefined}
+        onClick={onToggle}
+        onKeyDown={onToggle ? (e): void => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } } : undefined}
+        className="flex w-full items-center gap-3 border-b border-neutral-200 px-5 py-3 text-start dark:border-neutral-700"
+      >
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10">
           <Icon className="h-5 w-5 text-primary-500" />
         </div>
@@ -78,9 +92,24 @@ export function UploadCard({
             {description}
           </p>
         </div>
+        {headerActions && <div className="shrink-0">{headerActions}</div>}
+        {onToggle && (
+          <ChevronDown
+            className={cn(
+              "h-5 w-5 shrink-0 text-neutral-400 transition-transform duration-200",
+              expanded && "rotate-180",
+            )}
+          />
+        )}
       </div>
 
-      <CardContent className="p-5">
+      <CardContent
+        className={cn(
+          "p-5 grid transition-all duration-200 ease-out",
+          expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="overflow-hidden">
         {state === "uploading" && (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-sm text-neutral-500">
@@ -141,9 +170,19 @@ export function UploadCard({
             </Button>
           </div>
         )}
+
+        {children && state === "uploaded" && (
+          <div className="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+            {children}
+          </div>
+        )}
+        {children && state !== "uploaded" && (
+          <div className="mt-4">{children}</div>
+        )}
+        </div>
       </CardContent>
 
-      {footer && (
+      {expanded && footer && (
         <div className="border-t border-neutral-200 px-5 py-3 dark:border-neutral-700">
           {footer}
         </div>

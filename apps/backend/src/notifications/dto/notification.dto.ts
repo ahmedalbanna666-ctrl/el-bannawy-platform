@@ -1,4 +1,24 @@
-import { IsString, IsOptional, IsBoolean } from "class-validator";
+import { IsString, IsOptional, IsBoolean, IsEnum } from "class-validator";
+
+export enum NotificationPriority {
+  LOW = "LOW",
+  MEDIUM = "MEDIUM",
+  HIGH = "HIGH",
+  CRITICAL = "CRITICAL",
+}
+
+export enum NotificationChannel {
+  IN_APP = "IN_APP",
+  EMAIL = "EMAIL",
+  WHATSAPP = "WHATSAPP",
+  PUSH = "PUSH",
+}
+
+export enum NotificationTargetType {
+  ALL_STUDENTS = "all_students",
+  INDIVIDUAL = "individual",
+  GRADE = "grade",
+}
 
 export class SendNotificationDto {
   @IsString()
@@ -11,15 +31,15 @@ export class SendNotificationDto {
   message!: string;
 
   @IsOptional()
-  @IsString()
-  priority?: string;
+  @IsEnum(NotificationPriority)
+  priority?: NotificationPriority;
 
   @IsOptional()
-  @IsString()
-  channel?: string;
+  @IsEnum(NotificationChannel)
+  channel?: NotificationChannel;
 
-  @IsString()
-  targetType!: string;
+  @IsEnum(NotificationTargetType)
+  targetType!: NotificationTargetType;
 
   @IsOptional()
   @IsString()
@@ -37,11 +57,15 @@ export class ScheduleNotificationDto {
   message!: string;
 
   @IsOptional()
-  @IsString()
-  channel?: string;
+  @IsEnum(NotificationChannel)
+  channel?: NotificationChannel;
 
-  @IsString()
-  targetType!: string;
+  @IsOptional()
+  @IsEnum(NotificationPriority)
+  priority?: NotificationPriority;
+
+  @IsEnum(NotificationTargetType)
+  targetType!: NotificationTargetType;
 
   @IsOptional()
   @IsString()

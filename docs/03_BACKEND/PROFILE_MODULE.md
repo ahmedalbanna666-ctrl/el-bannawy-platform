@@ -103,6 +103,8 @@ Display:
 
 Achievements are read-only.
 
+Certificates are stored separately in `unit_certificates` and displayed on the Achievements page (الإنجازات) in a dedicated "شهادات التقدير" section with view + PDF download. See `UNITS_MODULE.md` → Certificates and `CURRICULUM_API.md` → Certificates.
+
 ---
 
 # Attendance Section

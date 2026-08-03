@@ -1,45 +1,73 @@
 # STORY_MODULE.md
 
 # El-bannawy Platform
-## Story Module Requirements
+## Story Module (قصة المنهج)
 
-Version: 1.0.0
+Version: 2.0.0
 
 ---
 
 # Purpose
 
-The Story Module is an independent educational module dedicated to the official curriculum story.
+The Story Module delivers the official curriculum story (قصة المنهج) to students as an independent learning path.
 
-Although the Story follows the same educational philosophy as curriculum lessons, it has its own structure, progress, homework, quizzes, and reports.
-
-The Story Module must behave as an independent learning path.
+Version 2.0.0 rebuilds the Story on top of the existing Curriculum/Units architecture. A Story is a `Unit` with `unitType = STORY`; every Story Chapter is a `Lesson` that reuses the full lesson content engine.
 
 ---
 
-# Objectives
+# Architecture Overview
 
-The Story Module must:
+The Story is NOT a separate data model anymore. It reuses:
 
-- Organize story content.
-- Improve reading skills.
-- Improve vocabulary acquisition.
-- Improve comprehension.
-- Improve critical thinking.
-- Prepare students for story examinations.
+- `units` table with `unitType = STORY`
+- `lessons` table (one lesson per chapter)
+- Full lesson content engine:
+  - Interactive videos
+  - Vocabulary (structured sections)
+  - Quiz
+  - Homework
+  - PDF document
+  - Question/document import engine
+
+Content is isolated per `lessonId`. No cross-contamination between story, review, and regular unit content.
 
 ---
 
-# Supported Users
+# Data Model
 
-Primary User
+`Unit` gains:
 
-- Student
+- `unitType` enum (`UNIT` | `STORY` | `FINAL_REVIEW`), default `UNIT`
 
-Management Users
+A Story is a `Unit` row with:
 
-- Teacher
-- Administrator
+```text
+unitType = STORY
+published
+displayOrder
+isPremium
+academicYearId / termId / gradeId / educationalSystem / bookId
+```
+
+A Story Chapter is a `Lesson` row scoped to the story unit. Chapters have no inner lessons — content lives directly on the chapter (lesson).
+
+---
+
+# Structure
+
+A Story contains:
+
+- Chapters (one `Lesson` per chapter)
+
+Each Chapter contains:
+
+- Interactive Videos (one or more, same engine)
+- Vocabulary
+- PDF Files
+- Homework
+- Quiz
+
+The content order follows the standard lesson flow.
 
 ---
 
@@ -49,269 +77,90 @@ Home
 
 ↓
 
-Story
+Stories List (`/dashboard/stories`)
 
 ↓
 
-Story Chapters
+Story Chapters (zigzag layout, `/dashboard/stories/:storyId`)
 
 ↓
 
-Story Lesson
+Chapter Content (`/dashboard/stories/:storyId/chapters/:chapterId`)
 
-↓
-
-Interactive Videos (one or more, same engine)
-
-↓
-
-Vocabulary
-
-↓
-
-Story Homework
-
-↓
-
-Story Quiz
-
-↓
-
-Next Chapter
+The chapters page uses the same zigzag connector layout as the student units map. Clicking a chapter opens its content directly — there is no nested lessons level.
 
 ---
 
-# Story Structure
+# Supported Users
 
-A Story contains:
+Student
 
-- Chapters
+- Views story list
+- Opens chapters in zigzag layout
+- Studies chapter content (videos, vocabulary, quiz, homework)
 
-Each Chapter contains:
+Teacher / Administrator
 
-- Lessons
+- Manage stories (create/edit/delete)
+- Manage chapters (create/edit/delete)
+- Manage chapter content blocks
 
-Each Lesson contains:
+Staff
 
-- Interactive Videos (one or more, same engine)
-- Vocabulary
-- Story Files
-- Homework
-- Story Quiz
-
----
-
-# Story Chapter
-
-Each chapter displays:
-
-- Chapter Number
-- Chapter Name
-- Progress
-- Completion Status
-- Number of Lessons
+- Read-only story list
+- Read-only chapter navigation
 
 ---
 
-# Chapter Status
+# Progress And Completion
 
-Possible Status
+Progress is calculated per chapter (lesson) using the standard lesson progress engine.
 
-- Locked
-- Available
-- In Progress
-- Completed
-
----
-
-# Story Lesson
-
-Each Story Lesson contains:
-
-- Story Video
-- Vocabulary
-- Story Files
-- Homework
-- Story Quiz
-
-The order is mandatory.
-
----
-
-# Story Video
-
-Story videos use the same Interactive Video Engine.
-
-All Video Engine rules apply.
-
----
-
-# Story Vocabulary
-
-Story Vocabulary is independent from Lesson Vocabulary.
-
-Words are stored separately.
-
-Students can review them anytime.
-
----
-
-# Story Files
-
-Supported Files
-
-- PDF
-
-Future Support
-
-- Audio
-- Images
-- Worksheets
-
----
-
-# Story Homework
-
-Homework evaluates understanding of the chapter.
-
-Homework contributes to reports.
-
-Homework does not unlock the next chapter.
-
----
-
-# Story Quiz
-
-Story Quiz is mandatory.
-
-Passing the Story Quiz unlocks the next Story Lesson.
-
----
-
-# Story Progress
-
-Progress is calculated using:
-
-Completed Story Lessons
-
-÷
-
-Total Story Lessons
-
-×
-
-100
-
----
-
-# Story Completion
-
-The Story is completed when:
-
-Every Story Lesson is completed.
-
-Requirements
-
-✓ Story Video
-
-✓ Story Homework
-
-✓ Story Quiz
+Story completion is derived from the completion of its chapters (lessons).
 
 ---
 
 # Continue Learning
 
-Continue Learning should remember:
-
-- Current Chapter
-- Current Lesson
-- Video Position
-- Homework Progress
-- Quiz Progress
+Continue Learning uses the standard lesson-progress flow.
 
 ---
 
-# Search
+# API
 
-Students may search:
+Story reuses the curriculum endpoints:
 
-- Chapter Name
-- Lesson Name
+- `GET /api/v1/curriculum?unitType=STORY` — student story list
+- `GET /api/v1/curriculum/units?unitType=STORY` — management list
+- `POST/PATCH/DELETE /api/v1/curriculum/units` — story CRUD (`unitType: "STORY"`)
+- `POST/PATCH/DELETE /api/v1/curriculum/lessons` — chapter CRUD
+- `GET /api/v1/lessons/:lessonId` — chapter content
 
----
-
-# Teacher Features
-
-Teachers may:
-
-- Create Chapters
-- Edit Chapters
-- Delete Chapters
-- Create Story Lessons
-- Provide YouTube URL
-- Upload Files
-- Manage Homework
-- Manage Story Quiz
+Permissions reuse `UNITS_*` permissions.
 
 ---
 
-# Administrator Features
+# Acceptance Criteria
 
-Administrators have full control.
+✓ Story list loads.
 
----
+✓ Chapters render in zigzag layout.
 
-# Analytics
+✓ Chapter content (video, vocabulary, quiz, homework, PDF) works.
 
-Collect:
+✓ Story content is isolated from regular units.
 
-- Reading Progress
-- Chapter Completion
-- Homework Scores
-- Quiz Scores
-- Reading Time
-- Vocabulary Completion
+✓ Progress updates correctly.
 
----
+✓ Responsive design works.
 
-# Performance
+✓ Dark mode works.
 
-Story Module should load within:
-
-2 seconds
-
----
-
-# Security
-
-Students may access only:
-
-Stories assigned to their educational grade.
-
----
-
-# Empty State
-
-Display
-
-Story content is not available yet.
-
----
-
-# Error State
-
-Display
-
-Unable to load story.
-
-Retry
+✓ RTL works.
 
 ---
 
 # Future Enhancements
-
-Future Versions
 
 - AI Story Summary
 - Character Cards
@@ -322,36 +171,10 @@ Future Versions
 
 ---
 
-# Acceptance Criteria
-
-Story Module is complete when:
-
-✓ Chapters display correctly.
-
-✓ Story Lessons load.
-
-✓ Story Video works.
-
-✓ Story Vocabulary works.
-
-✓ Story Homework works.
-
-✓ Story Quiz works.
-
-✓ Progress updates correctly.
-
-✓ Continue Learning works.
-
-✓ Analytics are collected.
-
-✓ Responsive design works.
-
----
-
 # Final Rule
 
-The Story Module is an independent educational path.
+The Story Module reuses the Curriculum architecture.
 
-Its progress, reports and completion must remain completely separate from the main curriculum.
+Documentation remains the source of truth.
 
 End of Document.

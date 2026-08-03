@@ -49,3 +49,39 @@ Desktop.ini
 
 # pnpm store
 .pnpm-store/
+
+# Local runtime artifacts & credentials (never commit)
+/cookies*.txt
+/req*.json
+/run_server.bat
+/start_server.bat
+/start_server.vbs
+/server_out*.txt
+/server_err*.txt
+/backend*.err
+/backend*.log
+/backend_*.err
+/backend_*.log
+/backend_*.txt
+/dev-*.log
+/frontend*.log
+/temp_*.sql
+/temp_q*.sql
+/temp_query*.sql
+/test_migration.sql
+/migrations_temp.sql
+/database/migrations_temp.sql
+/database/test_migration.sql
+/database/prisma/current_schema.prisma
+/test-questions.docx
+/uploads/
+/apps/backend/uploads/
+/apps/backend/debug-*.mjs
+/apps/backend/load-test.mjs
+/apps/backend/debug-test.ts
+/apps/backend/*.log
+/apps/web/*.log
+/database/backups/
+/test_pgvector.mts
+.vercel
+.env*

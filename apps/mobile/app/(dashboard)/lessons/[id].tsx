@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { WebView } from "react-native-webview";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "../../../src/lib/api-client";
 
@@ -30,7 +31,9 @@ interface LessonDetail {
 interface LessonVideo {
   id: string;
   title: string;
-  url: string;
+  providerName: string;
+  providerVideoId: string;
+  providerUrl: string;
   duration: number;
   displayOrder: number;
   timelineEvents: { id: string; timestamp: number; title: string }[];
@@ -51,6 +54,36 @@ interface LessonSettings {
   requiresMicrophone: boolean;
   minScoreToPass: number;
   allowSkipping: boolean;
+}
+
+function getYouTubeEmbedUrl(video: LessonVideo): string | null {
+  const source = video.providerVideoId || video.providerUrl || "";
+  const match = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/.exec(source);
+  const videoId = match?.[1] ?? null;
+  if (videoId) return `https://www.youtube.com/embed/${videoId}?playsinline=1`;
+  return null;
+}
+
+function VideoPlayer({ video }: { video: LessonVideo }) {
+  const embedUrl = getYouTubeEmbedUrl(video);
+  if (!embedUrl) {
+    return (
+      <View style={styles.videoPlaceholder}>
+        <Text style={styles.videoTitle}>{video.title}</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.videoContainer}>
+      <WebView
+        source={{ uri: embedUrl }}
+        style={styles.videoWebView}
+        javaScriptEnabled
+        allowsFullscreenVideo
+        originWhitelist={["*"]}
+      />
+    </View>
+  );
 }
 
 export default function LessonDetailScreen() {
@@ -141,14 +174,8 @@ export default function LessonDetailScreen() {
         </View>
       )}
 
-      {/* Video Placeholder */}
-      {activeVideo && (
-        <View style={styles.videoPlaceholder}>
-          <Text style={styles.playIcon}>▶</Text>
-          <Text style={styles.videoTitle}>{activeVideo.title}</Text>
-          <Text style={styles.videoDuration}>{activeVideo.duration} seconds</Text>
-        </View>
-      )}
+      {/* Video Player */}
+      {activeVideo && <VideoPlayer video={activeVideo} />}
 
       {/* Video List */}
       <Text style={styles.sectionTitle}>Videos</Text>
@@ -251,6 +278,14 @@ const styles = StyleSheet.create({
   progressBar: { flex: 1, height: 8, flexDirection: "row", backgroundColor: "#e2e8f0", borderRadius: 4, overflow: "hidden" },
   progressFill: { height: "100%", backgroundColor: "#2563eb", borderRadius: 4 },
   progressText: { fontSize: 12, color: "#64748b", width: 40, textAlign: "right" },
+  videoContainer: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    overflow: "hidden",
+    height: 200,
+    marginBottom: 24,
+  },
+  videoWebView: { flex: 1 },
   videoPlaceholder: {
     backgroundColor: "#0f172a",
     borderRadius: 12,
@@ -259,9 +294,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 24,
   },
-  playIcon: { fontSize: 48, color: "rgba(255,255,255,0.6)", marginBottom: 8 },
-  videoTitle: { fontSize: 16, fontWeight: "600", color: "rgba(255,255,255,0.8)" },
-  videoDuration: { fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 4 },
+  videoTitle: { fontSize: 16, fontWeight: "600", color: "rgba(255,255,255,0.8)", paddingHorizontal: 16, textAlign: "center" },
   sectionTitle: { fontSize: 18, fontWeight: "600", color: "#0f172a", marginTop: 16, marginBottom: 12 },
   videoItem: {
     flexDirection: "row",

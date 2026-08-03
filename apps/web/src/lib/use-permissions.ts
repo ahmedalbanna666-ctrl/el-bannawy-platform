@@ -17,6 +17,7 @@ export function usePermissions(): {
   readonly isAdmin: boolean;
   readonly isTeacher: boolean;
   readonly isStaff: boolean;
+  readonly isSecretary: boolean;
   readonly isStudent: boolean;
 } {
   const user = useAuthStore((s) => s.user);
@@ -50,6 +51,7 @@ export function usePermissions(): {
     isAdmin: role === "ADMINISTRATOR",
     isTeacher: role === "TEACHER",
     isStaff: role === "STAFF",
+    isSecretary: role === "SECRETARY",
     isStudent: role === "STUDENT",
   } as const;
 }

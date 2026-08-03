@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { useAssessmentPlayerContext } from "../context/assessment-player-context";
 import type { AutosaveState } from "../autosave/autosave-manager";
 
@@ -17,15 +17,12 @@ export interface UseAutosaveResult {
 export function useAutosave(): UseAutosaveResult {
   const context = useAssessmentPlayerContext();
 
-  const state = useMemo<AutosaveState>(
-    () => ({
-      pendingCount: 0,
-      failedCount: 0,
-      lastSavedAt: null,
-      isSaving: false,
-    }),
-    [],
-  );
+  const state: AutosaveState = context.autosaveState ?? {
+    pendingCount: 0,
+    failedCount: 0,
+    lastSavedAt: null,
+    isSaving: false,
+  };
 
   const scheduleSave = useCallback((questionId: string, answer: unknown): void => {
     context.saveAnswer(questionId, answer);

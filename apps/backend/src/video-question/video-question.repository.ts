@@ -68,7 +68,7 @@ export class VideoQuestionRepository {
       displayOrder: number;
       metadata: Record<string, unknown>;
     },
-  ): Promise<VideoQuestionOption> {
+  ): Promise<unknown> {
     return this.prisma.videoQuestionOption.create({
       data: {
         questionId,
@@ -77,6 +77,46 @@ export class VideoQuestionRepository {
         displayOrder: data.displayOrder,
         metadata: data.metadata as Prisma.InputJsonValue,
       },
+    });
+  }
+
+  async upsertAnswer(data: {
+    questionId: string;
+    userId: string;
+    selectedOptionIds: readonly string[];
+    text: string | null;
+    correct: boolean;
+    score: number;
+    maxScore: number;
+  }): Promise<void> {
+    const existing = await this.prisma.videoQuestionAnswer.findUnique({
+      where: { questionId_userId: { questionId: data.questionId, userId: data.userId } },
+      select: { correct: true },
+    });
+
+    const wasWrong = existing !== null && !existing.correct;
+    const update = wasWrong && data.correct
+      ? {}
+      : {
+          selectedOptionIds: [...data.selectedOptionIds] as Prisma.InputJsonValue,
+          text: data.text,
+          correct: data.correct,
+          score: data.score,
+          maxScore: data.maxScore,
+        };
+
+    await this.prisma.videoQuestionAnswer.upsert({
+      where: { questionId_userId: { questionId: data.questionId, userId: data.userId } },
+      create: {
+        questionId: data.questionId,
+        userId: data.userId,
+        selectedOptionIds: [...data.selectedOptionIds] as Prisma.InputJsonValue,
+        text: data.text,
+        correct: data.correct,
+        score: data.score,
+        maxScore: data.maxScore,
+      },
+      update,
     });
   }
 }

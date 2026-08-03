@@ -1,31 +1,22 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { type ReactNode } from "react";
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuthStore } from "@/lib/auth-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { AdminStoriesView } from "./_components/admin-stories-view";
-import { TeacherStoriesView } from "./_components/teacher-stories-view";
-import { StaffStoriesView } from "./_components/staff-stories-view";
+import { AdminUnitsView } from "@/app/dashboard/units/_components/admin-units-view";
+import { TeacherUnitsView } from "@/app/dashboard/units/_components/teacher-units-view";
+import { StaffUnitsView } from "@/app/dashboard/units/_components/staff-units-view";
+import { StudentCollectionView } from "@/components/units/student-collection-view";
 import { ShieldX } from "lucide-react";
 
 const KNOWN_ROLES = new Set(["ADMINISTRATOR", "TEACHER", "STAFF", "STUDENT"]);
 
 export default function StoriesPage(): ReactNode {
-  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const rawRole = user?.role;
-  const { isAdmin, isTeacher, isStaff, isStudent } = usePermissions();
-
-  useEffect(() => {
-    if (isStudent) {
-      router.replace("/dashboard/story");
-    }
-  }, [isStudent, router]);
-
-  if (isStudent) return null;
+  const { isAdmin, isTeacher, isStaff } = usePermissions();
 
   if (typeof rawRole !== "string") {
     return (
@@ -35,9 +26,18 @@ export default function StoriesPage(): ReactNode {
     );
   }
 
-  if (isAdmin) return <AdminStoriesView />;
-  if (isTeacher) return <TeacherStoriesView />;
-  if (isStaff) return <StaffStoriesView />;
+  if (isAdmin) {
+    return <AdminUnitsView unitType="STORY" />;
+  }
+
+  if (isTeacher) {
+    return <TeacherUnitsView unitType="STORY" />;
+  }
+
+  if (isStaff) {
+    return <StaffUnitsView unitType="STORY" />;
+  }
+
   if (!KNOWN_ROLES.has(rawRole)) {
     return (
       <EmptyState
@@ -47,5 +47,6 @@ export default function StoriesPage(): ReactNode {
       />
     );
   }
-  return <AdminStoriesView />;
+
+  return <StudentCollectionView unitType="STORY" />;
 }

@@ -1,375 +1,185 @@
 # FINAL_REVIEW_MODULE.md
 
 # El-bannawy Platform
-## Final Review Module Requirements
+## Final Review Module (المراجعة النهائية)
 
-Version: 1.0.0
+Version: 2.1.0
 
 ---
 
 # Purpose
 
-The Final Review Module is a dedicated revision system that becomes available only during official revision periods.
+The Final Review Module delivers the official final review (المراجعة النهائية) to students as a dedicated revision path before exams.
 
-It is designed to help students prepare efficiently for final examinations by providing condensed educational content, comprehensive quizzes, revision videos and simulated exams.
-
-This module is completely independent from the normal lesson progression.
+The Final Review is a `Unit` with `unitType = FINAL_REVIEW`; every Review Lecture (محاضرة) is a `Lesson` that reuses the full lesson content engine.
 
 ---
 
-# Objectives
+# Architecture Overview
 
-The Final Review Module must:
+The Final Review is NOT a separate data model anymore. It reuses:
 
-- Prepare students for exams.
-- Summarize the curriculum.
-- Measure final readiness.
-- Identify weak areas.
-- Improve confidence before examinations.
+- `units` table with `unitType = FINAL_REVIEW`
+- `lessons` table (one lesson per lecture)
+- Full lesson content engine:
+  - Interactive videos
+  - Vocabulary (structured sections)
+  - Quiz
+  - Homework
+  - PDF document
+  - Question/document import engine
 
----
-
-# Supported Users
-
-Primary User
-
-- Student
-
-Management Users
-
-- Teacher
-- Administrator
+Content is isolated per `lessonId`. No cross-contamination between story, review, and regular unit content.
 
 ---
 
-# Availability
+# Data Model
 
-Default Status
+`Unit` gains:
 
-Locked
+- `unitType` enum (`UNIT` | `STORY` | `FINAL_REVIEW`), default `UNIT`
 
-Students cannot access this module until it is activated.
+A Final Review is a `Unit` row with:
 
-Only Teachers and Administrators can enable or disable it.
+```text
+unitType = FINAL_REVIEW
+published
+displayOrder
+isPremium
+academicYearId / termId / gradeId / educationalSystem / bookId
+```
 
----
-
-# Activation Rules
-
-Teachers control:
-
-- Opening Date
-- Closing Date
-- Visible Grade
-- Visible Stage
-
-The system automatically hides the module outside the configured period.
+A Review Lecture is a `Lesson` row scoped to the review unit. Lectures have no inner lessons — content lives directly on the lecture (lesson).
 
 ---
 
-# Home Screen Behavior
+# Structure
 
-When locked:
+A Final Review contains:
 
-Display
+- Lectures (one `Lesson` per lecture): المحاضرة الأولى، المحاضرة الثانية، ...
 
-Final Review will be available during the official revision period.
+Each Lecture contains:
 
-Include:
+- Interactive Videos (one or more, same engine)
+- Vocabulary
+- PDF Files
+- Homework
+- Quiz
 
-- Lock Icon
-- Short Explanation
-
-No educational content should be visible.
+The content order follows the standard lesson flow. The lecture video is displayed first with the rest of the content below it, exactly like a regular unit lesson.
 
 ---
 
 # Navigation Flow
 
+The student experience is only TWO pages — there is no zigzag and no intermediate level:
+
 Home
 
 ↓
 
-Final Review
+Lectures List (`/dashboard/final-reviews`)
 
 ↓
 
-Choose Unit
+Lecture Content (`/dashboard/lessons/detail/:lectureId`)
 
-↓
+- Page 1 is a flat list styled like the lessons list (قائمة الدروس) titled "محاضرات المراجعات". Each row is named "المحاضرة الأولى", "المحاضرة الثانية", ... and shows the lecture title, duration, and quiz/homework badges.
+- Clicking a lecture navigates directly to its content page (video + remaining content blocks below).
 
-Choose Revision Lesson
+The management flow keeps the review detail page for teachers/administrators:
 
-↓
+- `/dashboard/final-reviews` — management list (reviews)
+- `/dashboard/final-reviews/:reviewId` — management detail (lectures inside a review)
+- `/dashboard/final-reviews/:reviewId/lectures/:lectureId` — lecture content management
 
-Watch Review
-
-↓
-
-Solve Practice Questions
-
-↓
-
-Take Final Exam
-
-↓
-
-Review Results
+Students and staff are redirected from the review detail route to the lectures list.
 
 ---
 
-# Review Structure
+# Supported Users
 
-Each Unit contains:
+Student
 
-- Review Lessons
-- Practice Questions
-- Final Unit Exam
+- Views the flat lectures list
+- Opens a lecture directly to study its content (video, vocabulary, quiz, homework)
 
----
+Teacher / Administrator
 
-# Review Lesson
+- Manage final reviews (create/edit/delete)
+- Manage lectures (create/edit/delete)
+- Manage lecture content blocks
 
-Each Review Lesson contains:
+Staff
 
-- Revision Video
-- Summary Notes
-- Vocabulary Review
-- Quick Practice
-- PDF Notes
+- Read-only lectures list
 
 ---
 
-# Review Videos
+# Progress And Completion
 
-Review videos use the same Interactive Video Engine.
+Progress is calculated per lecture (lesson) using the standard lesson progress engine.
 
-All Interactive Video rules apply.
-
-Teachers may choose whether review videos include interactive timeline events.
+Review completion is derived from the completion of its lectures (lessons).
 
 ---
 
-# Summary Notes
+# Continue Learning
 
-Each lesson includes:
-
-- Grammar Summary
-- Vocabulary Summary
-- Important Notes
-- Common Mistakes
+Continue Learning uses the standard lesson-progress flow.
 
 ---
 
-# Vocabulary Review
+# API
 
-Students can review:
+Final Review reuses the curriculum endpoints:
 
-- Key Vocabulary
-- Pronunciation
-- Meanings
-- Frequently Tested Words
+- `GET /api/v1/curriculum?unitType=FINAL_REVIEW` — student lectures list (flat, across all reviews)
+- `GET /api/v1/curriculum/units?unitType=FINAL_REVIEW` — management list
+- `POST/PATCH/DELETE /api/v1/curriculum/units` — review CRUD (`unitType: "FINAL_REVIEW"`)
+- `POST/PATCH/DELETE /api/v1/curriculum/lessons` — lecture CRUD
+- `GET /api/v1/lessons/:lessonId` — lecture content
 
----
-
-# Practice Questions
-
-Practice questions are optional.
-
-Students may retry them unlimited times.
-
-Practice questions do not affect rankings.
-
----
-
-# Final Unit Exam
-
-Each reviewed unit contains:
-
-- Comprehensive Questions
-- Mixed Difficulty
-- Timed Exam (Optional)
-
-Teachers configure:
-
-- Passing Score
-- Time Limit
-- Attempts
-
----
-
-# Final Course Exam
-
-The platform may include:
-
-Full Curriculum Final Exam.
-
-This exam combines all reviewed units.
-
----
-
-# Reports
-
-After every exam display:
-
-- Score
-- Correct Answers
-- Wrong Answers
-- Weak Topics
-- Estimated Readiness
-
----
-
-# Readiness Indicator
-
-Display one of:
-
-Excellent
-
-Ready
-
-Needs Improvement
-
-High Priority Review
-
-Based on performance.
-
----
-
-# XP Rules
-
-Teachers may enable XP rewards.
-
-XP rewards are optional.
-
----
-
-# Coins Rules
-
-Coins are never awarded automatically.
-
----
-
-# Analytics
-
-Collect:
-
-- Review Completion
-- Practice Accuracy
-- Exam Scores
-- Weak Units
-- Average Time
-- Readiness Score
-
----
-
-# Teacher Features
-
-Teachers can:
-
-- Open Review Period
-- Close Review Period
-- Create Review Lessons
-- Provide Review YouTube URL
-- Upload PDF Notes
-- Create Practice Questions
-- Create Final Exams
-- Publish Content
-
----
-
-# Administrator Features
-
-Administrators have full access.
-
----
-
-# Notifications
-
-Students receive notifications when:
-
-- Final Review opens.
-- New Review Content is published.
-- Exams become available.
-- Review Period is ending.
-
----
-
-# Performance
-
-The module should load in less than:
-
-2 seconds.
-
----
-
-# Security
-
-Students may access only:
-
-Review content assigned to their educational stage and grade.
-
----
-
-# Empty State
-
-Display
-
-Final Review has not been activated yet.
-
----
-
-# Error State
-
-Display
-
-Unable to load Final Review.
-
-Retry
-
----
-
-# Future Enhancements
-
-Future Versions
-
-- AI Personalized Review Plan
-- AI Weak Topic Detection
-- Adaptive Final Exams
-- Revision Calendar
-- Daily Revision Goals
-- Mock National Exams
+Permissions reuse `UNITS_*` permissions.
 
 ---
 
 # Acceptance Criteria
 
-The Final Review Module is complete when:
+✓ Final review lectures list loads as a flat list (no zigzag).
 
-✓ Module remains hidden until activated.
+✓ Lectures are numbered "المحاضرة الأولى", "المحاضرة الثانية", ...
 
-✓ Teachers can control visibility.
+✓ Clicking a lecture opens its content page directly.
 
-✓ Review lessons load correctly.
+✓ Lecture content (video, vocabulary, quiz, homework, PDF) works.
 
-✓ Review videos work.
+✓ Review content is isolated from regular units.
 
-✓ Practice questions work.
-
-✓ Final exams work.
-
-✓ Reports are generated.
-
-✓ Readiness indicator works.
+✓ Progress updates correctly.
 
 ✓ Responsive design works.
+
+✓ Dark mode works.
+
+✓ RTL works.
+
+---
+
+# Future Enhancements
+
+- Exam Readiness Indicator
+- Scheduled Review Period
+- PDF Notes Model
+- Analytics Ledger
 
 ---
 
 # Final Rule
 
-The Final Review Module must never be available before the teacher officially opens the revision period.
+The Final Review Module reuses the Curriculum architecture.
 
-Students should clearly understand that this module is reserved exclusively for exam preparation.
+Documentation remains the source of truth.
 
 End of Document.

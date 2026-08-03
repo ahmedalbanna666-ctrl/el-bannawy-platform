@@ -1,104 +1,47 @@
-# PROJECT_SUMMARY.md
+# Project Summary
 
-# El-bannawy Platform
+El-bannawy is an English-learning platform for Arabic-speaking students. Its current release is a modular monolith with a web dashboard, an early Expo mobile client, a NestJS API, and a Prisma/PostgreSQL data layer.
 
-## Executive Summary
+## Current User Experience
 
-El-bannawy is an AI-First enterprise platform specialized in teaching English through an interactive, gamified learning experience.
+Students can authenticate, select academic context, learn through units and lessons, watch provider-hosted videos, answer interactive activities, study structured vocabulary, complete homework/quizzes/assessments, review mistakes, use games, join competitions and live classes, track XP/achievements, use coins to unlock content, open support tickets, and chat with the AI assistant.
 
-The platform combines recorded lessons, live classes, artificial intelligence, adaptive learning, student analytics, and teacher management into one unified ecosystem.
+Teachers and administrators can manage curriculum, lesson content, DOCX imports, stories, final reviews, assessments, live sessions, reports, competitions, coins, activation codes, unlock requests, support contacts, and role-scoped permissions. Staff access is delegated by a managing teacher and constrained by both the staff capability ceiling and the teacher's effective permissions.
 
----
+## Core Technical Flows
 
-# Mission
+### Learning Content
 
-Deliver the highest quality English learning experience using modern technology, intelligent automation, and engaging educational content.
+```text
+Academic context -> Grade -> Unit -> Lesson
+                              |
+                              +-> Videos -> Timeline events -> Activities
+                              +-> Structured vocabulary
+                              +-> Lesson document
+                              +-> Homework / quiz / assessment
+```
 
----
+### Content Import
 
-# Target Users
+```text
+DOCX upload -> extraction -> semantic table parsing -> preview/edit -> persistence
+```
 
-- Students
-- Teachers
-- Secretaries
-- Customer Support
-- Administrators
+The import pipeline currently supports structured vocabulary and question preview/persistence. It does not mean every arbitrary DOCX layout is supported.
 
-Each role has dedicated permissions and dashboards.
+### Paid Access
 
----
+```text
+Coin package -> pending payment -> verification -> wallet credit
+Student wallet -> lesson/unit unlock, or activation code -> content unlock
+```
 
-# Supported Platforms
+## Current Limitations
 
-- Web Application
-- Android Application
-- iOS Application
-- Desktop Application
+- The mobile app is an initial client, not a feature-complete parity client.
+- AI uses a configurable OpenAI-compatible endpoint and rule-based fallback; RAG, embeddings, and pgvector retrieval are not wired.
+- Redis and BullMQ are present in local infrastructure configuration but are not used by the application runtime.
+- Notification persistence is implemented; external push/email/WhatsApp delivery is not a complete integration.
+- Operational hardening and production observability remain open work.
 
-All platforms share the same backend and business rules.
-
----
-
-# Core Modules
-
-- Authentication
-- Home Dashboard
-- Curriculum Units
-- Story Module
-- Interactive Video Engine
-- Dynamic Activities (auto-generated from Word document)
-- Interactive Timeline
-- AI Assessment Engine
-- Vocabulary
-- Homework
-- End Lesson Assessment
-- Final Review
-- Learn From Mistakes
-- Games
-- Ask El-bannawy AI
-- Live Classes
-- XP System
-- Coins System
-- Referral System
-- Notifications
-- Reports
-- Teacher Dashboard
-- Admin Dashboard
-
----
-
-# Core Objectives
-
-- Improve student engagement.
-- Track learning progress.
-- Personalize learning.
-- Simplify teacher workflow.
-- Support long-term scalability.
-
----
-
-# Development Philosophy
-
-- AI-First Development
-- Documentation Driven Development
-- Mobile First
-- Clean Architecture
-- Modular Monolith
-- Domain-Driven Design
-- Production Ready Code Only
-
----
-
-# Success Criteria
-
-- Scalable architecture.
-- Excellent user experience.
-- High maintainability.
-- Strong security.
-- Consistent business rules.
-- Full documentation coverage.
-
----
-
-This document provides a high-level overview of the El-bannawy Platform.
-Detailed implementation is defined in the remaining documentation.
+End of Document.

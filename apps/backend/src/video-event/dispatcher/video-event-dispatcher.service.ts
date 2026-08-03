@@ -8,13 +8,13 @@ export class VideoEventDispatcherService {
 
   constructor(private readonly executionService: ExecutionService) {}
 
-  async dispatch(event: VideoEventPayload): Promise<void> {
+  async dispatch(event: VideoEventPayload, userId: string): Promise<void> {
     try {
       const context = {
         videoId: event.videoId,
         eventId: typeof event.payload.videoEventId === "string" ? event.payload.videoEventId : event.videoId,
         pluginType: event.type,
-        userId: "",
+        userId,
         currentTime: event.timestamp,
         playbackState: "PLAYING",
         eventPayload: event.payload,

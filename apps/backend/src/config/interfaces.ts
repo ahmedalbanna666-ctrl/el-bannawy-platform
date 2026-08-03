@@ -3,6 +3,20 @@ export interface AppConfig {
   nodeEnv: string;
   frontendUrl: string;
   publicBaseUrl: string;
+  corsOrigins: string[];
+}
+
+export interface EmailConfig {
+  /** Brevo (Sendinblue) API v3 key. Empty disables real sending (dev fallback logs the code). */
+  brevoApiKey: string;
+  /** Verified sender email on Brevo. */
+  brevoSenderEmail: string;
+  /** Sender display name. */
+  brevoSenderName: string;
+  /** Firebase Auth project config for verifying Firebase ID tokens. */
+  firebaseProjectId: string;
+  firebaseClientEmail: string;
+  firebasePrivateKey: string;
 }
 
 export interface AuthConfig {
@@ -11,6 +25,11 @@ export interface AuthConfig {
   googleClientId: string;
   googleClientSecret: string;
   googleCallbackUrl: string;
+  appleClientId: string;
+  appleTeamId: string;
+  appleKeyId: string;
+  applePrivateKey: string;
+  appleCallbackUrl: string;
 }
 
 export interface PaymentGatewayProviderConfig {
@@ -37,4 +56,28 @@ export interface AiConfig {
   apiKey: string;
   model: string;
   endpoint: string;
+}
+
+export interface FireAuthConfig {
+  /** Whether Firebase Auth token verification is enabled (credentials present). */
+  enabled: boolean;
+}
+
+export interface ZoomConfig {
+  /** Zoom account-level OAuth app Client ID (used for REST API + SDK signature when SDK credentials are absent). */
+  clientId: string;
+  /** Zoom account-level OAuth app Client Secret. */
+  clientSecret: string;
+  /** Meeting SDK Key (used for in-browser SDK signature generation when provided). */
+  sdkKey: string;
+  /** Meeting SDK Secret (used for in-browser SDK signature generation when provided). */
+  sdkSecret: string;
+  /** OAuth base URL used to mint access tokens. */
+  oauthBaseUrl: string;
+  /** Zoom REST API base URL. */
+  apiBaseUrl: string;
+  /** Meeting SDK signature endpoint. */
+  sdkSignatureUrl: string;
+  /** Signature time-to-live in seconds. */
+  signatureTtlSeconds: number;
 }

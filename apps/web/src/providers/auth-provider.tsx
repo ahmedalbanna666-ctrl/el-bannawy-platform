@@ -1,7 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, type ReactNode, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { createContext, useContext, useEffect, useCallback, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/auth-store";
 import { api } from "@/lib/api-client";
@@ -9,6 +8,7 @@ import type { Permission, UserRole } from "@el-bannawy/shared";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
+  isInitialized: boolean;
   user: {
     id: string;
     fullName: string;
@@ -18,7 +18,11 @@ interface AuthContextValue {
     effectivePermissions?: Permission[];
   } | null;
   login: (mobile: string, password: string, rememberMe?: boolean) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  confirmLogin: (confirmToken: string) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<{ userId: string; requiresEmailVerification: boolean }>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
+  firebaseLogin: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   oauthRegister: (payload: OAuthRegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -26,7 +30,8 @@ interface AuthContextValue {
 interface RegisterPayload {
   fullName: string;
   englishName?: string;
-  mobile: string;
+  email: string;
+  mobile?: string;
   parentMobile?: string;
   password: string;
   confirmPassword: string;
@@ -35,13 +40,15 @@ interface RegisterPayload {
   educationalSystem?: string;
   educationalStage?: string;
   grade?: string;
+  referralCode?: string;
+  firebaseIdToken?: string;
 }
 
 interface OAuthRegisterPayload {
   email: string;
   fullName: string;
   englishName?: string;
-  mobile: string;
+  mobile?: string;
   parentMobile?: string;
   password?: string;
   governorate?: string;
@@ -49,22 +56,24 @@ interface OAuthRegisterPayload {
   educationalSystem?: string;
   educationalStage?: string;
   grade?: string;
+  referralCode?: string;
+}
+
+export class DeviceConfirmationError extends Error {
+  confirmToken: string;
+  constructor(confirmToken: string) {
+    super("Device confirmation required");
+    this.name = "DeviceConfirmationError";
+    this.confirmToken = confirmToken;
+  }
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
-  const {
-    accessToken,
-    user,
-    isAuthenticated,
-    setAuth,
-    setUser,
-    logout: clearStore,
-  } = useAuthStore();
+  const { user, isAuthenticated, isInitialized, setUser, setInitialized, logout: clearStore } = useAuthStore();
 
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
 
   const fetchUser = useCallback(async (): Promise<void> => {
     try {
@@ -82,115 +91,161 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
           effectivePermissions: response.data.effectivePermissions as Permission[],
         });
       }
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      console.warn("[Auth] fetchUser failed:", err);
       clearStore();
+    } finally {
+      setInitialized();
     }
-  }, [setUser, clearStore]);
-
-  const oauthProcessed = useRef(false);
+  }, [setUser, clearStore, setInitialized]);
 
   useEffect(() => {
-    if (oauthProcessed.current) return;
-    oauthProcessed.current = true;
-
-    const urlToken = searchParams.get("token");
-    const urlRefreshToken = searchParams.get("refreshToken");
-    const urlExpiresIn = searchParams.get("expiresIn");
-
-    if (urlToken && urlRefreshToken) {
-      const expiresIn = Number(urlExpiresIn) || 3600;
-      setAuth(urlToken, urlRefreshToken);
-      document.cookie = `auth_token=${urlToken}; path=/; max-age=${String(expiresIn)}; SameSite=Lax`;
+    if (!user && !isInitialized) {
       void fetchUser();
-      queryClient.removeQueries({ queryKey: ["profile"] });
-      queryClient.removeQueries({ queryKey: ["sidebar-profile"] });
+    } else if (user) {
+      setInitialized();
     }
-  }, [searchParams, setAuth, fetchUser, queryClient]);
-
-  useEffect(() => {
-    if (accessToken && !user) {
-      void fetchUser();
-    }
-  }, [accessToken, user, fetchUser]);
+  }, [user, fetchUser, isInitialized, setInitialized]);
 
   const login = useCallback(
     async (mobile: string, password: string, rememberMe = false): Promise<void> => {
-      const response = await api.post<{
-        accessToken: string;
-        refreshToken: string;
-        expiresIn: number;
-      }>("/auth/login", { identity: mobile, password, rememberMe });
+      const response = await api.post<{ userId: string } | { requiresConfirmation: boolean; confirmToken: string }>("/auth/login", {
+        identity: mobile,
+        password,
+        rememberMe,
+      });
 
-      if (response.data) {
-        setAuth(response.data.accessToken, response.data.refreshToken);
-        document.cookie = `auth_token=${response.data.accessToken}; path=/; max-age=${String(response.data.expiresIn)}; SameSite=Lax`;
-        await fetchUser();
-        queryClient.removeQueries({ queryKey: ["profile"] });
-        queryClient.removeQueries({ queryKey: ["sidebar-profile"] });
+      if (!response.data) {
+        throw new Error("Login failed");
       }
+
+      if ("requiresConfirmation" in response.data && response.data.requiresConfirmation) {
+        const confirmToken = (response.data as { confirmToken: string }).confirmToken;
+        throw new DeviceConfirmationError(confirmToken);
+      }
+
+      await fetchUser();
+      queryClient.removeQueries({ queryKey: ["profile"] });
+      queryClient.removeQueries({ queryKey: ["sidebar-profile"] });
     },
-    [setAuth, fetchUser, queryClient],
+    [fetchUser, queryClient],
+  );
+
+  const confirmLogin = useCallback(
+    async (confirmToken: string): Promise<void> => {
+      await api.post<{ userId: string }>("/auth/confirm-login", { confirmToken });
+      await fetchUser();
+      queryClient.removeQueries({ queryKey: ["profile"] });
+      queryClient.removeQueries({ queryKey: ["sidebar-profile"] });
+    },
+    [fetchUser, queryClient],
   );
 
   const register = useCallback(
-    async (payload: RegisterPayload): Promise<void> => {
-      const response = await api.post<{
-        accessToken: string;
-        refreshToken: string;
-        expiresIn: number;
-      }>("/auth/register", payload);
+    async (payload: RegisterPayload): Promise<{ userId: string; requiresEmailVerification: boolean }> => {
+      const response = await api.post<{ userId: string; requiresEmailVerification: boolean }>(
+        "/auth/register",
+        payload,
+      );
 
-      if (response.data) {
-        setAuth(response.data.accessToken, response.data.refreshToken);
-        document.cookie = `auth_token=${response.data.accessToken}; path=/; max-age=${String(response.data.expiresIn)}; SameSite=Lax`;
+      if (!response.data) {
+        throw new Error("Registration failed");
+      }
+
+      if (!response.data.requiresEmailVerification) {
         await fetchUser();
         queryClient.removeQueries({ queryKey: ["profile"] });
         queryClient.removeQueries({ queryKey: ["sidebar-profile"] });
       }
+
+      return response.data;
     },
-    [setAuth, fetchUser, queryClient],
+    [fetchUser, queryClient],
+  );
+
+  const verifyEmail = useCallback(
+    async (email: string, code: string): Promise<void> => {
+      const response = await api.post<{ verified: boolean }>("/auth/verify-email", { email, code });
+      if (!response.data?.verified) {
+        throw new Error("Verification failed");
+      }
+    },
+    [],
+  );
+
+  const resendVerification = useCallback(
+    async (email: string): Promise<void> => {
+      const response = await api.post<{ sent: boolean }>("/auth/resend-verification", { email });
+      if (!response.data?.sent) {
+        throw new Error("No pending verification");
+      }
+    },
+    [],
+  );
+
+  const firebaseLogin = useCallback(
+    async (email: string, password: string, rememberMe = false): Promise<void> => {
+      const { signInFirebaseUser } = await import("@/lib/firebase-auth");
+      const idToken = await signInFirebaseUser(email, password);
+      if (!idToken) {
+        // Firebase Auth is not configured (or the account is not linked in
+        // Firebase) — fall back to the platform's own credentials (JWT) so
+        // email login keeps working. Once Firebase credentials are added,
+        // the Firebase path is used automatically.
+        await login(email, password, rememberMe);
+        return;
+      }
+      const response = await api.post<{ userId: string }>("/auth/firebase-login", { idToken, rememberMe });
+      if (!response.data) {
+        throw new Error("Login failed");
+      }
+      await fetchUser();
+      queryClient.removeQueries({ queryKey: ["profile"] });
+      queryClient.removeQueries({ queryKey: ["sidebar-profile"] });
+    },
+    [fetchUser, queryClient, login],
   );
 
   const oauthRegister = useCallback(
     async (payload: OAuthRegisterPayload): Promise<void> => {
-      const response = await api.post<{
-        accessToken: string;
-        refreshToken: string;
-        expiresIn: number;
-      }>("/auth/complete-oauth-registration", payload);
+      const response = await api.post<{ userId: string }>(
+        "/auth/complete-oauth-registration",
+        payload,
+      );
 
       if (response.data) {
-        setAuth(response.data.accessToken, response.data.refreshToken);
-        document.cookie = `auth_token=${response.data.accessToken}; path=/; max-age=${String(response.data.expiresIn)}; SameSite=Lax`;
         await fetchUser();
         queryClient.removeQueries({ queryKey: ["profile"] });
         queryClient.removeQueries({ queryKey: ["sidebar-profile"] });
       }
     },
-    [setAuth, fetchUser, queryClient],
+    [fetchUser, queryClient],
   );
 
   const logout = useCallback(async (): Promise<void> => {
     try {
-      if (accessToken) {
-        await api.post("/auth/logout");
-      }
+      await api.post("/auth/logout");
     } catch {
       // ignore errors on logout
     } finally {
       clearStore();
-      document.cookie = "auth_token=; path=/; max-age=0";
       queryClient.clear();
     }
-  }, [accessToken, clearStore, queryClient]);
+  }, [clearStore, queryClient]);
 
   return (
     <AuthContext.Provider
       value={{
         isAuthenticated,
+        isInitialized,
         user,
         login,
+        confirmLogin,
         register,
+        verifyEmail,
+        resendVerification,
+        firebaseLogin,
         oauthRegister,
         logout,
       }}

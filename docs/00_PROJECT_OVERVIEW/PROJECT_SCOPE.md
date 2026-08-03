@@ -1,135 +1,54 @@
-# PROJECT_SCOPE.md
+# Project Scope
 
-# El-bannawy Platform
-## Project Scope
+Version: 2.0.0
+Status: Current implementation baseline
 
-Version: 1.0
+## In Scope And Implemented
 
----
+### Shared
 
-# Purpose
+- JWT authentication, refresh tokens, sessions, password reset, and Google OAuth path
+- Server-side role and permission checks
+- Arabic/English-ready UI with RTL, dark/light themes, responsive states, and semantic design tokens
+- Academic context filtering and role-aware dashboard navigation
+- Audit records for important administrative and permission operations
 
-This document defines the official scope of the El-bannawy Platform.
+### Student
 
-Only features documented here are considered part of Version 1.
+- Dashboard, profile, units, lessons, progress, vocabulary, lesson documents, homework, quizzes, assessments
+- Stories, final review, learn from mistakes, mini exams, games, achievements, leaderboard, competitions
+- AI conversations/recommendations, notifications/preferences, support tickets
+- Live-session discovery, subscriptions, booking, announcements, and attendance state
+- Coin wallet, package purchase flow, activation codes, content unlocks, and unlock requests
 
----
+### Teacher, Staff, And Administration
 
-# In Scope
+- Unit and lesson CRUD with publish/premium/lock controls
+- Videos, timeline events, video questions, lesson documents, homework, quizzes, assessments
+- DOCX question/vocabulary preview and persistence, including structured vocabulary relations
+- Story and final-review management
+- Live availability, sessions, booking control, attendance, announcements, and control logs
+- Reports, competitions, support operations, coin packages, unlock codes, unlock requests, and grade support contacts
+- Delegated permissions: administrators configure teachers; teachers may delegate an allowed subset to owned staff users
 
-## Student Platform
+## Present In Code But Not Complete As A Product Integration
 
-- Authentication
-- Student Profile
-- Home Dashboard
-- Continue Learning
-- Curriculum Units
-- Story Module
-- Interactive Video Lessons (YouTube Unlisted, provider abstraction)
-- Dynamic Activities (auto-generated from Word document)
-- Interactive Timeline Events (Required / Optional)
-- Homework (optional)
-- End Lesson Assessment (optional)
-- AI Assessment Engine
-- Communication & Notification Engine (Mobile Push, In-App)
-- Student Notification Preferences
-- Teacher Notification Controls
-- Final Review
-- Learn From Mistakes
-- Educational Games
-- Ask El-bannawy AI
-- Live Classes
-- XP System
-- Coins System
-- Referral System
-- Notifications
-- Reports
+- Mobile feature parity
+- External notification channels
+- Payment gateway production certification
+- Full AI/RAG platform
+- Production operations, metrics, and distributed observability
 
----
+## Out Of Scope For The Current Baseline
 
-## Teacher Platform
+- Parent portal
+- Desktop client
+- Offline learning
+- Marketplace and public plugin ecosystem
+- Multi-tenant/school isolation
+- Public API consumers
+- Complete social/community features
 
-- Dashboard
-- Student Management
-- Lesson Management (YouTube URL + Word Document upload)
-- Unit Management
-- Story Management
-- Interactive Timeline Configuration (Required / Optional)
-- Activity Management (enable/disable)
-- Homework Management (enable/disable)
-- End Lesson Assessment Management (enable/disable)
-- Lesson Completion Rules
-- Lesson Unlock Rules
-- Communication & Notification Engine
-- Teacher Notification Controls (send, schedule, target)
-- Final Review Management
-- Live Classes Management
-- Reports
-- Analytics
+Changes to scope require a documentation update and corresponding implementation/tests.
 
----
-
-## Secretary Platform
-
-- Student Registration
-- Subscription Management
-- Payment Tracking
-- Report Generation
-- Parent Communication
-
----
-
-## Administrator Platform
-
-- User Management
-- Roles & Permissions
-- System Configuration
-- Analytics
-- Content Management
-- Payment Management
-- Notification Management
-
----
-
-# Shared Features
-
-- Authentication
-- Authorization
-- Role-Based Access Control
-- Dark Mode
-- Light Mode
-- RTL Support
-- Responsive Design
-- WhatsApp Integration
-- Email Notifications
-- Audit Logs
-
----
-
-# Out of Scope (Version 1)
-
-The following features are NOT included in Version 1:
-
-- Offline Learning
-- Marketplace
-- Teacher-to-Teacher Community
-- Student Social Network
-- Public API
-- Third-party Plugin System
-- Multi-language UI (except Arabic & English)
-- Multi-Tenant Architecture
-
----
-
-# Success Criteria
-
-Version 1 is considered complete when:
-
-- All documented modules are implemented.
-- All acceptance criteria are satisfied.
-- Documentation and implementation are synchronized.
-- Production deployment is successful.
-
----
-
-Changes to this scope require approval and documentation updates before implementation.
+End of Document.

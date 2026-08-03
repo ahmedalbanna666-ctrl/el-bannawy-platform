@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { CardBorderScope } from "@/components/ui/card-border-scope";
 
 export default function AuthLayout({
   children,
@@ -32,7 +34,11 @@ export default function AuthLayout({
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 p-4 dark:bg-neutral-950">
       <div className="w-full max-w-md">
-        {children}
+        <ErrorBoundary>
+          <CardBorderScope>
+            {children}
+          </CardBorderScope>
+        </ErrorBoundary>
       </div>
     </main>
   );

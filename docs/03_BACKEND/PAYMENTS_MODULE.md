@@ -204,6 +204,10 @@ Every refund must be recorded.
 
 Refunded Coins must be removed if unused.
 
+## Refund Ledger (`LiveRefund`)
+
+Since Phase 1B, every refund is a first-class `LiveRefund` record (ledger row) rather than a bare `Payment.status` flip. `POST /payments/:id/refund` (administrator) flips the payment status to `REFUNDED`, deactivates the purchased content, and creates a `LiveRefund` row in the same transaction (status `PROCESSED`, amount, currency, optional reason). A payment can only be refunded once (unique `paymentId`). `GET /payments/refunds/list` reads from the `live_refunds` ledger.
+
 ---
 
 # Invoice

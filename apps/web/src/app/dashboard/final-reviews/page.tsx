@@ -1,31 +1,22 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { type ReactNode } from "react";
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuthStore } from "@/lib/auth-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { AdminFinalReviewsView } from "./_components/admin-final-reviews-view";
-import { TeacherFinalReviewsView } from "./_components/teacher-final-reviews-view";
-import { StaffFinalReviewsView } from "./_components/staff-final-reviews-view";
+import { AdminUnitsView } from "@/app/dashboard/units/_components/admin-units-view";
+import { TeacherUnitsView } from "@/app/dashboard/units/_components/teacher-units-view";
+import { StaffUnitsView } from "@/app/dashboard/units/_components/staff-units-view";
+import { FinalReviewLecturesView } from "./_components/final-review-lectures-view";
 import { ShieldX } from "lucide-react";
 
 const KNOWN_ROLES = new Set(["ADMINISTRATOR", "TEACHER", "STAFF", "STUDENT"]);
 
 export default function FinalReviewsPage(): ReactNode {
-  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const rawRole = user?.role;
-  const { isAdmin, isTeacher, isStaff, isStudent } = usePermissions();
-
-  useEffect(() => {
-    if (isStudent) {
-      router.replace("/dashboard/final-review");
-    }
-  }, [isStudent, router]);
-
-  if (isStudent) return null;
+  const { isAdmin, isTeacher, isStaff } = usePermissions();
 
   if (typeof rawRole !== "string") {
     return (
@@ -35,9 +26,18 @@ export default function FinalReviewsPage(): ReactNode {
     );
   }
 
-  if (isAdmin) return <AdminFinalReviewsView />;
-  if (isTeacher) return <TeacherFinalReviewsView />;
-  if (isStaff) return <StaffFinalReviewsView />;
+  if (isAdmin) {
+    return <AdminUnitsView unitType="FINAL_REVIEW" />;
+  }
+
+  if (isTeacher) {
+    return <TeacherUnitsView unitType="FINAL_REVIEW" />;
+  }
+
+  if (isStaff) {
+    return <StaffUnitsView unitType="FINAL_REVIEW" />;
+  }
+
   if (!KNOWN_ROLES.has(rawRole)) {
     return (
       <EmptyState
@@ -47,5 +47,6 @@ export default function FinalReviewsPage(): ReactNode {
       />
     );
   }
-  return <AdminFinalReviewsView />;
+
+  return <FinalReviewLecturesView />;
 }

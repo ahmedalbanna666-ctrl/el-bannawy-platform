@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import {
   Injectable,
   NotFoundException,
@@ -6,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { DelegatedPermissionService } from "../auth/delegated/delegated-permission.service";
+import type { Permission } from "@el-bannawy/shared";
 import { QueryTeachersDto } from "./dto/query-teachers.dto";
 import { CreateTeacherDto } from "./dto/create-teacher.dto";
 import { UpdateTeacherDto } from "./dto/update-teacher.dto";
@@ -24,20 +26,7 @@ import { CoinAdjustDto } from "./dto/coin-adjust.dto";
 import { XpAdjustDto } from "./dto/xp-adjust.dto";
 import * as bcrypt from "bcryptjs";
 
-const TEACHER_SELECT = {
-  id: true,
-  fullName: true,
-  englishName: true,
-  email: true,
-  mobileNumber: true,
-  role: true,
-  status: true,
-  governorate: true,
-  school: true,
-  createdAt: true,
-  updatedAt: true,
-  deletedAt: true,
-} as const;
+import { TEACHER_SELECT } from "./admin.constants";
 
 @Injectable()
 export class AdminService {
@@ -82,7 +71,7 @@ export class AdminService {
     await this.delegatedPermissionService.grantPermission(
       actorId,
       teacherId,
-      permission as never,
+      permission as Permission,
     );
   }
 
@@ -105,7 +94,7 @@ export class AdminService {
     await this.delegatedPermissionService.revokePermission(
       actorId,
       teacherId,
-      permission as never,
+      permission as Permission,
     );
   }
 
@@ -240,8 +229,11 @@ export class AdminService {
       const existingEmail = await this.prisma.user.findUnique({
         where: { email: dto.email },
       });
-      if (existingEmail?.deletedAt === null) {
-        throw new ConflictException("Email already exists");
+      if (existingEmail) {
+        if (existingEmail.deletedAt === null) {
+          throw new ConflictException("Email already exists");
+        }
+        throw new ConflictException("Email is linked to a deleted account. Reactivate it instead of creating a duplicate.");
       }
     }
 
@@ -249,10 +241,16 @@ export class AdminService {
       const existingMobile = await this.prisma.user.findUnique({
         where: { mobileNumber: dto.mobileNumber },
       });
-      if (existingMobile?.deletedAt === null) {
-        throw new ConflictException("Mobile number already exists");
+      if (existingMobile) {
+        if (existingMobile.deletedAt === null) {
+          throw new ConflictException("Mobile number already exists");
+        }
+        throw new ConflictException("Mobile number is linked to a deleted account. Reactivate it instead of creating a duplicate.");
       }
     }
+
+    const rawPassword = dto.password ?? crypto.randomUUID().replace(/-/g, "").slice(0, 12) + "Aa1";
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
 
     const teacher = await this.prisma.user.create({
       data: {
@@ -263,7 +261,8 @@ export class AdminService {
         governorate: dto.governorate,
         school: dto.school,
         role: "TEACHER",
-        status: "PENDING_VERIFICATION",
+        status: "ACTIVE",
+        passwordHash,
       },
       select: {
         id: true,
@@ -288,6 +287,7 @@ export class AdminService {
       updatedAt: teacher.updatedAt.toISOString(),
       lastLogin: null,
       assignedGrades: [],
+      initialPassword: dto.password ? undefined : rawPassword,
     };
   }
 
@@ -408,6 +408,7 @@ export class AdminService {
       autoTermStartDate: get("auto_term_start_date"),
       autoTermEndDate: get("auto_term_end_date"),
       maintenanceMode: get("maintenance_mode") === "true",
+      certificateThreshold: Number(get("certificate_threshold") ?? 80),
     };
   }
 
@@ -431,6 +432,9 @@ export class AdminService {
     }
     if (dto.maintenanceMode !== undefined) {
       entries.push({ key: "maintenance_mode", value: String(dto.maintenanceMode) });
+    }
+    if (dto.certificateThreshold !== undefined) {
+      entries.push({ key: "certificate_threshold", value: String(dto.certificateThreshold) });
     }
 
     await Promise.all(
@@ -922,7 +926,7 @@ export class AdminService {
     return { id };
   }
 
-  async getStudentProgress(id: string): Promise<unknown> {
+  async getStudentProgress(id: string, page = 1, limit = 20): Promise<unknown> {
     const student = await this.prisma.user.findFirst({
       where: { id, role: "STUDENT", deletedAt: null },
     });
@@ -930,115 +934,169 @@ export class AdminService {
       throw new NotFoundException("Student not found");
     }
 
-    const [lessonProgress, quizAttempts, homeworkAttempts] =
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * safeLimit;
+
+    const [lessonProgress, totalLesson, quizAttempts, totalQuiz, homeworkAttempts, totalHw] =
       await Promise.all([
         this.prisma.lessonProgress.findMany({
           where: { userId: id },
+          take: safeLimit,
+          skip,
           select: {
             lessonId: true,
             completed: true,
             progress: true,
           },
         }),
+        this.prisma.lessonProgress.count({ where: { userId: id } }),
         this.prisma.quizAttempt.findMany({
           where: { userId: id },
+          take: safeLimit,
+          skip,
           select: {
             quizId: true,
             score: true,
             passed: true,
           },
         }),
+        this.prisma.quizAttempt.count({ where: { userId: id } }),
         this.prisma.studentHomeworkAttempt.findMany({
           where: { userId: id },
+          take: safeLimit,
+          skip,
           select: {
             homeworkId: true,
             score: true,
             submitted: true,
           },
         }),
+        this.prisma.studentHomeworkAttempt.count({ where: { userId: id } }),
       ]);
 
-    return { lessonProgress, quizAttempts, homeworkAttempts };
-  }
-
-  async getStudentAttendance(id: string): Promise<unknown> {
-    const student = await this.prisma.user.findFirst({
-      where: { id, role: "STUDENT", deletedAt: null },
-    });
-    if (!student) {
-      throw new NotFoundException("Student not found");
-    }
-
-    const records = await this.prisma.attendanceRecord.findMany({
-      where: { userId: id },
-      orderBy: { date: "desc" },
-      select: { id: true, date: true, present: true },
-    });
-
-    return records.map((r) => ({
-      id: r.id,
-      date: r.date.toISOString(),
-      present: r.present,
-    }));
-  }
-
-  async getStudentLoginHistory(id: string): Promise<unknown> {
-    const student = await this.prisma.user.findFirst({
-      where: { id, role: "STUDENT", deletedAt: null },
-    });
-    if (!student) {
-      throw new NotFoundException("Student not found");
-    }
-
-    const records = await this.prisma.loginHistory.findMany({
-      where: { userId: id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        createdAt: true,
-        success: true,
-        ipAddress: true,
-        failureReason: true,
-      },
-    });
-
-    return records.map((r) => ({
-      id: r.id,
-      createdAt: r.createdAt.toISOString(),
-      success: r.success,
-      ipAddress: r.ipAddress,
-      failureReason: r.failureReason,
-    }));
-  }
-
-  async getStudentSubscription(id: string): Promise<unknown> {
-    const student = await this.prisma.user.findFirst({
-      where: { id, role: "STUDENT", deletedAt: null },
-    });
-    if (!student) {
-      throw new NotFoundException("Student not found");
-    }
-
-    const payments = await this.prisma.payment.findMany({
-      where: { userId: id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        productType: true,
-        amount: true,
-        status: true,
-        createdAt: true,
-      },
-    });
+    const totalPages = Math.ceil(Math.max(totalLesson, totalQuiz, totalHw) / safeLimit);
 
     return {
-      payments: payments.map((p) => ({
+      data: { lessonProgress, quizAttempts, homeworkAttempts },
+      meta: { page, limit: safeLimit, total: Math.max(totalLesson, totalQuiz, totalHw), totalPages },
+    };
+  }
+
+  async getStudentAttendance(id: string, page = 1, limit = 20): Promise<unknown> {
+    const student = await this.prisma.user.findFirst({
+      where: { id, role: "STUDENT", deletedAt: null },
+    });
+    if (!student) {
+      throw new NotFoundException("Student not found");
+    }
+
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * safeLimit;
+
+    const [records, total] = await Promise.all([
+      this.prisma.attendanceRecord.findMany({
+        where: { userId: id },
+        take: safeLimit,
+        skip,
+        orderBy: { date: "desc" },
+        select: { id: true, date: true, present: true },
+      }),
+      this.prisma.attendanceRecord.count({ where: { userId: id } }),
+    ]);
+
+    const totalPages = Math.ceil(total / safeLimit);
+
+    return {
+      data: records.map((r) => ({
+        id: r.id,
+        date: r.date.toISOString(),
+        present: r.present,
+      })),
+      meta: { page, limit: safeLimit, total, totalPages },
+    };
+  }
+
+  async getStudentLoginHistory(id: string, page = 1, limit = 20): Promise<unknown> {
+    const student = await this.prisma.user.findFirst({
+      where: { id, role: "STUDENT", deletedAt: null },
+    });
+    if (!student) {
+      throw new NotFoundException("Student not found");
+    }
+
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * safeLimit;
+
+    const [records, total] = await Promise.all([
+      this.prisma.loginHistory.findMany({
+        where: { userId: id },
+        take: safeLimit,
+        skip,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          createdAt: true,
+          success: true,
+          ipAddress: true,
+          failureReason: true,
+        },
+      }),
+      this.prisma.loginHistory.count({ where: { userId: id } }),
+    ]);
+
+    const totalPages = Math.ceil(total / safeLimit);
+
+    return {
+      data: records.map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt.toISOString(),
+        success: r.success,
+        ipAddress: r.ipAddress,
+        failureReason: r.failureReason,
+      })),
+      meta: { page, limit: safeLimit, total, totalPages },
+    };
+  }
+
+  async getStudentSubscription(id: string, page = 1, limit = 20): Promise<unknown> {
+    const student = await this.prisma.user.findFirst({
+      where: { id, role: "STUDENT", deletedAt: null },
+    });
+    if (!student) {
+      throw new NotFoundException("Student not found");
+    }
+
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * safeLimit;
+
+    const [payments, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: { userId: id },
+        take: safeLimit,
+        skip,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          productType: true,
+          amount: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.payment.count({ where: { userId: id } }),
+    ]);
+
+    const totalPages = Math.ceil(total / safeLimit);
+
+    return {
+      data: payments.map((p) => ({
         id: p.id,
         productType: p.productType,
         amount: p.amount,
         status: p.status,
         createdAt: p.createdAt.toISOString(),
       })),
+      meta: { page, limit: safeLimit, total, totalPages },
     };
   }
 }

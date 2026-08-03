@@ -1,611 +1,105 @@
-# DATABASE_SCHEMA.md
+# Database Schema
 
-# El-bannawy Platform
-## Database Schema Specification
+Version: 2.0.0
+Status: Prisma schema reference
 
-Version: 1.0.0
+## Physical Source Of Truth
 
----
+The physical schema is `database/prisma/schema.prisma`. Applied changes are represented by replayable migrations in `database/prisma/migrations`. Do not invent tables from the original requirement documents and do not edit a production database manually.
 
-# Purpose
+## Database Configuration
 
-This document defines the logical database schema of the El-bannawy Platform.
+- Engine: PostgreSQL
+- ORM: Prisma 6
+- Primary keys: UUID
+- Connection: `DATABASE_URL`
+- Package: `@el-bannawy/database`
+- Commands: `generate`, `migrate`, `migrate:deploy`, `migrate:reset`, `seed`, `studio`
 
-It specifies every major entity, its responsibility, relationships, ownership and lifecycle.
+## Domains And Current Models
 
-This document does NOT define SQL tables.
+### Identity And Access
 
-It defines the business data model.
+`User`, `Session`, `RefreshToken`, `LoginHistory`, `PasswordReset`, `UserPermissionGrant`, `AuditLog`, `SystemSetting`.
 
-Detailed Prisma models will be generated from this document.
+`User` stores profile, role, account status, academic context, teacher/staff relationship, and feature relations. Permission grants are unique by `(userId, permission)`.
 
----
+### Academic Structure
 
-# Database Domains
+`AcademicYear`, `Term`, `Stage`, `Grade`, `Book`, `TeacherGrade`, `Unit`, `Lesson`.
 
-The database is divided into independent domains.
+The primary content path is:
 
-Each domain owns its own entities.
+```text
+AcademicYear -> Term
+Stage -> Grade -> Book -> Unit -> Lesson
+```
 
-Domains communicate through Services rather than direct coupling.
+`Unit` carries a `unitType` discriminator (`UNIT`, `STORY`, `FINAL_REVIEW`). The platform Story (قصة المنهج) and Final Review (المراجعة النهائية) are modeled as units of type `STORY` and `FINAL_REVIEW`; their chapters/sections are regular `Lesson` rows that reuse the full lesson content engine (videos, vocabulary, quiz, homework, document import).
 
-Domains:
+Several content relationships are optional to support legacy academic records and administrative authoring flows.
 
-- Authentication
-- User Management
-- Academic Structure
-- Learning
-- Assessments
-- Gamification
-- AI
-- Communication
-- Financial
-- Administration
-- Reporting
-- Analytics
+### Lesson Content And Progress
 
----
+`LessonSettings`, `LessonDocument`, `LessonVideo`, `VideoEvent`, `TimelineEvent`, `VideoQuestion`, `VideoQuestionOption`, `Activity`, `ActivityQuestion`, `LessonVocabulary`, `VocabularySection`, `VocabularyRelation`, `VideoProgress`, `ActivityProgress`, `LessonProgress`.
 
-# Authentication Domain
+Videos are provider references. The current provider is YouTube; lesson video files are not stored in PostgreSQL.
 
-Entities
+### Questions And Assessments
 
-- User
-- Session
-- RefreshToken
-- LoginHistory
-- Device
-- PasswordReset
+`QuestionGroup`, `Question`, `QuestionOption`, `QuestionHint`, `QuestionAttachment`, `QuestionTag`, `QuestionTagAssignment`, `Assessment`, `AssessmentSection`, `AssessmentQuestion`, `AssessmentAttempt`, `AssessmentAnswer`, `Homework`, `HomeworkQuestion`, `StudentHomeworkAttempt`, `HomeworkAnswer`, `Quiz`, `QuizQuestion`, `QuizAttempt`, `QuizAnswer`.
 
-Relationships
+Question content is reusable for assessments. Attempts and answers are scoped to the authenticated student and preserve scoring/feedback state.
 
-User
+### Practice, Games, And Competition
 
-↓
+`MiniExam`, `MiniExamAnswer`, `Competition`, `CompetitionParticipant`, `UserAchievement`, `XPTransaction`.
 
-Sessions
+The current schema stores mistakes through the question/answer and mini-exam flows; there is no separate `Mistake` table in the current Prisma schema.
 
-↓
+### Certificates
 
-Refresh Tokens
+`UnitCertificate` (table `unit_certificates`).
 
-↓
+One certificate per `(userId, unitId)`. Stores the generated PDF file reference (`fileName`, `fileUrl`, `fileSize`, `mimeType`) and the earned date. Files are stored on disk under `uploads/certificates/{userId}/` and served under `/files/certificates`. The certificate threshold percentage is stored in `system_settings` under key `certificate_threshold` (default `80`).
 
-Login History
+### Coins And Payments
 
----
+`CoinWallet`, `CoinPackage`, `CoinPurchase`, `UnlockCode`, `CodeRedemption`, `ContentUnlock`, `UnlockRequest`, `Payment`, `Invoice`, `Coupon`, `LiveRefund`.
 
-# User Domain
+Coin purchase and unlock records are separate from learning progress. `ContentUnlock` is unique by `(userId, targetType, targetId)`.
 
-Entities
+`Payment.couponId` is a FK to `Coupon` (added in Phase 1B); orphan coupon references were scanned before the constraint was applied. Refunds are recorded in the `LiveRefund` ledger (unique by `paymentId`) instead of a bare `Payment.status` flip, mirroring the `XPTransaction` movement-ledger pattern.
 
-- Student
-- Teacher
-- Secretary
-- Support
-- Administrator
-- Parent
-- Profile
-- Avatar
+### Live Learning
 
-Relationships
+`LiveSession`, `LiveAnnouncement`, `LiveSessionControlLog`, `LiveBooking`, `LiveSubscription`, `LiveWaitingList`, `LiveAttendance`, `TeacherAvailability`, `TeacherDateBlock`, `TeacherLiveSettings`.
 
-User
+Availability and date blocks use soft-delete fields. A booking is unique by `(sessionId, studentId)`. A waiting-list entry is unique by `(sessionId, studentId)` and carries a `position` for first-in-first-out promotion. `LiveBooking` stores the reschedule request lifecycle (`rescheduleRequestedAt`, `rescheduleReason`, `rescheduleStatus`, `rescheduleResolvedAt`, `rescheduleResolvedById`) with status `REQUESTED` → `APPROVED`/`REJECTED`.
 
-↓
+### Communication And AI
 
-Profile
+`Notification`, `NotificationPreference`, `Conversation`, `ConversationMessage`, `SupportTicket`, `SupportMessage`.
 
-↓
+Notifications are currently persisted in-app. Scheduled notifications use the `scheduledAt` and `sentAt` columns: rows stay hidden from the inbox until a BullMQ worker sets `sentAt` at the target time. Conversation messages preserve user and assistant roles; external model/provider usage is not represented as a separate usage ledger in the current schema.
 
-Role
+## Enums
 
-↓
+Current Prisma enums include `UserRole`, `AccountStatus`, `LessonStatus`, `ActivityType`, `UnitType`, live-session and booking states, waiting-list state (`LiveWaitingListStatus`), reschedule state (`LiveBookingRescheduleStatus`), refund state (`LiveRefundStatus`), meeting provider, assessment type/visibility/policies, and vocabulary section kind.
 
-Permissions
+Several operational fields remain strings, including payment, support, notification, unlock-request, competition, and code statuses. Treat their accepted values as service contracts until they are migrated to Prisma enums.
 
----
+## Lifecycle Rules
 
-# Academic Domain
+- UUID foreign keys and Prisma relations are the default.
+- Cascades are used for owned child content and user-owned progress where defined in the schema.
+- Soft deletion is used selectively through `deletedAt`; it is not universal.
+- Multi-step writes must use a Prisma transaction.
+- Every schema change requires a migration, test coverage, and a documentation update.
+- `current_schema.prisma` is an untracked/generated comparison artifact and is not the canonical schema; `schema.prisma` is canonical.
 
-Entities
+## Migration History Highlights
 
-- AcademicYear
-- EducationalSystem
-- Stage
-- Grade
-- Unit
-- Lesson
-- Story
-- StoryChapter
-
-Relationships
-
-Stage
-
-↓
-
-Grade
-
-↓
-
-Unit
-
-↓
-
-Lesson
-
----
-
-# Lesson Domain
-
-Entities
-
-- Lesson
-- LessonVideo
-- LessonDocument (Word Document)
-- LessonVocabulary
-- LessonHomework
-- LessonAssessment
-- LessonFile (optional additional resources)
-- LessonSettings
-- LessonCompletionRule
-
-Relationships
-
-Lesson
-
-↓
-
-Videos (one or more)
-
-  ├── Video 1
-  │   ├── Timeline Events
-  │   ├── Activities
-  │   └── Student Progress
-  │
-  ├── Video 2
-  │   ├── Timeline Events
-  │   ├── Activities
-  │   └── Student Progress
-  │
-  └── Video N
-
-↓
-
-Document (Word)
-
-↓
-
-Vocabulary
-
-↓
-
-Homework
-
-↓
-
-Assessment
-
-↓
-
-Settings
-
-↓
-
-Completion Rules
-
----
-
-# Interactive Video Domain
-
-Entities
-
-- Video
-- TimelineEvent
-- TimelineEventActivity
-- VideoProgress
-
-Relationships
-
-Video
-
-↓
-
-TimelineEvent
-
-↓
-
-TimelineEventActivity
-
-↓
-
-Student Progress
-
----
-
-# Activity Domain
-
-Entities
-
-- Activity
-- ActivityType
-- ActivityQuestion
-- StudentActivityProgress
-- StudentActivityResponse
-
-Relationships
-
-Video
-
-↓
-
-Activity
-
-↓
-
-ActivityType
-
-↓
-
-Student Progress
-
-Each activity belongs to exactly one video, not directly to the lesson.
-
-The Activity Domain supports unlimited activity types.
-
-New activity types can be added without changing the lesson architecture.
-
-AI Assessment evaluates subjective activity responses.
-
----
-
-# AI Assessment Domain
-
-Entities
-
-- AIAssessment
-- AIAssessmentScore
-- AIAssessmentFeedback
-- AIAssessmentGrammarCorrection
-- AIAssessmentVocabularyEvaluation
-- AIAssessmentRecommendation
-
-Relationships
-
-StudentActivityResponse
-
-↓
-
-AIAssessment
-
-↓
-
-Score
-
-↓
-
-Feedback
-
-↓
-
-Grammar Correction
-
-↓
-
-Vocabulary Evaluation
-
-↓
-
-Recommendation
-
----
-
-# Vocabulary Domain
-
-Entities
-
-- Vocabulary
-- VocabularyAudio
-- VocabularyImage
-- StudentVocabularyProgress
-
----
-
-# Homework Domain
-
-Entities
-
-- Homework
-- HomeworkQuestion
-- HomeworkAttempt
-- HomeworkAnswer
-
----
-
-# Lesson Assessment Domain
-
-Entities
-
-- Assessment
-- AssessmentQuestion
-- AssessmentAttempt
-- AssessmentAnswer
-
----
-
-# Story Domain
-
-Entities
-
-- Story
-- Chapter
-- StoryLesson
-- StoryHomework
-- StoryQuiz
-
----
-
-# Learning Progress Domain
-
-Entities
-
-- LessonProgress
-- UnitProgress
-- StoryProgress
-- CourseProgress
-- CompletionHistory
-
----
-
-# Learn From Mistakes Domain
-
-Entities
-
-- Mistake
-- MistakeAttempt
-- MistakeMastery
-
----
-
-# Final Review Domain
-
-Entities
-
-- ReviewUnit
-- ReviewLesson
-- ReviewExam
-- ReviewAttempt
-
----
-
-# Educational Games Domain
-
-Entities
-
-- Game
-- GameCategory
-- GameAttempt
-- GameScore
-
----
-
-# Live Classes Domain
-
-Entities
-
-- LiveClass
-- Booking
-- Attendance
-- LiveRecording
-
----
-
-# AI Domain
-
-Entities
-
-- Conversation
-- ConversationMessage
-- UploadedDocument
-- UploadedImage
-- AIRecommendation
-- AIUsage
-
----
-
-# Gamification Domain
-
-Entities
-
-- XPTransaction
-- XPLevel
-- Achievement
-- Badge
-- Leaderboard
-- CoinWallet
-- CoinTransaction
-
----
-
-# Referral Domain
-
-Entities
-
-- Referral
-- ReferralReward
-- ReferralCampaign
-
----
-
-# Payment Domain
-
-Entities
-
-- Payment
-- Invoice
-- Transaction
-- CoinPackage
-- Coupon
-
----
-
-# Notification Domain
-
-Entities
-
-- Notification
-- NotificationTemplate
-- NotificationLog
-- NotificationPreference
-- NotificationSchedule
-- NotificationTarget
-- DeliveryChannel
-- PushQueue
-
----
-
-# Reports Domain
-
-Entities
-
-- Report
-- ReportExport
-- ScheduledReport
-
----
-
-# Analytics Domain
-
-Entities
-
-- EventLog
-- DashboardMetric
-- KPI
-- StudentAnalytics
-- TeacherAnalytics
-
----
-
-# Administration Domain
-
-Entities
-
-- Role
-- Permission
-- AuditLog
-- SystemSetting
-- FeatureFlag
-
----
-
-# General Rules
-
-Every entity must contain:
-
-- id
-- created_at
-- updated_at
-
-Optional
-
-- deleted_at
-
----
-
-# Relationships
-
-Relationship Types
-
-One-to-One
-
-One-to-Many
-
-Many-to-One
-
-Many-to-Many
-
-Every relationship must be documented.
-
----
-
-# Primary Keys
-
-UUID
-
-Mandatory.
-
----
-
-# Foreign Keys
-
-Always enforced.
-
-Never optional unless documented.
-
----
-
-# Soft Delete
-
-Applied to:
-
-Educational Content
-
-Users
-
-Notifications
-
-Not applied to:
-
-Payments
-
-Audit Logs
-
-Transactions
-
----
-
-# Versioning
-
-Educational content should support future versioning.
-
-Old student progress must remain compatible.
-
----
-
-# Future Expansion
-
-Prepared for:
-
-- Multi-School
-- Multi-Country
-- Multi-Currency
-- Multi-Language
-- AI Agents
-- Plugin Architecture
-
----
-
-# Acceptance Criteria
-
-Database Schema is complete when:
-
-✓ Every module owns its entities.
-
-✓ Relationships are documented.
-
-✓ Ownership is clear.
-
-✓ Expansion is possible.
-
-✓ No duplicated responsibilities exist.
-
----
-
-# Final Rule
-
-Business entities define the database.
-
-The physical schema must always follow the business model—not the opposite.
+Recent migrations add delegated permissions, structured vocabulary, video provider fields, assessments and attempts, live classes, coins economy, locked overrides, competitions, support tickets, downloadable lesson documents, and the Phase 1B live-v2 migration (`20260804000000_add_phase1b_live_v2`) which adds the waiting list, reschedule fields, refund ledger, scheduled-notification columns, and the coupon FK. Run `prisma migrate status` before applying or repairing migrations.
 
 End of Document.

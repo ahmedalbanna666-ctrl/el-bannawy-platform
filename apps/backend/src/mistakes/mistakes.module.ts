@@ -11,3 +11,4 @@ import { AuthModule } from "../auth/auth.module";
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class MistakesModule {}
+

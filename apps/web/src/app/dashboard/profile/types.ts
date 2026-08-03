@@ -9,6 +9,7 @@ export interface BaseUserProfile {
   educationalSystem: string | null;
   governorate: string | null;
   school: string | null;
+  gradeId: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,156 +1,280 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api-client";
+import { type UseQueryResult } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CardEdge } from "@/components/ui/card-edge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import {
   Sparkles,
-  GraduationCap,
   Play,
   BookOpen,
   ScrollText,
+  LibraryBig,
   RefreshCw,
-  Trophy,
   Gamepad2,
-  BookMarked,
-  ChevronRight,
+  ChevronLeft,
   Users,
-  Video,
+  BarChart3,
+  Target,
+  Flame,
+  Zap,
 } from "lucide-react";
 import { useMyBookings } from "@/lib/live-api";
-
-interface DashboardData {
-  user: { id: string; fullName: string; role: string };
-  xp: { total: number; level: number; nextLevelXp: number };
-  coins: number;
-  achievements: number;
-  streak: number;
-  continueLearning: { unitName: string; lessonName: string; progress: number; lessonId: string } | null;
-  recentActivity: { id: string; type: string; description: string; createdAt: string }[];
-  upcomingLiveClasses: { id: string; title: string; date: string; teacherName: string }[];
-  stats: { completedLessons: number; totalLessons: number; homeworkPending: number; quizPassRate: number; attendanceRate: number };
-}
+import { useAuthStore } from "@/lib/auth-store";
+import { useHomeData, type HomeData } from "@/lib/home-api";
 
 export function StudentDashboard(): ReactNode {
   const router = useRouter();
   const { data: liveBookings } = useMyBookings();
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const authUser = useAuthStore((s) => s.user);
 
-  useEffect(() => {
-    async function fetchDashboard(): Promise<void> {
-      try {
-        const response = await api.get<DashboardData>("/home");
-        if (response.data) {
-          setData(response.data);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "فشل تحميل لوحة التحكم");
-      } finally {
-        setLoading(false);
-      }
-    }
-    void fetchDashboard();
-  }, []);
+  const { data, isLoading, isError, error }: UseQueryResult<HomeData> = useHomeData();
 
-  if (loading) {
+  if (isLoading) {
     return <DashboardSkeleton />;
   }
 
-  if (error) {
-    return <ErrorState title="فشل تحميل لوحة التحكم" description={error} />;
+  if (isError) {
+    return <ErrorState title="فشل تحميل لوحة التحكم" description={error instanceof Error ? error.message : "حدث خطأ"} />;
   }
 
   if (!data) {
     return <EmptyState title="لا توجد بيانات" description="لا توجد بيانات متاحة للوحة التحكم" icon={<BookOpen className="h-16 w-16" />} />;
   }
 
+  const progressPercent = data.stats.totalLessons > 0
+    ? Math.round((data.stats.completedLessons / data.stats.totalLessons) * 100)
+    : 0;
+
+  const xpProgress = data.xp.nextLevelXp > 0
+    ? Math.min(100, Math.round((data.xp.total / data.xp.nextLevelXp) * 100))
+    : 0;
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
 
-      {/* SECTION 1 — Continue / Start Learning */}
-      {data.continueLearning ? (
-        <section>
-          <Card variant="gradient" padding="none" className="border-primary-500/20 px-4 py-3">
-            <CardContent>
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-primary-500/80">
-                      واصل من حيث توقفت
-                    </p>
-                    <h2 className="truncate text-sm font-bold leading-tight tracking-tight text-neutral-900 dark:text-neutral-100">
-                      {data.continueLearning.unitName} · {data.continueLearning.lessonName}
-                    </h2>
-                  </div>
-                  <Button
-                    size="xs"
-                    className="shrink-0 text-xs font-medium"
-                    onClick={() => { const lessonId = data.continueLearning?.lessonId; if (lessonId) router.push(`/dashboard/lessons/detail/${lessonId}`); }}
-                  >
-                    <Play className="h-3 w-3" />
-                    استكمل
-                  </Button>
-                </div>
-
-                <div className="border-t border-primary-500/[0.06]" />
-
-                <div className="flex items-center gap-2">
-                  <Trophy className="h-3 w-3 shrink-0 text-yellow-500/70" />
-                  <div className="h-0.5 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all"
-                      style={{ width: `${String(data.continueLearning.progress)}%` }}
-                    />
-                  </div>
-                  <span className="shrink-0 text-[10px] text-neutral-400">
-                    {Math.round(data.continueLearning.progress)}%
-                  </span>
-                </div>
+      {/* 1 — Progress Card + Daily Goal */}
+      <Card variant="outline" padding="none">
+        <CardContent>
+          <div className="flex items-center justify-between p-4 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
+                <BarChart3 className="h-5 w-5 text-purple-500" />
               </div>
-            </CardContent>
-          </Card>
-        </section>
-      ) : (
-        <section>
-          <Card variant="gradient" padding="none" className="border-primary-500/20 px-4 py-3">
-            <CardContent>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
-                    <GraduationCap className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold leading-tight text-neutral-900 dark:text-neutral-100">
-                      ابدأ رحلتك التعليمية
-                    </p>
-                    <p className="truncate text-xs text-neutral-500">
-                      اختر وحدة وتابع تقدمك خطوة بخطوة
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  size="xs"
-                  className="shrink-0 text-xs font-medium"
-                  onClick={() => { router.push("/dashboard/units"); }}
-                >
-                  <Play className="h-3 w-3" />
-                  ابدأ الآن
-                </Button>
+              <div>
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">التقدم الدراسي</p>
+                <p className="text-xs text-neutral-500">
+                  {data.stats.completedLessons} من {data.stats.totalLessons} دروس مكتملة
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        </section>
+            </div>
+            <Button
+              size="sm"
+              className="shrink-0 rounded-full bg-purple-500 text-xs font-medium text-white hover:bg-purple-600"
+              onClick={() => {
+                if (data.continueLearning?.lessonId) {
+                  router.push(`/dashboard/lessons/detail/${data.continueLearning.lessonId}`);
+                } else {
+                  router.push("/dashboard/units");
+                }
+              }}
+            >
+              <Play className="h-3.5 w-3.5 ml-1" />
+              {data.continueLearning ? "استكمل الدرس" : "ابدأ الآن"}
+            </Button>
+          </div>
+          <div className="px-4 pb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                <div
+                  className="h-full rounded-full bg-purple-500 transition-all"
+                  style={{ width: `${String(progressPercent)}%` }}
+                />
+              </div>
+              <span className="shrink-0 text-xs font-medium text-purple-500">
+                {progressPercent}%
+              </span>
+            </div>
+          </div>
+        </CardContent>
+
+        {/* Daily Goal */}
+        <div className="border-t border-neutral-100 px-4 py-3 dark:border-neutral-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <Flame className="h-4 w-4 text-amber-500" />
+                <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  {data.streak} يوم
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Zap className="h-4 w-4 text-yellow-500" />
+                <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  المستوى {data.xp.level}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 w-24 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 transition-all"
+                  style={{ width: `${String(xpProgress)}%` }}
+                />
+              </div>
+              <span className="text-[10px] font-medium text-neutral-500">
+                {data.xp.total}/{data.xp.nextLevelXp} XP
+              </span>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Grade not set warning */}
+      {!authUser?.gradeId && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20">
+              <Target className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-300">الصف الدراسي غير محدد</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">يرجى اختيار الصف الدراسي من صفحة البروفايل ليتمكن النظام من عرض المحتوى المناسب لك</p>
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300" onClick={() => { router.push("/dashboard/profile"); }}>
+              تعديل البروفايل
+            </Button>
+          </div>
+        </div>
       )}
 
-      {/* SECTION 2 — Live Classes */}
+      {/* 2 — Units Card */}
+      <div onClick={(): void => { router.push("/dashboard/units"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/units"); } }}>
+        <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
+                <BookOpen className="h-6 w-6 text-blue-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الوحدات التعليمية</h3>
+                <p className="text-sm text-neutral-500">تصفح جميع الوحدات وتابع تقدمك</p>
+              </div>
+              <ChevronLeft className="h-5 w-5 text-neutral-400" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 3 — Stories Card */}
+      <div onClick={(): void => { router.push("/dashboard/stories"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/stories"); } }}>
+        <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-500/10">
+                <ScrollText className="h-6 w-6 text-teal-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">قصص المنهج</h3>
+                <p className="text-sm text-neutral-500">استمتع بقراءة قصص المنهج ومتابعة الفصول</p>
+              </div>
+              <ChevronLeft className="h-5 w-5 text-neutral-400" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 4 — Final Review Card */}
+      <div onClick={(): void => { router.push("/dashboard/final-reviews"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/final-reviews"); } }}>
+        <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/10">
+                <LibraryBig className="h-6 w-6 text-indigo-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">المراجعة النهائية</h3>
+                <p className="text-sm text-neutral-500">استعد للامتحانات عبر مراجعة جميع الأقسام</p>
+              </div>
+              <ChevronLeft className="h-5 w-5 text-neutral-400" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 4 — Quick Tools Grid (4 cards) */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
+        <div onClick={(): void => { router.push("/dashboard/ai"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/ai"); } }}>
+          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
+                  <Sparkles className="h-6 w-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">اسأل البنا AI</h3>
+                  <p className="text-sm text-neutral-500">احصل على إجابات وشروحات فورية</p>
+                </div>
+                <ChevronLeft className="h-5 w-5 text-neutral-400" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <div onClick={(): void => { router.push("/dashboard/live"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/live"); } }}>
+          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10">
+                  <Users className="h-6 w-6 text-green-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">حصه مباشر</h3>
+                  <p className="text-sm text-neutral-500">احجز مقعدك في حصة مباشرة</p>
+                </div>
+                <ChevronLeft className="h-5 w-5 text-neutral-400" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <div onClick={(): void => { router.push("/dashboard/mistakes"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/mistakes"); } }}>
+          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
+                  <RefreshCw className="h-6 w-6 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">تعلم من أخطائك</h3>
+                  <p className="text-sm text-neutral-500">راجع الأجوبة الخاطئة وحسن مستواك</p>
+                </div>
+                <ChevronLeft className="h-5 w-5 text-neutral-400" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <div onClick={(): void => { router.push("/dashboard/games"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/games"); } }}>
+          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10">
+                  <Gamepad2 className="h-6 w-6 text-purple-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الألعاب التعليمية</h3>
+                  <p className="text-sm text-neutral-500">العب لتحسين المفردات والقواعد</p>
+                </div>
+                <ChevronLeft className="h-5 w-5 text-neutral-400" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* Live Classes Section */}
       {liveBookings && liveBookings.length > 0 && (
         <section>
           <div className="mb-3 flex items-center justify-between">
@@ -167,61 +291,30 @@ export function StudentDashboard(): ReactNode {
           <div className="flex flex-col gap-2">
             {liveBookings.slice(0, 2).map((booking) => {
               const startDate = new Date(booking.session.startTime);
-              const isToday =
-                startDate.toDateString() === new Date().toDateString();
+              const isToday = startDate.toDateString() === new Date().toDateString();
               return (
                 <div
                   key={booking.id}
-                  onClick={(): void => {
-                    router.push(`/dashboard/live/sessions/${booking.session.id}`);
-                  }}
+                  onClick={(): void => { router.push(`/dashboard/live/sessions/${booking.session.id}`); }}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter")
-                      router.push(
-                        `/dashboard/live/sessions/${booking.session.id}`,
-                      );
-                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter") router.push(`/dashboard/live/sessions/${booking.session.id}`); }}
                 >
-                  <Card
-                    variant={isToday ? "elevated" : "outline"}
-                    padding="md"
-                    className={`cursor-pointer transition-all ${
-                      isToday
-                        ? "border-success-500/30 shadow-success-500/5"
-                        : ""
-                    }`}
-                  >
-                    {isToday && <CardEdge variant="primary" />}
+                  <Card variant={isToday ? "elevated" : "outline"} padding="md" className={`cursor-pointer transition-all ${isToday ? "border-success-500/30 shadow-success-500/5" : ""}`}>
                     <CardContent>
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
-                          <Video className="h-5 w-5" />
+                          <Users className="h-5 w-5" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                          <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                             {booking.session.title}
                           </p>
                           <p className="text-xs text-neutral-500">
-                            {booking.session.teacher.name} ·{" "}
-                            {startDate.toLocaleDateString("ar-SA", {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric",
-                            })}{" "}
-                            ·{" "}
-                            {startDate.toLocaleTimeString("ar-SA", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            {booking.session.teacher.fullName} · {startDate.toLocaleDateString("ar-SA", { weekday: "short", month: "short", day: "numeric" })} · {startDate.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                           </p>
                         </div>
-                        {isToday && (
-                          <span className="shrink-0 text-xs font-bold text-success-500">
-                            اليوم
-                          </span>
-                        )}
+                        {isToday && <span className="shrink-0 text-xs font-bold text-success-500">اليوم</span>}
                       </div>
                     </CardContent>
                   </Card>
@@ -231,155 +324,22 @@ export function StudentDashboard(): ReactNode {
           </div>
         </section>
       )}
-
-      {/* SECTION 4 — Quick Learning Tools */}
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
-
-        <div onClick={(): void => { router.push("/dashboard/ai"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/ai"); } }}>
-          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
-                  <Sparkles className="h-6 w-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">اسأل البنا AI</h3>
-                  <p className="text-sm text-neutral-500">احصل على إجابات فورية وشروحات ومساعدة في تعلمك</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-neutral-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div onClick={(): void => { router.push("/dashboard/live"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/live"); } }}>
-          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10">
-                  <Users className="h-6 w-6 text-green-500" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">احجز حصة مباشرة</h3>
-                  <p className="text-sm text-neutral-500">احجز مقعدك في حصة مباشرة قادمة</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-neutral-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div onClick={(): void => { router.push("/dashboard/mistakes"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/mistakes"); } }}>
-          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
-                  <RefreshCw className="h-6 w-6 text-red-500" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">تعلم من أخطائك</h3>
-                  <p className="text-sm text-neutral-500">راجع الإجابات الخاطئة وحسن مستواك</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-neutral-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div onClick={(): void => { router.push("/dashboard/games"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/games"); } }}>
-          <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10">
-                  <Gamepad2 className="h-6 w-6 text-purple-500" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الألعاب التعليمية</h3>
-                  <p className="text-sm text-neutral-500">العب ألعاباً لتحسين المفردات والقواعد والقراءة</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-neutral-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-      </section>
-
-      {/* SECTION 5 — Curriculum Units */}
-      <div onClick={(): void => { router.push("/dashboard/units"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/units"); } }}>
-      <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
-              <BookOpen className="h-6 w-6 text-blue-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الوحدات التعليمية</h3>
-              <p className="text-sm text-neutral-500">تصفح جميع الوحدات وتابع تقدمك</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-neutral-400" />
-          </div>
-        </CardContent>
-      </Card>
-      </div>
-
-      {/* SECTION 6 — Story */}
-      <div onClick={(): void => { router.push("/dashboard/story"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/story"); } }}>
-      <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500/10">
-              <ScrollText className="h-6 w-6 text-orange-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">قصة المنهج</h3>
-              <p className="text-sm text-neutral-500">تابع قصة المنهج التعليمي</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-neutral-400" />
-          </div>
-        </CardContent>
-      </Card>
-      </div>
-
-      {/* SECTION 7 — Final Review */}
-      <div onClick={(): void => { router.push("/dashboard/final-review"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/final-review"); } }}>
-      <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
-              <BookMarked className="h-6 w-6 text-amber-500" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">المراجعة النهائية</h3>
-              <p className="text-sm text-neutral-500">راجع المنهج بالكامل واستعد للاختبارات</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-neutral-400" />
-          </div>
-        </CardContent>
-      </Card>
-      </div>
-
     </div>
   );
 }
 
 function DashboardSkeleton(): ReactNode {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <Skeleton className="h-24 w-full rounded-xl" />
-      <div className="grid gap-4 md:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-20 rounded-xl" />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-20 rounded-xl" />
-        ))}
-      </div>
       {Array.from({ length: 3 }, (_, i) => (
         <Skeleton key={i} className="h-20 rounded-xl" />
       ))}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-20 rounded-xl" />
+        ))}
+      </div>
     </div>
   );
 }

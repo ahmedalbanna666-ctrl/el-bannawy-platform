@@ -64,6 +64,18 @@ Lesson Page
 
 ---
 
+# Unit Types
+
+Every unit carries a `unitType` discriminator:
+
+- `UNIT` — regular curriculum unit (default)
+- `STORY` — the curriculum story (قصة المنهج); its lessons are story chapters
+- `FINAL_REVIEW` — the final review (المراجعة النهائية); its lessons are review sections
+
+Students, teachers and administrators browse and manage each type through its own list page (`/dashboard/units`, `/dashboard/stories`, `/dashboard/final-reviews`). Content always stays isolated per unit type.
+
+---
+
 # Layout
 
 The Units page displays all curriculum units using a Gamified Zigzag Path.
@@ -241,6 +253,33 @@ Completing a Unit rewards:
 - Progress Update
 
 Coins are never awarded automatically unless documented.
+
+---
+
+# Certificates
+
+A student receives an automatic Certificate of Appreciation (شهادة تقدير) when a unit's progress reaches the percentage threshold configured by the administrator.
+
+Rules:
+
+- Threshold is stored in `system_settings` under key `certificate_threshold` (default `80`).
+- The certificate is generated on the student frontend as a PDF (HTML → PNG via html2canvas → PDF via jspdf) and uploaded to the backend for storage.
+- Certificates are stored in `unit_certificates` (one per student + unit, idempotent).
+- The certificate appears on the completed unit card in the units map (شهادة button).
+- Certificates are listed on the Achievements page (الإنجازات) with view + PDF download.
+
+Certificate design:
+
+- English language (CERTIFICATE OF ACHIEVEMENT).
+- Student name: uses the student's English name (`englishName`) from the profile; falls back to the Arabic name (`fullName`) when no English name is set.
+- Shows: unit number + title, completion percentage, and issue date.
+- Includes the platform logo and an official stamp bearing "MR. AHMED ELBANNA — FOUNDER".
+
+Display:
+
+- Unit Card badge
+- Certificate modal
+- Achievements page section
 
 ---
 

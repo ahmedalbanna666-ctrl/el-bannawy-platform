@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, Min, IsArray, IsObject, IsBoolean, ValidateNested } from "class-validator";
+import { IsString, IsOptional, IsInt, Min, Max, IsArray, IsObject, IsBoolean, IsUUID, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 
 class CreateWithEventOptionDto {
@@ -20,11 +20,12 @@ class CreateWithEventOptionDto {
 }
 
 export class CreateVideoQuestionWithEventDto {
-  @IsString()
+  @IsUUID()
   videoId!: string;
 
   @IsInt()
   @Min(0)
+  @Max(86400)
   timestamp!: number;
 
   @IsString()

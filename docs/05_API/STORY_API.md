@@ -1,33 +1,23 @@
 # STORY_API.md
 
 # El-bannawy Platform
-## Story Module API Specification
+## Story Module API Specification (قصة المنهج)
 
-Version: 1.0.0
+Version: 2.0.0
 
 ---
 
 # Purpose
 
-This document defines all API endpoints related to the Story Module.
+This document defines the API endpoints used by the Story Module.
 
-The Story API manages the complete curriculum story experience, including:
-
-- Story Chapters
-- Story Lessons
-- Story Videos
-- Story Vocabulary
-- Story Homework
-- Story Quizzes
-- Story Progress
-
-The Story Module is completely independent from the Main Curriculum Module.
+Since version 2.0.0 the Story is modeled as `Unit` rows with `unitType = STORY` and its chapters as `Lesson` rows. The Story API therefore reuses the Curriculum and Lesson endpoints; there is no dedicated `/api/v1/story` route anymore.
 
 ---
 
 # Base Endpoint
 
-/api/v1/story
+/api/v1/curriculum
 
 ---
 
@@ -43,448 +33,196 @@ Role-Based Authorization
 
 # Supported Roles
 
-- Student
-- Teacher
-- Administrator
+- Student (read)
+- Teacher (create/update/delete)
+- Administrator (create/update/delete)
+- Staff (read)
 
 ---
 
-# ==========================
-# STORY INFORMATION
-# ==========================
+# Story CRUD
 
-GET
+## List Stories (management)
 
-/story
+GET /api/v1/curriculum/units?unitType=STORY
 
-Description
+Roles: TEACHER, ADMINISTRATOR
 
-Return story information assigned to the student's grade.
+Returns published and draft story units for the academic context.
 
-Response
+## Get Story (management)
+
+GET /api/v1/curriculum/units/:storyId
+
+Roles: TEACHER, ADMINISTRATOR
+
+Returns the story unit including its chapters (lessons).
+
+## Create Story
+
+POST /api/v1/curriculum/units
+
+Roles: TEACHER, ADMINISTRATOR
+Permission: UNITS_CREATE
+
+Body (create a story):
 
 ```json
 {
-    "id":"",
-    "title":"",
-    "author":"",
-    "coverImage":"",
-    "chapters":12,
-    "progress":48
+    "title": "قصة الأشكال الهندسية",
+    "description": "...",
+    "unitType": "STORY",
+    "gradeId": "uuid",
+    "academicYearId": "uuid",
+    "termId": "uuid",
+    "displayOrder": 1,
+    "published": true,
+    "isPremium": false
 }
 ```
 
+`unitType` accepts `UNIT | STORY | FINAL_REVIEW` and defaults to `UNIT`.
+
+## Update Story
+
+PATCH /api/v1/curriculum/units/:storyId
+
+Roles: TEACHER, ADMINISTRATOR
+Permission: UNITS_EDIT
+
+## Delete Story
+
+DELETE /api/v1/curriculum/units/:storyId
+
+Roles: TEACHER, ADMINISTRATOR
+Permission: UNITS_DELETE
+
 ---
 
-# ==========================
-# CHAPTERS
-# ==========================
+# Chapter CRUD
 
-GET
+## Create Chapter
 
-/story/chapters
+POST /api/v1/curriculum/lessons
 
-Description
+Roles: TEACHER, ADMINISTRATOR
+Permission: LESSONS_CREATE
 
-Return all story chapters.
+```json
+{
+    "title": "الفصل الأول",
+    "unitId": "story-unit-id",
+    "displayOrder": 1,
+    "published": true
+}
+```
 
-Response
+## Update Chapter
+
+PATCH /api/v1/curriculum/lessons/:chapterId
+
+Roles: TEACHER, ADMINISTRATOR
+Permission: LESSONS_EDIT
+
+## Delete Chapter
+
+DELETE /api/v1/curriculum/lessons/:chapterId
+
+Roles: TEACHER, ADMINISTRATOR
+Permission: LESSONS_DELETE
+
+---
+
+# Student Story List
+
+GET /api/v1/curriculum?unitType=STORY
+
+Roles: any authenticated user
+
+Returns the published story units scoped to the student's academic context (grade, academic year, term, educational system).
+
+Response shape (existing curriculum contract):
 
 ```json
 [
     {
-        "id":"",
-        "number":1,
-        "title":"",
-        "status":"completed",
-        "progress":100
+        "id": "stage-id",
+        "name": "...",
+        "displayOrder": 1,
+        "grades": [
+            {
+                "id": "grade-id",
+                "name": "...",
+                "displayOrder": 1,
+                "units": [
+                    {
+                        "id": "story-id",
+                        "title": "...",
+                        "displayOrder": 1,
+                        "isPremium": false,
+                        "unlocked": true,
+                        "lessons": [
+                            {
+                                "id": "chapter-id",
+                                "title": "...",
+                                "displayOrder": 1,
+                                "estimatedDuration": 10
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     }
 ]
 ```
 
----
-
-GET
-
-/story/chapters/{chapterId}
-
-Description
-
-Return chapter details.
-
-Includes
-
-- Lessons
-- Progress
-- Status
+The regular units page calls `GET /api/v1/curriculum` without the query param (defaults to `unitType=UNIT`), keeping story/review content isolated.
 
 ---
 
-# ==========================
-# STORY LESSONS
-# ==========================
+# Chapter Content
 
-GET
+Reuses the Lesson endpoints:
 
-/story/lessons/{lessonId}
-
-Description
-
-Return complete story lesson.
-
-Includes
-
-- Story Video
-- Vocabulary
-- Files
-- Homework
-- Quiz
+- GET /api/v1/lessons/:chapterId
+- GET /api/v1/lessons/:chapterId/quiz
+- GET /api/v1/lessons/:chapterId/homework
+- Lesson video / vocabulary / document endpoints
 
 ---
 
-# ==========================
-# STORY PROGRESS
-# ==========================
+# Progress
 
-GET
+Reuses the curriculum progress endpoints:
 
-/story/progress
+- PATCH /api/v1/curriculum/progress/:chapterId
+- GET /api/v1/curriculum/progress/:chapterId
 
-Description
+---
 
-Return story progress.
+# Frontend Routes
 
-Response
+- /dashboard/stories — story list
+- /dashboard/stories/:storyId — chapters (zigzag layout)
+- /dashboard/stories/:storyId/chapters/:chapterId — chapter content management
+
+---
+
+# Error Handling
+
+Standard platform response contract:
 
 ```json
 {
-    "completedLessons":15,
-    "totalLessons":24,
-    "progress":62
+    "success": false,
+    "message": "...",
+    "statusCode": 400,
+    "timestamp": "...",
+    "requestId": "..."
 }
 ```
 
 ---
-
-PATCH
-
-/story/progress/{lessonId}
-
-Description
-
-Update story lesson progress.
-
-Validation occurs on the server.
-
----
-
-# ==========================
-# CONTINUE STORY
-# ==========================
-
-GET
-
-/story/continue
-
-Description
-
-Return last unfinished story lesson.
-
-Response
-
-```json
-{
-    "lessonId":"",
-    "chapterId":"",
-    "resumeAt":425
-}
-```
-
----
-
-# ==========================
-# STORY HOMEWORK
-# ==========================
-
-GET
-
-/story/homework/{lessonId}
-
-Return story homework.
-
----
-
-POST
-
-/story/homework/{lessonId}/submit
-
-Submit homework.
-
-Return:
-
-- Score
-- Correct Answers
-- Wrong Answers
-
----
-
-# ==========================
-# STORY QUIZ
-# ==========================
-
-GET
-
-/story/quiz/{lessonId}
-
-Return quiz.
-
----
-
-POST
-
-/story/quiz/{lessonId}/submit
-
-Submit quiz.
-
-Response
-
-```json
-{
-    "score":85,
-    "passed":true,
-    "nextLessonUnlocked":true
-}
-```
-
----
-
-# ==========================
-# STORY VOCABULARY
-# ==========================
-
-GET
-
-/story/vocabulary/{lessonId}
-
-Return vocabulary list.
-
----
-
-# ==========================
-# STORY FILES
-# ==========================
-
-GET
-
-/story/files/{lessonId}
-
-Return downloadable lesson files.
-
-Supported
-
-- PDF
-
-Future
-
-- Audio
-- Images
-
----
-
-# ==========================
-# TEACHER MANAGEMENT
-# ==========================
-
-POST
-
-/story/chapters
-
-Create chapter.
-
----
-
-PATCH
-
-/story/chapters/{chapterId}
-
-Update chapter.
-
----
-
-DELETE
-
-/story/chapters/{chapterId}
-
-Soft Delete.
-
----
-
-POST
-
-/story/lessons
-
-Create lesson.
-
----
-
-PATCH
-
-/story/lessons/{lessonId}
-
-Update lesson.
-
----
-
-DELETE
-
-/story/lessons/{lessonId}
-
-Soft Delete.
-
----
-
-# ==========================
-# ANALYTICS
-# ==========================
-
-GET
-
-/story/analytics
-
-Teacher
-
-Administrator
-
-Return
-
-- Completion Rate
-- Homework Rate
-- Quiz Pass Rate
-- Reading Time
-- Difficult Chapters
-
----
-
-# ==========================
-# VALIDATION
-# ==========================
-
-Validate
-
-- Story Exists
-- Chapter Exists
-- Lesson Exists
-- Student Enrollment
-- Homework Submission
-- Quiz Eligibility
-
----
-
-# ==========================
-# SECURITY
-# ==========================
-
-Students may access only:
-
-Stories assigned to their educational grade.
-
-Teachers may manage only assigned story content.
-
----
-
-# ==========================
-# STATUS CODES
-# ==========================
-
-200 OK
-
-201 Created
-
-204 No Content
-
-400 Bad Request
-
-401 Unauthorized
-
-403 Forbidden
-
-404 Not Found
-
-409 Conflict
-
-422 Validation Error
-
-429 Too Many Requests
-
-500 Internal Server Error
-
----
-
-# ==========================
-# PERFORMANCE
-# ==========================
-
-Story Loading
-
-<300ms
-
-Chapter Loading
-
-<200ms
-
-Lesson Loading
-
-<300ms
-
-Progress Update
-
-<100ms
-
----
-
-# ==========================
-# AUDIT LOGS
-# ==========================
-
-Record
-
-- Chapter Created
-- Chapter Updated
-- Chapter Deleted
-- Lesson Created
-- Lesson Updated
-- Homework Submitted
-- Quiz Submitted
-- Story Completed
-
----
-
-# ==========================
-# ACCEPTANCE CRITERIA
-# ==========================
-
-✓ Story loads correctly.
-
-✓ Chapters load correctly.
-
-✓ Lessons load correctly.
-
-✓ Homework works.
-
-✓ Quiz works.
-
-✓ Progress updates correctly.
-
-✓ Continue Story works.
-
-✓ Analytics work.
-
-✓ Authorization works.
-
----
-
-# Final Rule
-
-The Story API must operate independently from the Main Curriculum while following the same educational philosophy, ensuring that story progress, homework, quizzes and analytics remain completely isolated from the student's regular curriculum progress.
 
 End of Document.

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
+import { CacheService } from "../common/services/cache.service";
 import type {
   CreateUnitDto,
   UpdateUnitDto,
@@ -13,9 +14,14 @@ export class CurriculumService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
+    private readonly cache: CacheService,
   ) {}
 
-  async getCurriculum(userId: string): Promise<unknown[]> {
+  async getCurriculum(userId: string, unitType: "UNIT" | "STORY" | "FINAL_REVIEW" = "UNIT"): Promise<unknown[]> {
+    const cacheKey = this.cache.generateKey("curriculum", userId, unitType);
+    const cached = await this.cache.get<unknown[]>(cacheKey);
+    if (cached) return cached;
+
     const ctx = await this.academicContext.getStudentContext(userId);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -32,7 +38,7 @@ export class CurriculumService {
         select: { stageId: true },
       });
 
-      return this.prisma.stage.findMany({
+      const result = await this.prisma.stage.findMany({
         where: { id: grade?.stageId },
         orderBy: { displayOrder: "asc" },
         include: {
@@ -43,6 +49,7 @@ export class CurriculumService {
               units: {
                 orderBy: { displayOrder: "asc" },
                 where: {
+                  unitType,
                   published: true,
                   gradeId: ctx.gradeId,
                   academicYearId: ctx.academicYearId,
@@ -66,6 +73,7 @@ export class CurriculumService {
                       displayOrder: true,
                       estimatedDuration: true,
                       isPremium: true,
+                      lockedOverride: true,
                       sequentialMode: true,
                       homeworkEnabled: true,
                       quizEnabled: true,
@@ -77,10 +85,25 @@ export class CurriculumService {
           },
         },
       });
+      const progressRows = await this.prisma.lessonProgress.findMany({
+        where: { userId },
+        select: { completed: true, lesson: { select: { unitId: true } } },
+      });
+      const completedByUnit = new Map<string, number>();
+      for (const row of progressRows) {
+        if (!row.completed) continue;
+        completedByUnit.set(
+          row.lesson.unitId,
+          (completedByUnit.get(row.lesson.unitId) ?? 0) + 1,
+        );
+      }
+      const enriched = await this.attachUnlockState(result, userId, false, completedByUnit);
+      await this.cache.set(cacheKey, enriched, 30);
+      return enriched;
     }
 
     // Teachers/Admins or students without context: return all published
-    return this.prisma.stage.findMany({
+    const result = await this.prisma.stage.findMany({
       orderBy: { displayOrder: "asc" },
       include: {
         grades: {
@@ -88,7 +111,7 @@ export class CurriculumService {
           include: {
             units: {
               orderBy: { displayOrder: "asc" },
-              where: { published: true },
+              where: { unitType, published: true },
               include: {
                 lessons: {
                   orderBy: { displayOrder: "asc" },
@@ -99,6 +122,7 @@ export class CurriculumService {
                     displayOrder: true,
                     estimatedDuration: true,
                     isPremium: true,
+                    lockedOverride: true,
                     sequentialMode: true,
                     homeworkEnabled: true,
                     quizEnabled: true,
@@ -110,6 +134,9 @@ export class CurriculumService {
         },
       },
     });
+    const enriched = await this.attachUnlockState(result, userId, true);
+    await this.cache.set(cacheKey, enriched, 30);
+    return enriched;
   }
 
   async getContinueLearning(userId: string): Promise<unknown> {
@@ -211,6 +238,7 @@ export class CurriculumService {
       this.prisma.lessonProgress.count({ where: { userId, completed: true } }),
       this.prisma.lessonProgress.findMany({
         where: { userId },
+        take: 500,
         include: { lesson: { select: { unitId: true } } },
       }),
     ]);
@@ -309,6 +337,7 @@ export class CurriculumService {
 
   async getUnitsForManagement(
     userId: string,
+    unitType?: "UNIT" | "STORY" | "FINAL_REVIEW",
     academicYearId?: string,
     termId?: string,
     gradeId?: string,
@@ -322,13 +351,11 @@ export class CurriculumService {
 
     return this.prisma.unit.findMany({
       orderBy: { displayOrder: "asc" },
+      take: 200,
       where: {
         AND: [
-          {
-            gradeId: {
-              in: user?.role === "ADMINISTRATOR" ? undefined : [...gradeIds],
-            },
-          },
+          ...(user?.role !== "ADMINISTRATOR" ? [{ gradeId: { in: [...gradeIds] } }] : []),
+          ...(unitType ? [{ unitType }] : []),
           ...(gradeId ? [{ gradeId }] : []),
           ...(academicYearId ? [{ academicYearId }] : []),
           ...(termId ? [{ termId }] : []),
@@ -395,10 +422,12 @@ export class CurriculumService {
       throw new BadRequestException("Term does not belong to the selected academic year");
     }
 
+    await this.cache.delByPattern("curriculum:*");
     return this.prisma.unit.create({
       data: {
         title: dto.title,
         description: dto.description ?? null,
+        unitType: dto.unitType ?? "UNIT",
         gradeId: dto.gradeId,
         displayOrder: dto.displayOrder ?? 0,
         published: dto.published ?? false,
@@ -475,4 +504,128 @@ export class CurriculumService {
     await this.academicContext.verifyTeacherGradeAccess(userId, lesson.unit.gradeId);
     return this.prisma.lesson.delete({ where: { id } });
   }
+
+  private async attachUnlockState(
+    result: CurriculumStage[],
+    userId: string,
+    forceUnlocked = false,
+    completedByUnit?: Map<string, number>,
+  ): Promise<CurriculumStage[]> {
+    const unitUnlocks = new Set<string>();
+    const termUnlocks = new Set<string>();
+
+    if (!forceUnlocked) {
+      const unlocks = await this.prisma.contentUnlock.findMany({
+        where: { userId, targetType: { in: ["UNIT", "TERM"] } },
+        select: { targetType: true, targetId: true },
+      });
+      for (const u of unlocks) {
+        if (u.targetType === "UNIT") unitUnlocks.add(u.targetId);
+        else if (u.targetType === "TERM") termUnlocks.add(u.targetId);
+      }
+    }
+
+    return result.map((stage) => ({
+      ...stage,
+      grades: stage.grades.map((grade) => {
+        let currentAssigned = false;
+        let previousCompleted = true;
+        return {
+          ...grade,
+          units: grade.units.map((unit) => {
+            const totalLessons = unit.lessons.length;
+            const completedLessons = Math.min(
+              completedByUnit?.get(unit.id) ?? 0,
+              totalLessons,
+            );
+            const progress = totalLessons > 0
+              ? Math.round((completedLessons / totalLessons) * 100)
+              : 0;
+            const completed = totalLessons > 0 && completedLessons === totalLessons;
+
+            const owned =
+              unitUnlocks.has(unit.id) ||
+              (unit.termId !== null && termUnlocks.has(unit.termId));
+
+            let unlocked: boolean;
+            if (forceUnlocked) {
+              unlocked = true;
+            } else if (unit.lockedOverride === true) {
+              unlocked = false;
+            } else if (unit.lockedOverride === false) {
+              unlocked = true;
+            } else if (!unit.isPremium) {
+              unlocked = previousCompleted;
+            } else {
+              unlocked = owned;
+            }
+
+            const status = completed
+              ? "completed"
+              : currentAssigned
+                ? "upcoming"
+                : "current";
+            if (!completed) currentAssigned = true;
+            previousCompleted = completed;
+
+            return {
+              ...unit,
+              progress,
+              completed,
+              totalLessons,
+              completedLessons,
+              status,
+              unlocked,
+              lessons: unit.lessons.map((lesson) => ({
+                ...lesson,
+                lockedOverride: lesson.lockedOverride ?? null,
+                locked: this.computeLessonLocked(lesson),
+              })),
+            };
+          }),
+        };
+      }),
+    }));
+  }
+
+  private computeLessonLocked(lesson: CurriculumLesson): boolean {
+    if (lesson.lockedOverride === true) return true;
+    return false;
+  }
+}
+
+interface CurriculumLesson {
+  id: string;
+  title: string;
+  displayOrder: number;
+  estimatedDuration: number;
+  isPremium: boolean;
+  sequentialMode: boolean;
+  homeworkEnabled: boolean;
+  quizEnabled: boolean;
+  lockedOverride: boolean | null;
+}
+
+interface CurriculumUnit {
+  id: string;
+  title: string;
+  displayOrder: number;
+  isPremium: boolean;
+  lockedOverride: boolean | null;
+  termId: string | null;
+  lessons: CurriculumLesson[];
+}
+
+interface CurriculumGrade {
+  id: string;
+  name: string;
+  displayOrder: number;
+  units: CurriculumUnit[];
+}
+
+interface CurriculumStage {
+  id: string;
+  name: string;
+  displayOrder: number;
+  grades: CurriculumGrade[];
 }

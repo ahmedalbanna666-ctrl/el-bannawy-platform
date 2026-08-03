@@ -1,116 +1,46 @@
-# TESTING_STRATEGY.md
+# Testing Strategy
 
-# El-bannawy Platform
-## Testing Strategy
+Version: 2.0.0
+Status: Current tools plus coverage gaps
 
-Version: 1.0.0
+## Available Tooling
 
----
+- Backend: Jest and Nest testing utilities
+- Web/shared: Vitest, Testing Library, jsdom, and coverage-v8
+- Type safety: TypeScript compiler
+- Static quality: ESLint and Prettier
+- Database: Prisma migrations and seed workflow
 
-# Purpose
+Playwright, Supertest, Redis integration tests, and AI evaluation infrastructure are not currently configured as complete repository test suites.
 
-Defines the comprehensive testing strategy for the platform.
+## Test Layers
 
-Testing ensures reliability before every release.
+1. Unit tests for services, parsers, permission logic, question factories, and utilities.
+2. Module/integration tests for Prisma-backed authentication, content import, permissions, coins, assessments, support, and live flows.
+3. API tests for guards, DTO validation, response envelopes, status codes, and authorization.
+4. Web component tests for learning players, imports, unlock UI, games, responsive states, RTL, and accessibility.
+5. End-to-end smoke tests for login, curriculum, lesson completion, assessment, payment/unlock, and live booking once the harness is present.
 
----
+## Priority Coverage
 
-# Testing Pyramid
+- Permission initialization/backfill and teacher-to-staff delegation
+- Coin verification, wallet crediting, code redemption limits, and unlock atomicity
+- Academic-context isolation and role-specific curriculum access
+- DOCX preview/persistence and structured vocabulary semantics
+- Assessment attempt limits, autosave, submission, scoring, and feedback
+- Live booking uniqueness, status transitions, and attendance
+- Support ticket ownership and staff/admin resolution permissions
 
-Unit Tests
+## Required Local Gates
 
-↓
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm --filter @el-bannawy/backend test
+pnpm --filter @el-bannawy/web test
+```
 
-Integration Tests
-
-↓
-
-End-to-End Tests
-
-↓
-
-Manual QA
-
----
-
-# Test Types
-
-Unit Testing
-
-Integration Testing
-
-End-to-End Testing
-
-Regression Testing
-
-Performance Testing
-
-Security Testing
-
-Accessibility Testing
-
-AI Evaluation Testing
-
----
-
-# Coverage Goals
-
-Business Logic
-
-90%
-
-API
-
-90%
-
-Critical Services
-
-95%
-
-UI Components
-
-80%
-
----
-
-# Test Environments
-
-Development
-
-Testing
-
-Staging
-
-Production Smoke Tests
-
----
-
-# Release Policy
-
-No deployment without
-
-✓ Passing Tests
-
-✓ Security Validation
-
-✓ Performance Validation
-
----
-
-# Acceptance Criteria
-
-✓ High Coverage
-
-✓ Automated
-
-✓ Reliable
-
-✓ Fast
-
----
-
-# Final Rule
-
-Every bug fixed must include a test preventing its future recurrence.
+Coverage percentages are targets, not current measurements. A release must report actual results and document exceptions.
 
 End of Document.

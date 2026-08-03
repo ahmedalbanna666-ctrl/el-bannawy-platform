@@ -1,244 +1,31 @@
-# OBSERVABILITY.md
+# Observability
 
-# El-bannawy Platform
-## Observability & Monitoring Strategy
+Version: 2.0.0
+Status: Current gaps and target design
 
-Version: 1.0.0
+## Implemented Today
 
----
+- NestJS logger output during bootstrap.
+- Login history and selected audit records in PostgreSQL.
+- Backend liveness response at `/api/v1/home/health`.
+- Docker health checks for PostgreSQL and Redis.
 
-# Purpose
+## Not Yet Implemented
 
-This document defines how the El-bannawy Platform is observed in production.
+- Structured request logs and correlation IDs
+- Prometheus metrics, Grafana dashboards, Loki logs, OpenTelemetry traces
+- Database/Redis/queue/AI cost dashboards
+- Alert routing and incident automation
+- Readiness checks for all dependencies
 
-Observability ensures that engineers can quickly understand system behavior, diagnose failures and maintain service reliability.
+## Minimum Production Observability
 
----
+1. Request ID from ingress through API logs.
+2. Redacted method/path/status/duration logs.
+3. Error-rate, latency, throughput, database connection, and process health metrics.
+4. Authentication, permission, payment, code redemption, and migration audit events.
+5. Alerts for API down, database failure, error spikes, payment verification failure, and storage exhaustion.
 
-# Pillars
-
-Logs
-
-Metrics
-
-Traces
-
-Events
-
-Health Checks
-
----
-
-# Monitoring Stack
-
-Metrics
-
-Prometheus
-
-Visualization
-
-Grafana
-
-Logs
-
-Loki
-
-Tracing
-
-OpenTelemetry
-
-Alerts
-
-Grafana Alerting
-
----
-
-# Metrics
-
-Infrastructure
-
-- CPU
-- Memory
-- Disk
-- Network
-
-Application
-
-- Requests
-- Latency
-- Errors
-- Active Users
-
-Database
-
-- Connections
-- Query Time
-- Slow Queries
-
-Redis
-
-- Memory
-- Cache Hit Ratio
-
-BullMQ
-
-- Waiting Jobs
-- Active Jobs
-- Failed Jobs
-
-AI
-
-- Response Time
-- Cost
-- Tokens
-- Provider Availability
-
----
-
-# Logging
-
-Levels
-
-DEBUG
-
-INFO
-
-WARN
-
-ERROR
-
-FATAL
-
----
-
-# Structured Logs
-
-Every log contains
-
-Timestamp
-
-Request ID
-
-User ID
-
-Service
-
-Environment
-
-Severity
-
-Message
-
-Duration
-
----
-
-# Distributed Tracing
-
-Trace every request across
-
-Frontend
-
-↓
-
-API
-
-↓
-
-Redis
-
-↓
-
-Database
-
-↓
-
-AI Provider
-
----
-
-# Dashboards
-
-Infrastructure Dashboard
-
-API Dashboard
-
-Database Dashboard
-
-AI Dashboard
-
-Business Dashboard
-
-Security Dashboard
-
----
-
-# Alerts
-
-Critical
-
-API Down
-
-Database Down
-
-Redis Down
-
-Disk Full
-
-High Error Rate
-
-AI Provider Failure
-
----
-
-# Retention
-
-Application Logs
-
-30 Days
-
-Metrics
-
-90 Days
-
-Audit Logs
-
-7 Years
-
----
-
-# Performance Targets
-
-Metrics Collection
-
-<10 Seconds
-
-Alert Delivery
-
-<60 Seconds
-
-Dashboard Refresh
-
-30 Seconds
-
----
-
-# Acceptance Criteria
-
-✓ Metrics
-
-✓ Logs
-
-✓ Traces
-
-✓ Alerts
-
-✓ Dashboards
-
----
-
-# Final Rule
-
-Every production issue must be diagnosable using logs, metrics and traces without requiring direct server access.
+Never log passwords, tokens, API keys, payment payloads, verification codes, or unnecessary personal data.
 
 End of Document.

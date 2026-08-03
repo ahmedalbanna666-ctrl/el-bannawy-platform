@@ -1,10 +1,16 @@
-import { getAccessToken, useAuthStore } from "./auth-store";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() ?? "http://localhost:4000/api/v1";
+const DEFAULT_TIMEOUT = 30_000;
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+export interface RequestOptions {
+  signal?: AbortSignal;
+  timeout?: number;
+  skipAuthRetry?: boolean;
+}
 
-export interface ApiResponse<T> {
+export interface ApiResponse<T, M = unknown> {
   success: boolean;
   data?: T;
+  meta?: M;
   message?: string;
 }
 
@@ -18,151 +24,174 @@ class ApiError extends Error {
   }
 }
 
-// Guards against concurrent refresh attempts across multiple requests.
+let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
+let failedQueue: {
+  resolve: (value: boolean) => void;
+  reject: (err: unknown) => void;
+}[] = [];
+
+function processQueue(success: boolean): void {
+  for (const { resolve, reject } of failedQueue) {
+    if (success) resolve(true);
+    else reject(new Error("Token refresh failed"));
+  }
+  failedQueue = [];
+}
 
 async function attemptTokenRefresh(): Promise<boolean> {
-  // If a refresh is already in-flight, wait for it.
-  if (refreshPromise) {
-    return refreshPromise;
-  }
+  if (isRefreshing && refreshPromise) return refreshPromise;
 
-  const store = useAuthStore.getState();
-  if (!store.refreshToken) {
-    store.logout();
-    return Promise.resolve(false);
-  }
-
+  isRefreshing = true;
   refreshPromise = (async (): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+      const res = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken: store.refreshToken }),
+        credentials: "include",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
       });
-
-      if (!response.ok) {
-        useAuthStore.getState().logout();
-        return false;
-      }
-
-      const data: ApiResponse<{
-        accessToken: string;
-        refreshToken: string;
-        expiresIn: number;
-      }> = (await response.json()) as ApiResponse<{
-        accessToken: string;
-        refreshToken: string;
-        expiresIn: number;
-      }>;
-
-      if (data.data) {
-        useAuthStore.getState().setAuth(data.data.accessToken, data.data.refreshToken);
-        // Keep the middleware cookie in sync so hard navigation still works.
-        document.cookie = `auth_token=${data.data.accessToken}; path=/; max-age=${String(data.data.expiresIn)}; SameSite=Lax`;
-        return true;
-      }
-
-      useAuthStore.getState().logout();
-      return false;
+      const success = res.ok;
+      processQueue(success);
+      return success;
     } catch {
-      useAuthStore.getState().logout();
+      processQueue(false);
       return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
     }
   })();
 
-  try {
-    return await refreshPromise;
-  } finally {
-    refreshPromise = null;
-  }
-}
-
-async function doFetch(
-  url: string,
-  options: RequestInit,
-  headers: Record<string, string>,
-): Promise<Response> {
-  return fetch(url, { ...options, headers });
+  return refreshPromise;
 }
 
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {},
+  options: RequestInit & RequestOptions = {},
+  retries = 1,
 ): Promise<ApiResponse<T>> {
-  const token = getAccessToken();
+  const { signal, timeout = DEFAULT_TIMEOUT, skipAuthRetry = false, ...fetchOptions } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers as Record<string, string> | undefined),
+    "X-Requested-With": "XMLHttpRequest",
+    ...(fetchOptions.headers as Record<string, string> | undefined),
   };
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
   const url = `${API_BASE_URL}${endpoint}`;
-  let response = await doFetch(url, options, headers);
 
-  // Auto-refresh on 401 and retry once
-  if (response.status === 401) {
-    const refreshed = await attemptTokenRefresh();
-    if (refreshed) {
-      const newStore = useAuthStore.getState();
-      if (newStore.accessToken) {
-        headers.Authorization = `Bearer ${newStore.accessToken}`;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const combinedSignal = signal
+      ? anySignal([controller.signal, signal])
+      : controller.signal;
+    const timeoutId = setTimeout(() => { controller.abort(); }, timeout);
+    try {
+      const response = await fetch(url, {
+        ...fetchOptions,
+        headers,
+        credentials: "include",
+        signal: combinedSignal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.status === 401) {
+        if (skipAuthRetry) {
+          throw new ApiError("Session expired", 401);
+        }
+        const refreshed = await attemptTokenRefresh();
+        if (refreshed) {
+          return await request<T>(endpoint, {
+            ...fetchOptions,
+            signal,
+            timeout,
+            skipAuthRetry: true,
+          });
+        }
+        throw new ApiError("Session expired", 401);
       }
-      response = await doFetch(url, options, headers);
-    } else {
-      throw new ApiError("Session expired. Please log in again.", 401);
+
+      if (response.status === 204) {
+        return { success: true };
+      }
+
+      const data: unknown = await response.json();
+
+      if (!response.ok) {
+        const message =
+          typeof data === "object" && data !== null && "message" in data
+            ? String(data.message)
+            : "An error occurred";
+        throw new ApiError(message, response.status);
+      }
+
+      if (typeof data !== "object" || data === null) {
+        throw new ApiError("Invalid response format: expected object", response.status);
+      }
+
+      const safe = data as Partial<ApiResponse<unknown>>;
+      if (typeof safe.success !== "boolean") {
+        safe.success = response.ok;
+      }
+
+      return data as ApiResponse<T>;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof DOMException && err.name === "AbortError") {
+        if (signal?.aborted) throw err;
+        if (attempt < retries) continue;
+        throw new ApiError("انتهت مهلة الطلب. تأكد من اتصالك وحاول مرة أخرى", 408);
+      }
+      if (
+        attempt < retries &&
+        err instanceof TypeError &&
+        err.message === "Failed to fetch"
+      ) {
+        await new Promise((r) => setTimeout(r, 1000));
+        continue;
+      }
+      throw err;
     }
   }
+  throw new ApiError("Backend unreachable", 503);
+}
 
-  if (response.status === 204) {
-    return { success: true };
+function anySignal(signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort();
+      return controller.signal;
+    }
+    signal.addEventListener("abort", () => { controller.abort(); }, { once: true });
   }
-
-  const data: unknown = await response.json();
-
-  if (!response.ok) {
-    const message =
-      typeof data === "object" && data !== null && "message" in data
-        ? String(data.message)
-        : "An error occurred";
-    throw new ApiError(message, response.status);
-  }
-
-  if (typeof data !== "object" || data === null) {
-    throw new ApiError("Invalid response format: expected object", response.status);
-  }
-
-  const safe = data as Partial<ApiResponse<unknown>>;
-  if (typeof safe.success !== "boolean") {
-    safe.success = response.ok;
-  }
-
-  return data as ApiResponse<T>;
+  return controller.signal;
 }
 
 export const api = {
-  get: <T>(endpoint: string): Promise<ApiResponse<T>> => request<T>(endpoint),
-  post: <T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> =>
+  get: <T>(endpoint: string, opts?: RequestOptions): Promise<ApiResponse<T>> =>
+    request<T>(endpoint, { method: "GET", ...opts }),
+  post: <T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<ApiResponse<T>> =>
     request<T>(endpoint, {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
+      ...opts,
     }),
-  put: <T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> =>
+  put: <T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<ApiResponse<T>> =>
     request<T>(endpoint, {
       method: "PUT",
       body: body ? JSON.stringify(body) : undefined,
+      ...opts,
     }),
-  patch: <T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> =>
+  patch: <T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<ApiResponse<T>> =>
     request<T>(endpoint, {
       method: "PATCH",
       body: body ? JSON.stringify(body) : undefined,
+      ...opts,
     }),
-  delete: <T>(endpoint: string): Promise<ApiResponse<T>> =>
-    request<T>(endpoint, { method: "DELETE" }),
+  delete: <T>(endpoint: string, opts?: RequestOptions): Promise<ApiResponse<T>> =>
+    request<T>(endpoint, { method: "DELETE", ...opts }),
 };
 
 export { ApiError };

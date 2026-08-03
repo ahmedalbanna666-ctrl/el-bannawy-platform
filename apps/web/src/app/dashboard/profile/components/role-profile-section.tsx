@@ -13,8 +13,6 @@ interface Props {
 }
 
 export function RoleProfileSection({ profile, onSave }: Props): ReactNode {
-  if (!profile.roleProfile) return null;
-
   switch (profile.role) {
     case "STUDENT":
       return <StudentProfileSection profile={profile.roleProfile} onSave={onSave} />;

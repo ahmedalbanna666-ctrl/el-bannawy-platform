@@ -7,11 +7,11 @@ import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { School, Phone, Lock, KeyRound, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { School, Mail, Lock, KeyRound, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 export default function ResetPasswordPage(): ReactNode {
   const router = useRouter();
-  const [mobile, setMobile] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +25,7 @@ export default function ResetPasswordPage(): ReactNode {
 
     try {
       await api.post("/auth/reset-password", {
-        mobile,
+        identifier,
         verificationCode,
         newPassword,
       });
@@ -48,19 +48,19 @@ export default function ResetPasswordPage(): ReactNode {
             Reset Password
           </h1>
           <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">
-            Enter your mobile number, the verification code, and your new password
+            Enter your email or mobile number, the verification code, and your new password
           </p>
         </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={(e): void => { void handleSubmit(e); }} className="flex flex-col gap-5">
           <Input
-            label="Mobile Number"
-            type="tel"
-            placeholder="+201234567890"
-            value={mobile}
-            onChange={(e): void => { setMobile(e.target.value); }}
-            leftIcon={<Phone className="h-5 w-5" />}
+            label="Email or Mobile Number"
+            type="text"
+            placeholder="Enter your email or mobile number"
+            value={identifier}
+            onChange={(e): void => { setIdentifier(e.target.value); }}
+            leftIcon={<Mail className="h-5 w-5" />}
             required
           />
 

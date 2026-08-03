@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { AppConfig, AuthConfig, PaymentConfig, AiConfig } from "./interfaces";
+import type { AppConfig, AuthConfig, PaymentConfig, AiConfig, ZoomConfig, EmailConfig } from "./interfaces";
 
 @Injectable()
 export class ConfigurationService {
@@ -12,12 +12,16 @@ export class ConfigurationService {
       nodeEnv: this.configService.get<string>("NODE_ENV", "development"),
       frontendUrl: this.configService.get<string>("FRONTEND_URL", "http://localhost:3000"),
       publicBaseUrl: this.configService.get<string>("PUBLIC_BASE_URL", "http://localhost:4000"),
+      corsOrigins: (this.configService.get<string>("CORS_ORIGINS", "") ?? "")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0),
     };
   }
 
   get auth(): AuthConfig {
     return {
-      jwtSecret: this.configService.get<string>("JWT_SECRET") as string,
+      jwtSecret: this.configService.get<string>("JWT_SECRET")!,
       jwtExpiry: this.configService.get<string>("JWT_ACCESS_EXPIRES_IN", "15m"),
       googleClientId: this.configService.get<string>("GOOGLE_CLIENT_ID", ""),
       googleClientSecret: this.configService.get<string>("GOOGLE_CLIENT_SECRET", ""),
@@ -25,12 +29,20 @@ export class ConfigurationService {
         "GOOGLE_CALLBACK_URL",
         "http://localhost:4000/api/v1/auth/google/callback",
       ),
+      appleClientId: this.configService.get<string>("APPLE_CLIENT_ID", ""),
+      appleTeamId: this.configService.get<string>("APPLE_TEAM_ID", ""),
+      appleKeyId: this.configService.get<string>("APPLE_KEY_ID", ""),
+      applePrivateKey: this.configService.get<string>("APPLE_PRIVATE_KEY", ""),
+      appleCallbackUrl: this.configService.get<string>(
+        "APPLE_CALLBACK_URL",
+        "http://localhost:4000/api/v1/auth/apple/callback",
+      ),
     };
   }
 
   get payment(): PaymentConfig {
     return {
-      webhookSecret: this.configService.get<string>("PAYMENT_WEBHOOK_SECRET") as string,
+      webhookSecret: this.configService.get<string>("PAYMENT_WEBHOOK_SECRET")!,
       simulationKey: this.configService.get<string>("SIMULATION_HMAC_KEY"),
       publicBaseUrl: this.configService.get<string>("PUBLIC_BASE_URL", "http://localhost:4000"),
       paymob: {
@@ -75,6 +87,30 @@ export class ConfigurationService {
       apiKey: this.configService.get<string>("AI_API_KEY", ""),
       model: this.configService.get<string>("AI_MODEL", "gpt-4o-mini"),
       endpoint: this.configService.get<string>("AI_ENDPOINT", "https://api.openai.com/v1/chat/completions"),
+    };
+  }
+
+  get zoom(): ZoomConfig {
+    return {
+      clientId: this.configService.get<string>("ZOOM_CLIENT_ID", ""),
+      clientSecret: this.configService.get<string>("ZOOM_CLIENT_SECRET", ""),
+      sdkKey: this.configService.get<string>("ZOOM_SDK_KEY", ""),
+      sdkSecret: this.configService.get<string>("ZOOM_SDK_SECRET", ""),
+      oauthBaseUrl: this.configService.get<string>("ZOOM_OAUTH_BASE_URL", "https://zoom.us/oauth/token"),
+      apiBaseUrl: this.configService.get<string>("ZOOM_API_BASE_URL", "https://api.zoom.us/v2"),
+      sdkSignatureUrl: this.configService.get<string>("ZOOM_SDK_SIGNATURE_URL", "https://zoom.us/sdk/signature"),
+      signatureTtlSeconds: Number(this.configService.get<string>("ZOOM_SIGNATURE_TTL_SECONDS", "7200")),
+    };
+  }
+
+  get email(): EmailConfig {
+    return {
+      brevoApiKey: this.configService.get<string>("BREVO_API_KEY", ""),
+      brevoSenderEmail: this.configService.get<string>("BREVO_SENDER_EMAIL", ""),
+      brevoSenderName: this.configService.get<string>("BREVO_SENDER_NAME", "El-bannawy Platform"),
+      firebaseProjectId: this.configService.get<string>("NEXT_PUBLIC_FIREBASE_PROJECT_ID", ""),
+      firebaseClientEmail: this.configService.get<string>("FIREBASE_CLIENT_EMAIL", ""),
+      firebasePrivateKey: this.configService.get<string>("FIREBASE_PRIVATE_KEY", ""),
     };
   }
 }

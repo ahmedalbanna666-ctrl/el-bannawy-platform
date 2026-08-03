@@ -84,6 +84,67 @@ export function QuestionImportPreviewDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<QuestionPreviewType | "ALL">("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "WARNING" | "INVALID">("ALL");
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [commitError, setCommitError] = useState<string | null>(null);
+
+  const handleCommit = async (): Promise<void> => {
+    setIsCommitting(true);
+    setCommitError(null);
+
+    try {
+      const payload = {
+        parserProfile: previewData?.parserProfile ?? "QUESTIONS_TABLE_V1",
+        groups: editableGroups.map((g) => ({
+          id: g.id,
+          title: g.title,
+          displayOrder: g.displayOrder,
+          items: g.items.map((item) => ({
+            clientDraftId: item.clientDraftId,
+            groupId: g.id,
+            questionType: item.questionType,
+            prompt: item.prompt,
+            instruction: item.instruction,
+            explanation: item.explanation,
+            options: item.options.map((o) => ({
+              label: o.label,
+              text: o.text,
+              isCorrect: o.isCorrect,
+            })),
+            correctAnswer: item.correctAnswer,
+            acceptableAnswers: item.acceptableAnswers,
+            passageText: item.passageText,
+            displayOrder: item.displayOrder,
+            status: item.status,
+            warnings: item.warnings,
+            errors: item.errors,
+          })),
+        })),
+        warnings: previewData?.warnings ?? [],
+        errors: previewData?.errors ?? [],
+      };
+
+      const response = await fetch(
+        `${API_BASE_URL}/lessons/${lessonId}/questions/import/commit`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(text || "Failed to commit questions");
+      }
+
+      onClose();
+    } catch (err) {
+      setCommitError(err instanceof Error ? err.message : "Commit failed");
+    } finally {
+      setIsCommitting(false);
+    }
+  };
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
@@ -94,14 +155,13 @@ export function QuestionImportPreviewDialog({
     setUploadError(null);
 
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
       const formData = new FormData();
       formData.append("file", file);
       const response = await fetch(
         `${API_BASE_URL}/lessons/${lessonId}/questions/import/preview`,
         {
           method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "include",
           body: formData,
         },
       );
@@ -365,6 +425,7 @@ export function QuestionImportPreviewDialog({
               onUploadNew={(): void => {
                 setPreviewData(null);
                 setEditableGroups([]);
+                setCommitError(null);
               }}
             />
 
@@ -465,8 +526,21 @@ export function QuestionImportPreviewDialog({
               </span>
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={onClose}>Close</Button>
-                <Button variant="primary">Preview is local only</Button>
+                <Button
+                  variant="primary"
+                  loading={isCommitting}
+                  disabled={totalCount === 0}
+                  onClick={(): void => { void handleCommit(); }}
+                >
+                  {commitError ? "Retry" : "Import Questions"}
+                </Button>
               </div>
+              {commitError !== null && (
+                <div className="flex items-center gap-2 px-6 pb-2" role="alert">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-danger-500" />
+                  <span className="text-xs text-danger-600 dark:text-danger-400">{commitError}</span>
+                </div>
+              )}
             </div>
           </>
         )}

@@ -183,16 +183,26 @@ Return
 # LIVE CLASS ANALYTICS
 # ==========================
 
-GET
+Routes (base path `/api/v1/live`):
 
-/analytics/live
-
-Return
+GET /api/v1/live/analytics/overview
 
 - Attendance
 - Booking Rate
 - Cancellation Rate
 - Average Attendance
+
+GET /api/v1/live/analytics/teachers
+
+- Per-teacher live analytics
+
+GET /api/v1/live/analytics/students
+
+- Per-student live analytics
+
+GET /api/v1/live/analytics/sessions
+
+- Per-session live analytics
 
 ---
 

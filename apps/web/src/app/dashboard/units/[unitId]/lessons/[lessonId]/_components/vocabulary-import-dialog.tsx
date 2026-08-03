@@ -3,7 +3,7 @@
 import { useState, useRef, type ReactNode, type ChangeEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import { getAccessToken } from "@/lib/auth-store";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -121,7 +121,6 @@ export function VocabularyImportDialog({
     setUploadError(null);
 
     try {
-      const token = getAccessToken();
       const formData = new FormData();
       formData.append("file", file);
 
@@ -129,7 +128,7 @@ export function VocabularyImportDialog({
         `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1"}/lessons/${lessonId}/vocabulary/import/preview`,
         {
           method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "include",
           body: formData,
         },
       );

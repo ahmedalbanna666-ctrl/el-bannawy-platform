@@ -1,164 +1,35 @@
-# CI_CD_PIPELINE.md
+# CI/CD Pipeline
 
-# El-bannawy Platform
-## Continuous Integration & Deployment
+Version: 2.0.0
+Status: Repository commands documented; hosted pipeline remains deployment-specific
 
-Version: 1.0.0
+## Required Checks
 
----
+1. Install with the locked pnpm dependency graph.
+2. Run ESLint.
+3. Run TypeScript checks.
+4. Run backend/web/shared tests relevant to the change.
+5. Build all applications.
+6. Validate Prisma schema/migrations.
+7. Build Docker images for release candidates.
+8. Run security/dependency scans supplied by the hosting environment.
 
-# Purpose
+## Local Equivalent
 
-Defines the automated software delivery pipeline.
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm --filter @el-bannawy/backend test
+pnpm --filter @el-bannawy/web test
+```
 
----
+## Current Repository Reality
 
-# CI Pipeline
+The repository has Dockerfiles and GitHub metadata, but the documentation must not claim an active staging-to-production CD pipeline, automatic rollback, Slack notifications, or traffic switching until a workflow and deployment target prove them.
 
-Developer Push
+## Release Gate
 
-↓
-
-Install Dependencies
-
-↓
-
-Lint
-
-↓
-
-Type Check
-
-↓
-
-Unit Tests
-
-↓
-
-Integration Tests
-
-↓
-
-Build
-
-↓
-
-Docker Build
-
-↓
-
-Security Scan
-
-↓
-
-Publish Artifact
-
----
-
-# CD Pipeline
-
-Deploy to Staging
-
-↓
-
-Smoke Tests
-
-↓
-
-Approval
-
-↓
-
-Deploy Production
-
-↓
-
-Health Check
-
-↓
-
-Traffic Verification
-
-↓
-
-Deployment Complete
-
----
-
-# Required Checks
-
-ESLint
-
-TypeScript
-
-Prisma Validation
-
-Tests
-
-Docker Build
-
-Security Scan
-
-Dependency Scan
-
----
-
-# Deployment Strategy
-
-Rolling Deployment
-
-Blue/Green (Future)
-
-Canary (Future)
-
----
-
-# Rollback
-
-Automatic
-
-Health Failure
-
-↓
-
-Previous Version
-
----
-
-# Notifications
-
-Slack (Future)
-
-Discord (Future)
-
-Email
-
----
-
-# Success Criteria
-
-All tests passed
-
-Build succeeded
-
-Health checks passed
-
----
-
-# Acceptance Criteria
-
-✓ Automated
-
-✓ Safe
-
-✓ Fast
-
-✓ Reproducible
-
----
-
-# Final Rule
-
-No code reaches production unless every automated quality gate passes successfully.
+No release may be marked production-ready while required secrets, migrations, authentication, payment verification, and security findings are unverified.
 
 End of Document.

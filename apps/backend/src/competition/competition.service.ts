@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import type { Prisma } from "@prisma/client";
 import { AcademicContextService } from "../common/services/academic-context.service";
 import { AuditService } from "../common/services/audit.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationPriority, NotificationTargetType } from "../notifications/dto/notification.dto";
 import {
   CompetitionMode,
   CompetitionStatus,
@@ -23,6 +24,8 @@ interface CompetitionQuestion {
 
 @Injectable()
 export class CompetitionService {
+  private readonly logger = new Logger(CompetitionService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
@@ -30,7 +33,7 @@ export class CompetitionService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async listTeacherCompetitions(userId: string): Promise<unknown[]> {
+  async listTeacherCompetitions(userId: string, page = 1, limit = 20): Promise<unknown> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
@@ -40,15 +43,25 @@ export class CompetitionService {
     const where: Record<string, unknown> =
       user.role === "ADMINISTRATOR" ? {} : { createdById: userId };
 
-    return this.prisma.competition.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: {
-        _count: {
-          select: { participants: true },
+    const take = Math.min(100, Math.max(1, limit));
+    const skip = (Math.max(1, page) - 1) * take;
+
+    const [data, total] = await Promise.all([
+      this.prisma.competition.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: { participants: true },
+          },
         },
-      },
-    });
+        skip,
+        take,
+      }),
+      this.prisma.competition.count({ where }),
+    ]);
+
+    return { data, meta: { page: Math.max(1, page), limit: take, total, totalPages: Math.ceil(total / take) } };
   }
 
   async createCompetition(dto: CreateCompetitionDto, userId: string): Promise<unknown> {
@@ -124,7 +137,7 @@ export class CompetitionService {
     if (dto.termId !== undefined) data.termId = dto.termId;
     if (dto.xpReward !== undefined) data.xpReward = dto.xpReward;
     if (dto.coinReward !== undefined) data.coinReward = dto.coinReward;
-    if (dto.questions !== undefined) data.questions = dto.questions as unknown as Prisma.InputJsonValue;
+    if (dto.questions !== undefined) data.questions = dto.questions;
 
     const updated = await this.prisma.competition.update({ where: { id }, data });
     await this.audit.log({ actorId: userId, action: "COMPETITION_UPDATED", entity: "Competition", entityId: id });
@@ -196,16 +209,18 @@ export class CompetitionService {
     });
 
     for (const studentId of validIds) {
-      await this.notifications
+      this.notifications
         .sendNotification(userId, {
           type: "COMPETITION",
           title: "دعوة مسابقة جديدة",
           message: `تمت دعوتك للمشاركة في مسابقة: ${competition.title}`,
-          priority: "NORMAL",
-          targetType: "USER",
+          priority: NotificationPriority.MEDIUM,
+          targetType: NotificationTargetType.INDIVIDUAL,
           targetId: studentId,
         })
-        .catch(() => undefined);
+        .catch((err: unknown) => {
+          this.logger.error(`Failed to send competition notification to ${studentId}: ${err instanceof Error ? err.message : String(err)}`);
+        });
     }
 
     await this.audit.log({
@@ -389,10 +404,19 @@ export class CompetitionService {
 
     const questions = (competition.questions as unknown as CompetitionQuestion[]) ?? [];
     if (competition.mode === CompetitionMode.QUIZ) {
+      if (!Array.isArray(dto.answers)) {
+        throw new BadRequestException("Answers must be an array");
+      }
       let correct = 0;
       for (const answer of dto.answers) {
+        if (typeof answer.questionIndex !== "number" || typeof answer.selectedIndex !== "number") {
+          continue;
+        }
+        if (answer.questionIndex < 0 || answer.questionIndex >= questions.length) {
+          continue;
+        }
         const q = questions[answer.questionIndex];
-        if (q && answer.selectedIndex === q.correctIndex) correct += 1;
+        if (answer.selectedIndex === q?.correctIndex) correct += 1;
       }
       const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
 
@@ -404,7 +428,7 @@ export class CompetitionService {
           score,
           correctCount: correct,
           durationSeconds: dto.durationSeconds ?? null,
-          answers: dto.answers as unknown as Prisma.InputJsonValue,
+          answers: dto.answers,
         },
       });
     }
@@ -419,7 +443,7 @@ export class CompetitionService {
         submittedAt: new Date(),
         score,
         durationSeconds: dto.durationSeconds ?? null,
-        answers: dto.answers as unknown as Prisma.InputJsonValue,
+        answers: dto.answers,
       },
     });
   }

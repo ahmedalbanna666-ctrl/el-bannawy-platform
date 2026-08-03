@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
-import { api } from "@/lib/api-client";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { api, ApiError } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { VideoPlayer, VideoPlayerSkeleton } from "@/components/video-player";
+import { BackButton } from "@/components/ui/back-button";
+import {
+  useLessonLiveSessions,
+} from "@/lib/live-api";
+import {
+  LessonLiveSessionCard,
+  LessonLiveSessionCardSkeleton,
+} from "@/components/live/lesson-live-session-card";
 import {
   Play,
   CheckCircle,
@@ -21,12 +29,14 @@ import {
   FileText,
   ClipboardList,
   Languages,
-  Puzzle,
+
+  Sparkles,
   ChevronRight,
   ChevronLeft,
   Lock,
   Trophy,
   MonitorPlay,
+  CalendarClock,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -166,7 +176,7 @@ function useVideoProgress(videoId: string | null): UseQueryResult<VideoProgressD
     },
     enabled: !!videoId,
     staleTime: 0,
-    refetchInterval: 15_000,
+    refetchInterval: 90_000,
   });
 }
 
@@ -223,18 +233,6 @@ function getQuizStatus(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function formatSeconds(totalSeconds: number): string {
-  const mins = Math.floor(totalSeconds / 60);
-  const secs = totalSeconds % 60;
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-}
-
-function getResolutionBadge(durationSec: number): string {
-  if (durationSec >= 3600) return "1080p";
-  if (durationSec >= 1800) return "720p";
-  return "HD";
-}
 
 // ── Sub-components ───────────────────────────────────────────────────
 
@@ -342,7 +340,7 @@ function VideoProgressBar({
         />
       </div>
       <span className="text-sm text-neutral-400 whitespace-nowrap">
-        تمت مشاهدة {percentage}%
+        مشاهدة
       </span>
     </div>
   );
@@ -351,17 +349,28 @@ function VideoProgressBar({
 function LearningCards({
   lessonId,
   vocabulary,
-  activityCount,
   homeworkEnabled,
   document,
 }: {
   lessonId: string;
   vocabulary: readonly LessonVocabulary[];
-  activityCount: number;
   homeworkEnabled: boolean;
   document: { readonly id: string; readonly fileName: string; readonly downloadable: boolean } | null;
 }): ReactNode {
   const totalVocab = vocabulary.reduce((acc, g) => acc + g.items.length, 0);
+
+  const { data: games } = useQuery({
+    queryKey: ["lesson-games", lessonId],
+    queryFn: async () => {
+      const res = await api.get<Record<string, { enabled: boolean }>>(`/lessons/${lessonId}/games`);
+      return res.data ?? {};
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const hasGames = Object.values(games ?? {}).some((g) => g.enabled);
+  const enabledGameCount = Object.values(games ?? {}).filter((g) => g.enabled).length;
 
   const cards = [
     {
@@ -373,20 +382,20 @@ function LearningCards({
       enabled: vocabulary.length > 0 || totalVocab > 0,
     },
     {
-      id: "activities",
-      label: "الأنشطة",
-      icon: Puzzle,
-      detail: activityCount > 0 ? `${String(activityCount)} أنشطة` : "لا توجد أنشطة",
-      href: null,
-      enabled: activityCount > 0,
-    },
-    {
       id: "homework",
       label: "الواجب",
       icon: ClipboardList,
       detail: homeworkEnabled ? "متاح" : "غير مطلوب",
       href: homeworkEnabled ? `/dashboard/homework/${lessonId}` : null,
       enabled: homeworkEnabled,
+    },
+    {
+      id: "games",
+      label: "ألعاب تعليمية",
+      icon: Sparkles,
+      detail: hasGames ? `${String(enabledGameCount)} ألعاب` : "غير مفعلة",
+      href: hasGames ? `/dashboard/lessons/detail/${lessonId}/games` : null,
+      enabled: hasGames,
     },
     {
       id: "pdf",
@@ -398,10 +407,10 @@ function LearningCards({
           : "متوفر للمعلم فقط"
         : "غير متوفر حالياً",
       href:
-        document && document.downloadable
+        document?.downloadable
           ? `/dashboard/lessons/detail/${lessonId}/pdf`
           : null,
-      enabled: Boolean(document && document.downloadable),
+      enabled: Boolean(document?.downloadable),
     },
   ];
 
@@ -638,7 +647,6 @@ export default function LessonDetailPage(): ReactNode {
   // ── All Hooks (Rules of Hooks — must be unconditional, at top, same order every render) ──
   const params = useParams();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const lessonId = params.lessonId as string;
 
   const {
@@ -654,16 +662,14 @@ export default function LessonDetailPage(): ReactNode {
 
   const { data: stages } = useCurriculum();
 
+  const {
+    data: lessonLiveSessions,
+    isLoading: lessonLiveLoading,
+  } = useLessonLiveSessions(lessonId);
+
   const quizEnabled = lesson?.quizEnabled ?? false;
   const { data: quizData, isLoading: quizLoading } = useQuizData(lessonId, quizEnabled);
   const { data: quizResult, isLoading: quizResultLoading } = useQuizResult(lessonId, quizEnabled);
-
-  const handleVideoProgress = useCallback(
-    (_currentTime: number, _duration: number) => {
-      void queryClient.invalidateQueries({ queryKey: ["video-progress", firstVideoId] });
-    },
-    [firstVideoId, queryClient],
-  );
 
   // ── Derived values (non-hooks — safe to compute from resolved hook data above) ──
   const quizStatus = getQuizStatus(
@@ -679,6 +685,27 @@ export default function LessonDetailPage(): ReactNode {
   if (lessonLoading) return <LessonSkeleton />;
 
   if (lessonError) {
+    if (lessonErr instanceof ApiError && lessonErr.status === 403) {
+      return (
+      <div className="flex flex-col gap-4">
+        <BackButton fallbackHref="/dashboard/units" />
+        <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+            <div className="text-primary-500">
+              <CalendarClock className="h-16 w-16" />
+            </div>
+            <h3 className="text-lg font-semibold text-neutral-700 dark:text-neutral-300">
+              الدرس غير متاح اليوم
+            </h3>
+            <p className="max-w-sm text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+              {lessonErr.message}
+            </p>
+            <p className="text-sm text-neutral-400 dark:text-neutral-500">
+              حصصك بتتوفر تلقائيًا في المواعيد المحددة، أرجع وقتها 🎉
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <ErrorState
         title="فشل تحميل الدرس"
@@ -706,15 +733,6 @@ export default function LessonDetailPage(): ReactNode {
       ? Math.min(100, Math.round((videoProgress.watchedSeconds / activeVideo.duration) * 100))
       : 0;
 
-  const totalActivities = lesson.videos.reduce(
-    (sum, v) => sum + v.activities.length,
-    0,
-  );
-
-  const handleLessonComplete = (_currentTime: number, _duration: number): void => {
-    void queryClient.invalidateQueries({ queryKey: ["video-progress", firstVideoId] });
-  };
-
   const nextLesson = navigation.next;
   const lessonCompletedActions = {
     onNextLesson: nextLesson
@@ -735,7 +753,10 @@ export default function LessonDetailPage(): ReactNode {
 
   // ── Render ──
   return (
-    <div className="flex flex-col gap-6 pb-4">
+    <div data-card-border className="flex flex-col gap-4 pb-4">
+      <div className="flex items-center justify-between">
+        <BackButton fallbackHref="/dashboard/units" />
+      </div>
       <Breadcrumb gradeName={lesson.unit.grade.name} unitTitle={lesson.unit.title} />
 
       <LessonHeader
@@ -749,32 +770,15 @@ export default function LessonDetailPage(): ReactNode {
       {/* Video Player */}
       <section aria-label="مشغل الفيديو">
         {activeVideo ? (
-          <div className="space-y-1">
+          <div className="mx-auto max-w-3xl space-y-1">
             <VideoPlayer
-              providerName={activeVideo.providerName}
               providerVideoId={activeVideo.providerVideoId}
               videoId={activeVideo.id}
-              onProgress={handleVideoProgress}
               startAt={videoProgress?.lastPosition ?? 0}
               lessonTitle={activeVideo.title}
               enableLessonCompleted
-              onComplete={handleLessonComplete}
               completedActions={lessonCompletedActions}
             />
-            <div className="flex items-center justify-between rounded-b-2xl bg-neutral-800/80 px-4 py-2 backdrop-blur">
-              <div className="flex items-center gap-3 text-sm text-neutral-300">
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  {formatSeconds(activeVideo.duration)}
-                </span>
-                <Badge variant="secondary" className="text-[10px]">
-                  {getResolutionBadge(activeVideo.duration)}
-                </Badge>
-              </div>
-              <span className="text-xs text-neutral-400">
-                {activeVideo.title}
-              </span>
-            </div>
           </div>
         ) : (
           <Card variant="default" padding="lg">
@@ -794,11 +798,23 @@ export default function LessonDetailPage(): ReactNode {
         isCompleted={videoProgress?.completed ?? false}
       />
 
+      {/* Live Sessions */}
+      {lessonLiveLoading ? (
+        <LessonLiveSessionCardSkeleton />
+      ) : (
+        lessonLiveSessions && lessonLiveSessions.length > 0 && (
+          <section aria-label="المحاضرة المباشرة" className="flex flex-col gap-3">
+            {lessonLiveSessions.map((view) => (
+              <LessonLiveSessionCard key={view.session.id} view={view} />
+            ))}
+          </section>
+        )
+      )}
+
       {/* Learning Cards */}
       <LearningCards
         lessonId={lessonId}
         vocabulary={lesson.vocabulary.groups}
-        activityCount={totalActivities}
         homeworkEnabled={lesson.homeworkEnabled}
         document={lesson.document}
       />
@@ -825,7 +841,7 @@ export default function LessonDetailPage(): ReactNode {
 
 function LessonSkeleton(): ReactNode {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <Skeleton className="h-4 w-48" />
       <div className="space-y-2">
         <Skeleton className="h-4 w-24" />

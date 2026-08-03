@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,26 +25,17 @@ interface Payment {
 }
 
 export default function PaymentsPage(): ReactNode {
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: payments = [], isLoading, isError, error } = useQuery<Payment[]>({
+    queryKey: ["payments-history"],
+    queryFn: async () => {
+      const res = await api.get<Payment[]>("/payments/history");
+      return res.data ?? [];
+    },
+    staleTime: 60_000,
+  });
 
-  useEffect(() => {
-    async function fetchPayments(): Promise<void> {
-      try {
-        const res = await api.get<Payment[]>("/payments/history");
-        if (res.data) setPayments(res.data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "فشل تحميل المدفوعات");
-      } finally {
-        setLoading(false);
-      }
-    }
-    void fetchPayments();
-  }, []);
-
-  if (loading) return <PaymentsSkeleton />;
-  if (error) return <ErrorState title="فشل تحميل المدفوعات" description={error} />;
+  if (isLoading) return <PaymentsSkeleton />;
+  if (isError) return <ErrorState title="فشل تحميل المدفوعات" description={error instanceof Error ? error.message : "حدث خطأ"} />;
   if (payments.length === 0) {
     return <EmptyState title="لا توجد مدفوعات" description="لا يوجد سجل مدفوعات بعد" icon={<CreditCard className="h-16 w-16" />} />;
   }

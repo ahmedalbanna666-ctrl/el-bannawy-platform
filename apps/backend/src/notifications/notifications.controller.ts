@@ -1,24 +1,153 @@
-import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, Query, UseGuards, Headers } from "@nestjs/common";
 import { NotificationsService } from "./notifications.service";
+import { WhatsAppService } from "./whatsapp.service";
+import { FcmService } from "./fcm.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { Roles } from "../common/decorators/roles.decorator";
-import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
+import { successResponse, paginatedResponse, type ISuccessResponse } from "../common/helpers/response.helper";
 import { SendNotificationDto, ScheduleNotificationDto, UpdatePreferencesDto } from "./dto/notification.dto";
+import {
+  UpdateNotificationConfigDto,
+  UpdateNotificationTemplateDto,
+  UpdateWhatsAppConfigDto,
+  SendTestWhatsAppDto,
+} from "./dto/admin-notification.dto";
 
 @Controller("notifications")
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly whatsAppService: WhatsAppService,
+    private readonly fcmService: FcmService,
+  ) {}
+
+  // ── Admin: Config ────────────────────────────────────────────────────
+
+  @Get("admin/config")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async getConfigs(): Promise<ISuccessResponse<unknown>> {
+    const data = await this.notificationsService.getNotificationConfigs();
+    return successResponse(data, "Notification configs retrieved");
+  }
+
+  @Patch("admin/config/:key")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async updateConfig(
+    @Param("key") key: string,
+    @Body() dto: UpdateNotificationConfigDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.notificationsService.updateNotificationConfig(key, dto);
+    return successResponse(data, "Notification config updated");
+  }
+
+  // ── Admin: Templates ─────────────────────────────────────────────────
+
+  @Get("admin/templates")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async getTemplates(): Promise<ISuccessResponse<unknown>> {
+    const data = await this.notificationsService.getNotificationTemplates();
+    return successResponse(data, "Notification templates retrieved");
+  }
+
+  @Patch("admin/templates/:key")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async updateTemplate(
+    @Param("key") key: string,
+    @Body() dto: UpdateNotificationTemplateDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.notificationsService.updateNotificationTemplate(key, dto);
+    return successResponse(data, "Notification template updated");
+  }
+
+  // ── Admin: WhatsApp ──────────────────────────────────────────────────
+
+  @Get("admin/whatsapp")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async getWhatsAppConfig(): Promise<ISuccessResponse<unknown>> {
+    const data = await this.whatsAppService.getConfig();
+    return successResponse(data, "WhatsApp config retrieved");
+  }
+
+  @Patch("admin/whatsapp")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async updateWhatsAppConfig(@Body() dto: UpdateWhatsAppConfigDto): Promise<ISuccessResponse<unknown>> {
+    const data = await this.whatsAppService.updateConfig(dto as Record<string, unknown>);
+    return successResponse(data, "WhatsApp config updated");
+  }
+
+  @Get("admin/whatsapp/logs")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async getWhatsAppLogs(
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.whatsAppService.getLogs(Number(page) || 1, Number(limit) || 20);
+    const meta = (data as { meta: unknown }).meta;
+    return paginatedResponse((data as { data: unknown[] }).data, meta as { page: number; limit: number; total: number; totalPages: number }, "WhatsApp logs retrieved");
+  }
+
+  @Post("admin/whatsapp/test")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async sendTestWhatsApp(@Body() dto: SendTestWhatsAppDto): Promise<ISuccessResponse<unknown>> {
+    const data = await this.whatsAppService.sendTestMessage(dto.to, dto.message);
+    return successResponse(data, "Test message sent");
+  }
+
+  // ── User: Notifications ──────────────────────────────────────────────
 
   @Get()
   @UseGuards(JwtAuthGuard)
   async getNotifications(
     @CurrentUser() userId: string,
     @Query("filter") filter?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<ISuccessResponse<unknown[]>> {
+    const result = await this.notificationsService.getNotifications(userId, filter, Number(page) || 1, Number(limit) || 20);
+    return paginatedResponse(
+      (result as { data: unknown[] }).data,
+      (result as { meta: { page: number; limit: number; total: number; totalPages: number } }).meta,
+      "Notifications retrieved successfully",
+    );
+  }
+
+  @Get("unread-count")
+  @UseGuards(JwtAuthGuard)
+  async getUnreadCount(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
+    const data = await this.notificationsService.getUnreadCount(userId);
+    return successResponse(data, "Unread count retrieved");
+  }
+
+  @Post("device-token")
+  @UseGuards(JwtAuthGuard)
+  async registerDeviceToken(
+    @CurrentUser() userId: string,
+    @Body("token") token: string,
+    @Body("platform") platform: string | undefined,
+    @Headers("user-agent") userAgent: string | undefined,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.notificationsService.getNotifications(userId, filter);
-    return successResponse(data, "Notifications retrieved successfully");
+    await this.fcmService.registerToken(userId, token, platform, userAgent);
+    return successResponse(null, "Device token registered");
+  }
+
+  @Delete("device-token")
+  @UseGuards(JwtAuthGuard)
+  async unregisterDeviceToken(
+    @CurrentUser() userId: string,
+    @Body("token") token: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    await this.fcmService.unregisterToken(userId, token);
+    return successResponse(null, "Device token unregistered");
   }
 
   @Get("preferences")
@@ -67,11 +196,11 @@ export class NotificationsController {
   @Post("schedule")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("TEACHER", "ADMINISTRATOR")
-  scheduleNotification(
+  async scheduleNotification(
     @CurrentUser() userId: string,
     @Body() dto: ScheduleNotificationDto,
-  ): ISuccessResponse<unknown> {
-    const data = this.notificationsService.scheduleNotification(userId, dto);
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.notificationsService.scheduleNotification(userId, dto);
     return successResponse(data, "Notification scheduled");
   }
 

@@ -1,250 +1,32 @@
-# AUTOMATED_TESTING.md
+# Automated Testing
 
-# El-bannawy Platform
-## Automated Testing
+Version: 2.0.0
 
-Version: 1.0.0
+## Repository Commands
 
----
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm --filter @el-bannawy/backend test
+pnpm --filter @el-bannawy/backend test:e2e
+pnpm --filter @el-bannawy/web test
+pnpm --filter @el-bannawy/web test:coverage
+pnpm --filter @el-bannawy/mobile typecheck
+```
 
-# Purpose
+The e2e command exists in the backend package, but its environment/database requirements must be available before it can be considered a passing release gate.
 
-Defines all automated testing pipelines executed during development and deployment.
+## Current Automated Coverage
 
-Automation ensures rapid feedback while preventing regressions.
+Focused tests exist for authentication, delegated permission initialization, DOCX vocabulary parsing/persistence, shared utilities, and selected backend services. The repository does not yet provide complete automated coverage for every module listed in the original strategy.
 
----
+## Release Gate
 
-# Objectives
+Run lint, typecheck, build, relevant unit tests, migration validation, and manual smoke tests for changed critical flows. Add or update a regression test for every fixed business or security bug.
 
-- Detect bugs early
-- Prevent regressions
-- Validate business rules
-- Ensure API stability
-- Protect production
+## Not Yet A Passing Claim
 
----
-
-# Automated Test Categories
-
-Unit Tests
-
-Integration Tests
-
-API Tests
-
-Component Tests
-
-End-to-End Tests
-
-Smoke Tests
-
-Regression Tests
-
-Accessibility Tests
-
-AI Evaluation Tests
-
----
-
-# Execution Flow
-
-Developer Push
-
-↓
-
-Lint
-
-↓
-
-Type Check
-
-↓
-
-Unit Tests
-
-↓
-
-Integration Tests
-
-↓
-
-API Tests
-
-↓
-
-Component Tests
-
-↓
-
-Build
-
-↓
-
-End-to-End Tests
-
-↓
-
-Deployment
-
----
-
-# Unit Tests
-
-Framework
-
-Jest
-
-Coverage Target
-
-90%
-
-Focus
-
-Business Logic
-
-Utilities
-
-Services
-
-Validators
-
----
-
-# Integration Tests
-
-Database
-
-Redis
-
-Queue
-
-Authentication
-
-Payments
-
-AI
-
----
-
-# API Testing
-
-Framework
-
-Supertest
-
-Validate
-
-Status Codes
-
-Validation
-
-Authentication
-
-Authorization
-
-Response Structure
-
----
-
-# Component Testing
-
-Frontend
-
-React Testing Library
-
-Focus
-
-UI Behavior
-
-Accessibility
-
-State Changes
-
----
-
-# End-to-End
-
-Framework
-
-Playwright
-
-Critical Flows
-
-Login
-
-Lesson
-
-Homework
-
-Quiz
-
-Payment
-
-AI Chat
-
-Live Classes
-
----
-
-# Smoke Tests
-
-Executed
-
-Immediately after deployment
-
-Validate
-
-Application Startup
-
-Database
-
-Redis
-
-API
-
-Authentication
-
----
-
-# Regression Tests
-
-Executed before every release.
-
-Protects existing functionality.
-
----
-
-# Reporting
-
-Every test produces
-
-Execution Time
-
-Coverage
-
-Failures
-
-Artifacts
-
-Logs
-
----
-
-# Acceptance Criteria
-
-✓ Fully Automated
-
-✓ Fast
-
-✓ Reliable
-
-✓ Repeatable
-
----
-
-# Final Rule
-
-Every deployment must pass all automated tests before reaching production.
+Do not claim that Redis, queues, Playwright, Supertest, AI evaluation, accessibility automation, or production smoke tests are active merely because they appear in an older document.
 
 End of Document.

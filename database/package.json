@@ -5,6 +5,7 @@
   "description": "Prisma schema and database configuration for El-bannawy Platform",
   "scripts": {
     "generate": "prisma generate",
+    "db": "prisma db push",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:reset": "prisma migrate reset",

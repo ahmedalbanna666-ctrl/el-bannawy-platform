@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select } from "@/components/ui/select";
+import { type UnitTypeValue, getUnitTypeCopy } from "@/lib/unit-type-config";
 
 interface LessonEditData {
   readonly id: string;
@@ -29,6 +30,7 @@ interface LessonFormDialogProps {
   readonly onClose: () => void;
   readonly unitId: string;
   readonly lesson?: LessonEditData | null;
+  readonly unitType?: UnitTypeValue;
 }
 
 interface LessonFormData {
@@ -62,9 +64,11 @@ export function LessonFormDialog({
   onClose,
   unitId,
   lesson,
+  unitType = "UNIT",
 }: LessonFormDialogProps): ReactNode {
   const queryClient = useQueryClient();
   const isEdit = lesson !== null && lesson !== undefined;
+  const copy = getUnitTypeCopy(unitType);
 
   const [formData, setFormData] = useState<LessonFormData>(EMPTY_FORM);
 
@@ -139,12 +143,12 @@ export function LessonFormDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title={isEdit ? "تعديل الدرس" : "إنشاء درس جديد"}
+      title={isEdit ? `تعديل ${copy.childSingular}` : `إنشاء ${copy.childSingular} جديد`}
     >
       <form onSubmit={handleSubmit}>
         <DialogContent className="flex flex-col gap-4">
           <Input
-            label="عنوان الدرس"
+            label={`عنوان ${copy.childSingular}`}
             placeholder="مثال: Lesson 1 - Introduction"
             value={formData.title}
             onChange={(e): void => { update("title", e.target.value); }}
@@ -173,7 +177,7 @@ export function LessonFormDialog({
                 value={formData.lockedOverride}
                 onChange={(e): void => { update("lockedOverride", e.target.value); }}
                 options={[
-                  { value: "auto", label: "تلقائي (حسب اجتياز امتحان الدرس السابق)" },
+                  { value: "auto", label: `تلقائي (حسب اجتياز امتحان ${copy.childSingular} السابق)` },
                   { value: "open", label: "مفتوح دائماً" },
                   { value: "locked", label: "مقفل دائماً" },
                 ]}
@@ -196,7 +200,7 @@ export function LessonFormDialog({
             <p className="text-sm text-danger-500" role="alert">
               {mutation.error instanceof Error
                 ? mutation.error.message
-                : "فشل حفظ الدرس"}
+                : `فشل حفظ ${copy.childSingular}`}
             </p>
           )}
         </DialogContent>

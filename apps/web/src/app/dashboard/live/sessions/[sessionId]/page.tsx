@@ -10,9 +10,12 @@ import {
   useSendAnnouncement,
   useRemoveParticipant,
   useControlLogs,
+  useSessionAttendance,
+  useDecideReschedule,
   type LiveAnnouncementItem,
   type LiveControlLogItem,
   type LiveBookingItem,
+  type LiveAttendanceItem,
   type LiveSessionItem,
 } from "@/lib/live-api";
 import { usePermissions } from "@/lib/use-permissions";
@@ -22,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ZoomMeetingManager } from "@/components/live/zoom-meeting-manager";
 import {
   Play,
   Square,
@@ -36,7 +40,19 @@ import {
   Megaphone,
   Pin,
   MessageSquare,
+  CalendarCheck,
+  CalendarClock,
+  Check,
+  X,
 } from "lucide-react";
+
+const ATTENDANCE_BADGES: Record<string, { label: string; variant: "success" | "warning" | "danger" | "secondary" | "info" }> = {
+  JOINED: { label: "انضم", variant: "info" },
+  COMPLETED: { label: "اكتمل", variant: "success" },
+  LATE: { label: "متأخر", variant: "warning" },
+  LEFT_EARLY: { label: "غادر مبكرًا", variant: "danger" },
+  ABSENT: { label: "غائب", variant: "secondary" },
+};
 
 const STATUS_BADGES: Record<string, { label: string; variant: "success" | "warning" | "danger" | "info" | "primary" | "secondary" }> = {
   DRAFT: { label: "مسودة", variant: "secondary" },
@@ -68,17 +84,23 @@ export default function SessionControlPage(): ReactNode {
   const params = useParams();
   const router = useRouter();
   const sessionId = params.sessionId as string | undefined;
-  const { can } = usePermissions();
+  const { can, isSecretary } = usePermissions();
 
   const canControl = can("live.control");
+  const canViewControl = canControl || isSecretary;
   const { data: session, isLoading: sessionLoading, error: sessionError } = useLiveSession(sessionId);
-  const { data: panel, isLoading: panelLoading } = useControlPanel(canControl ? sessionId : undefined);
+  const { data: panel, isLoading: panelLoading } = useControlPanel(canViewControl ? sessionId : undefined);
   const { data: controlLogs } = useControlLogs(canControl ? sessionId : undefined);
+  const { data: attendance, isLoading: attendanceLoading } = useSessionAttendance(
+    canViewControl ? sessionId : undefined,
+    canViewControl,
+  );
 
   const startSession = useStartSession();
   const endSession = useEndSession();
   const sendAnnouncement = useSendAnnouncement();
   const removeParticipant = useRemoveParticipant();
+  const decideReschedule = useDecideReschedule();
 
   const [announcementMsg, setAnnouncementMsg] = useState("");
   const [showLogs, setShowLogs] = useState(false);
@@ -106,7 +128,14 @@ export default function SessionControlPage(): ReactNode {
     try { await removeParticipant.mutateAsync({ sessionId, studentId }); } catch { /* ignore */ }
   }, [sessionId, removeParticipant]);
 
-  if (sessionLoading || (canControl && panelLoading)) {
+  const handleDecideReschedule = useCallback(
+    async (bookingId: string, decision: "APPROVED" | "REJECTED"): Promise<void> => {
+      try { await decideReschedule.mutateAsync({ bookingId, decision }); } catch { /* ignore */ }
+    },
+    [decideReschedule],
+  );
+
+  if (sessionLoading || (canViewControl && panelLoading)) {
     return (
       <div className="flex flex-col gap-4 p-4">
         <div className="flex items-center gap-3">
@@ -126,7 +155,7 @@ export default function SessionControlPage(): ReactNode {
     return <ErrorState description="تعذر العثور على الجلسة أو ليس لديك صلاحية الوصول" />;
   }
 
-  if (!canControl) {
+  if (!canViewControl) {
     return <StudentSessionView session={session} onBack={(): void => { router.push("/dashboard/live"); }} />;
   }
 
@@ -153,26 +182,28 @@ export default function SessionControlPage(): ReactNode {
       </div>
 
       {/* Control Buttons */}
-      <Card>
-        <CardContent className="flex flex-wrap gap-3 p-4">
-          {canStart && (
-            <Button onClick={() => { void handleStart(); }} disabled={startSession.isPending} leftIcon={<Play className="h-4 w-4" />}>
-              {startSession.isPending ? "جاري البدء..." : "بدء الجلسة"}
+      {canControl && (
+        <Card>
+          <CardContent className="flex flex-wrap gap-3 p-4">
+            {canStart && (
+              <Button onClick={() => { void handleStart(); }} disabled={startSession.isPending} leftIcon={<Play className="h-4 w-4" />}>
+                {startSession.isPending ? "جاري البدء..." : "بدء الجلسة"}
+              </Button>
+            )}
+            {isLive && (
+              <Button onClick={() => { void handleEnd(); }} disabled={endSession.isPending} variant="danger" leftIcon={<Square className="h-4 w-4" />}>
+                {endSession.isPending ? "جاري الإنهاء..." : "إنهاء الجلسة"}
+              </Button>
+            )}
+            <Button variant="outline" onClick={(): void => { setShowLogs(!showLogs); }} leftIcon={<History className="h-4 w-4" />}>
+              سجل التحكم
             </Button>
-          )}
-          {isLive && (
-            <Button onClick={() => { void handleEnd(); }} disabled={endSession.isPending} variant="danger" leftIcon={<Square className="h-4 w-4" />}>
-              {endSession.isPending ? "جاري الإنهاء..." : "إنهاء الجلسة"}
-            </Button>
-          )}
-          <Button variant="outline" onClick={(): void => { setShowLogs(!showLogs); }} leftIcon={<History className="h-4 w-4" />}>
-            سجل التحكم
-          </Button>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Control Logs */}
-      {showLogs && (
+      {canControl && showLogs && (
         <Card>
           <CardHeader className="flex items-center gap-2 text-base font-semibold">
             <History className="h-4 w-4" />
@@ -221,7 +252,7 @@ export default function SessionControlPage(): ReactNode {
                           <p className="text-xs text-neutral-500">{student.email}</p>
                         </div>
                       </div>
-                      {isLive && (
+                      {canControl && isLive && (
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-400 hover:text-red-500" onClick={() => { void handleRemoveParticipant(student.id); }} title="إزالة المشارك">
                           <UserX className="h-4 w-4" />
                         </Button>
@@ -244,20 +275,22 @@ export default function SessionControlPage(): ReactNode {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {/* Composer */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={announcementMsg}
-                onChange={(e): void => { setAnnouncementMsg(e.target.value); }}
-                onKeyDown={(e): void => { if (e.key === "Enter") { void handleSendAnnouncement(); } }}
-                placeholder="اكتب إعلانًا..."
-                className="flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
-                dir="rtl"
-              />
-              <Button onClick={() => { void handleSendAnnouncement(); }} disabled={!announcementMsg.trim() || sendAnnouncement.isPending} size="icon" className="h-10 w-10 shrink-0">
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
+            {canControl && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={announcementMsg}
+                  onChange={(e): void => { setAnnouncementMsg(e.target.value); }}
+                  onKeyDown={(e): void => { if (e.key === "Enter") { void handleSendAnnouncement(); } }}
+                  placeholder="اكتب إعلانًا..."
+                  className="flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                  dir="rtl"
+                />
+                <Button onClick={() => { void handleSendAnnouncement(); }} disabled={!announcementMsg.trim() || sendAnnouncement.isPending} size="icon" className="h-10 w-10 shrink-0">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
 
             {/* Announcements list */}
             {panel?.announcements && panel.announcements.length > 0 ? (
@@ -280,6 +313,107 @@ export default function SessionControlPage(): ReactNode {
               </div>
             ) : (
               <EmptyState title="لا توجد إعلانات" description="لم يتم إرسال أي إعلانات بعد" icon={<MessageSquare className="h-8 w-8" />} />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Reschedule requests */}
+      {canControl && (
+        <Card>
+          <CardHeader className="flex items-center gap-2 text-base font-semibold">
+            <CalendarClock className="h-4 w-4" />
+            طلبات إعادة الجدولة
+          </CardHeader>
+          <CardContent>
+            {((): ReactNode => {
+              const requests = (panel?.participants ?? []).filter((p) => p.rescheduleStatus === "REQUESTED");
+              if (requests.length === 0) {
+                return (
+                  <EmptyState
+                    title="لا توجد طلبات"
+                    description="لا توجد طلبات إعادة جدولة بانتظار القرار"
+                    icon={<CalendarClock className="h-8 w-8" />}
+                  />
+                );
+              }
+              return (
+                <div className="flex flex-col gap-2">
+                  {requests.map((p) => {
+                    const student = (p as unknown as { student: { id: string; fullName: string; email: string; avatarUrl: string | null } }).student;
+                    return (
+                      <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 dark:border-amber-900/40 dark:bg-amber-900/10">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{student.fullName}</p>
+                          <p className="text-xs text-neutral-500">{p.rescheduleReason ?? "بدون سبب"}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button size="sm" variant="success" disabled={decideReschedule.isPending} onClick={() => { void handleDecideReschedule(p.id, "APPROVED"); }}>
+                            <Check className="h-4 w-4" />
+                            قبول
+                          </Button>
+                          <Button size="sm" variant="outline" disabled={decideReschedule.isPending} onClick={() => { void handleDecideReschedule(p.id, "REJECTED"); }}>
+                            <X className="h-4 w-4" />
+                            رفض
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Zoom + Attendance */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {canControl && <ZoomMeetingManager session={session} />}
+
+        <Card>
+          <CardHeader className="flex items-center gap-2 text-base font-semibold">
+            <CalendarCheck className="h-4 w-4" />
+            سجل الحضور ({attendance?.length ?? 0})
+          </CardHeader>
+          <CardContent>
+            {attendanceLoading && (
+              <div className="flex flex-col gap-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                ))}
+              </div>
+            )}
+            {!attendanceLoading && attendance && attendance.length > 0 ? (
+              <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+                {attendance.map((record: LiveAttendanceItem) => {
+                  const badge = ATTENDANCE_BADGES[record.status] ?? { label: record.status, variant: "secondary" as const };
+                  return (
+                    <div key={record.id} className="flex items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
+                          {record.student.fullName.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-neutral-800 dark:text-neutral-200">
+                            {record.student.fullName}
+                          </p>
+                          <p className="text-xs text-neutral-500">
+                            {record.joinedAt ? `انضم ${formatTime(record.joinedAt)}` : "لم ينضم"} · {record.leftAt ? `غادر ${formatTime(record.leftAt)}` : "لا يزال حاضرًا"} · {record.durationMinutes !== null ? `${String(record.durationMinutes)} د` : "—"}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={badge.variant} className="shrink-0">
+                        {badge.label}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              !attendanceLoading && (
+                <EmptyState title="لا يوجد حضور" description="لم ينضم أي طالب بعد" icon={<CalendarCheck className="h-8 w-8" />} />
+              )
             )}
           </CardContent>
         </Card>
@@ -393,7 +527,7 @@ function StudentSessionView({ session, onBack }: { session: LiveSessionItem; onB
               <div className="flex items-center gap-2 text-sm">
                 <Users className="h-4 w-4 text-neutral-400" />
                 <span className="text-neutral-600 dark:text-neutral-400">المعلم:</span>
-                <span className="font-medium">{session.teacher.name}</span>
+                <span className="font-medium">{session.teacher.fullName}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <CalendarDays className="h-4 w-4 text-neutral-400" />

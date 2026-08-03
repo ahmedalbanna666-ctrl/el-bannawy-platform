@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
 import type {
   GameSettingsStore,
   ListeningChallengeSettings,
+  MemoryGameSettings,
   PronunciationChallengeSettings,
 } from "./types";
 
@@ -20,7 +23,28 @@ const DEFAULT_SETTINGS: GameSettingsStore = {
     coinReward: 2,
     questionsPerRound: 10,
   },
+  memoryGame: {
+    enabled: true,
+    wordsPerRound: 12,
+  },
 };
+
+function mergeSettings(base: GameSettingsStore, patch: Partial<GameSettingsStore>): GameSettingsStore {
+  return {
+    listeningChallenge: {
+      ...base.listeningChallenge,
+      ...(patch.listeningChallenge ?? {}),
+    },
+    pronunciationChallenge: {
+      ...base.pronunciationChallenge,
+      ...(patch.pronunciationChallenge ?? {}),
+    },
+    memoryGame: {
+      ...base.memoryGame,
+      ...(patch.memoryGame ?? {}),
+    },
+  };
+}
 
 function readSettings(): GameSettingsStore {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
@@ -28,16 +52,7 @@ function readSettings(): GameSettingsStore {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<GameSettingsStore>;
-    return {
-      listeningChallenge: {
-        ...DEFAULT_SETTINGS.listeningChallenge,
-        ...parsed.listeningChallenge,
-      },
-      pronunciationChallenge: {
-        ...DEFAULT_SETTINGS.pronunciationChallenge,
-        ...parsed.pronunciationChallenge,
-      },
-    };
+    return mergeSettings(DEFAULT_SETTINGS, parsed);
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -50,34 +65,88 @@ function writeSettings(settings: GameSettingsStore): void {
 
 export function useGameSettings(): {
   settings: GameSettingsStore;
+  isLoading: boolean;
   updateListening: (patch: Partial<ListeningChallengeSettings>) => void;
   updatePronunciation: (patch: Partial<PronunciationChallengeSettings>) => void;
+  updateMemory: (patch: Partial<MemoryGameSettings>) => void;
 } {
   const [settings, setSettings] = useState<GameSettingsStore>(readSettings);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const { data } = useQuery<GameSettingsStore | null>({
+    queryKey: ["games-settings"],
+    queryFn: async () => {
+      const res = await api.get<GameSettingsStore>("/games/settings");
+      return res.data ?? null;
+    },
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
-    writeSettings(settings);
-  }, [settings]);
+    if (data) {
+      const merged = mergeSettings(readSettings(), data);
+      setSettings(merged);
+      writeSettings(merged);
+    }
+    setIsLoading(false);
+  }, [data]);
 
-  const updateListening = (patch: Partial<ListeningChallengeSettings>): void => {
-    setSettings((prev) => ({
-      ...prev,
-      listeningChallenge: {
-        ...prev.listeningChallenge,
-        ...patch,
-      },
-    }));
+  const updateListening = useCallback(
+    (patch: Partial<ListeningChallengeSettings>): void => {
+      setSettings((prev) => {
+        const next = {
+          ...prev,
+          listeningChallenge: { ...prev.listeningChallenge, ...patch },
+        };
+        writeSettings(next);
+        return next;
+      });
+      api.patch("/games/settings", { listeningChallenge: patch }).catch((): void => {
+        // Local-only fallback when the backend is unreachable.
+      });
+    },
+    [],
+  );
+
+  const updatePronunciation = useCallback(
+    (patch: Partial<PronunciationChallengeSettings>): void => {
+      setSettings((prev) => {
+        const next = {
+          ...prev,
+          pronunciationChallenge: { ...prev.pronunciationChallenge, ...patch },
+        };
+        writeSettings(next);
+        return next;
+      });
+      api.patch("/games/settings", { pronunciationChallenge: patch }).catch((): void => {
+        // Local-only fallback when the backend is unreachable.
+      });
+    },
+    [],
+  );
+
+  const updateMemory = useCallback(
+    (patch: Partial<MemoryGameSettings>): void => {
+      setSettings((prev) => {
+        const next = {
+          ...prev,
+          memoryGame: { ...prev.memoryGame, ...patch },
+        };
+        writeSettings(next);
+        return next;
+      });
+      api.patch("/games/settings", { memoryGame: patch }).catch((): void => {
+        // Local-only fallback when the backend is unreachable.
+      });
+    },
+    [],
+  );
+
+  return {
+    settings,
+    isLoading,
+    updateListening,
+    updatePronunciation,
+    updateMemory,
   };
-
-  const updatePronunciation = (patch: Partial<PronunciationChallengeSettings>): void => {
-    setSettings((prev) => ({
-      ...prev,
-      pronunciationChallenge: {
-        ...prev.pronunciationChallenge,
-        ...patch,
-      },
-    }));
-  };
-
-  return { settings, updateListening, updatePronunciation };
 }

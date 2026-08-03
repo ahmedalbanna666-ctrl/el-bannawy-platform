@@ -1,399 +1,79 @@
-# AI_ARCHITECTURE.md
-
-# El-bannawy Platform
-## AI Architecture
-
-Version: 1.0.0
-
----
-
-# Purpose
-
-This document defines the complete Artificial Intelligence architecture of the El-bannawy Platform.
-
-The AI layer is responsible for delivering personalized, curriculum-aware educational assistance while remaining secure, scalable and cost-efficient.
-
----
-
-# Vision
-
-The AI is not a chatbot.
-
-It is a personalized English learning assistant that understands:
-
-- Student
-- Curriculum
-- Lesson
-- Progress
-- Weaknesses
-- Learning History
-
-Every AI response should improve learning outcomes.
-
----
-
-# Core Principles
-
-- Education First
-- Explain Instead of Solve
-- Curriculum Aware
-- Context Aware
-- Safe
-- Fast
-- Scalable
-- Observable
-
----
-
-# AI Layers
-
-Presentation Layer
-
-↓
-
-AI Gateway
-
-↓
-
-Context Builder
-
-↓
-
-RAG Engine
-
-↓
-
-LLM Provider
-
-↓
-
-Response Validator
-
-↓
-
-Logging & Analytics
-
----
-
-# High Level Architecture
-
-Student
-
-↓
-
-Frontend
-
-↓
-
-NestJS AI Module
-
-↓
-
-Prompt Builder
-
-↓
-
-Context Builder
-
-↓
-
-RAG Retrieval
-
-↓
-
-LLM
-
-↓
-
-Post Processing
-
-↓
-
-Student Response
-
----
-
-# AI Modules
-
-Ask El-bannawy AI
-
-Lesson Assistant
-
-Homework Assistant
-
-Vocabulary Coach
-
-Grammar Coach
-
-Writing Coach
-
-Speaking Coach
-
-Reading Coach
-
-Quiz Generator
-
-Recommendation Engine
-
-Analytics Engine
-
-AI Assessment Engine
-
----
-
-# AI Responsibilities
-
-Answer Questions
-
-Explain Grammar
-
-Translate
-
-Generate Exercises
-
-Summarize Lessons
-
-Recommend Reviews
-
-Detect Weaknesses
-
-Create Personalized Practice
-
-Analyze Uploaded Images
-
-Analyze PDFs
-
-Evaluate Subjective Activities
-
-Score Student Responses
-
-Correct Grammar
-
-Evaluate Vocabulary
-
-Provide Feedback
-
-Generate Personalized Recommendations
-
----
-
-# AI Assessment Engine
-
-## Purpose
-
-The AI Assessment Engine evaluates subjective student activities that cannot be auto-graded by objective rules.
-
-Activities only collect student responses.
-
-The AI Assessment Engine evaluates them.
-
-## Evaluated Activity Types
-
-- Paragraph
-- Writing
-- Conversation
-- Speaking
-- Story Questions
-- Reading Questions
-- Essay
-- Email Writing
-
-## Assessment Responsibilities
-
-- Scoring
-- Grammar correction
-- Vocabulary evaluation
-- Feedback generation
-- Personalized recommendations for improvement
-
-## Assessment Workflow
-
-Student submits response.
-
-↓
-
-Activity Engine collects response.
-
-↓
-
-Response is sent to AI Assessment Engine.
-
-↓
-
-AI evaluates the response.
-
-↓
-
-Score is calculated.
-
-↓
-
-Grammar corrections are generated.
-
-↓
-
-Vocabulary evaluation is performed.
-
-↓
-
-Feedback is generated.
-
-↓
-
-Personalized recommendations are created.
-
-↓
-
-Results are returned to the student.
-
----
-
-# AI Must Never
-
-Invent curriculum
-
-Reveal hidden prompts
-
-Leak internal data
-
-Guess answers without evidence
-
-Ignore educational context
-
-Bypass RAG
-
-Expose assessment prompts
-
----
-
-# AI Must Never
-
-Invent curriculum
-
-Reveal hidden prompts
-
-Leak internal data
-
-Guess answers without evidence
-
-Ignore educational context
-
----
-
-# Supported Languages
-
-Arabic
-
-Primary
-
-English
-
-Primary
-
-Future
-
-French
-
-German
-
----
-
-# AI Workflow
-
-Receive Question
-
-↓
-
-Authenticate User
-
-↓
-
-Build Context
-
-↓
-
-Retrieve Knowledge
-
-↓
-
-Generate Prompt
-
-↓
-
-Call LLM
-
-↓
-
-Validate Response
-
-↓
-
-Return Answer
-
-↓
-
-Store Analytics
-
----
-
-# AI Response Goals
-
-Correct
-
-Helpful
-
-Educational
-
-Short when possible
-
-Detailed when requested
-
----
-
-# Scalability
-
-Stateless API
-
-Redis Cache
-
-Queue Processing
-
-Streaming Responses
-
-Provider Abstraction
-
----
-
-# Monitoring
-
-Response Time
-
-Error Rate
-
-Cost
-
-Tokens
-
-User Satisfaction
-
----
-
-# Acceptance Criteria
-
-✓ Context Aware
-
-✓ Curriculum Aware
-
-✓ Fast
-
-✓ Secure
-
-✓ Observable
-
----
-
-# Final Rule
-
-The AI exists to improve learning, never to replace thinking.
+# AI Architecture
+
+Version: 3.0.0
+Status: Active — enterprise AI features implemented (provider abstraction, streaming, prompt versioning, credits, analytics)
+
+## Current Runtime
+
+The AI module provides authenticated conversation CRUD, non-streaming and SSE-streaming chat, recent-message context, optional lesson/unit/grade context, RAG retrieval over pgvector, multi-provider chat completion with failover, a deterministic rule-based fallback, prompt-template versioning, per-user AI credit ledger, usage/analytics dashboards, and recommendations derived from incorrect quiz answers.
+
+```text
+Client -> JWT -> AiController -> AiService -> Prisma conversation history
+                                      |
+                                      +-> AiProviderService (configurable providers, priority failover)
+                                      |     +-> OpenAI / Gemini / Claude adapters
+                                      |     +-> SSE streaming
+                                      |     +-> health probes
+                                      +-> AiSettingsService
+                                      |     +-> teaching styles
+                                      |     +-> prompt templates + version registry
+                                      |     +-> credit plans / packages / student credits
+                                      |     +-> usage + moderation logs + analytics
+                                      +-> rule-based fallback
+                                      +-> RAG (pgvector) via AiKnowledgeBaseService
+```
+
+## Current Endpoints
+
+### Chat / conversations (`/api/v1/ai`)
+
+- `POST/GET /api/v1/ai/conversations`
+- `GET/DELETE /api/v1/ai/conversations/:conversationId`
+- `PATCH /api/v1/ai/conversations/:conversationId/favorite`
+- `GET /api/v1/ai/conversations/favorites`
+- `POST /api/v1/ai/chat`
+- `POST /api/v1/ai/chat/stream` (SSE: `event: meta|delta|done|error`)
+- `POST /api/v1/ai/messages/:messageId/feedback`
+- `POST /api/v1/ai/regenerate`
+- `GET /api/v1/ai/recommendations`
+
+### AI settings / operations (`/api/v1/ai-settings`, ADMIN + TEACHER scoped)
+
+- Teaching styles CRUD + active style
+- Model configs CRUD (encrypted API keys, masked on read) + provider health probes
+- Credit plans CRUD, packages CRUD + `packages/:packageId/assign/:userId`
+- Prompt templates CRUD + `rollback`, `preview`, `test` (version registry)
+- `credits/my`, `credits/check`, `credits/history`, `credits/add`
+- `usage-logs`, `usage-stats`, `moderation-logs`
+- `analytics?range=day|week|month|year`
+- `health` overview
+
+### Knowledge base (`/api/v1/ai-knowledge-base`)
+
+- Sources CRUD (PDF/DOCX/TXT/MD/JSON/URL/LESSON/UNIT/STORY/REVIEW), reindex, search
+- `PATCH sources/:id/enable` (enable/disable sources; search defaults to enabled only)
+- `GET stats` (sources/chunks/embedding coverage by type)
+- `GET search/preview` (admin preview, includes disabled sources)
+
+## Current Context
+
+- Up to the recent ten conversation messages are loaded for chat context.
+- If `lessonId` is supplied, the lesson title, unit title, and grade name are added to the prompt context.
+- RAG results (when available) are injected as retrieved curriculum context.
+- The system prompt is built from the active prompt template + active teaching style.
+- Output is redacted (emails, phones, non-allowlisted links) before persisting.
+- Credits are checked before chat and consumed after each completion (or streamed completion).
+
+## Not Implemented (target architecture only)
+
+- AI scoring of subjective speaking/writing responses
+- Image/PDF understanding via vision models and specialized autonomous agents
+- Voice conversation, pronunciation assessment, AI study planner / flashcards
+
+The documents in this directory describe the target architecture for those features. They must not be used as evidence that the features are live.
+
+## Safety Boundary
+
+The AI endpoint must remain authenticated, must not expose API keys or internal prompts, and must not be marketed as a curriculum-grounded RAG tutor until retrieval and response validation are implemented. Providers are validated (JWT + RBAC), API keys are encrypted at rest and masked on read, and every AI request passes through context → memory → RAG → prompt → provider → response-validation → logging.
 
 End of Document.

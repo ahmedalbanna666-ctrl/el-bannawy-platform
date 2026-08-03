@@ -1,212 +1,42 @@
-# INFRASTRUCTURE.md
+# Infrastructure
 
-# El-bannawy Platform
-## Infrastructure Specification
+Version: 2.0.0
+Status: Current local/container baseline
 
-Version: 1.0.0
+## Current Topology
 
----
+```text
+Web container -> Backend container -> PostgreSQL
+                                      |
+                                      +-> local file storage
+                                      +-> optional AI-compatible provider
+```
 
-# Purpose
+`docker/docker-compose.yml` also provisions Redis and Mailpit. They are available for local development but are not active application dependencies in the current backend.
 
-Defines the production infrastructure required to operate the El-bannawy Platform.
+## Current Containers
 
----
+- `postgres`: PostgreSQL 16 with persistent volume and health check
+- `redis`: Redis 7 with persistent volume and health check, currently unused by backend logic
+- `mailpit`: local mail inspection service, currently unused by backend delivery logic
+- `backend`: NestJS API on port 4000
+- `web`: Next.js application on port 3000
 
-# Architecture
+## Current Health Check
 
-Internet
+The backend exposes `/api/v1/home/health`. Compose uses it as a liveness check. It does not yet validate database, Redis, AI, or payment-provider readiness.
 
-↓
+## Not Yet Provisioned As Runtime Architecture
 
-Cloudflare
+Cloudflare, Nginx, BullMQ workers, AI workers, notification workers, Prometheus, Grafana, Loki, OpenTelemetry, object storage, load balancing, and multi-region/read-replica infrastructure remain deployment plans.
 
-↓
+## Production Requirements Before Claiming Readiness
 
-Nginx
-
-↓
-
-Next.js
-
-↓
-
-NestJS
-
-↓
-
-Redis
-
-↓
-
-BullMQ
-
-↓
-
-PostgreSQL
-
-↓
-
-Object Storage
-
----
-
-# Services
-
-Frontend
-
-Backend API
-
-Database
-
-Redis
-
-Queue Worker
-
-AI Worker
-
-Notification Worker
-
-Monitoring Stack
-
-Logging Stack
-
----
-
-# Minimum Production Server
-
-CPU
-
-8 Cores
-
-RAM
-
-16 GB
-
-SSD
-
-250 GB
-
-Bandwidth
-
-1 Gbps
-
----
-
-# Recommended Production
-
-CPU
-
-16 Cores
-
-RAM
-
-32 GB
-
-SSD
-
-500 GB NVMe
-
-Redis
-
-Dedicated
-
-Database
-
-Dedicated
-
----
-
-# Storage
-
-Application Files
-
-Container Volumes
-
-Backups
-
-Object Storage
-
-Logs
-
----
-
-# Networking
-
-HTTPS Only
-
-HTTP Redirect
-
-Reverse Proxy
-
-Load Balancer Ready
-
----
-
-# DNS
-
-Cloudflare
-
-SSL
-
-Automatic Renewal
-
----
-
-# Availability
-
-Target
-
-99.9%
-
----
-
-# Backup
-
-Daily Database
-
-Daily Storage
-
-Weekly Full Backup
-
-Monthly Archive
-
----
-
-# Monitoring
-
-CPU
-
-Memory
-
-Disk
-
-Database
-
-Redis
-
-Queue
-
-API
-
-AI
-
----
-
-# Acceptance Criteria
-
-✓ Highly Available
-
-✓ Secure
-
-✓ Scalable
-
-✓ Recoverable
-
----
-
-# Final Rule
-
-Infrastructure must support uninterrupted learning while remaining horizontally scalable.
+- Managed PostgreSQL backup/restore and migration procedure
+- Secret manager and non-default credentials
+- HTTPS/CORS/reverse-proxy configuration
+- Database readiness and application metrics
+- Upload storage policy and cleanup
+- Rollback and smoke-test procedure
 
 End of Document.

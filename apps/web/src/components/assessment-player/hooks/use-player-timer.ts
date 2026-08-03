@@ -15,18 +15,19 @@ export interface UsePlayerTimerResult {
 export function usePlayerTimer(): UsePlayerTimerResult {
   const context = useAssessmentPlayerContext();
 
-  const remainingSeconds = context.remainingTime;
+  const timerState = context.timerState;
 
   return useMemo<UsePlayerTimerResult>(() => {
-    const safeRemaining: number = remainingSeconds === null ? 0 : remainingSeconds; // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
+    const remainingSeconds = timerState?.remainingSeconds ?? null;
+    const elapsedSeconds = timerState?.elapsedSeconds ?? 0;
 
     return {
       remainingSeconds,
       isUnlimited: remainingSeconds === null,
-      isRunning: remainingSeconds !== null && safeRemaining > 0,
-      isExpired: safeRemaining <= 0,
-      elapsedSeconds: 0,
+      isRunning: timerState?.isRunning ?? false,
+      isExpired: timerState?.isExpired ?? false,
+      elapsedSeconds,
       warningThreshold: 300,
     };
-  }, [remainingSeconds]);
+  }, [timerState]);
 }

@@ -3,7 +3,7 @@
 # El-bannawy Platform
 ## Secretary Dashboard UI
 
-Version: 1.0.0
+Version: 2.0.0
 
 ---
 
@@ -15,33 +15,30 @@ Focuses on administrative operations only.
 
 ---
 
-# Home Screen
+# Current Implementation (Live Observer)
 
-Today's Registrations
+The current milestone delivers the secretary as a **read-only live observer**. The secretary can view live-class and platform health metrics but cannot mutate data. Full secretary administrative operations (student CRUD, payments, WhatsApp) are documented in `SECRETARY_DASHBOARD_API.md` and are deferred to a later milestone.
 
-Pending Payments
+## Routing And Access
 
-Subscription Renewals
+- Secretaries land on `/dashboard` and see the read-only secretary dashboard (dynamic import of `secretary-dashboard.tsx`, dispatched by role in `apps/web/src/app/dashboard/page.tsx`).
+- Bottom navigation: Home, Live Classes, Reports, Notifications, Profile.
+- `nav-registry.ts` registers the `secretary-live` module for the `SECRETARY` role; `ROLE_LABELS` maps `SECRETARY → "سكرتير"`.
+- Live hub (`/dashboard/live`) routes secretaries to `SecretaryLiveObserverView` (upcoming sessions with join links).
 
-Live Classes
+## Home Screen Widgets
 
-Recent Notifications
+Today's Live Classes
 
----
+Upcoming Live Classes
 
-# Quick Actions
+Active Subscriptions
 
-Register Student
+Total Students
 
-Verify Payment
+Waitlist Entries
 
-Renew Subscription
-
-Schedule Live Class
-
-Send WhatsApp
-
-Generate Report
+Recent Sessions
 
 ---
 
@@ -49,33 +46,34 @@ Generate Report
 
 Dashboard
 
-Students
+Students (deferred)
 
-Subscriptions
+Subscriptions (deferred)
 
-Payments
+Payments (deferred)
 
-Coins
+Coins (deferred)
 
 Live Classes
 
 Reports
 
-WhatsApp
+WhatsApp (deferred)
 
 Profile
 
 ---
 
-# Widgets
+# Live Classes Observer
 
-Daily Revenue
+Secretaries can:
 
-Pending Payments
+- View live overview stats (today's/upcoming live classes, active subscriptions, students, waitlist).
+- Browse upcoming sessions and open external meeting URLs.
+- View the control panel and session attendance for a session (read-only backend routes).
+- View product reports and analytics (read-only).
 
-Expiring Subscriptions
-
-Upcoming Sessions
+Secretaries cannot create, publish, start, end, delete, book, or cancel live sessions.
 
 ---
 
@@ -102,6 +100,8 @@ Required
 ✓ Administrative Focus
 
 ✓ Responsive
+
+✓ Read-Only Observation
 
 ---
 

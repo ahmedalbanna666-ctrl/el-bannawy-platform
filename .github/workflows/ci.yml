@@ -4,81 +4,74 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+env:
+  DATABASE_URL: postgresql://elbannawy_test:elbannawy_test@localhost:5434/elbannawy_test
+  JWT_SECRET: ci-jwt-secret-min-16-chars!!
+  COOKIE_SECRET: ci-cookie-secret-min-16-chars!!
+  AI_ENCRYPTION_KEY: ci-ai-encryption-key-min-32-chars-long!!
+  NODE_ENV: test
 
 jobs:
-  validate:
-    name: Validate
+  test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [22]
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
-          POSTGRES_USER: elbannawy
-          POSTGRES_PASSWORD: elbannawy_dev
-          POSTGRES_DB: elbannawy_platform_test
+          POSTGRES_USER: elbannawy_test
+          POSTGRES_PASSWORD: elbannawy_test
+          POSTGRES_DB: elbannawy_test
         ports:
-          - 5432:5432
+          - 5434:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd pg_isready -U elbannawy_test
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgresql://elbannawy:elbannawy_dev@localhost:5432/elbannawy_platform_test
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
-        name: Install pnpm
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: "pnpm"
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type check
-        run: pnpm typecheck
+      - name: Build shared packages
+        run: pnpm --filter @el-bannawy/shared build
 
-      - name: Lint
-        run: pnpm lint
+      - name: Generate Prisma client
+        run: pnpm --filter @el-bannawy/database generate
 
-      - name: Run database migrations
-        run: pnpm --filter=@el-bannawy/database exec prisma migrate deploy
-        continue-on-error: true
+      - name: Apply database migrations
+        run: pnpm --filter @el-bannawy/database migrate:deploy
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
 
-      - name: Run unit tests
-        run: pnpm --filter=@el-bannawy/backend test --passWithNoTests
-        continue-on-error: true
+      - name: TypeScript check (backend)
+        run: pnpm --filter @el-bannawy/backend typecheck
 
-      - name: Build
-        run: pnpm build
+      - name: TypeScript check (web)
+        run: pnpm --filter @el-bannawy/web typecheck
 
-  docker:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: [validate]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Lint check (backend)
+        run: pnpm --filter @el-bannawy/backend lint
 
-    steps:
-      - uses: actions/checkout@v4
+      - name: Unit tests (backend)
+        run: pnpm --filter @el-bannawy/backend test
 
-      - name: Build backend image
-        run: docker build -f docker/Dockerfile.backend -t el-bannawy-backend .
+      - name: E2E tests (backend)
+        run: pnpm --filter @el-bannawy/backend test:e2e
 
-      - name: Build web image
-        run: docker build -f docker/Dockerfile.web -t el-bannawy-web .
+      - name: Build backend
+        run: pnpm --filter @el-bannawy/backend build

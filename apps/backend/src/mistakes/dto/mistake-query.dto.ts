@@ -5,7 +5,7 @@ export enum MistakeSource {
   ASSESSMENT = "ASSESSMENT",
   QUIZ = "QUIZ",
   HOMEWORK = "HOMEWORK",
-  STORY = "STORY",
+  VIDEO_QUESTION = "VIDEO_QUESTION",
 }
 
 export class MistakeQueryDto {
@@ -32,14 +32,6 @@ export class MistakeQueryDto {
   @IsOptional()
   @IsUUID()
   lessonId?: string;
-
-  @IsOptional()
-  @IsUUID()
-  storyId?: string;
-
-  @IsOptional()
-  @IsUUID()
-  chapterId?: string;
 
   @IsOptional()
   @IsEnum(MistakeSource)

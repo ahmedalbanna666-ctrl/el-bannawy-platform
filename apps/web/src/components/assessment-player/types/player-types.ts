@@ -110,6 +110,18 @@ export interface AssessmentPlayerContextValue {
   visitedQuestions: readonly string[];
   answeredQuestions: readonly string[];
   error: string | null;
+  timerState: {
+    remainingSeconds: number | null;
+    isRunning: boolean;
+    isExpired: boolean;
+    elapsedSeconds: number;
+  } | null;
+  autosaveState: {
+    pendingCount: number;
+    failedCount: number;
+    lastSavedAt: string | null;
+    isSaving: boolean;
+  } | null;
 
   start: () => void;
   pause: () => void;

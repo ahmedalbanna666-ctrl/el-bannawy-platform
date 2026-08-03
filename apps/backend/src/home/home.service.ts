@@ -1,54 +1,68 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
+import { CacheService } from "../common/services/cache.service";
+
+interface DashboardData {
+  user: {
+    id: string;
+    fullName: string;
+    role: string;
+  };
+  xp: {
+    total: number;
+    level: number;
+    nextLevelXp: number;
+  };
+  coins: number;
+  achievements: number;
+  streak: number;
+  continueLearning: {
+    unitName: string;
+    lessonName: string;
+    progress: number;
+    lessonId: string;
+  } | null;
+  recentActivity: {
+    id: string;
+    type: string;
+    description: string;
+    createdAt: Date;
+  }[];
+  upcomingLiveClasses: {
+    id: string;
+    title: string;
+    date: Date;
+    teacherName: string;
+  }[];
+  stats: {
+    completedLessons: number;
+    totalLessons: number;
+    homeworkPending: number;
+    quizPassRate: number;
+    attendanceRate: number;
+  };
+}
 
 @Injectable()
 export class HomeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
+    private readonly cache: CacheService,
   ) {}
 
-  async getDashboard(userId: string): Promise<{
-    user: {
-      id: string;
-      fullName: string;
-      role: string;
-    };
-    xp: {
-      total: number;
-      level: number;
-      nextLevelXp: number;
-    };
-    coins: number;
-    achievements: number;
-    streak: number;
-    continueLearning: {
-      unitName: string;
-      lessonName: string;
-      progress: number;
-      lessonId: string;
-    } | null;
-    recentActivity: {
-      id: string;
-      type: string;
-      description: string;
-      createdAt: Date;
-    }[];
-    upcomingLiveClasses: {
-      id: string;
-      title: string;
-      date: Date;
-      teacherName: string;
-    }[];
-    stats: {
-      completedLessons: number;
-      totalLessons: number;
-      homeworkPending: number;
-      quizPassRate: number;
-      attendanceRate: number;
-    };
-  }> {
+  async getDashboard(userId: string): Promise<DashboardData> {
+    const cacheKey = this.cache.generateKey("dashboard", userId);
+    const cached = await this.cache.get<DashboardData>(cacheKey);
+    if (cached) return cached;
+
+    const data = await this.computeDashboard(userId);
+    await this.cache.set(cacheKey, data, 30);
+    return data;
+  }
+
+  private async computeDashboard(userId: string): Promise<DashboardData> {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
     });
@@ -138,6 +152,126 @@ export class HomeService {
         })
       : 0;
 
+    const [
+      recentLessons,
+      recentQuizzes,
+      recentHomework,
+      recentXp,
+      recentAchievements,
+      recentPurchases,
+    ] = await Promise.all([
+      this.prisma.lessonProgress.findMany({
+        where: { userId, completed: true },
+        orderBy: { completedAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          completedAt: true,
+          lesson: { select: { title: true } },
+        },
+      }),
+      this.prisma.quizAttempt.findMany({
+        where: { userId, submitted: true },
+        orderBy: { submittedAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          submittedAt: true,
+          passed: true,
+          quiz: { select: { title: true } },
+        },
+      }),
+      this.prisma.studentHomeworkAttempt.findMany({
+        where: { userId, submitted: true },
+        orderBy: { submittedAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          submittedAt: true,
+          passed: true,
+          homework: { select: { title: true } },
+        },
+      }),
+      this.prisma.xPTransaction.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, amount: true, reason: true, createdAt: true },
+      }),
+      this.prisma.userAchievement.findMany({
+        where: { userId },
+        orderBy: { earnedAt: "desc" },
+        take: 5,
+        select: { id: true, title: true, earnedAt: true },
+      }),
+      this.prisma.coinPurchase.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          createdAt: true,
+          package: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    const recentActivity: {
+      id: string;
+      type: string;
+      description: string;
+      createdAt: Date;
+    }[] = [
+      ...recentLessons.map((p) => ({
+        id: p.id,
+        type: "lesson_completed",
+        description: `أكملت الدرس "${p.lesson.title}"`,
+        createdAt: p.completedAt ?? new Date(0),
+      })),
+      ...recentQuizzes.map((q) => ({
+        id: q.id,
+        type: "quiz_completed",
+        description: q.passed
+          ? `اجتزت اختبار "${q.quiz.title}"`
+          : `أنهيت اختبار "${q.quiz.title}"`,
+        createdAt: q.submittedAt ?? new Date(0),
+      })),
+      ...recentHomework.map((h) => ({
+        id: h.id,
+        type: "homework_submitted",
+        description: h.passed
+          ? `سلّمت واجب "${h.homework.title}" بنجاح`
+          : `سلّمت واجب "${h.homework.title}"`,
+        createdAt: h.submittedAt ?? new Date(0),
+      })),
+      ...recentXp.map((xp) => ({
+        id: xp.id,
+        type: "xp_earned",
+        description: `حصلت على ${String(xp.amount)} نقطة خبرة (${xp.reason})`,
+        createdAt: xp.createdAt,
+      })),
+      ...recentAchievements.map((a) => ({
+        id: a.id,
+        type: "achievement_earned",
+        description: `حققت إنجاز "${a.title}"`,
+        createdAt: a.earnedAt,
+      })),
+      ...recentPurchases.map((cp) => ({
+        id: cp.id,
+        type: "payment_completed",
+        description: `اشتريت باقة "${cp.package.name}"`,
+        createdAt: cp.createdAt,
+      })),
+      ...recentLoginHistory.map((entry) => ({
+        id: entry.id,
+        type: "login",
+        description: "سجّلت دخولك إلى المنصة",
+        createdAt: entry.createdAt,
+      })),
+    ];
+
+    recentActivity.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
     const quizPassRate = quizPassRateTotal > 0
       ? Math.round((quizPassedCount / quizPassRateTotal) * 100)
       : 0;
@@ -168,12 +302,7 @@ export class HomeService {
             lessonId: currentProgress.lessonId,
           }
         : null,
-      recentActivity: recentLoginHistory.map((entry) => ({
-        id: entry.id,
-        type: "login",
-        description: "Logged into the platform",
-        createdAt: entry.createdAt,
-      })),
+      recentActivity: recentActivity.slice(0, 10),
       upcomingLiveClasses: [],
       stats: {
         completedLessons,

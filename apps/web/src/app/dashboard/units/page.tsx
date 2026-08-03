@@ -27,15 +27,15 @@ export default function UnitsPage(): ReactNode {
   }
 
   if (isAdmin) {
-    return <AdminUnitsView />;
+    return <AdminUnitsView unitType="UNIT" />;
   }
 
   if (isTeacher) {
-    return <TeacherUnitsView />;
+    return <TeacherUnitsView unitType="UNIT" />;
   }
 
   if (isStaff) {
-    return <StaffUnitsView />;
+    return <StaffUnitsView unitType="UNIT" />;
   }
 
   if (!KNOWN_ROLES.has(rawRole)) {

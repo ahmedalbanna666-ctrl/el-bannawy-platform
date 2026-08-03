@@ -137,7 +137,7 @@ export class ProfileService {
       },
     });
 
-    return this.enrichProfile(updated as Record<string, unknown>);
+    return this.enrichProfile(updated);
   }
 
   async getAchievements(userId: string): Promise<unknown[]> {

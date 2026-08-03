@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api-client";
+import { useHomeData } from "@/lib/home-api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -39,10 +39,6 @@ interface ActivityRecord {
 interface ActivityGroup {
   label: string;
   records: ActivityRecord[];
-}
-
-interface DashboardActivityData {
-  recentActivity: ActivityRecord[];
 }
 
 const ACTIVITY_ICON: Record<string, typeof Activity> = {
@@ -168,28 +164,11 @@ function groupByDay(records: ActivityRecord[]): ActivityGroup[] {
 
 export default function HistoryPage(): ReactNode {
   const router = useRouter();
-  const [activities, setActivities] = useState<ActivityRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, isError, error } = useHomeData();
+  const activities = (data?.recentActivity ?? []) as ActivityRecord[];
 
-  useEffect(() => {
-    async function fetchHistory(): Promise<void> {
-      try {
-        const response = await api.get<DashboardActivityData>("/home");
-        if (response.data?.recentActivity) {
-          setActivities(response.data.recentActivity);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "فشل تحميل سجل التعلم");
-      } finally {
-        setLoading(false);
-      }
-    }
-    void fetchHistory();
-  }, []);
-
-  if (loading) return <HistorySkeleton />;
-  if (error) return <ErrorState title="فشل تحميل سجل التعلم" description={error} />;
+  if (isLoading) return <HistorySkeleton />;
+  if (isError) return <ErrorState title="فشل تحميل سجل التعلم" description={error instanceof Error ? error.message : "حدث خطأ"} />;
   if (activities.length === 0) {
     return (
       <EmptyState

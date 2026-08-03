@@ -32,7 +32,7 @@ interface YouTubePlayerProps {
 }
 
 const YT_SCRIPT_ID = "youtube-iframe-api";
-const PROGRESS_INTERVAL_MS = 10_000;
+const PROGRESS_INTERVAL_MS = 90_000;
 
 function getYT(): { Player: new (elementId: string, config: Record<string, unknown>) => YTPlayerInstance; PlayerState: Record<string, number> } | undefined {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,6 +91,7 @@ export function YouTubePlayer({
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasReportedReady = useRef(false);
+  const lastPositionRef = useRef(0);
 
   const clearTimers = useCallback((): void => {
     if (progressTimerRef.current) {
@@ -159,11 +160,17 @@ export function YouTubePlayer({
             const ended = getPlayerStateNumber(yt.PlayerState, "ENDED");
 
             if (state === playing) {
+              saveProgress(event.target);
+              lastPositionRef.current = Math.floor(event.target.getCurrentTime());
               progressTimerRef.current = setInterval(() => {
                 if (event.target.getPlayerState() === playing) {
                   const currentTime = Math.floor(event.target.getCurrentTime());
                   const duration = Math.floor(event.target.getDuration());
                   if (currentTime > 0 && duration > 0) {
+                    if (currentTime < lastPositionRef.current - 2) {
+                      saveProgress(event.target);
+                    }
+                    lastPositionRef.current = currentTime;
                     onProgress(currentTime, duration);
                   }
                 }
@@ -202,6 +209,24 @@ export function YouTubePlayer({
       }
     };
   }, [videoId, youtubeId, startAt, onProgress, onReady, onError, saveProgress, clearTimers]);
+
+  useEffect(() => {
+    if (!videoId) return;
+    const flush = (): void => {
+      if (playerRef.current) saveProgress(playerRef.current);
+    };
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return (): void => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [videoId, saveProgress]);
 
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-neutral-900 shadow-lg" id={`yt-player-${videoId}`} />
