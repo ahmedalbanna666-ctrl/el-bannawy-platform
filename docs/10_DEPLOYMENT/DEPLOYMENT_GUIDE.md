@@ -1,7 +1,7 @@
 # Deployment Guide
 
-Version: 3.0.0
-Status: Vercel (frontend) + Container host (backend)
+Version: 3.1.0
+Status: Vercel (frontend) + Railway (backend)
 
 ## Architecture
 
@@ -9,10 +9,10 @@ This platform is deployed as two separate services:
 
 | Service | Runtime | Host |
 | --- | --- | --- |
-| Frontend (`apps/web`, Next.js) | Vercel | Vercel (project `el-bannawy-web`) |
-| Backend (`apps/backend`, NestJS) | Long-running container | Container host (Render/Railway/Fly.io) |
-| PostgreSQL | Managed | Neon / hosted provider |
-| Redis | Managed | Hosted provider (BullMQ scheduler workers) |
+| Frontend (`apps/web`, Next.js) | Vercel | Vercel (project `el-bannawy-web`) → https://el-bannawy-web.vercel.app |
+| Backend (`apps/backend`, NestJS) | Long-running container | Railway (service `el-bannawy-backend`) → https://el-bannawy-backend-production.up.railway.app |
+| PostgreSQL | Managed | Neon |
+| Redis | Provisioned | Railway (BullMQ scheduler workers) |
 
 The backend is a long-running NestJS process that runs BullMQ workers (`ScheduledNotificationsProcessor`, `SubscriptionPeriodEndProcessor`) and stores uploaded files on the local filesystem. It must therefore run on a **persistent container host**, not on Vercel serverless functions.
 
@@ -61,13 +61,20 @@ vercel link --project el-bannawy-web --yes   # from repo root
 vercel deploy --prod --yes                    # from repo root
 ```
 
-## Backend → Container host
+## Backend → Railway
 
-A Render blueprint is provided at `render.yaml`. It deploys the NestJS backend from `docker/Dockerfile.backend` as a persistent web service with a `/api/v1/home/health` health check.
+The backend runs on Railway, built from the GitHub repo with `railpack.json` (monorepo-aware). The build:
 
-Required secrets (set in the container host):
+1. Builds `packages/shared`
+2. Runs `prisma generate` in `database`
+3. Runs `nest build` in `apps/backend`
+4. Starts with `cd apps/backend && node dist/src/main.js`
 
-- `DATABASE_URL`, `DIRECT_URL` (PostgreSQL)
+Deployed URL: https://el-bannawy-backend-production.up.railway.app
+
+Required secrets (set as Railway service variables):
+
+- `DATABASE_URL`, `DIRECT_URL` (PostgreSQL/Neon)
 - `REDIS_HOST`, `REDIS_PORT` (Redis for BullMQ)
 - `JWT_SECRET`, `COOKIE_SECRET`, `PAYMENT_WEBHOOK_SECRET`
 - `FRONTEND_URL` (the Vercel URL, e.g. `https://el-bannawy-web.vercel.app`)
@@ -75,7 +82,7 @@ Required secrets (set in the container host):
 - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
 - `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`
 
-After deployment, set the backend URL as the rewrite destination in `apps/web/vercel.json` and redeploy the frontend.
+The Vercel frontend rewrites `/api/*` to this URL (configured in `apps/web/vercel.json`).
 
 ## Build And Verify
 
@@ -105,10 +112,16 @@ The backend exposes `GET /api/v1/home/health` without authentication. It returns
 
 ## Post-Deploy Smoke Test
 
-1. Open `https://el-bannawy-web.vercel.app` and confirm the login page renders.
-2. Confirm `/api/v1/...` requests are rewritten to the backend (e.g. `/api/v1/home/health`).
+1. Open `https://el-bannawy-web.vercel.app` and confirm the login page renders (HTTP 200).
+2. Confirm `/api/v1/...` requests are rewritten to the backend: `https://el-bannawy-web.vercel.app/api/v1/home/health` → `{"status":"ok"}`.
 3. Verify login and refresh-token flow (cookies must be same-origin via the rewrite).
 4. Verify a read-only curriculum request.
 5. Verify migration status and logs contain no secrets.
+
+## Verified Status (2026-08-03)
+
+- Frontend: `https://el-bannawy-web.vercel.app` → HTTP 200 (Ready).
+- Backend health via Vercel rewrite: `https://el-bannawy-web.vercel.app/api/v1/home/health` → `{"status":"ok"}`.
+- Backend direct: `https://el-bannawy-backend-production.up.railway.app/api/v1/home/health` → `{"status":"ok"}`.
 
 End of Document.
