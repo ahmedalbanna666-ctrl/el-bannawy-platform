@@ -25,8 +25,9 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=builder /out ./out
 
-# The backend creates /app/uploads/* at boot (main.ts) — make it writable by the runtime user
-RUN mkdir -p /app/uploads && chown -R nestjs:nodejs /app
+# The backend creates /app/uploads/* at boot (main.ts) — create and pre-chown
+RUN mkdir -p /app/uploads/ui /app/uploads/certificates /app/uploads/documents && \
+    chown -R nestjs:nodejs /app
 
 USER nestjs
 
