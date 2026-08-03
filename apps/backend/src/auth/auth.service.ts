@@ -276,7 +276,7 @@ export class AuthService {
     const user = await this.authRepo.findUserByEmailOrPhone(identifier, normalizedMobile);
 
     if (!user) {
-      throw new UnauthorizedException("Invalid email/phone or password");
+      throw new UnauthorizedException("البريد الإلكتروني أو رقم الهاتف أو كلمة المرور غير صحيحة");
     }
 
     if (user.status !== "ACTIVE") {
@@ -308,7 +308,7 @@ export class AuthService {
 
     if (!passwordValid) {
       await this.logLoginAttempt(user.id, ipAddress, userAgent, false, "Invalid password");
-      throw new UnauthorizedException("Invalid email/phone or password");
+      throw new UnauthorizedException("البريد الإلكتروني أو رقم الهاتف أو كلمة المرور غير صحيحة");
     }
 
     await this.logLoginAttempt(user.id, ipAddress, userAgent, true, null);

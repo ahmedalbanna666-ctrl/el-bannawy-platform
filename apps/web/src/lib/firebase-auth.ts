@@ -32,22 +32,32 @@ export function isFirebaseAuthConfigured(): boolean {
 
 export async function createFirebaseUser(email: string, password: string): Promise<string | null> {
   if (!isFirebaseAuthConfigured()) return null;
-  const credential: UserCredential = await createUserWithEmailAndPassword(
-    getAuth(getFirebaseApp()),
-    email,
-    password,
-  );
-  return credential.user.getIdToken();
+  try {
+    const credential: UserCredential = await createUserWithEmailAndPassword(
+      getAuth(getFirebaseApp()),
+      email,
+      password,
+    );
+    return await credential.user.getIdToken();
+  } catch {
+    // Account already exists or Firebase unavailable — the platform DB handles registration
+    return null;
+  }
 }
 
 export async function signInFirebaseUser(email: string, password: string): Promise<string | null> {
   if (!isFirebaseAuthConfigured()) return null;
-  const credential: UserCredential = await signInWithEmailAndPassword(
-    getAuth(getFirebaseApp()),
-    email,
-    password,
-  );
-  return credential.user.getIdToken();
+  try {
+    const credential: UserCredential = await signInWithEmailAndPassword(
+      getAuth(getFirebaseApp()),
+      email,
+      password,
+    );
+    return await credential.user.getIdToken();
+  } catch {
+    // User not in Firebase / wrong password — fall back to the platform's own auth (JWT)
+    return null;
+  }
 }
 
 export async function resetFirebasePassword(email: string): Promise<void> {
