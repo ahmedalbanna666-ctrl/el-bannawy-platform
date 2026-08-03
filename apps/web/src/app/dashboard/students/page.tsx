@@ -4,7 +4,7 @@ import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { useAcademicContext } from "@/lib/academic-context-store";
-import { EDUCATIONAL_STAGES, ACADEMIC_TERMS } from "@/lib/education-options";
+import { EDUCATIONAL_STAGES } from "@/lib/education-options";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -162,23 +162,33 @@ export default function StudentsPage(): ReactNode {
   const academicFilterIds = useMemo(() => {
     if (!stages || !academicYears) return { stageId: undefined as string | undefined, gradeId: undefined as string | undefined, academicYearId: undefined as string | undefined, termId: undefined as string | undefined };
 
-    const stageLabel = EDUCATIONAL_STAGES.find((s) => s.id === academicContext.stage)?.label;
-    const stage = stageLabel ? stages.find((s) => s.name === stageLabel) : undefined;
+    // Prefer the exact IDs stored in the academic context (most reliable).
+    // Fall back to name lookups only when the ID is missing (legacy persisted state).
+    let stageId: string | undefined;
+    let gradeId: string | undefined;
 
-    const allGrades = stages.flatMap((s) => s.grades);
-    const grade = academicContext.grade ? allGrades.find((g) => g.name === academicContext.grade) : undefined;
+    if (academicContext.gradeId) {
+      gradeId = academicContext.gradeId;
+    } else if (academicContext.grade) {
+      const allGrades = stages.flatMap((s) => s.grades);
+      gradeId = allGrades.find((g) => g.name === academicContext.grade)?.id;
+    }
 
-    const year = academicContext.academicYear ? academicYears.find((y) => y.name === academicContext.academicYear) : undefined;
-
-    const termLabel = ACADEMIC_TERMS.find((t) => t.id === academicContext.term)?.label;
-    const allTerms = academicYears.flatMap((y) => y.terms);
-    const term = termLabel ? allTerms.find((t) => t.name === termLabel) : undefined;
+    if (academicContext.stage) {
+      const stageLabel = EDUCATIONAL_STAGES.find((s) => s.id === academicContext.stage)?.label;
+      const stage = stageLabel ? stages.find((s) => s.name === stageLabel) : undefined;
+      stageId = stage?.id;
+    }
+    if (!stageId && gradeId) {
+      const gradeStage = stages.find((s) => s.grades.some((g) => g.id === gradeId));
+      stageId = gradeStage?.id;
+    }
 
     return {
-      stageId: stage?.id,
-      gradeId: grade?.id,
-      academicYearId: year?.id,
-      termId: term?.id,
+      stageId,
+      gradeId,
+      academicYearId: academicContext.academicYearId ?? undefined,
+      termId: academicContext.termId ?? undefined,
     };
   }, [stages, academicYears, academicContext]);
 
