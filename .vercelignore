@@ -1,0 +1,42 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+.next
+**/.next
+coverage
+**/coverage
+.turbo
+
+# Logs
+*.log
+**/*.log
+backend-error.log
+backend-err.log
+backend.log
+web-build.log
+sprint3-backend.log
+
+# Env files (secrets are injected via Vercel dashboard)
+.env
+.env.local
+.env.production
+**/.env*
+
+# Uploads & local files
+uploads
+**/uploads
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+# Docker (backend runs on a container host, not Vercel)
+docker
+*.yml
+docker-compose*

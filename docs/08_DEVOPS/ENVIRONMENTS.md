@@ -1,160 +1,37 @@
-# ENVIRONMENTS.md
-
-# El-bannawy Platform
-## Environment Configuration
-
-Version: 1.0.0
-
----
-
-# Purpose
-
-Defines all application environments.
-
-Each environment must remain completely isolated.
-
----
-
 # Environments
 
-Local
+Version: 3.0.0
 
-Development
+## Local Development
 
-Testing
+- Web: `http://localhost:3000`
+- API: `http://localhost:4000/api/v1`
+- PostgreSQL Compose host port: `5433`
+- Redis Compose host port: `6379` (used by BullMQ scheduler workers)
+- Mailpit UI: `http://localhost:8025` (local email capture)
 
-Staging
+Use `.env.example` as the variable inventory and create a local `.env`. Required backend secrets are validated at startup.
 
-Production
+## Production
 
----
+- Web: Vercel — project `el-bannawy-web`, Root Directory `apps/web`. See `docs/10_DEPLOYMENT/DEPLOYMENT_GUIDE.md`.
+- API: Persistent container host (Render/Railway/Fly.io) running the NestJS backend, because BullMQ workers and local file uploads require a long-running process.
+- Frontend reaches the API through Vercel rewrites (`/api/*` → backend URL), keeping requests same-origin so `sameSite: "strict"` cookies work.
 
-# Local
+## Docker Compose
 
-Purpose
+`docker/docker-compose.yml` provisions PostgreSQL, Redis, Mailpit, backend, and web. Compose defaults are for local convenience only. Replace secrets and review the database URL before staging/production use.
 
-Developer Machine
+## Environment Separation
 
-Database
+Local, test, staging, and production databases and credentials must remain isolated. Never use production payment, AI, or user data in local/test environments.
 
-Local PostgreSQL
+## Current Configuration Reality
 
-Redis
-
-Local
-
-AI
-
-Sandbox Keys
-
----
-
-# Development
-
-Shared Team Environment
-
-Automatic Deployment
-
-Test Data
-
----
-
-# Testing
-
-Automated Tests
-
-Performance Tests
-
-Security Tests
-
-Disposable Data
-
----
-
-# Staging
-
-Production Clone
-
-Final Validation
-
-Manual QA
-
-Release Candidate
-
----
-
-# Production
-
-Real Users
-
-Real Payments
-
-Real AI
-
-Maximum Security
-
----
-
-# Environment Variables
-
-Application
-
-Database
-
-Redis
-
-AI
-
-Payments
-
-Email
-
-WhatsApp
-
-Storage
-
-Monitoring
-
----
-
-# Secret Management
-
-Never Commit Secrets
-
-Rotate Regularly
-
-Encrypted Storage
-
-Role-Based Access
-
----
-
-# Configuration Rules
-
-Environment-specific
-
-Immutable
-
-Version Controlled
-
-Validated on Startup
-
----
-
-# Acceptance Criteria
-
-✓ Isolated
-
-✓ Secure
-
-✓ Repeatable
-
-✓ Configurable
-
----
-
-# Final Rule
-
-Production configuration must never be used in development environments.
+- PostgreSQL is required at runtime.
+- Redis is required by BullMQ scheduler workers.
+- AI and gateway integrations are optional/configured independently.
+- The backend validates `NODE_ENV`, ports, URLs, JWT settings, payment webhook secret, and provider-specific variables through Joi.
 
 End of Document.
+

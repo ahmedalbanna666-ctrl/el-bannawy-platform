@@ -1,0 +1,61 @@
+# El-bannawy Backend — Render Blueprint (container host)
+# Deploys the NestJS backend as a persistent web service so that
+# BullMQ workers, schedulers, and local file uploads keep working.
+#
+# Usage:
+#   1. Push this repo to GitHub (https://github.com/ahmedalbanna666-ctrl/el-bannawy-platform).
+#   2. Create a new Blueprint on Render and connect the repo.
+#   3. Fill the env vars below (use a managed PostgreSQL/Redis or external providers).
+#   4. Set the resulting service URL (e.g. https://el-bannawy-backend.onrender.com)
+#      in Vercel's rewrites (apps/web/vercel.json) for the /api/* path.
+services:
+  - type: web
+    name: el-bannawy-backend
+    runtime: docker
+    repo: https://github.com/ahmedalbanna666-ctrl/el-bannawy-platform
+    dockerfilePath: ./docker/Dockerfile.backend
+    plan: starter
+    healthCheckPath: /api/v1/home/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        value: "6379"
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: COOKIE_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PAYMENT_WEBHOOK_SECRET
+        sync: false
+      - key: SIMULATION_HMAC_KEY
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: El-bannawy Platform

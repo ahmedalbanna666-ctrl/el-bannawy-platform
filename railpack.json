@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": {
+    "node": "22"
+  },
+  "steps": {
+    "build": {
+      "commands": [
+        "cd apps/backend && pnpm run build"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "cd apps/backend && node dist/main.js",
+    "paths": ["apps/backend/node_modules/.bin"]
+  }
+}

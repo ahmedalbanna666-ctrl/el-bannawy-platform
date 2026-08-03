@@ -10,4 +10,5 @@ allowBuilds:
   sharp: true
   '@firebase/util': true
   protobufjs: true
-onlyBuiltDependencies: esbuild
+  core-js: true
+  msgpackr-extract: true
