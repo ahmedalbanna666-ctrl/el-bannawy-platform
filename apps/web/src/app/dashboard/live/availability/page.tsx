@@ -104,6 +104,7 @@ function AddSlotForm({
   const [slotType, setSlotType] = useState<LiveSessionTypeEnum>(
     (editing?.type as LiveSessionTypeEnum | undefined) ?? LiveSessionTypeEnum.PRIVATE,
   );
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const { mutateAsync: createAvailability, isPending: isCreating } =
     useCreateAvailability();
@@ -114,6 +115,7 @@ function AddSlotForm({
 
   const handleSubmit = async (): Promise<void> => {
     if (!startTime || !endTime) return;
+    setSubmitError(null);
 
     try {
       if (editing) {
@@ -139,7 +141,7 @@ function AddSlotForm({
       }
       onClose();
     } catch {
-      // handled by mutation
+      setSubmitError("تعذر حفظ الموعد. تأكد من عدم تعارض الوقت مع موعد آخر ثم أعد المحاولة");
     }
   };
 
@@ -221,6 +223,12 @@ function AddSlotForm({
             />
             متكرر أسبوعياً
           </label>
+
+          {submitError && (
+            <p className="rounded-lg bg-danger-500/10 px-3 py-2 text-xs text-danger-600 dark:text-danger-300">
+              {submitError}
+            </p>
+          )}
 
           <div className="flex gap-2">
             <Button variant="outline" size="sm" fullWidth onClick={onClose}>

@@ -196,9 +196,17 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         await login(email, password, rememberMe);
         return;
       }
-      const response = await api.post<{ userId: string }>("/auth/firebase-login", { idToken, rememberMe });
-      if (!response.data) {
-        throw new Error("Login failed");
+      try {
+        const response = await api.post<{ userId: string }>("/auth/firebase-login", { idToken, rememberMe });
+        if (!response.data) {
+          throw new Error("Login failed");
+        }
+      } catch {
+        // The backend rejected the Firebase ID token (e.g. Firebase Admin is
+        // not configured server-side, or the account was not linked). Fall
+        // back to the platform's own credentials so email login still works.
+        await login(email, password, rememberMe);
+        return;
       }
       await fetchUser();
       queryClient.removeQueries({ queryKey: ["profile"] });

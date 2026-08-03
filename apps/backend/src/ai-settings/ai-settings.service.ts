@@ -493,6 +493,24 @@ export class AiSettingsService {
 
   // ---------- Credits ----------
 
+  private async ensureDefaultCreditPlan(): Promise<{ id: string }> {
+    const existing = await this.prisma.aiCreditPlan.findFirst();
+    if (existing) return { id: existing.id };
+
+    return this.prisma.aiCreditPlan.create({
+      data: {
+        name: "Free Plan",
+        creditsPerQuestion: 1,
+        creditsPerSession: 10,
+        freeCredits: 20,
+        resetPeriod: "DAILY",
+        isUnlimited: false,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+  }
+
   async getStudentCredits(userId: string): Promise<StudentCreditsWithRelations | null> {
     let credits = await this.prisma.studentAiCredits.findFirst({
       where: { userId },
@@ -501,8 +519,7 @@ export class AiSettingsService {
 
     if (!credits) {
       const defaultPlan = await this.prisma.aiCreditPlan.findFirst({ where: { isActive: true } });
-      const planId = defaultPlan?.id ?? (await this.prisma.aiCreditPlan.findFirst())?.id;
-      if (!planId) throw new NotFoundException("No credit plan available");
+      const planId = defaultPlan?.id ?? (await this.prisma.aiCreditPlan.findFirst())?.id ?? (await this.ensureDefaultCreditPlan()).id;
       credits = await this.prisma.studentAiCredits.create({
         data: { userId, planId },
         include: { plan: true, package: true },

@@ -82,6 +82,12 @@ interface UserProfile {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() ?? "http://localhost:4000/api/v1";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isServerMessageId(id: string): boolean {
+  return UUID_REGEX.test(id);
+}
+
 /** Lightweight markdown renderer (headings, bold, italic, code, lists, links). */
 function renderInline(text: string): ReactNode {
   const elements: ReactNode[] = [];
@@ -226,18 +232,21 @@ export default function AiChatPage(): ReactNode {
 
   useEffect(() => {
     async function fetchInitial(): Promise<void> {
-      try {
-        const [convRes, creditsRes] = await Promise.all([
-          api.get<Conversation[]>("/ai/conversations"),
-          api.get<CreditsInfo>("/ai-settings/credits/check"),
-        ]);
-        if (convRes.data) setConversations(convRes.data);
-        if (creditsRes.data) setCredits(creditsRes.data);
-      } catch (err) {
-        console.warn("[AI] Failed to fetch initial data:", err);
-      } finally {
-        setLoading(false);
+      const [convRes, creditsRes] = await Promise.allSettled([
+        api.get<Conversation[]>("/ai/conversations"),
+        api.get<CreditsInfo>("/ai-settings/credits/check"),
+      ]);
+      if (convRes.status === "fulfilled" && convRes.value.data) {
+        setConversations(convRes.value.data);
+      } else if (convRes.status === "rejected") {
+        console.warn("[AI] Failed to fetch conversations:", convRes.reason);
       }
+      if (creditsRes.status === "fulfilled" && creditsRes.value.data) {
+        setCredits(creditsRes.value.data);
+      } else if (creditsRes.status === "rejected") {
+        console.warn("[AI] Failed to fetch credits:", creditsRes.reason);
+      }
+      setLoading(false);
     }
     void fetchInitial();
 
@@ -320,6 +329,7 @@ export default function AiChatPage(): ReactNode {
   };
 
   const submitFeedback = async (messageId: string, rating: number): Promise<void> => {
+    if (!isServerMessageId(messageId)) return;
     try {
       await api.post(`/ai/messages/${messageId}/feedback`, { rating });
       setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, feedback: { rating } } : m)));
@@ -332,6 +342,7 @@ export default function AiChatPage(): ReactNode {
 
   const submitFeedbackWithComment = async (): Promise<void> => {
     if (!feedbackTarget) return;
+    if (!isServerMessageId(feedbackTarget.messageId)) return;
     try {
       await api.post(`/ai/messages/${feedbackTarget.messageId}/feedback`, {
         rating: feedbackTarget.rating,
@@ -350,7 +361,7 @@ export default function AiChatPage(): ReactNode {
   const regenerateLast = async (): Promise<void> => {
     if (!activeId || sending) return;
     const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    if (!lastAssistant) return;
+    if (!lastAssistant || !isServerMessageId(lastAssistant.id)) return;
 
     setSending(true);
     setMessages((prev) => prev.map((m) => (m.id === lastAssistant.id ? { ...m, content: "", isStreaming: true } : m)));
@@ -727,7 +738,7 @@ export default function AiChatPage(): ReactNode {
                       )}
                     </div>
 
-                    {msg.role === "assistant" && !msg.isStreaming && msg.content !== "" && (
+                    {msg.role === "assistant" && !msg.isStreaming && msg.content !== "" && isServerMessageId(msg.id) && (
                       <div className="mr-11 mt-1.5 flex flex-wrap items-center gap-1.5">
                         <button
                           onClick={(): void => { void copyMessage(msg.id, msg.content); }}
@@ -771,7 +782,7 @@ export default function AiChatPage(): ReactNode {
                       </div>
                     )}
 
-                    {msg.role === "assistant" && !msg.isStreaming && msg.id !== pendingAssistantId && !msg.id.startsWith("streaming-") && msg.content !== "" && (
+                    {msg.role === "assistant" && !msg.isStreaming && msg.id !== pendingAssistantId && isServerMessageId(msg.id) && msg.content !== "" && (
                       <div className="mr-11 mt-1">
                         <button
                           onClick={(): void => { setPendingAssistantId(msg.id); void regenerateLast(); }}
