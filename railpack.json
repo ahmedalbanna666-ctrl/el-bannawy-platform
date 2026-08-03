@@ -14,7 +14,7 @@
     }
   },
   "deploy": {
-    "startCommand": "cd apps/backend && node dist/main.js",
+    "startCommand": "cd apps/backend && node dist/src/main.js",
     "paths": ["apps/backend/node_modules/.bin"]
   }
 }
