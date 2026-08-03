@@ -133,5 +133,6 @@ The backend exposes `GET /api/v1/home/health` without authentication. It returns
 - Backend direct: `https://el-bannawy-backend-production.up.railway.app/api/v1/home/health` → `{"status":"ok"}`.
 - Redis: Railway `Redis` service SUCCESS; BullMQ scheduler workers registered at boot.
 - Backend logs: `Nest application successfully started`, no `EACCES`/config errors.
+- Brevo: transactional email configured (`BREVO_API_KEY`, `BREVO_SENDER_EMAIL=ahmed.albanna6666@gmail.com`); test send verified (HTTP 201).
 
 End of Document.
