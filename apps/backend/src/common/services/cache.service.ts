@@ -12,11 +12,15 @@ export class CacheService {
   constructor(configService: ConfigService) {
     const host = configService.get<string>("REDIS_HOST", "localhost");
     const port = configService.get<number>("REDIS_PORT", 6379);
+    const user = configService.get<string>("REDIS_USER", "");
+    const password = configService.get<string>("REDIS_PASSWORD", "");
     try {
       this.redis = new IORedis(port, host, {
         maxRetriesPerRequest: 1,
         retryStrategy: () => null,
         lazyConnect: true,
+        ...(user ? { username: user } : {}),
+        ...(password ? { password } : {}),
       });
       this.redis.on("error", () => {});
     } catch {
