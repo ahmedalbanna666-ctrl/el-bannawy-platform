@@ -1346,6 +1346,18 @@ function VideoQuestionBlock({
     }
   };
 
+  const missingField: string | null = editingId
+    ? null
+    : !selectedVideoId
+      ? "اختر الفيديو أولًا"
+      : !questionTitle.trim()
+        ? "أدخل نص السؤال"
+        : optionsText.some((t) => !t.trim())
+          ? "أكمل جميع الخيارات"
+          : parseTimestamp(timestampStr) === null
+            ? "أدخل توقيتًا صحيحًا (MM:SS أو ثوانٍ)"
+            : null;
+
   return (
     <ContentBlock
       icon={HelpCircle}
@@ -1511,17 +1523,24 @@ function VideoQuestionBlock({
                 </Button>
               </>
             ) : (
-              <Button
-                variant="primary"
-                size="sm"
-                loading={createMutation.isPending}
-                disabled={!questionTitle.trim() || optionsText.some((t) => !t.trim()) || parseTimestamp(timestampStr) === null || !selectedVideoId}
-                onClick={(): void => { createMutation.mutate(); }}
-              >
-                <Plus className="h-4 w-4" />
-                إضافة سؤال
-                {!editingId && allQuestions && allQuestions.length > 0 ? " آخر" : ""}
-              </Button>
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={createMutation.isPending}
+                  disabled={!questionTitle.trim() || optionsText.some((t) => !t.trim()) || parseTimestamp(timestampStr) === null || !selectedVideoId}
+                  onClick={(): void => { createMutation.mutate(); }}
+                >
+                  <Plus className="h-4 w-4" />
+                  إضافة سؤال
+                  {!editingId && allQuestions && allQuestions.length > 0 ? " آخر" : ""}
+                </Button>
+                {missingField && (
+                  <p className="w-full text-xs text-neutral-400">
+                    لتفعيل الزر: {missingField}
+                  </p>
+                )}
+              </>
             )}
           </div>
 
