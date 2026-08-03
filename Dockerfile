@@ -21,8 +21,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=builder /app/apps/backend/package.json ./
 COPY --from=builder /app/apps/backend/dist ./dist
-COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
-COPY --from=builder /app/node_modules/@el-bannawy ./node_modules/@el-bannawy
+COPY --from=builder /app/node_modules ./node_modules
 
 USER nestjs
 
