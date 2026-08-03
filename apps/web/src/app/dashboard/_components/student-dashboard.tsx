@@ -207,19 +207,19 @@ export function StudentDashboard(): ReactNode {
       </div>
 
       {/* 4 — Quick Tools Grid (4 cards) */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-2">
         <div onClick={(): void => { router.push("/dashboard/ai"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/ai"); } }}>
           <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
             <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
+              <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
                   <Sparkles className="h-6 w-6 text-white" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">اسأل البنا AI</h3>
-                  <p className="text-sm text-neutral-500">احصل على إجابات وشروحات فورية</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold leading-tight text-neutral-900 dark:text-neutral-100 sm:text-base">اسأل البنا AI</h3>
+                  <p className="mt-0.5 hidden text-sm text-neutral-500 sm:block">احصل على إجابات وشروحات فورية</p>
                 </div>
-                <ChevronLeft className="h-5 w-5 text-neutral-400" />
+                <ChevronLeft className="hidden h-5 w-5 shrink-0 text-neutral-400 sm:block" />
               </div>
             </CardContent>
           </Card>
@@ -227,15 +227,15 @@ export function StudentDashboard(): ReactNode {
         <div onClick={(): void => { router.push("/dashboard/live"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/live"); } }}>
           <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
             <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10">
+              <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-500/10">
                   <Users className="h-6 w-6 text-green-500" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">حصه مباشر</h3>
-                  <p className="text-sm text-neutral-500">احجز مقعدك في حصة مباشرة</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold leading-tight text-neutral-900 dark:text-neutral-100 sm:text-base">حصه مباشر</h3>
+                  <p className="mt-0.5 hidden text-sm text-neutral-500 sm:block">احجز مقعدك في حصة مباشرة</p>
                 </div>
-                <ChevronLeft className="h-5 w-5 text-neutral-400" />
+                <ChevronLeft className="hidden h-5 w-5 shrink-0 text-neutral-400 sm:block" />
               </div>
             </CardContent>
           </Card>
@@ -243,15 +243,15 @@ export function StudentDashboard(): ReactNode {
         <div onClick={(): void => { router.push("/dashboard/mistakes"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/mistakes"); } }}>
           <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
             <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
+              <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-500/10">
                   <RefreshCw className="h-6 w-6 text-red-500" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">تعلم من أخطائك</h3>
-                  <p className="text-sm text-neutral-500">راجع الأجوبة الخاطئة وحسن مستواك</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold leading-tight text-neutral-900 dark:text-neutral-100 sm:text-base">تعلم من أخطائك</h3>
+                  <p className="mt-0.5 hidden text-sm text-neutral-500 sm:block">راجع الأجوبة الخاطئة وحسن مستواك</p>
                 </div>
-                <ChevronLeft className="h-5 w-5 text-neutral-400" />
+                <ChevronLeft className="hidden h-5 w-5 shrink-0 text-neutral-400 sm:block" />
               </div>
             </CardContent>
           </Card>
@@ -259,15 +259,15 @@ export function StudentDashboard(): ReactNode {
         <div onClick={(): void => { router.push("/dashboard/games"); }} role="button" tabIndex={0} onKeyDown={(e): void => { if (e.key === "Enter") { router.push("/dashboard/games"); } }}>
           <Card variant="outline" padding="md" className="cursor-pointer transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 h-full">
             <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10">
+              <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
                   <Gamepad2 className="h-6 w-6 text-purple-500" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الألعاب التعليمية</h3>
-                  <p className="text-sm text-neutral-500">العب لتحسين المفردات والقواعد</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold leading-tight text-neutral-900 dark:text-neutral-100 sm:text-base">الألعاب التعليمية</h3>
+                  <p className="mt-0.5 hidden text-sm text-neutral-500 sm:block">العب لتحسين المفردات والقواعد</p>
                 </div>
-                <ChevronLeft className="h-5 w-5 text-neutral-400" />
+                <ChevronLeft className="hidden h-5 w-5 shrink-0 text-neutral-400 sm:block" />
               </div>
             </CardContent>
           </Card>
