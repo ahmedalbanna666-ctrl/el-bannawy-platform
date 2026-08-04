@@ -274,28 +274,18 @@ function Breadcrumb({
 }
 
 function LessonHeader({
-  unitOrder,
-  lessonOrder,
   title,
   estimatedDuration,
   isCompleted,
 }: {
-  unitOrder: number;
-  lessonOrder: number;
   title: string;
   estimatedDuration: number;
   isCompleted: boolean;
 }): ReactNode {
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary-500/70">
-        Unit {unitOrder}
-      </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-neutral-400">
-            Lesson {lessonOrder}
-          </p>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 sm:text-3xl">
             {title}
           </h1>
@@ -771,8 +761,6 @@ export default function LessonDetailPage(): ReactNode {
       <Breadcrumb gradeName={lesson.unit.grade.name} unitTitle={lesson.unit.title} />
 
       <LessonHeader
-        unitOrder={lesson.unit.displayOrder}
-        lessonOrder={lesson.displayOrder}
         title={lesson.title}
         estimatedDuration={lesson.estimatedDuration}
         isCompleted={lesson.progress?.completed ?? false}
