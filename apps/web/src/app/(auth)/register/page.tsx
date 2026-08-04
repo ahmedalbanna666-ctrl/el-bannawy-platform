@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { Suspense, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/providers/auth-provider";
@@ -246,6 +246,14 @@ function StepProgress({ current, total }: { current: number; total: number }): R
 // ── Main Page ────────────────────────────────────────────────────────
 
 export default function RegisterPage(): ReactNode {
+  return (
+    <Suspense fallback={<div className="flex min-h-[200px] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm(): ReactNode {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { register, oauthRegister } = useAuth();
