@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         identity: mobile,
         password,
         rememberMe,
-      });
+      }, { skipAuthRetry: true });
 
       if (!response.data) {
         throw new Error("Login failed");
@@ -134,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   const confirmLogin = useCallback(
     async (confirmToken: string): Promise<void> => {
-      await api.post<{ userId: string }>("/auth/confirm-login", { confirmToken });
+      await api.post<{ userId: string }>("/auth/confirm-login", { confirmToken }, { skipAuthRetry: true });
       await fetchUser();
       queryClient.removeQueries({ queryKey: ["profile"] });
       queryClient.removeQueries({ queryKey: ["sidebar-profile"] });
@@ -147,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       const response = await api.post<{ userId: string; requiresEmailVerification: boolean }>(
         "/auth/register",
         payload,
+        { skipAuthRetry: true },
       );
 
       if (!response.data) {
@@ -166,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   const verifyEmail = useCallback(
     async (email: string, code: string): Promise<void> => {
-      const response = await api.post<{ verified: boolean }>("/auth/verify-email", { email, code });
+      const response = await api.post<{ verified: boolean }>("/auth/verify-email", { email, code }, { skipAuthRetry: true });
       if (!response.data?.verified) {
         throw new Error("Verification failed");
       }
@@ -176,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   const resendVerification = useCallback(
     async (email: string): Promise<void> => {
-      const response = await api.post<{ sent: boolean }>("/auth/resend-verification", { email });
+      const response = await api.post<{ sent: boolean }>("/auth/resend-verification", { email }, { skipAuthRetry: true });
       if (!response.data?.sent) {
         throw new Error("No pending verification");
       }
@@ -197,7 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         return;
       }
       try {
-        const response = await api.post<{ userId: string }>("/auth/firebase-login", { idToken, rememberMe });
+        const response = await api.post<{ userId: string }>("/auth/firebase-login", { idToken, rememberMe }, { skipAuthRetry: true });
         if (!response.data) {
           throw new Error("Login failed");
         }
@@ -220,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       const response = await api.post<{ userId: string }>(
         "/auth/complete-oauth-registration",
         payload,
+        { skipAuthRetry: true },
       );
 
       if (response.data) {
@@ -233,7 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   const logout = useCallback(async (): Promise<void> => {
     try {
-      await api.post("/auth/logout");
+      await api.post("/auth/logout", undefined, { skipAuthRetry: true });
     } catch {
       // ignore errors on logout
     } finally {

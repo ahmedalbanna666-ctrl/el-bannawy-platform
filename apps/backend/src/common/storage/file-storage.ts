@@ -15,9 +15,14 @@ export interface StoredFile {
  * `R2_*` environment variables are present. Existing endpoints remain
  * compatible because every backend exposes the same buffer-based API and the
  * stored `fileUrl` values keep their existing shape.
+ *
+ * `category` groups files into logical folders (e.g. "documents",
+ * "saved-documents", "certificates", "ui", "ai-knowledge"). Both backends
+ * use it as the object-key / directory prefix, so `fileUrl` values are
+ * portable between local disk and R2.
  */
 export interface FileStorage {
-  save(buffer: Buffer, originalName: string, id: string): Promise<StoredFile>;
+  save(buffer: Buffer, originalName: string, id: string, category?: string): Promise<StoredFile>;
   read(fileUrl: string): Promise<Buffer>;
   remove(fileUrl: string): Promise<void>;
   exists(fileUrl: string): Promise<boolean>;

@@ -5,8 +5,10 @@ import { AiKnowledgeBaseRepository } from "./ai-knowledge-base.repository";
 import { ChunkingService } from "./rag/chunking.service";
 import { EmbeddingService } from "./rag/embedding.service";
 import { SearchService } from "./rag/search.service";
+import { StorageModule } from "../common/storage/storage.module";
 
 @Module({
+  imports: [StorageModule],
   controllers: [AiKnowledgeBaseController],
   providers: [
     AiKnowledgeBaseService,

@@ -81,7 +81,7 @@ function LoginForm(): ReactNode {
     if (confirmToken) {
       try {
         const { api } = await import("@/lib/api-client");
-        await api.post("/auth/cancel-login", { confirmToken });
+        await api.post("/auth/cancel-login", { confirmToken }, { skipAuthRetry: true });
       } catch {
         // ignore
       }

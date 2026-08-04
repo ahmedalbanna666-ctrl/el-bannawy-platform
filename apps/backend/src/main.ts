@@ -1,6 +1,5 @@
 import * as dotenv from "dotenv";
 import * as path from "path";
-import * as fs from "fs";
 import { existsSync } from "fs";
 
 const envPaths = [
@@ -20,8 +19,9 @@ import helmet from "helmet";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { json, urlencoded, static as expressStatic, type Request, type Response, type NextFunction } from "express";
+import { json, urlencoded, type Request, type Response, type NextFunction } from "express";
 import { AppModule } from "./app.module";
+import { FILE_STORAGE, type FileStorage } from "./common/storage/file-storage";
 
 async function bootstrap(): Promise<void> {
   process.on("unhandledRejection", (reason) => {
@@ -131,17 +131,47 @@ async function bootstrap(): Promise<void> {
 
   app.setGlobalPrefix("api/v1");
 
-  const uiUploadDir = path.resolve(process.cwd(), "uploads", "ui");
-  if (!existsSync(uiUploadDir)) {
-    fs.mkdirSync(uiUploadDir, { recursive: true });
-  }
-  app.use("/files/ui", expressStatic(uiUploadDir));
-
-  const certificatesUploadDir = path.resolve(process.cwd(), "uploads", "certificates");
-  if (!existsSync(certificatesUploadDir)) {
-    fs.mkdirSync(certificatesUploadDir, { recursive: true });
-  }
-  app.use("/files/certificates", expressStatic(certificatesUploadDir));
+  // Serve stored files through the FileStorage abstraction so the same
+  // /files/... URLs work for both local disk and Cloudflare R2.
+  const fileStorage: FileStorage = app.get<FileStorage>(FILE_STORAGE);
+  const mimeByExt: Record<string, string> = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  };
+  app.use("/files/:category/*splat", async (req: Request, res: Response, next: NextFunction) => {
+    const params = req.params as Record<string, unknown>;
+    const category = String(params.category ?? "");
+    const rawSplat = params.splat;
+    const rest = (Array.isArray(rawSplat) ? rawSplat : String(rawSplat ?? "").split("/"))
+      .filter(Boolean);
+    if (!/^[a-z0-9-]+$/i.test(category) || rest.length === 0 || !rest.every((part) => /^[a-zA-Z0-9._-]+$/.test(part))) {
+      res.status(400).json({ success: false, message: "Invalid file path" });
+      return;
+    }
+    const fileUrl = `/files/${category}/${rest.join("/")}`;
+    const name = rest[rest.length - 1];
+    try {
+      const exists = await fileStorage.exists(fileUrl);
+      if (!exists) {
+        res.status(404).json({ success: false, message: "File not found" });
+        return;
+      }
+      const buffer = await fileStorage.read(fileUrl);
+      const ext = path.extname(name).toLowerCase();
+      res.setHeader("Content-Type", mimeByExt[ext] ?? "application/octet-stream");
+      res.setHeader("Content-Length", buffer.length);
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.end(buffer);
+    } catch {
+      next();
+    }
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

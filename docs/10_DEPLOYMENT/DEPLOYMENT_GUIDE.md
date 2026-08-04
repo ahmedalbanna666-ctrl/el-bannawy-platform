@@ -85,6 +85,7 @@ Required secrets (set as Railway service variables):
 - `PUBLIC_BASE_URL`, `CORS_ORIGINS`
 - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
 - `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (Cloudflare R2 — set all four to store uploads in R2 instead of the local filesystem)
 
 The Vercel frontend rewrites `/api/*` to this URL (configured in `apps/web/vercel.json`).
 

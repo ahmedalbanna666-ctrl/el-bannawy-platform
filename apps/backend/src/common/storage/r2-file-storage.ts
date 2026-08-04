@@ -44,7 +44,9 @@ export class R2FileStorage implements FileStorage {
   }
 
   private toObjectKey(fileUrl: string): string {
-    return fileUrl.replace(/^\//, "");
+    // Accept both "/files/<category>/<name>" (portable) and "<category>/<name>" /
+    // "/<category>/<name>" (legacy R2-only keys).
+    return fileUrl.replace(/^\/files\//, "").replace(/^\//, "");
   }
 
   private async loadClient(): Promise<InstanceType<S3Sdk["S3Client"]>> {
@@ -59,18 +61,19 @@ export class R2FileStorage implements FileStorage {
     });
   }
 
-  async save(buffer: Buffer, originalName: string, id: string): Promise<StoredFile> {
+  async save(buffer: Buffer, originalName: string, id: string, category = "documents"): Promise<StoredFile> {
     const sdk = await loadS3Sdk();
     const dot = originalName.lastIndexOf(".");
     const ext = dot >= 0 ? originalName.slice(dot).toLowerCase().slice(0, 12) : "";
     const safeId = id.replace(/[^a-zA-Z0-9-]/g, "");
     const storedName = `${safeId}${ext}`;
-    const key = `documents/${storedName}`;
+    const safeCategory = /^[a-z0-9-]+$/.test(category) ? category : "documents";
+    const key = `${safeCategory}/${storedName}`;
     const client = await this.loadClient();
     await client.send(
       new sdk.PutObjectCommand({ Bucket: this.options.bucket, Key: key, Body: buffer }),
     );
-    return { fileUrl: `/${key}`, storedName };
+    return { fileUrl: `/files/${safeCategory}/${storedName}`, storedName };
   }
 
   async read(fileUrl: string): Promise<Buffer> {

@@ -61,7 +61,7 @@ The current schema stores mistakes through the question/answer and mini-exam flo
 
 `UnitCertificate` (table `unit_certificates`).
 
-One certificate per `(userId, unitId)`. Stores the generated PDF file reference (`fileName`, `fileUrl`, `fileSize`, `mimeType`) and the earned date. Files are stored on disk under `uploads/certificates/{userId}/` and served under `/files/certificates`. The certificate threshold percentage is stored in `system_settings` under key `certificate_threshold` (default `80`).
+One certificate per `(userId, unitId)`. Stores the generated PDF file reference (`fileName`, `fileUrl`, `fileSize`, `mimeType`) and the earned date. Files are stored via the `FileStorage` abstraction (local disk under `uploads/certificates/` or Cloudflare R2 when `R2_*` env vars are set) and served under `/files/certificates`. The certificate threshold percentage is stored in `system_settings` under key `certificate_threshold` (default `80`).
 
 ### Coins And Payments
 

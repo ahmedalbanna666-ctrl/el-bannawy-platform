@@ -1,11 +1,8 @@
-import { Injectable } from "@nestjs/common";
-import * as fs from "fs/promises";
-import * as path from "path";
+import { Injectable, Inject } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import type { Prisma } from "@prisma/client";
 import type { UpdateUiSettingsDto } from "./dto/update-ui-settings.dto";
-
-const UI_UPLOAD_ROOT = path.resolve(process.cwd(), "uploads", "ui");
+import { FILE_STORAGE, type FileStorage } from "../common/storage/file-storage";
 
 const DEFAULT_CONFIG = {
   fonts: {
@@ -90,7 +87,10 @@ function deepMerge(base: Record<string, unknown>, override: Record<string, unkno
 
 @Injectable()
 export class UiSettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(FILE_STORAGE) private readonly fileStorage: FileStorage,
+  ) {}
 
   async getConfig(): Promise<Record<string, unknown>> {
     const record = await this.prisma.uiConfig.findFirst({ where: { key: "default" } });
@@ -127,11 +127,8 @@ export class UiSettingsService {
   }
 
   async saveImage(buffer: Buffer, originalName: string, kind: string): Promise<string> {
-    await fs.mkdir(UI_UPLOAD_ROOT, { recursive: true });
     const safeKind = /^[a-zA-Z0-9-]+$/.test(kind) ? kind : "image";
-    const ext = path.extname(originalName).toLowerCase().slice(0, 10) || ".png";
-    const storedName = `${safeKind}-${String(Date.now())}${ext}`;
-    await fs.writeFile(path.join(UI_UPLOAD_ROOT, storedName), buffer);
-    return `/files/ui/${storedName}`;
+    const { fileUrl } = await this.fileStorage.save(buffer, originalName, `${safeKind}-${String(Date.now())}`, "ui");
+    return fileUrl;
   }
 }

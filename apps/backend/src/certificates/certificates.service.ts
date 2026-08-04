@@ -1,15 +1,14 @@
-import * as fs from "fs/promises";
-import * as path from "path";
 import {
   Injectable,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
+import { FILE_STORAGE, type FileStorage } from "../common/storage/file-storage";
 
-const CERTIFICATE_ROOT = path.resolve(process.cwd(), "uploads", "certificates");
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 export interface IssueCertificateInput {
@@ -23,6 +22,7 @@ export class CertificatesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
+    @Inject(FILE_STORAGE) private readonly fileStorage: FileStorage,
   ) {}
 
   async getConfig(): Promise<unknown> {
@@ -88,12 +88,7 @@ export class CertificatesService {
       throw new BadRequestException("Invalid certificate file");
     }
 
-    const userDir = path.join(CERTIFICATE_ROOT, userId);
-    await fs.mkdir(userDir, { recursive: true });
-    const storedName = `${unitId}.pdf`;
-    await fs.writeFile(path.join(userDir, storedName), buffer);
-
-    const fileUrl = `/files/certificates/${userId}/${storedName}`;
+    const { fileUrl } = await this.fileStorage.save(buffer, dto.fileName, `${userId}-${unitId}`, "certificates");
 
     return this.prisma.unitCertificate.create({
       data: {
@@ -117,9 +112,8 @@ export class CertificatesService {
     const cert = await this.prisma.unitCertificate.findFirst({ where: { id, userId } });
     if (!cert) throw new NotFoundException("Certificate not found");
 
-    const targetPath = path.resolve(CERTIFICATE_ROOT, userId, path.basename(cert.fileUrl));
-    const buffer = await fs.readFile(targetPath).catch(() => {
-      throw new NotFoundException("File not found on disk");
+    const buffer = await this.fileStorage.read(cert.fileUrl).catch(() => {
+      throw new NotFoundException("File not found");
     });
 
     return { buffer, fileName: cert.fileName, mimeType: cert.mimeType };

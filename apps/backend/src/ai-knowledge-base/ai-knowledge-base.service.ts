@@ -1,6 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException, Logger, Inject } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
-import * as fs from "fs/promises";
 import * as path from "path";
 import { Prisma } from "@prisma/client";
 import { AiKnowledgeBaseRepository } from "./ai-knowledge-base.repository";
@@ -10,6 +9,7 @@ import { SearchService, type SearchResult } from "./rag/search.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { CacheService } from "../common/services/cache.service";
 import { assertSafeExternalUrl } from "../common/utils/ssrf-guard";
+import { FILE_STORAGE, type FileStorage } from "../common/storage/file-storage";
 import { CreateKnowledgeSourceDto, UpdateKnowledgeSourceDto } from "./dto/create-knowledge-source.dto";
 
 function normalizeRagQuery(query: string): string {
@@ -25,6 +25,7 @@ export class AiKnowledgeBaseService {
     private readonly search: SearchService,
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    @Inject(FILE_STORAGE) private readonly fileStorage: FileStorage,
   ) {}
 
   async createSource(dto: CreateKnowledgeSourceDto, file?: Express.Multer.File) {
@@ -61,13 +62,9 @@ export class AiKnowledgeBaseService {
       return null;
     }
     try {
-      const uploadDir = path.resolve(process.cwd(), "uploads", "ai-knowledge");
-      await fs.mkdir(uploadDir, { recursive: true });
-      const ext = path.extname(file.originalname).toLowerCase().slice(0, 12);
-      const storedName = `${String(Date.now())}-${randomBytes(6).toString("hex")}${ext}`;
-      const target = path.join(uploadDir, storedName);
-      await fs.writeFile(target, buffer);
-      return target;
+      const storedId = `${String(Date.now())}-${randomBytes(6).toString("hex")}`;
+      const { fileUrl } = await this.fileStorage.save(buffer, file.originalname, storedId, "ai-knowledge");
+      return fileUrl;
     } catch (error) {
       Logger.warn(`Failed to persist knowledge-base upload: ${error instanceof Error ? error.message : String(error)}`, "AiKnowledgeBaseService");
       return null;
@@ -106,6 +103,11 @@ export class AiKnowledgeBaseService {
     const existing = await this.repository.getSource(id);
     if (!existing) throw new NotFoundException("Knowledge source not found");
     const deleted = await this.repository.deleteSource(id);
+    if (existing.filePath) {
+      await this.fileStorage.remove(existing.filePath).catch(() => {
+        // ignore missing file
+      });
+    }
     await this.invalidateRagCache();
     return deleted;
   }
@@ -295,50 +297,44 @@ export class AiKnowledgeBaseService {
     }
   }
 
-  private async readFileContent(filePath: string, _fileType: string): Promise<string> {
+  private async readFileContent(fileUrl: string, _fileType: string): Promise<string> {
     try {
-      const absolutePath = path.isAbsolute(filePath)
-        ? filePath
-        : path.join(process.cwd(), filePath);
-
-      const ext = path.extname(absolutePath).toLowerCase();
+      const buffer = await this.fileStorage.read(fileUrl);
+      const ext = path.extname(fileUrl).toLowerCase();
 
       if (ext === ".txt" || ext === ".md") {
-        return fs.readFile(absolutePath, "utf-8");
+        return buffer.toString("utf-8");
       }
 
       if (ext === ".json") {
-        const raw = await fs.readFile(absolutePath, "utf-8");
-        return this.flattenJsonContent(raw);
+        return this.flattenJsonContent(buffer.toString("utf-8"));
       }
 
       if (ext === ".pdf") {
         try {
           const pdfParse = (await import("pdf-parse")) as unknown as (data: Buffer) => Promise<{ text: string }>;
-          const dataBuffer = await fs.readFile(absolutePath);
-          const pdfData = await pdfParse(dataBuffer);
+          const pdfData = await pdfParse(buffer);
           return pdfData.text ?? "";
         } catch (err) {
           Logger.warn(`PDF parsing failed, falling back: ${err}`, "AiKnowledgeBaseService");
-          return fs.readFile(absolutePath, "utf-8").catch(() => `[PDF file: ${path.basename(filePath)}]`);
+          return `[PDF file: ${path.basename(fileUrl)}]`;
         }
       }
 
       if (ext === ".docx") {
         try {
           const mammoth = await import("mammoth");
-          const dataBuffer = await fs.readFile(absolutePath);
-          const result = await mammoth.extractRawText({ buffer: dataBuffer });
+          const result = await mammoth.extractRawText({ buffer });
           return result.value ?? "";
         } catch (err) {
           Logger.warn(`DOCX parsing failed, falling back: ${err}`, "AiKnowledgeBaseService");
-          return `[DOCX file: ${path.basename(filePath)}]`;
+          return `[DOCX file: ${path.basename(fileUrl)}]`;
         }
       }
 
-      return `[File: ${path.basename(filePath)}]`;
+      return `[File: ${path.basename(fileUrl)}]`;
     } catch {
-      return `[File: ${path.basename(filePath)}]`;
+      return `[File: ${path.basename(fileUrl)}]`;
     }
   }
 

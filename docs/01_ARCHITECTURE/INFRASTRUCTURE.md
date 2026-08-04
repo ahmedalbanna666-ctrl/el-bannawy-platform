@@ -8,9 +8,17 @@ Status: Current local/container baseline
 ```text
 Web container -> Backend container -> PostgreSQL
                                       |
-                                      +-> local file storage
+                                      +-> file storage (local disk or Cloudflare R2)
                                       +-> optional AI-compatible provider
 ```
+
+File uploads (lesson documents, saved documents, certificates, UI images, AI
+knowledge-base files) flow through the `FileStorage` abstraction. The default
+backend is local disk (`uploads/`). When the `R2_ACCOUNT_ID`,
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET` environment variables
+are set, files are stored in Cloudflare R2 via its S3-compatible API instead.
+The `/files/*` URL shape is identical for both backends, so existing database
+rows and client URLs keep working.
 
 `docker/docker-compose.yml` also provisions Redis and Mailpit. They are available for local development but are not active application dependencies in the current backend.
 

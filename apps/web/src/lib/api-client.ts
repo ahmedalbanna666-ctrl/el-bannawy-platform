@@ -97,8 +97,9 @@ async function request<T>(
       clearTimeout(timeoutId);
 
       if (response.status === 401) {
+        const message = await extractErrorMessage(response);
         if (skipAuthRetry) {
-          throw new ApiError("Session expired", 401);
+          throw new ApiError(message, 401);
         }
         const refreshed = await attemptTokenRefresh();
         if (refreshed) {
@@ -109,7 +110,7 @@ async function request<T>(
             skipAuthRetry: true,
           });
         }
-        throw new ApiError("Session expired", 401);
+        throw new ApiError(message || "Session expired", 401);
       }
 
       if (response.status === 204) {
@@ -155,6 +156,18 @@ async function request<T>(
     }
   }
   throw new ApiError("Backend unreachable", 503);
+}
+
+async function extractErrorMessage(response: Response): Promise<string> {
+  try {
+    const data: unknown = await response.json();
+    if (typeof data === "object" && data !== null && "message" in data) {
+      return String(data.message);
+    }
+  } catch {
+    // Response body is not JSON — fall through to a generic message.
+  }
+  return "Session expired";
 }
 
 function anySignal(signals: AbortSignal[]): AbortSignal {
