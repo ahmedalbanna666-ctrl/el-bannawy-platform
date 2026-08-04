@@ -184,12 +184,12 @@ export function PlyrVideoPlayer({
     const onVisibilityChange = (): void => {
       if (document.visibilityState === "hidden") flush();
     };
+    // Use pagehide/visibilitychange only — beforeunload triggers a browser
+    // Permissions-Policy "unload" violation and the fetch is unreliable on mobile.
     window.addEventListener("pagehide", flush);
-    window.addEventListener("beforeunload", flush);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return (): void => {
       window.removeEventListener("pagehide", flush);
-      window.removeEventListener("beforeunload", flush);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [videoId, saveProgress]);

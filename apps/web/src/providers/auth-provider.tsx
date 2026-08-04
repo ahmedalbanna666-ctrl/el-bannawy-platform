@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useCallback, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/auth-store";
-import { api } from "@/lib/api-client";
+import { api, ApiError } from "@/lib/api-client";
 import type { Permission, UserRole } from "@el-bannawy/shared";
 
 interface AuthContextValue {
@@ -94,7 +94,21 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       console.warn("[Auth] fetchUser failed:", err);
+      const isAuthFailure = err instanceof ApiError && err.status === 401;
       clearStore();
+      // A 401 here means the session (access + refresh) is gone. Clear the
+      // httpOnly cookies via a best-effort logout call, then send the user to
+      // the login page so they are not stuck showing repeated 401s.
+      if (isAuthFailure && typeof window !== "undefined") {
+        try {
+          await api.post("/auth/logout", undefined, { skipAuthRetry: true });
+        } catch {
+          // ignore
+        }
+        if (window.location.pathname !== "/login") {
+          window.location.assign("/login");
+        }
+      }
     } finally {
       setInitialized();
     }

@@ -9,6 +9,8 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+const PROMPT_KEY = "el-bannawy-pwa-prompt-dismissed";
+
 export function PwaInstallPrompt(): ReactNode {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(false);
@@ -18,13 +20,21 @@ export function PwaInstallPrompt(): ReactNode {
     const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !("MSStream" in window);
     if (isStandalone || isIos) return;
 
+    // Do not re-ask the user within the same session after they dismissed it.
+    let dismissedPreviously = false;
+    try {
+      dismissedPreviously = sessionStorage.getItem(PROMPT_KEY) === "1";
+    } catch {
+      // storage unavailable
+    }
+    if (dismissedPreviously) return;
+
     const handler = (e: Event): void => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
-    window.addEventListener("beforeinstallprompt", handler);
-
+    window.addEventListener("beforeinstallprompt", handler, { once: false });
     return (): void => {
       window.removeEventListener("beforeinstallprompt", handler);
     };
@@ -37,10 +47,24 @@ export function PwaInstallPrompt(): ReactNode {
     void deferredPrompt.prompt();
     void deferredPrompt.userChoice.then((result) => {
       if (result.outcome === "accepted") {
-        setDeferredPrompt(null);
+        try {
+          sessionStorage.setItem(PROMPT_KEY, "1");
+        } catch {
+          // storage unavailable
+        }
       }
       setDeferredPrompt(null);
     });
+  };
+
+  const handleDismiss = (): void => {
+    setDismissed(true);
+    setDeferredPrompt(null);
+    try {
+      sessionStorage.setItem(PROMPT_KEY, "1");
+    } catch {
+      // storage unavailable
+    }
   };
 
   if (!deferredPrompt) return null;
@@ -60,7 +84,7 @@ export function PwaInstallPrompt(): ReactNode {
           </p>
         </div>
         <button
-          onClick={(): void => { setDismissed(true); }}
+          onClick={handleDismiss}
           className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700"
           aria-label="إغلاق"
         >
@@ -72,7 +96,7 @@ export function PwaInstallPrompt(): ReactNode {
           <Download className="ml-1.5 h-4 w-4" />
           تثبيت التطبيق
         </Button>
-        <Button size="sm" variant="ghost" onClick={(): void => { setDismissed(true); }}>
+        <Button size="sm" variant="ghost" onClick={handleDismiss}>
           لاحقاً
         </Button>
       </div>

@@ -33,8 +33,8 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  app.use(json({ limit: "10mb" }));
-  app.use(urlencoded({ extended: true, limit: "10mb" }));
+  app.use(json({ limit: "25mb" }));
+  app.use(urlencoded({ extended: true, limit: "25mb" }));
 
   const configService = app.get(ConfigService);
   const frontendUrl = configService.get<string>("FRONTEND_URL");
