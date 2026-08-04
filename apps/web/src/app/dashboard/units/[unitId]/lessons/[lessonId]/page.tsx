@@ -135,9 +135,6 @@ export default function LessonContentPage(): ReactNode {
       />
 
       <div>
-        <p className="text-xs font-semibold text-primary-500">
-          Lesson {String(lesson.displayOrder)}
-        </p>
         <h1 className="mt-1 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
           {lesson.title}
         </h1>

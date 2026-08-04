@@ -101,7 +101,7 @@ export default function LessonListPage(): ReactNode {
     <div className="flex flex-col gap-3">
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-          Unit {unit.displayOrder}
+          {unit.title}
         </h1>
         <p className="mt-0.5 text-sm text-neutral-500">اختر الدرس الذي تريد دراسته</p>
       </div>
