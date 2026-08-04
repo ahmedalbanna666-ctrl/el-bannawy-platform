@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { api } from "@/lib/api-client";
 import type { QuestionData, VideoEvent } from "./types";
 
@@ -19,47 +19,68 @@ interface AnswerResult {
   readonly message: string | null;
 }
 
+/** How long to show the "إجابة صحيحة" feedback before auto-resuming the video. */
+const AUTO_RESUME_DELAY_MS = 900;
+
 export function VideoQuestionModal({ event, question, onComplete, onSkip }: VideoQuestionModalProps): ReactNode {
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [textAnswer, setTextAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<AnswerResult | null>(null);
+  const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSelect = useCallback((id: string): void => {
-    if (result) return;
-    if (question.type === "MULTIPLE_CHOICE" || question.type === "TRUE_FALSE") {
-      setSelectedIds([id]);
-    } else {
-      setSelectedIds((prev) =>
-        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-      );
-    }
-  }, [question.type, result]);
+  useEffect(() => {
+    return (): void => {
+      if (autoResumeTimerRef.current) clearTimeout(autoResumeTimerRef.current);
+    };
+  }, []);
 
-  const handleSubmit = useCallback(async (): Promise<void> => {
+  const submitAnswer = useCallback(async (ids: readonly string[]): Promise<void> => {
+    if (submitting || result) return;
     setSubmitting(true);
     try {
       const res = await api.post<AnswerResult>("/video-questions/answer", {
         questionId: question.id,
-        selectedOptionIds: selectedIds,
+        selectedOptionIds: ids,
         text: question.type === "FILL_BLANK" ? textAnswer : undefined,
       });
       const answerResult = res.data;
       if (!answerResult) { throw new Error("No data"); }
       setResult(answerResult);
+      // Correct answer → resume the video automatically after showing feedback.
+      if (answerResult.correct) {
+        autoResumeTimerRef.current = setTimeout((): void => { onComplete(true); }, AUTO_RESUME_DELAY_MS);
+      }
     } catch {
       setResult({ questionId: question.id, correct: false, score: 0, maxScore: 1, message: "فشل الاتصال" });
     }
     setSubmitting(false);
-  }, [question.id, question.type, selectedIds, textAnswer]);
+  }, [question.id, question.type, textAnswer, submitting, result, onComplete]);
+
+  const handleSelect = useCallback((id: string): void => {
+    if (result || submitting) return;
+    if (question.type === "MULTIPLE_CHOICE" || question.type === "TRUE_FALSE") {
+      // Immediate correction: tapping an option grades it right away.
+      setSelectedIds([id]);
+      void submitAnswer([id]);
+    } else {
+      setSelectedIds((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+      );
+    }
+  }, [question.type, result, submitting, submitAnswer]);
+
+  const handleSubmit = useCallback((): Promise<void> => submitAnswer(selectedIds), [submitAnswer, selectedIds]);
 
   const handleRetry = useCallback((): void => {
+    if (autoResumeTimerRef.current) { clearTimeout(autoResumeTimerRef.current); autoResumeTimerRef.current = null; }
     setResult(null);
     setSelectedIds([]);
     setTextAnswer("");
   }, []);
 
   const handleContinue = useCallback((): void => {
+    if (autoResumeTimerRef.current) { clearTimeout(autoResumeTimerRef.current); autoResumeTimerRef.current = null; }
     if (event.required && !result?.correct) {
       handleRetry();
       return;
