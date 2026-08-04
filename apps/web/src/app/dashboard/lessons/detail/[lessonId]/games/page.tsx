@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { MemoryGame } from "@/components/games/memory-game";
+import { ListeningChallenge } from "@/components/games/listening-challenge";
+import { PronunciationChallenge } from "@/components/games/pronunciation-challenge";
 import {
   ArrowRight,
   ChevronLeft,
@@ -236,9 +238,9 @@ export default function LessonGamesPage(): ReactNode {
     );
   }
 
-  const GAME_CONFIG: Record<string, { label: string; icon: ReactNode; color: string; href?: string }> = {
-    "listening-challenge": { label: "تحدي الاستماع", icon: <Headphones className="h-5 w-5" />, color: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400", href: `/dashboard/games/listening-challenge` },
-    "pronunciation-challenge": { label: "تحدي النطق", icon: <Mic className="h-5 w-5" />, color: "border-amber-500/30 bg-amber-500/5 text-amber-400", href: `/dashboard/games/pronunciation-challenge` },
+  const GAME_CONFIG: Record<string, { label: string; icon: ReactNode; color: string }> = {
+    "listening-challenge": { label: "تحدي الاستماع", icon: <Headphones className="h-5 w-5" />, color: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400" },
+    "pronunciation-challenge": { label: "تحدي النطق", icon: <Mic className="h-5 w-5" />, color: "border-amber-500/30 bg-amber-500/5 text-amber-400" },
     matching: { label: "المطابقة", icon: <Shuffle className="h-5 w-5" />, color: "border-primary-500/30 bg-primary-500/5 text-primary-400" },
     memory: { label: "اختبار الذاكرة", icon: <Brain className="h-5 w-5" />, color: "border-purple-500/30 bg-purple-500/5 text-purple-400" },
   };
@@ -258,6 +260,8 @@ export default function LessonGamesPage(): ReactNode {
           <CardContent>
             {activeGame === "matching" && <MatchingGame words={words} />}
             {activeGame === "memory" && <MemoryGame words={words} />}
+            {activeGame === "listening-challenge" && <ListeningChallenge words={words} />}
+            {activeGame === "pronunciation-challenge" && <PronunciationChallenge words={words} />}
           </CardContent>
         </Card>
 
@@ -296,14 +300,11 @@ export default function LessonGamesPage(): ReactNode {
                   {config.label}
                 </h3>
                 <p className="mt-1 text-xs text-neutral-500">
-                  {config.href ? "لعبة منصة كاملة" : `استخدم ${String(words.length)} كلمة من درس "${lesson.title}"`}
+                  {`استخدم ${String(words.length)} كلمة من درس "${lesson.title}"`}
                 </p>
               </CardContent>
             </Card>
           );
-          if (config.href) {
-            return <Link key={gameId} href={config.href} className="text-right">{card}</Link>;
-          }
           return <button key={gameId} onClick={(): void => { setActiveGame(gameId); }} className="text-right">{card}</button>;
         })}
       </div>

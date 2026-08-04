@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useCurriculumUnits, useUnitVocabulary } from "@/lib/games/use-games-data";
 import { useGameSettings } from "@/lib/games/settings";
 import { pickWordPairs, pronunciationScore } from "@/lib/games/question-engine";
-import type { PronunciationQuestion } from "@/lib/games/types";
+import type { GameWord, PronunciationQuestion } from "@/lib/games/types";
 import { useSpeechRecognition } from "@/lib/games/use-speech-recognition";
 import { UnitMapSelect } from "@/components/games/unit-map-select";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,10 +33,13 @@ type Phase = "select" | "playing" | "result";
 
 interface PronunciationChallengeProps {
   unitId?: string;
+  /** When provided (lesson games mode), the challenge runs on these words directly and skips unit selection. */
+  words?: readonly GameWord[];
 }
 
 export function PronunciationChallenge({
   unitId: forcedUnitId,
+  words: lessonWords,
 }: PronunciationChallengeProps): ReactNode {
   const { settings } = useGameSettings();
   const {
@@ -50,8 +53,9 @@ export function PronunciationChallenge({
     reset,
   } = useSpeechRecognition();
   const { data: units, isLoading, isError, refetch } = useCurriculumUnits();
+  const isLessonMode = lessonWords !== undefined;
 
-  const [phase, setPhase] = useState<Phase>("select");
+  const [phase, setPhase] = useState<Phase>(isLessonMode ? "playing" : "select");
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(
     forcedUnitId ?? null,
   );
@@ -72,11 +76,12 @@ export function PronunciationChallenge({
   );
 
   const {
-    data: pool,
+    data: unitPool,
     isLoading: poolLoading,
     isError: poolError,
     refetch: refetchPool,
   } = useUnitVocabulary(selectedUnitId ?? "", selectedUnit?.lessonIds ?? []);
+  const pool = isLessonMode ? lessonWords : unitPool;
 
   const config = settings.pronunciationChallenge;
   const canStart = useMemo(() => {
@@ -158,6 +163,22 @@ export function PronunciationChallenge({
     setPhase("playing");
   }, [pool, config]);
 
+  // Lesson mode: start the challenge immediately with the lesson's words.
+  useEffect(() => {
+    if (!isLessonMode || lessonWords.length === 0) return;
+    const generated = pickWordPairs(lessonWords, config.questionsPerRound);
+    setQuestions(generated);
+    setCurrentIndex(0);
+    setAttemptScore(null);
+    setAnswered(false);
+    setRewardsXp(0);
+    setRewardsCoins(0);
+    setTotalScore(0);
+    setResolvedCount(0);
+    setSkippedCount(0);
+    setPhase("playing");
+  }, [isLessonMode, lessonWords, config.questionsPerRound]);
+
   if (!config.enabled) {
     return (
       <div className="flex flex-col gap-6">
@@ -170,6 +191,24 @@ export function PronunciationChallenge({
         <EmptyState
           title="اللعبة غير مفعّلة"
           description="لم يقم المعلم بتفعيل تحدي النطق حالياً، جرّب لعبة أخرى."
+          icon={<BookOpen className="h-16 w-16" />}
+        />
+      </div>
+    );
+  }
+
+  if (isLessonMode && lessonWords.length === 0) {
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning-500/15 text-warning-500">
+            <Mic className="h-6 w-6" />
+          </span>
+          تحدي النطق
+        </h1>
+        <EmptyState
+          title="لا توجد كلمات في هذا الدرس"
+          description="أضف مفردات للدرس أولاً لتشغيل تحدي النطق."
           icon={<BookOpen className="h-16 w-16" />}
         />
       </div>
@@ -321,16 +360,18 @@ export function PronunciationChallenge({
                 <RotateCcw className="h-4 w-4" />
                 العب مرة أخرى
               </Button>
-              <Button
-                variant="outline"
-                fullWidth
-                onClick={() => {
-                  setPhase("select");
-                }}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                اختر وحدة أخرى
-              </Button>
+              {!isLessonMode && (
+                <Button
+                  variant="outline"
+                  fullWidth
+                  onClick={() => {
+                    setPhase("select");
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  اختر وحدة أخرى
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
