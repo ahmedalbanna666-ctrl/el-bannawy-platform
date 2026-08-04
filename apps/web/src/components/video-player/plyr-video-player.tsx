@@ -214,11 +214,31 @@ export function PlyrVideoPlayer({
     let cancelled = false;
     triggeredRef.current.clear();
     answeredEventsRef.current.clear();
-    api.get<readonly VideoEvent[]>(`/video-events?videoId=${videoId}`)
-      .then((res): void => { if (!cancelled && res.data) { eventsRef.current = res.data; renderQuestionMarkers(); } })
-      .catch((): void => undefined);
+    eventsRef.current = [];
+    let attempts = 0;
+    const MAX_EVENT_ATTEMPTS = 3;
+    const load = (): void => {
+      api.get<readonly VideoEvent[]>(`/video-events?videoId=${videoId}`)
+        .then((res): void => {
+          if (!cancelled && res.data) {
+            eventsRef.current = res.data;
+            renderQuestionMarkers();
+            // Fire any question the student has already reached (e.g. events
+            // that finished loading after the timestamp passed).
+            void checkTimelineEvents();
+          }
+        })
+        .catch((): void => {
+          if (cancelled) return;
+          attempts += 1;
+          if (attempts < MAX_EVENT_ATTEMPTS) {
+            window.setTimeout(load, 1500 * attempts);
+          }
+        });
+    };
+    load();
     return function cleanup(): void { cancelled = true; };
-  }, [videoId, renderQuestionMarkers]);
+  }, [videoId, renderQuestionMarkers, checkTimelineEvents]);
 
   useEffect(() => {
     const timer = setTimeout((): void => { setLoading(false); }, 12_000);
