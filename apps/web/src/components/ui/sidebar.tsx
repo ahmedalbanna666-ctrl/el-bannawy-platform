@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -212,9 +213,11 @@ export function Sidebar({ items, className, onClose, onProfileClick, profileGrad
           className="group my-3 cursor-pointer rounded-[16px] border border-primary-400/20 bg-neutral-900/65 p-4 backdrop-blur-xl shadow-[0_4px_12px_rgba(0,0,0,0.2),0_0_12px_rgba(34,211,238,0.08)] transition-all duration-200 hover:border-primary-400/40 hover:bg-neutral-800/70 light:border-neutral-200 light:bg-white/85 light:shadow-[0_2px_8px_rgba(0,0,0,0.04)] light:hover:bg-white"
         >
           <div className="flex items-center gap-3">
-            <img
+            <Image
               src={avatarUrl}
               alt=""
+              width={40}
+              height={40}
               className="h-[40px] w-[40px] shrink-0 rounded-full border-2 border-primary-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] object-cover"
             />
             <div className="flex flex-col justify-center gap-0.5 min-w-0">

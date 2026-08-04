@@ -55,7 +55,6 @@ import {
   Clock,
   MessageSquare,
 } from "lucide-react";
-import html2canvas from "html2canvas";
 
 // ---------------------------------------------------------------------------
 // Tab 1: باقات العملات
@@ -576,6 +575,7 @@ function CreateCodeDialog({
   const handleDownloadImage = useCallback(async (): Promise<void> => {
     if (!cardRef.current) return;
     try {
+      const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(cardRef.current, {
         scale: 2,
         backgroundColor: "#ffffff",

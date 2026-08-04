@@ -1,7 +1,22 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Cairo } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { SplashProvider } from "../components/splash/splash-provider";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-ui-english",
+  display: "swap",
+});
+
+const cairo = Cairo({
+  subsets: ["arabic"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-ui-arabic",
+  display: "swap",
+});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -40,14 +55,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }): React.ReactNode {
   return (
-    <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning data-scroll-behavior="smooth">
+    <html lang="ar" dir="rtl" className={`dark ${inter.variable} ${cairo.variable}`} suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#6366f1" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

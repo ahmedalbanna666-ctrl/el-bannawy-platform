@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, type ReactNode } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -107,10 +107,12 @@ export default function QuizPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [prereqError, setPrereqError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queryClient = useQueryClient();
+
+  // Refs keep the autosave interval stable (does not restart on every keystroke).
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
 
   const { data: quiz, isLoading: quizLoading } = useQuery({
     queryKey: ["quiz", lessonId],
@@ -135,6 +137,13 @@ export default function QuizPage(): ReactNode {
   });
 
   const questions = questionsData ?? [];
+  const questionsRef = useRef(questions);
+  questionsRef.current = questions;
+
+  const groupedQuestions = useMemo(
+    () => groupQuestions(questions as StudentQuestion[]),
+    [questions],
+  );
 
   const { isLoading: resultLoading } = useQuery({
     queryKey: ["quiz-result", lessonId],
@@ -179,13 +188,15 @@ export default function QuizPage(): ReactNode {
 
   useEffect(() => {
     if (result || viewingReview) return;
-    const hasAnswers = Object.keys(answers).some((k) => (answers[Number(k)] ?? "").trim() !== "");
+    const hasAnswers = Object.keys(answersRef.current).some((k) => (answersRef.current[Number(k)] ?? "").trim() !== "");
     if (!hasAnswers) return;
 
     saveTimerRef.current = setInterval(() => {
-      const saveData = questions
+      const currentQuestions = questionsRef.current;
+      const currentAnswers = answersRef.current;
+      const saveData = currentQuestions
         .map((q, i) => {
-          const ans = answers[i] ?? "";
+          const ans = currentAnswers[i] ?? "";
           if (ans.trim() === "") return null;
           return { questionId: q.id, selectedAnswer: ans };
         })
@@ -200,11 +211,11 @@ export default function QuizPage(): ReactNode {
     return (): void => {
       if (saveTimerRef.current) clearInterval(saveTimerRef.current);
     };
-  }, [answers, questions, lessonId, result, viewingReview]);
+  }, [result, viewingReview, lessonId]);
 
-  const handleAnswerChange = (questionIndex: number, value: string): void => {
+  const handleAnswerChange = useCallback((questionIndex: number, value: string): void => {
     setAnswers((prev) => ({ ...prev, [questionIndex]: value }));
-  };
+  }, []);
 
   const handleStartAttempt = async (): Promise<void> => {
     try {
@@ -286,32 +297,6 @@ export default function QuizPage(): ReactNode {
   };
 
   const allAnswered = questions.length > 0 && questions.every((_, i) => (answers[i] ?? "").trim() !== "");
-
-  useEffect(() => {
-    if (isSubmitted || viewingReview || questions.length === 0) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      return;
-    }
-    const savedEnd = localStorage.getItem("quiz_end_time");
-    let endTime: number;
-    if (savedEnd) {
-      endTime = parseInt(savedEnd, 10);
-      if (Date.now() >= endTime) { void handleSubmit(); return; }
-    } else {
-      endTime = Date.now() + 30 * 60 * 1000;
-      localStorage.setItem("quiz_end_time", String(endTime));
-    }
-    timerRef.current = setInterval(() => {
-      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-      setTimeLeft(remaining);
-      if (remaining <= 0) {
-        if (timerRef.current) clearInterval(timerRef.current);
-        localStorage.removeItem("quiz_end_time");
-        void handleSubmit();
-      }
-    }, 1000);
-    return (): void => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [questions.length, isSubmitted, viewingReview, handleSubmit]);
 
   if (loading) return <QuizSkeleton />;
   if (error) return <ErrorState title="فشل تحميل الاختبار" description={error} />;
@@ -439,17 +424,10 @@ href={`/dashboard/lessons/detail/${lessonId}`}
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {!isSubmitted && timeLeft !== null && (
-              <div className={`rounded-xl border px-4 py-2 text-sm font-bold tabular-nums ${
-                timeLeft < 60
-                  ? "border-red-500/40 bg-red-500/10 text-red-400"
-                  : timeLeft < 300
-                    ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
-                    : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-              }`}>
-                ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
-              </div>
-            )}
+            <QuizCountdown
+              active={!isSubmitted && !viewingReview && questions.length > 0}
+              onExpire={(): void => { void handleSubmit(); }}
+            />
             {isSubmitted && quiz.showAnswers && (
               <Button variant="outline" size="sm" onClick={(): void => { void handleViewReview(); }}>
                 <Eye className="mr-2 h-4 w-4" />
@@ -527,7 +505,7 @@ href={`/dashboard/lessons/detail/${lessonId}`}
       )}
 
       <div className="flex flex-col gap-4" dir="ltr">
-        {groupQuestions(questions as StudentQuestion[]).map((group, gi) => (
+        {groupedQuestions.map((group, gi) => (
           <div key={gi} className="flex flex-col gap-3">
             <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
               {group.heading}
@@ -597,6 +575,67 @@ function QuizSkeleton(): ReactNode {
           <Skeleton key={i} className="h-32 rounded-xl" />
         ))}
       </div>
+    </div>
+  );
+}
+
+// Isolated countdown: updates only this component every second (not the whole page).
+function QuizCountdown({
+  active,
+  onExpire,
+}: {
+  active: boolean;
+  onExpire: () => void;
+}): ReactNode {
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const onExpireRef = useRef(onExpire);
+
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  });
+
+  useEffect(() => {
+    if (!active) {
+      setTimeLeft(null);
+      return;
+    }
+    const savedEnd = localStorage.getItem("quiz_end_time");
+    let endTime: number;
+    if (savedEnd) {
+      endTime = parseInt(savedEnd, 10);
+      if (Date.now() >= endTime) { onExpireRef.current(); return; }
+    } else {
+      endTime = Date.now() + 30 * 60 * 1000;
+      localStorage.setItem("quiz_end_time", String(endTime));
+    }
+
+    const id = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(id);
+        localStorage.removeItem("quiz_end_time");
+        onExpireRef.current();
+      }
+    }, 1000);
+
+    return (): void => { clearInterval(id); };
+  }, [active]);
+
+  if (timeLeft === null) return null;
+
+  return (
+    <div
+      dir="ltr"
+      className={`rounded-xl border px-4 py-2 text-sm font-bold tabular-nums ${
+        timeLeft < 60
+          ? "border-red-500/40 bg-red-500/10 text-red-400"
+          : timeLeft < 300
+            ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+            : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+      }`}
+    >
+      ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
     </div>
   );
 }

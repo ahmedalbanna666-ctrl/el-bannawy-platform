@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, type ReactNode } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -91,6 +91,8 @@ export default function HomeworkPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
   const queryClient = useQueryClient();
 
   const { data: homework, isLoading: hwLoading } = useQuery({
@@ -116,6 +118,13 @@ export default function HomeworkPage(): ReactNode {
   });
 
   const questions = questionsData ?? [];
+  const questionsRef = useRef(questions);
+  questionsRef.current = questions;
+
+  const groupedQuestions = useMemo(
+    () => groupQuestions(questions as StudentQuestion[]),
+    [questions],
+  );
 
   const { isLoading: resultLoading } = useQuery({
     queryKey: ["homework-result", lessonId],
@@ -134,13 +143,15 @@ export default function HomeworkPage(): ReactNode {
   useEffect(() => {
     if (result || viewingReview) return;
 
-    const hasAnswers = Object.keys(answers).some((k) => (answers[Number(k)] ?? "").trim() !== "");
+    const hasAnswers = Object.keys(answersRef.current).some((k) => (answersRef.current[Number(k)] ?? "").trim() !== "");
     if (!hasAnswers) return;
 
     saveTimerRef.current = setInterval(() => {
-      const saveData = questions
+      const currentQuestions = questionsRef.current;
+      const currentAnswers = answersRef.current;
+      const saveData = currentQuestions
         .map((q, i) => {
-          const ans = answers[i] ?? "";
+          const ans = currentAnswers[i] ?? "";
           if (ans.trim() === "") return null;
           return { questionId: q.id, selectedAnswer: ans };
         })
@@ -157,11 +168,11 @@ export default function HomeworkPage(): ReactNode {
         clearInterval(saveTimerRef.current);
       }
     };
-  }, [answers, questions, lessonId, result, viewingReview]);
+  }, [result, viewingReview, lessonId]);
 
-  const handleAnswerChange = (questionIndex: number, value: string): void => {
+  const handleAnswerChange = useCallback((questionIndex: number, value: string): void => {
     setAnswers((prev) => ({ ...prev, [questionIndex]: value }));
-  };
+  }, []);
 
   const handleStartAttempt = async (): Promise<void> => {
     try {
@@ -548,7 +559,7 @@ export default function HomeworkPage(): ReactNode {
       )}
 
       <div className="flex flex-col gap-4" dir="ltr">
-        {groupQuestions(questions as StudentQuestion[]).map((group, gi) => (
+        {groupedQuestions.map((group, gi) => (
           <div key={gi} className="flex flex-col gap-3">
             <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
               {group.heading}

@@ -1,3 +1,12 @@
+import {
+  initOfflineEngine,
+  offlineGetFromCache,
+  offlineCacheResponse,
+  offlineEnqueueSubmission,
+  offlineInvalidateAfterMutation,
+  offlineAfterLessonGet,
+} from "@/lib/offline/integration";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() ?? "http://localhost:4000/api/v1";
 const DEFAULT_TIMEOUT = 30_000;
 
@@ -65,6 +74,33 @@ async function attemptTokenRefresh(): Promise<boolean> {
   return refreshPromise;
 }
 
+/**
+ * Offline fallback: serve cacheable GETs from the lesson cache, and queue
+ * supported mutations for background sync. Fire-and-forget autosave calls
+ * get a synthetic success; blocking submissions throw a friendly error so the
+ * UI keeps the student's answers (they are synced automatically later).
+ */
+async function handleOffline<T>(
+  endpoint: string,
+  method: string,
+  body: unknown,
+): Promise<ApiResponse<T> | null> {
+  if (method === "GET") {
+    const cached = await offlineGetFromCache(endpoint);
+    if (cached) return cached as ApiResponse<T>;
+    return null;
+  }
+  const result = await offlineEnqueueSubmission({ method, endpoint, body });
+  if (result?.queued) {
+    if (result.fireAndForget) return { success: true };
+    throw new ApiError(
+      "أنت غير متصل بالإنترنت. تم حفظ بياناتك وستُرسل تلقائياً عند عودة الاتصال.",
+      0,
+    );
+  }
+  return null;
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit & RequestOptions = {},
@@ -79,6 +115,7 @@ async function request<T>(
   };
 
   const url = `${API_BASE_URL}${endpoint}`;
+  const method = (fetchOptions.method ?? "GET").toUpperCase();
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
@@ -136,11 +173,22 @@ async function request<T>(
         safe.success = response.ok;
       }
 
+      if (method === "GET") {
+        void offlineCacheResponse(endpoint, data);
+        void offlineAfterLessonGet(endpoint);
+      } else {
+        void offlineInvalidateAfterMutation(endpoint);
+      }
+
       return data as ApiResponse<T>;
     } catch (err) {
       clearTimeout(timeoutId);
       if (err instanceof DOMException && err.name === "AbortError") {
         if (signal?.aborted) throw err;
+        if (method === "GET") {
+          const cached = await offlineGetFromCache(endpoint);
+          if (cached) return cached as ApiResponse<T>;
+        }
         if (attempt < retries) continue;
         throw new ApiError("انتهت مهلة الطلب. تأكد من اتصالك وحاول مرة أخرى", 408);
       }
@@ -149,6 +197,8 @@ async function request<T>(
         err instanceof TypeError &&
         err.message === "Failed to fetch"
       ) {
+        const handled = await handleOffline<T>(endpoint, method, fetchOptions.body);
+        if (handled) return handled;
         await new Promise((r) => setTimeout(r, 1000));
         continue;
       }
@@ -208,3 +258,6 @@ export const api = {
 };
 
 export { ApiError };
+
+// Attach the offline/sync engine once (idempotent; no-op on SSR).
+initOfflineEngine();

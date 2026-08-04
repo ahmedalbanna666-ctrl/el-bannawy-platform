@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { useAcademicContext } from "@/lib/academic-context-store";
@@ -149,10 +149,19 @@ function useAcademicYears(): UseQueryResult<AcademicYearItem[]> {
 export default function StudentsPage(): ReactNode {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"profile" | "progress" | "attendance" | "login-history" | "subscription">("profile");
+
+  useEffect(() => {
+    const id = setTimeout((): void => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
+    return (): void => { clearTimeout(id); };
+  }, [search]);
 
   const { data: stages } = useStages();
   const { data: academicYears } = useAcademicYears();
@@ -193,7 +202,7 @@ export default function StudentsPage(): ReactNode {
   }, [stages, academicYears, academicContext]);
 
   const filters: Record<string, string> = {};
-  if (search) filters.search = search;
+  if (debouncedSearch) filters.search = debouncedSearch;
   if (statusFilter) filters.status = statusFilter;
   if (academicFilterIds.stageId) filters.stageId = academicFilterIds.stageId;
   if (academicFilterIds.gradeId) filters.gradeId = academicFilterIds.gradeId;
@@ -236,6 +245,7 @@ export default function StudentsPage(): ReactNode {
   });
 
   const handleSearch = (): void => {
+    setDebouncedSearch(search);
     setPage(1);
   };
 

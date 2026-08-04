@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@el-bannawy/shared"],
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "ui-avatars.com" },
+    ],
+  },
   async redirects() {
     return [
       {

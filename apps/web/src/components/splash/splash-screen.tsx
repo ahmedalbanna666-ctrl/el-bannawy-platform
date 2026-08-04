@@ -112,13 +112,13 @@ export function SplashScreen({ onFinish }: SplashScreenProps): ReactNode {
   const [logoSrc, setLogoSrc] = useState(DEFAULT_LOGO);
 
   useEffect(() => {
-    const id = setTimeout((): void => { setPhase("show"); }, 100);
+    const id = setTimeout((): void => { setPhase("show"); }, 80);
     return (): void => { clearTimeout(id); };
   }, []);
 
   useEffect(() => {
     if (phase !== "show") return;
-    const id = setTimeout((): void => { setPhase("exit"); }, 2400);
+    const id = setTimeout((): void => { setPhase("exit"); }, 250);
     return (): void => { clearTimeout(id); };
   }, [phase]);
 
@@ -127,7 +127,7 @@ export function SplashScreen({ onFinish }: SplashScreenProps): ReactNode {
     const id = setTimeout((): void => {
       setShow(false);
       onFinish();
-    }, 600);
+    }, 170);
     return (): void => { clearTimeout(id); };
   }, [phase, onFinish]);
 
@@ -146,7 +146,7 @@ export function SplashScreen({ onFinish }: SplashScreenProps): ReactNode {
 
   return (
     <div
-      className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden transition-opacity duration-500 ${
+      className={`pointer-events-none fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden transition-opacity duration-500 ${
         phase === "exit" ? "opacity-0" : "opacity-100"
       }`}
       style={{ background: "var(--ui-splash-bg, linear-gradient(135deg, #312e81, #4c1d95))" }}

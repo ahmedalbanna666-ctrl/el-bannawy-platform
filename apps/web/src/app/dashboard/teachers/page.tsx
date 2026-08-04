@@ -43,13 +43,22 @@ import {
 export default function TeachersPage(): ReactNode {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"profile" | "grades" | "permissions">("profile");
 
+  useEffect(() => {
+    const id = setTimeout((): void => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
+    return (): void => { clearTimeout(id); };
+  }, [search]);
+
   const filters: Record<string, string> = {};
-  if (search) filters.search = search;
+  if (debouncedSearch) filters.search = debouncedSearch;
   if (statusFilter) filters.status = statusFilter;
   filters.page = String(page);
   filters.limit = "20";
@@ -88,6 +97,7 @@ export default function TeachersPage(): ReactNode {
   });
 
   const handleSearch = (): void => {
+    setDebouncedSearch(search);
     setPage(1);
   };
 

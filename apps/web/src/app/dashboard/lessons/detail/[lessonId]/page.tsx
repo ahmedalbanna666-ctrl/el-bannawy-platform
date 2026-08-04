@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
@@ -11,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { VideoPlayer, VideoPlayerSkeleton } from "@/components/video-player";
 import { BackButton } from "@/components/ui/back-button";
 import {
   useLessonLiveSessions,
@@ -152,6 +152,17 @@ interface LessonSummary {
   title: string;
   displayOrder: number;
 }
+
+// ── Video Player (code-split; heavy player loads only when a video is shown) ──
+
+function VideoPlayerSkeleton(): ReactNode {
+  return <div className="aspect-video w-full animate-pulse rounded-2xl bg-neutral-800" />;
+}
+
+const VideoPlayer = dynamic(
+  () => import("@/components/video-player").then((m) => m.VideoPlayer),
+  { ssr: false, loading: () => <VideoPlayerSkeleton /> },
+);
 
 // ── Query Hooks ──────────────────────────────────────────────────────
 

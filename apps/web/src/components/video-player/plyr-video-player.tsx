@@ -18,6 +18,25 @@ interface PlyrVideoPlayerProps {
 const SAVE_INTERVAL_MS = 90_000;
 const EVENT_CHECK_INTERVAL_MS = 500;
 
+/** Best-effort request fullscreen on an element (with WebKit fallback). */
+function requestFullscreenOn(el: HTMLElement): Promise<void> {
+  try {
+    return el.requestFullscreen().catch(() => undefined);
+  } catch {
+    // Some older WebKit builds expose only webkitRequestFullscreen.
+  }
+  try {
+    const webkit = (el as HTMLElement & { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen;
+    if (webkit) {
+      webkit.call(el);
+      return Promise.resolve();
+    }
+  } catch {
+    // ignore
+  }
+  return Promise.resolve();
+}
+
 /** Mobile detection used to trim controls and auto-rotate on fullscreen. */
 function isMobileViewport(): boolean {
   return (
@@ -72,10 +91,25 @@ export function PlyrVideoPlayer({
   const fireQuestion = useCallback(async (event: VideoEvent): Promise<void> => {
     if (triggeredRef.current.has(event.id)) return;
     triggeredRef.current.add(event.id);
-    isPausedForQuestionRef.current = true;
 
-    // Pause the video immediately (before fetching the question data) so it
-    // never keeps playing behind the question modal.
+    // Fetch the question data FIRST so we never pause the video for a question
+    // that has no loadable content (previously this paused the video every
+    // time a stale/empty question event was reached, causing random pauses).
+    let question: QuestionData | null = null;
+    try {
+      const res = await api.get<QuestionData>(`/video-questions/by-video-event/${event.id}`);
+      question = res.data ?? null;
+    } catch {
+      question = null;
+    }
+
+    if (!question) {
+      // No question content available — do not pause; keep playing.
+      triggeredRef.current.delete(event.id);
+      return;
+    }
+
+    isPausedForQuestionRef.current = true;
     const plyr = plyrRef.current as { currentTime: number; pause?: () => void } | null;
     if (plyr) {
       isSeekingProgrammaticallyRef.current = true;
@@ -83,24 +117,12 @@ export function PlyrVideoPlayer({
       plyr.pause?.();
     }
 
-    try {
-      const res = await api.get<QuestionData>(`/video-questions/by-video-event/${event.id}`);
-      if (res.data) {
-        const questionState = { event, question: res.data };
-        activeQuestionRef.current = questionState;
-        setActiveQuestion(questionState);
-        // If the player is in fullscreen, exit so the question modal is visible.
-        if (document.fullscreenElement) {
-          void document.exitFullscreen();
-        }
-        return;
-      }
-    } catch {
-      // Question data failed to load — allow the student to keep watching.
-      isPausedForQuestionRef.current = false;
-      isSeekingProgrammaticallyRef.current = false;
-      const p = plyrRef.current as { play?: () => void } | null;
-      p?.play?.();
+    const questionState = { event, question };
+    activeQuestionRef.current = questionState;
+    setActiveQuestion(questionState);
+    // If the player is in fullscreen, exit so the question modal is visible.
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
     }
   }, []);
 
@@ -308,12 +330,26 @@ export function PlyrVideoPlayer({
       // video is shown edge-to-edge. Best-effort: iOS does not support
       // screen.orientation.lock, so users rotate manually there.
       player.on("enterfullscreen", (): void => {
-        if (isMobileViewport()) {
+        if (!isMobileViewport()) return;
+        // Give the browser a moment to actually enter fullscreen before
+        // requesting the orientation lock, otherwise the lock is rejected.
+        const lockLandscape = (): void => {
           const screenAny = screen as unknown as { orientation?: { lock?: (orientation: string) => Promise<void> } };
           const lock = screenAny.orientation?.lock;
           if (lock) {
             void lock("landscape").catch((): void => undefined);
           }
+        };
+        // If Plyr/YouTube did not request page fullscreen, request it on the
+        // container so the orientation lock is permitted.
+        if (!document.fullscreenElement) {
+          const el = document.getElementById(playerId);
+          const p = el ? requestFullscreenOn(el) : Promise.resolve();
+          void p.finally((): void => {
+            window.setTimeout(lockLandscape, 120);
+          });
+        } else {
+          window.setTimeout(lockLandscape, 120);
         }
       });
       player.on("exitfullscreen", (): void => {
@@ -437,6 +473,9 @@ export function PlyrVideoPlayer({
         .plyr__video-embed { position: relative; overflow: hidden; pointer-events: none; }
         .plyr__video-embed > * { pointer-events: auto; }
         .plyr__video-embed iframe { position: absolute; top: -50% !important; left: 0; width: 100%; height: 200% !important; border: 0; max-width: none; }
+        .plyr--fullscreen-fallback .plyr__video-embed iframe,
+        .plyr__video-embed:fullscreen iframe { top: 0 !important; height: 100% !important; }
+        .plyr.plyr--fullscreen-active .plyr__video-embed iframe { top: 0 !important; height: 100% !important; }
         .plyr__poster { background-size: cover !important; background-position: center center !important; z-index: 4 !important; transition: opacity 0.2s ease; }
         .plyr--paused .plyr__poster { display: block !important; opacity: 1 !important; visibility: visible !important; }
         .plyr--paused .plyr__video-embed { opacity: 0.99; }

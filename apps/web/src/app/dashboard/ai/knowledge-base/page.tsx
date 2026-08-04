@@ -181,9 +181,15 @@ export default function KnowledgeBasePage(): ReactNode {
   const [reindexingIds, setReindexingIds] = useState<Set<string>>(new Set());
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterGrade, setFilterGrade] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterType, setFilterType] = useState("");
+
+  useEffect(() => {
+    const id = setTimeout((): void => { setDebouncedSearch(searchQuery); }, 400);
+    return (): void => { clearTimeout(id); };
+  }, [searchQuery]);
 
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [previewQuery, setPreviewQuery] = useState("");
@@ -214,7 +220,7 @@ export default function KnowledgeBasePage(): ReactNode {
       if (filterGrade) params.set("gradeId", filterGrade);
       if (filterStatus) params.set("status", filterStatus);
       if (filterType) params.set("type", filterType);
-      if (searchQuery) params.set("search", searchQuery);
+      if (debouncedSearch) params.set("search", debouncedSearch);
 
       const qs = params.toString();
       const [sourcesRes, gradesRes, termsRes, statsRes] = await Promise.all([
@@ -233,7 +239,7 @@ export default function KnowledgeBasePage(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [filterGrade, filterStatus, filterType, searchQuery]);
+  }, [filterGrade, filterStatus, filterType, debouncedSearch]);
 
   useEffect(() => {
     void fetchData();
