@@ -46,6 +46,43 @@ function isMobileViewport(): boolean {
   );
 }
 
+interface ScreenOrientationLike {
+  lock?: (orientation: string) => Promise<void>;
+  unlock?: () => void;
+}
+
+function getScreenOrientation(): ScreenOrientationLike | null {
+  if (typeof screen === "undefined") return null;
+  const ori = (screen as unknown as { orientation?: ScreenOrientationLike }).orientation;
+  return ori ?? null;
+}
+
+/** Best-effort rotate the device to landscape while in fullscreen. */
+function lockLandscape(): void {
+  try {
+    const ori = getScreenOrientation();
+    if (!ori?.lock) return;
+    void ori.lock("landscape").catch((): void => undefined);
+  } catch {
+    // Unsupported (e.g. iOS Safari) — user rotates manually.
+  }
+}
+
+/** Release the orientation lock when fullscreen is exited. */
+function unlockOrientation(): void {
+  try {
+    const ori = getScreenOrientation();
+    if (!ori?.unlock) return;
+    ori.unlock();
+  } catch {
+    // ignore
+  }
+}
+
+function isDocumentFullscreen(): boolean {
+  return typeof document !== "undefined" && Boolean(document.fullscreenElement);
+}
+
 export function PlyrVideoPlayer({
   providerVideoId,
   videoId,
@@ -55,6 +92,7 @@ export function PlyrVideoPlayer({
   completedActions,
 }: PlyrVideoPlayerProps): ReactNode {
   const playerId = `yt-player-${providerVideoId}`;
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const plyrRef = useRef<unknown>(null);
   const eventsRef = useRef<readonly VideoEvent[]>([]);
   const triggeredRef = useRef<Set<string>>(new Set());
@@ -204,6 +242,12 @@ export function PlyrVideoPlayer({
 
   useEffect(() => {
     const onFullscreenChange = (): void => {
+      // Release the orientation lock whenever fullscreen is exited.
+      if (!isDocumentFullscreen()) {
+        unlockOrientation();
+      }
+      // If a question is active, never let the video stay in fullscreen behind
+      // the question modal.
       if (document.fullscreenElement && activeQuestionRef.current) {
         void document.exitFullscreen();
       }
@@ -328,26 +372,20 @@ export function PlyrVideoPlayer({
         tooltips: { controls: true, seek: true },
       });
 
-      // On phones, entering fullscreen locks the device to landscape so the
-      // video is shown edge-to-edge. Best-effort: iOS does not support
-      // screen.orientation.lock, so users rotate manually there.
+      // On phones, entering fullscreen must use the native Fullscreen API on
+      // the root wrapper so the whole page is hidden and the orientation can be
+      // locked to landscape. Plyr's own YouTube fullscreen can leave the page
+      // visible behind the player and never fires screen.orientation.lock.
       player.on("enterfullscreen", (): void => {
         if (!isMobileViewport()) return;
-        // Give the browser a moment to actually enter fullscreen before
-        // requesting the orientation lock, otherwise the lock is rejected.
-        const lockLandscape = (): void => {
-          const screenAny = screen as unknown as { orientation?: { lock?: (orientation: string) => Promise<void> } };
-          const lock = screenAny.orientation?.lock;
-          if (lock) {
-            void lock("landscape").catch((): void => undefined);
-          }
-        };
-        // If Plyr/YouTube did not request page fullscreen, request it on the
-        // container so the orientation lock is permitted.
-        if (!document.fullscreenElement) {
-          const el = document.getElementById(playerId);
-          const p = el ? requestFullscreenOn(el) : Promise.resolve();
-          void p.finally((): void => {
+        const root = rootRef.current;
+
+        // 1) Make sure the native Fullscreen API is actually engaged on the
+        //    player wrapper (not just Plyr's internal fullscreen class).
+        if (!isDocumentFullscreen() && root) {
+          void requestFullscreenOn(root).finally((): void => {
+            // Give the browser a moment to promote the element to fullscreen
+            // before requesting the orientation lock, otherwise it is rejected.
             window.setTimeout(lockLandscape, 120);
           });
         } else {
@@ -355,8 +393,11 @@ export function PlyrVideoPlayer({
         }
       });
       player.on("exitfullscreen", (): void => {
-        const screenAny = screen as unknown as { orientation?: { unlock?: () => void } };
-        screenAny.orientation?.unlock?.();
+        unlockOrientation();
+        // Also exit native fullscreen if it was left active.
+        if (isDocumentFullscreen()) {
+          void document.exitFullscreen().catch(() => undefined);
+        }
       });
 
       plyrRef.current = player;
@@ -480,9 +521,6 @@ export function PlyrVideoPlayer({
         .plyr__video-embed { position: relative; overflow: hidden; pointer-events: none; }
         .plyr__video-embed > * { pointer-events: auto; }
         .plyr__video-embed iframe { position: absolute; top: -50% !important; left: 0; width: 100%; height: 200% !important; border: 0; max-width: none; }
-        .plyr--fullscreen-fallback .plyr__video-embed iframe,
-        .plyr__video-embed:fullscreen iframe { top: 0 !important; height: 100% !important; }
-        .plyr.plyr--fullscreen-active .plyr__video-embed iframe { top: 0 !important; height: 100% !important; }
         .plyr__poster { background-size: cover !important; background-position: center center !important; z-index: 4 !important; transition: opacity 0.2s ease; }
         .plyr--paused .plyr__poster { display: block !important; opacity: 1 !important; visibility: visible !important; }
         .plyr--paused .plyr__video-embed { opacity: 0.99; }
@@ -503,9 +541,64 @@ export function PlyrVideoPlayer({
         .plyr--video .plyr__controls { pointer-events: auto !important; }
         .plyr.plyr--hide-controls .plyr__controls { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
         .plyr:not(.plyr--hide-controls) .plyr__controls { opacity: 1; }
+
+        /* ── Native fullscreen (mobile) ────────────────────────────────── */
+        .elb-video-root:fullscreen {
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: none !important;
+          max-height: none !important;
+          aspect-ratio: auto !important;
+          border-radius: 0 !important;
+          overflow: hidden !important;
+          background: #000 !important;
+          position: fixed !important;
+          inset: 0 !important;
+          z-index: 2147483647 !important;
+        }
+        .elb-video-root:fullscreen .plyr__video-embed {
+          width: 100vw !important;
+          height: 100vh !important;
+          overflow: hidden !important;
+        }
+        .elb-video-root:fullscreen .plyr__video-embed iframe {
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: none !important;
+          max-height: none !important;
+          object-fit: cover !important;
+        }
+        .elb-video-root:fullscreen .plyr__controls {
+          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
+        }
+        /* WebKit fullscreen (iOS Safari) */
+        .elb-video-root:-webkit-full-screen {
+          width: 100vw !important;
+          height: 100vh !important;
+          aspect-ratio: auto !important;
+          border-radius: 0 !important;
+          overflow: hidden !important;
+          background: #000 !important;
+        }
+        .elb-video-root:-webkit-full-screen .plyr__video-embed iframe {
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          object-fit: cover !important;
+        }
+        /* Keep overlays hidden while the native fullscreen layer is active
+           so only the video + controls are visible (YouTube-style). */
+        .elb-video-root:fullscreen .elb-video-overlay,
+        .elb-video-root:-webkit-full-screen .elb-video-overlay { display: none !important; }
       `}</style>
 
-      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
+      <div
+        ref={rootRef}
+        className="elb-video-root relative aspect-video w-full overflow-hidden rounded-2xl bg-black"
+      >
         <div id={playerId} className="plyr__video-embed h-full w-full">
           <iframe
             src={`https://www.youtube-nocookie.com/embed/${providerVideoId}?controls=0&rel=0&iv_load_policy=3&playsinline=1&modestbranding=1&enablejsapi=1${typeof window !== "undefined" ? `&origin=${window.location.origin}` : ""}`}
@@ -516,22 +609,24 @@ export function PlyrVideoPlayer({
         </div>
 
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-neutral-900">
+          <div className="elb-video-overlay absolute inset-0 flex items-center justify-center bg-neutral-900">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
           </div>
         )}
 
         {activeQuestion && (
-          <VideoQuestionModal
-            event={activeQuestion.event}
-            question={activeQuestion.question}
-            onComplete={handleQuestionComplete}
-            onSkip={handleQuestionSkip}
-          />
+          <div className="elb-video-overlay absolute inset-0 z-[60]">
+            <VideoQuestionModal
+              event={activeQuestion.event}
+              question={activeQuestion.question}
+              onComplete={handleQuestionComplete}
+              onSkip={handleQuestionSkip}
+            />
+          </div>
         )}
 
         {completed && completedActionsRef.current && !activeQuestion && (
-          <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-neutral-900/95 p-6">
+          <div className="elb-video-overlay absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-neutral-900/95 p-6">
             <div className="rounded-full bg-green-500/20 p-4">
               <svg className="h-12 w-12 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
