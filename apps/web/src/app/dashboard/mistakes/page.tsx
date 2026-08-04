@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState, useCallback, useEffect, useRef } from "react";
+import { type ReactNode, useState, useCallback, useMemo, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -458,7 +458,7 @@ function ExamOrResultsView({
   examId: string | null;
   view: "exam" | "results";
   examAnswers: Record<string, string | null>;
-  setExamAnswers: (v: Record<string, string | null>) => void;
+  setExamAnswers: Dispatch<SetStateAction<Record<string, string | null>>>;
   quizEnded: boolean;
   setQuizEnded: (v: boolean) => void;
   onSubmit: () => void;
@@ -467,8 +467,6 @@ function ExamOrResultsView({
 }): ReactNode {
   const [exam, setExam] = useState<MiniExamSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   useEffect(() => {
     if (!examId) return;
@@ -481,37 +479,27 @@ function ExamOrResultsView({
       .catch(() => { setLoading(false); });
   }, [examId, view]);
 
-  useEffect(() => {
-    if (!exam || view !== "exam") return;
-    const totalSec = exam.durationMinutes * 60;
-    let remaining = totalSec;
-    timerRef.current = setInterval((): void => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        clearInterval(timerRef.current);
-        setQuizEnded(true);
-      }
-    }, 1000);
-    setTimeLeft(totalSec);
-    const countdown = setInterval((): void => {
-      remaining -= 1;
-      setTimeLeft(Math.max(0, remaining));
-      if (remaining <= 0) {
-        clearInterval(countdown);
-        setQuizEnded(true);
-      }
-    }, 1000);
-    return (): void => {
-      clearInterval(timerRef.current);
-      clearInterval(countdown);
-    };
-  }, [exam, view, setQuizEnded]);
-
-  if (loading || !exam) return <PageSkeleton />;
-
-  const questions = exam.questions;
+  const questions = exam?.questions ?? [];
   const answeredCount = questions.filter((q) => examAnswers[q.questionId]).length;
   const allAnswered = answeredCount === questions.length;
+
+  const studentQuestions = useMemo<StudentQuestion[]>(
+    () => questions.map((q) => {
+      const hasOptions = q.options.length > 0;
+      return {
+        id: q.questionId,
+        type: hasOptions ? "MULTIPLE_CHOICE" : "FILL_IN_BLANKS",
+        question: q.question,
+        options: hasOptions ? JSON.stringify(q.options.map((o) => o.text)) : null,
+        displayOrder: 0,
+      };
+    }),
+    [questions],
+  );
+
+  const groupedQuestions = useMemo(() => groupQuestions(studentQuestions), [studentQuestions]);
+
+  if (loading || !exam) return <PageSkeleton />;
 
   if (view === "results") {
     const score = exam.score;
@@ -548,17 +536,6 @@ function ExamOrResultsView({
     );
   }
 
-  const studentQuestions: StudentQuestion[] = questions.map((q) => {
-    const hasOptions = q.options.length > 0;
-    return {
-      id: q.questionId,
-      type: hasOptions ? "MULTIPLE_CHOICE" : "FILL_IN_BLANKS",
-      question: q.question,
-      options: hasOptions ? JSON.stringify(q.options.map((o) => o.text)) : null,
-      displayOrder: 0,
-    };
-  });
-
   const getSelectedIndex = (questionId: string): string => {
     const q = questions.find((x) => x.questionId === questionId);
     if (!q) return "";
@@ -567,39 +544,31 @@ function ExamOrResultsView({
     return idx >= 0 ? String(idx) : "";
   };
 
-  const handleAnswerChange = (index: number, value: string): void => {
-    const q = questions[index];
-    const opt = q.options[Number(value)] as { text: string } | undefined;
-    setExamAnswers({ ...examAnswers, [q.questionId]: opt ? opt.text : value });
-  };
+  const handleAnswerChange = useCallback((index: number, value: string): void => {
+    setExamAnswers((prev) => {
+      const q = questions[index];
+      const opt = q.options[Number(value)] as { text: string } | undefined;
+      return { ...prev, [q.questionId]: opt ? opt.text : value };
+    });
+  }, [questions]);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" leftIcon={<ArrowLeft className="h-4 w-4" />} onClick={onBack}>رجوع</Button>
         <div className="flex items-center gap-2">
-          {timeLeft !== null && (
-            <div
-              dir="ltr"
-              className={`rounded-xl border px-4 py-2 text-sm font-bold tabular-nums ${
-                quizEnded
-                  ? "border-red-500/40 bg-red-500/10 text-red-400"
-                  : timeLeft < 60
-                    ? "border-red-500/40 bg-red-500/10 text-red-400"
-                    : timeLeft < 300
-                      ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
-                      : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-              }`}
-            >
-              ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
-            </div>
-          )}
+          <MiniExamCountdown
+            key={exam.id}
+            durationMinutes={exam.durationMinutes}
+            ended={quizEnded}
+            onExpire={(): void => { setQuizEnded(true); }}
+          />
           <Badge variant="primary">{answeredCount}/{questions.length}</Badge>
         </div>
       </div>
 
       <div className="flex flex-col gap-4" dir="ltr">
-        {groupQuestions(studentQuestions).map((group, gi) => (
+        {groupedQuestions.map((group, gi) => (
           <div key={gi} className="flex flex-col gap-3">
             <h2 className="border-b border-neutral-200 pb-2 text-lg font-bold text-neutral-900 dark:border-neutral-700 dark:text-neutral-100">
               {group.heading}
@@ -633,6 +602,61 @@ function ExamOrResultsView({
           {allAnswered ? "إنهاء الاختبار" : "أكمل جميع الأسئلة"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// Isolated countdown: updates only this component every second (not the whole page).
+function MiniExamCountdown({
+  durationMinutes,
+  ended,
+  onExpire,
+}: {
+  durationMinutes: number;
+  ended: boolean;
+  onExpire: () => void;
+}): ReactNode {
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const onExpireRef = useRef(onExpire);
+
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  });
+
+  useEffect(() => {
+    if (!durationMinutes || durationMinutes <= 0) {
+      setTimeLeft(null);
+      return;
+    }
+    let remaining = durationMinutes * 60;
+    setTimeLeft(remaining);
+    const id = setInterval((): void => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(id);
+        setTimeLeft(0);
+        onExpireRef.current();
+        return;
+      }
+      setTimeLeft(remaining);
+    }, 1000);
+    return (): void => { clearInterval(id); };
+  }, [durationMinutes]);
+
+  if (timeLeft === null) return null;
+
+  return (
+    <div
+      dir="ltr"
+      className={`rounded-xl border px-4 py-2 text-sm font-bold tabular-nums ${
+        ended || timeLeft < 60
+          ? "border-red-500/40 bg-red-500/10 text-red-400"
+          : timeLeft < 300
+            ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+            : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+      }`}
+    >
+      ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
     </div>
   );
 }

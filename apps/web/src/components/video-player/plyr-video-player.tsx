@@ -18,6 +18,15 @@ interface PlyrVideoPlayerProps {
 const SAVE_INTERVAL_MS = 90_000;
 const EVENT_CHECK_INTERVAL_MS = 500;
 
+/** Mobile detection used to trim controls and auto-rotate on fullscreen. */
+function isMobileViewport(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 768px)").matches
+  );
+}
+
 export function PlyrVideoPlayer({
   providerVideoId,
   videoId,
@@ -45,6 +54,7 @@ export function PlyrVideoPlayer({
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
   const [activeQuestion, setActiveQuestion] = useState<{ event: VideoEvent; question: QuestionData } | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const saveProgress = useCallback((): void => {
     if (!videoId) return;
@@ -163,9 +173,10 @@ export function PlyrVideoPlayer({
   }, [videoId, saveProgress]);
 
   useEffect(() => {
+    if (!isPlaying) return;
     eventCheckIntervalRef.current = setInterval((): void => { void checkTimelineEvents(); }, EVENT_CHECK_INTERVAL_MS);
     return function cleanup(): void { if (eventCheckIntervalRef.current) clearInterval(eventCheckIntervalRef.current); };
-  }, [checkTimelineEvents]);
+  }, [checkTimelineEvents, isPlaying]);
 
   useEffect(() => {
     const onFullscreenChange = (): void => {
@@ -270,8 +281,12 @@ export function PlyrVideoPlayer({
         return;
       }
 
+      const isMobile = isMobileViewport();
+      const controls = isMobile
+        ? ["play-large", "play", "progress", "current-time", "duration", "mute", "fullscreen"]
+        : ["play-large", "play", "progress", "current-time", "duration", "mute", "volume", "fullscreen"];
       const player = new Plyr(container, {
-        controls: ["play-large", "play", "progress", "current-time", "duration", "mute", "volume", "fullscreen"],
+        controls,
         youtube: {
           noCookie: true,
           rel: 0,
@@ -287,6 +302,23 @@ export function PlyrVideoPlayer({
         clickToPlay: true,
         hideControls: true,
         tooltips: { controls: true, seek: true },
+      });
+
+      // On phones, entering fullscreen locks the device to landscape so the
+      // video is shown edge-to-edge. Best-effort: iOS does not support
+      // screen.orientation.lock, so users rotate manually there.
+      player.on("enterfullscreen", (): void => {
+        if (isMobileViewport()) {
+          const screenAny = screen as unknown as { orientation?: { lock?: (orientation: string) => Promise<void> } };
+          const lock = screenAny.orientation?.lock;
+          if (lock) {
+            void lock("landscape").catch((): void => undefined);
+          }
+        }
+      });
+      player.on("exitfullscreen", (): void => {
+        const screenAny = screen as unknown as { orientation?: { unlock?: () => void } };
+        screenAny.orientation?.unlock?.();
       });
 
       plyrRef.current = player;
@@ -312,12 +344,14 @@ export function PlyrVideoPlayer({
 
       player.on("pause", (): void => {
         isPlayingRef.current = false;
+        setIsPlaying(false);
         saveProgress();
         if (posterEl) { posterEl.style.display = "block"; posterEl.style.opacity = "1"; }
       });
 
       player.on("play", (): void => {
         isPlayingRef.current = true;
+        setIsPlaying(true);
         saveProgress();
         if (posterEl) { posterEl.style.display = ""; posterEl.style.opacity = ""; }
       });

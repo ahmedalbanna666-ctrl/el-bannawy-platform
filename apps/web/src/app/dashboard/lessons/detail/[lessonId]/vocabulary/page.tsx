@@ -136,11 +136,11 @@ function StandardVocabTable({ items }: { items: readonly VocabWord[] }): ReactNo
       <div className="md:hidden overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40">
         <Table dir="ltr">
           <TableHeader>
-            <TableRow className="h-11 border-b border-neutral-200 bg-primary-50/60 dark:border-neutral-700 dark:bg-primary-500/5">
-              <TableHead className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                الكلمة (English)
+            <TableRow className="h-10 border-b border-neutral-200 bg-primary-50/60 dark:border-neutral-700 dark:bg-primary-500/5">
+              <TableHead className="w-1/2 px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+                الكلمة
               </TableHead>
-              <TableHead className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+              <TableHead className="w-1/2 px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
                 المعنى
               </TableHead>
             </TableRow>
@@ -156,7 +156,7 @@ function StandardVocabTable({ items }: { items: readonly VocabWord[] }): ReactNo
                   expanded={expandedId === v.id}
                   onToggleExpand={(): void => { toggleExpand(v.id); }}
                 />
-                <TableCell className="py-3 text-sm text-neutral-900 dark:text-neutral-100" dir="rtl">
+                <TableCell className="py-3 text-sm leading-relaxed text-neutral-900 dark:text-neutral-100" dir="rtl">
                   {v.translation}
                 </TableCell>
               </TableRow>

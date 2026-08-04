@@ -774,6 +774,12 @@ export class MistakesService {
         const lesson = a.question.videoEvent.video.lesson;
         const unit = lesson?.unit;
         const correctOption = a.question.options.find((o) => o.isCorrect);
+        const selectedIds: string[] = Array.isArray(a.selectedOptionIds)
+          ? a.selectedOptionIds.filter((v): v is string => typeof v === "string")
+          : [];
+        const selectedTexts = a.question.options
+          .filter((o) => selectedIds.includes(o.id))
+          .map((o) => o.text);
         return {
           questionId: a.question.id,
           source: "VIDEO_QUESTION" as MistakeSource,
@@ -783,7 +789,12 @@ export class MistakesService {
             isCorrect: o.isCorrect,
           })),
           correctAnswer: correctOption?.text ?? "",
-          studentAnswer: a.text ?? a.selectedOptionIds?.toString() ?? null,
+          studentAnswer:
+            (a.text?.length ?? 0) > 0
+              ? a.text
+              : selectedTexts.length > 0
+                ? selectedTexts.join(", ")
+                : null,
           explanation: null,
           answeredAt: a.createdAt.toISOString(),
           attemptId: a.id,

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { memo, type ReactNode, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CheckCircle, XCircle, ArrowUp, ArrowDown, HelpCircle, BookOpen } from "lucide-react";
@@ -26,21 +26,23 @@ interface QuestionCardProps {
   readonly onAnswerChange: (index: number, value: string) => void;
 }
 
-export function QuestionCard({
+export const QuestionCard = memo(function QuestionCard({
   question, index, selectedAnswer, isSubmitted, correctAnswer, explanation, isAnswerCorrect,
   showResult = false, onAnswerChange,
 }: QuestionCardProps): ReactNode {
   const isWrong = isSubmitted && isAnswerCorrect === false;
   const isCorrect = isSubmitted && isAnswerCorrect === true;
 
-  const borderClass = isSubmitted
-    ? isWrong
-      ? "border-red-500/40 bg-red-500/5"
-      : isCorrect
-        ? "border-emerald-500/40 bg-emerald-500/5"
-        : "border-neutral-200 dark:border-neutral-700"
-    : "border-neutral-200 dark:border-neutral-700";
+  const borderClass =
+    isSubmitted && showResult
+      ? isWrong
+        ? "border-danger-500/40 bg-danger-500/5"
+        : isCorrect
+          ? "border-success-500/40 bg-success-500/5"
+          : "border-neutral-200 dark:border-neutral-700"
+      : "border-neutral-200 dark:border-neutral-700";
 
+  const studentAnswerText = isSubmitted && showResult ? selectedAnswer : "";
 
   return (
     <Card variant="outline" padding="sm" className={borderClass}>
@@ -70,9 +72,6 @@ export function QuestionCard({
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-              {question.type === "TRUE_FALSE" && renderTrueFalseInline(
-                index, selectedAnswer, isSubmitted, showResult, correctAnswer, isCorrect, isWrong, onAnswerChange,
-              )}
               {showResult && isSubmitted && (
                 isCorrect
                   ? <CheckCircle className="h-5 w-5 text-emerald-500" />
@@ -83,27 +82,32 @@ export function QuestionCard({
             </div>
           </div>
 
-          {question.type !== "TRUE_FALSE" && (
-            <div className="pr-10">
-              <QuestionRenderer
-                question={question}
-                index={index}
-                selectedAnswer={selectedAnswer}
-                isSubmitted={isSubmitted}
-                showResult={showResult}
-                correctAnswer={correctAnswer}
-                isCorrect={isCorrect}
-                isWrong={isWrong}
-                onAnswerChange={onAnswerChange}
-              />
-            </div>
-          )}
+          <div className="pr-10">
+            <QuestionRenderer
+              question={question}
+              index={index}
+              selectedAnswer={selectedAnswer}
+              isSubmitted={isSubmitted}
+              showResult={showResult}
+              correctAnswer={correctAnswer}
+              isCorrect={isCorrect}
+              isWrong={isWrong}
+              onAnswerChange={onAnswerChange}
+            />
+          </div>
 
-          {showResult && isWrong && correctAnswer && (
-            <div className="pr-10">
-              <p className="text-xs text-red-500">
-                الإجابة الصحيحة: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{correctAnswer}</span>
-              </p>
+          {showResult && isSubmitted && (
+            <div className="flex flex-col gap-1.5 pr-10">
+              {isWrong && studentAnswerText && (
+                <p className="text-xs text-red-500">
+                  إجابتك: <span className="font-semibold">{studentAnswerText}</span>
+                </p>
+              )}
+              {correctAnswer && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                  الإجابة الصحيحة: <span className="font-semibold">{correctAnswer}</span>
+                </p>
+              )}
             </div>
           )}
 
@@ -119,7 +123,7 @@ export function QuestionCard({
       </CardContent>
     </Card>
   );
-}
+});
 
 // ── Renderers ─────────────────────────────────────────────────────────
 
@@ -237,35 +241,38 @@ function renderMCQGrid(
         const isSelected = selectedAnswer === val;
         const label = String.fromCharCode(65 + oi);
         const isCorrectOpt = showResult && val === correctAnswer;
-        const isWrongOpt = showResult && isSelected && val !== correctAnswer;
+
+        const styleClass = isSubmitted && showResult
+          ? isCorrectOpt
+            ? "border-success-500/70 bg-success-500/10 text-success-700 dark:text-success-300"
+            : isSelected
+              ? "border-amber-500/70 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+              : "border-neutral-200 text-neutral-500 dark:border-neutral-700 dark:text-neutral-400"
+          : isSubmitted
+            ? "border-neutral-200 text-neutral-500 dark:border-neutral-700 dark:text-neutral-400"
+            : isSelected
+              ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+              : "border-neutral-200 text-neutral-700 dark:border-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800/50";
+
+        const badgeClass = isSubmitted && showResult
+          ? isCorrectOpt
+            ? "bg-success-500 text-white"
+            : isSelected
+              ? "bg-amber-500 text-white"
+              : "bg-neutral-200 text-neutral-500 dark:bg-neutral-700"
+          : isSubmitted
+            ? "bg-neutral-200 text-neutral-500 dark:bg-neutral-700"
+            : isSelected
+              ? "bg-amber-500 text-white"
+              : "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300";
 
         return (
           <button key={oi} type="button"
             onClick={(): void => { if (!isSubmitted) onAnswerChange(index, val); }}
             disabled={isSubmitted}
-            className={`flex flex-row items-center gap-2 rounded-lg border px-3 py-2 text-sm text-start transition-colors shadow-sm ${
-              isSubmitted
-                ? isCorrectOpt
-                  ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
-                  : isWrongOpt
-                    ? "border-red-500 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
-                    : "border-neutral-200 text-neutral-400 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-                : isSelected
-                  ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
-                  : "border-neutral-200 text-neutral-700 dark:border-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-            }`}
+            className={`flex flex-row items-center gap-2 rounded-lg border px-3 py-2 text-sm text-start transition-colors shadow-sm ${styleClass}`}
           >
-            <span className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold ${
-              isSubmitted
-                ? isCorrectOpt
-                  ? "bg-emerald-500 text-white"
-                  : isWrongOpt
-                    ? "bg-red-500 text-white"
-                    : "bg-neutral-200 text-neutral-500 dark:bg-neutral-700"
-                : isSelected
-                  ? "bg-amber-500 text-white"
-                  : "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
-            }`}>
+            <span className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold ${badgeClass}`}>
               {label}
             </span>
             <span className="leading-relaxed">{opt}</span>
@@ -289,22 +296,22 @@ function renderTrueFalseInline(
       {[["true", "T"], ["false", "F"]].map(([val, label]) => {
         const isSelected = selectedAnswer === val;
         const isCorrectOpt = showResult && val === correctAnswer;
-        const isWrongOpt = showResult && isSelected && val !== correctAnswer;
+        const styleClass = isSubmitted && showResult
+          ? isCorrectOpt
+            ? "bg-success-500 text-white"
+            : isSelected
+              ? "bg-amber-500 text-white"
+              : "bg-neutral-200 text-neutral-400 dark:bg-neutral-700"
+          : isSubmitted
+            ? "bg-neutral-200 text-neutral-400 dark:bg-neutral-700"
+            : isSelected
+              ? "bg-amber-500 text-white"
+              : "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-800/50";
         return (
           <button key={val} type="button"
             onClick={(): void => { if (!isSubmitted) onAnswerChange(index, val); }}
             disabled={isSubmitted}
-            className={`flex h-7 min-w-[32px] items-center justify-center rounded-md px-2 text-xs font-bold transition-colors ${
-              isSubmitted
-                ? isCorrectOpt
-                  ? "bg-emerald-500 text-white"
-                  : isWrongOpt
-                    ? "bg-red-500 text-white"
-                    : "bg-neutral-200 text-neutral-400 dark:bg-neutral-700"
-                : isSelected
-                  ? "bg-amber-500 text-white"
-                  : "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-800/50"
-            }`}
+            className={`flex h-7 min-w-[32px] items-center justify-center rounded-md px-2 text-xs font-bold transition-colors ${styleClass}`}
           >
             {label}
           </button>

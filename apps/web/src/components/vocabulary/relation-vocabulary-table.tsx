@@ -19,88 +19,138 @@ function RelationVocabularyTableBase({
   canManage = false,
 }: RelationVocabularyTableProps): ReactNode {
   return (
-    <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40">
-      <Table dir="ltr">
-        <TableHeader>
-          <TableRow className="h-11 border-b border-neutral-200 bg-primary-50/60 dark:border-neutral-700 dark:bg-primary-500/5">
-            <TableHead className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-              الكلمة
-            </TableHead>
-            <TableHead className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-              المعنى
-            </TableHead>
-            <TableHead className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-              المرادف
-            </TableHead>
-            <TableHead className="text-xs font-bold uppercase tracking-wider text-danger-600 dark:text-danger-400">
-              المضاد
-            </TableHead>
-            {canManage && (
-              <TableHead className="text-xs font-bold uppercase tracking-wider text-neutral-500 text-end">
-                إجراءات
+    <>
+      {/* Desktop / tablet: full-width table */}
+      <div className="hidden sm:block overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40">
+        <Table dir="ltr">
+          <TableHeader>
+            <TableRow className="h-11 border-b border-neutral-200 bg-primary-50/60 dark:border-neutral-700 dark:bg-primary-500/5">
+              <TableHead className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                الكلمة
               </TableHead>
-            )}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((vocab) => (
-            <TableRow
-              key={vocab.id}
-              className="border-b border-neutral-100 transition-colors last:border-0 hover:bg-primary-50/40 dark:border-neutral-800 dark:hover:bg-primary-500/5"
-            >
-              <TableCell className="py-3 text-sm font-semibold text-primary-600 dark:text-primary-400">
-                {vocab.word}
-              </TableCell>
-              <TableCell
-                className="py-3 text-sm text-neutral-900 dark:text-neutral-100"
-                dir="rtl"
-              >
-                {vocab.translation}
-              </TableCell>
-              <TableCell
-                className="py-3 text-sm text-neutral-900 dark:text-neutral-100"
-                dir="rtl"
-              >
-                {vocab.synonym ? (
-                  <span>
-                    {vocab.synonym}
-                    {vocab.synonymTranslation && (
-                      <span className="mr-1 text-xs text-neutral-400">
-                        ({vocab.synonymTranslation})
-                      </span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="text-neutral-300 dark:text-neutral-600">—</span>
-                )}
-              </TableCell>
-              <TableCell
-                className="py-3 text-sm text-neutral-900 dark:text-neutral-100"
-                dir="rtl"
-              >
-                {vocab.antonym ? (
-                  <span>
-                    {vocab.antonym}
-                    {vocab.antonymTranslation && (
-                      <span className="mr-1 text-xs text-neutral-400">
-                        ({vocab.antonymTranslation})
-                      </span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="text-neutral-300 dark:text-neutral-600">—</span>
-                )}
-              </TableCell>
+              <TableHead className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                المعنى
+              </TableHead>
+              <TableHead className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                المرادف
+              </TableHead>
+              <TableHead className="text-xs font-bold uppercase tracking-wider text-danger-600 dark:text-danger-400">
+                المضاد
+              </TableHead>
               {canManage && (
-                <TableCell className="py-3 text-end">
-                  <span className="text-xs text-neutral-400">—</span>
-                </TableCell>
+                <TableHead className="text-xs font-bold uppercase tracking-wider text-neutral-500 text-end">
+                  إجراءات
+                </TableHead>
               )}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {items.map((vocab) => (
+              <TableRow
+                key={vocab.id}
+                className="border-b border-neutral-100 transition-colors last:border-0 hover:bg-primary-50/40 dark:border-neutral-800 dark:hover:bg-primary-500/5"
+              >
+                <TableCell className="py-3 text-sm font-semibold text-primary-600 dark:text-primary-400">
+                  {vocab.word}
+                </TableCell>
+                <TableCell
+                  className="py-3 text-sm text-neutral-900 dark:text-neutral-100"
+                  dir="rtl"
+                >
+                  {vocab.translation}
+                </TableCell>
+                <TableCell
+                  className="py-3 text-sm text-neutral-900 dark:text-neutral-100"
+                  dir="rtl"
+                >
+                  {vocab.synonym ? (
+                    <span>
+                      {vocab.synonym}
+                      {vocab.synonymTranslation && (
+                        <span className="mr-1 text-xs text-neutral-400">
+                          ({vocab.synonymTranslation})
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-neutral-300 dark:text-neutral-600">—</span>
+                  )}
+                </TableCell>
+                <TableCell
+                  className="py-3 text-sm text-neutral-900 dark:text-neutral-100"
+                  dir="rtl"
+                >
+                  {vocab.antonym ? (
+                    <span>
+                      {vocab.antonym}
+                      {vocab.antonymTranslation && (
+                        <span className="mr-1 text-xs text-neutral-400">
+                          ({vocab.antonymTranslation})
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-neutral-300 dark:text-neutral-600">—</span>
+                  )}
+                </TableCell>
+                {canManage && (
+                  <TableCell className="py-3 text-end">
+                    <span className="text-xs text-neutral-400">—</span>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Mobile: card rows */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        {items.map((vocab) => (
+          <div
+            key={vocab.id}
+            className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-bold text-primary-600 dark:text-primary-400" dir="ltr">
+                {vocab.word}
+              </span>
+              <span className="text-sm text-neutral-900 dark:text-neutral-100" dir="rtl">
+                {vocab.translation}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-dashed border-neutral-100 pt-2 text-xs dark:border-neutral-800">
+              <span className="flex items-center gap-1">
+                <span className="font-medium text-emerald-600 dark:text-emerald-400">مرادف:</span>
+                {vocab.synonym ? (
+                  <span dir="rtl">
+                    {vocab.synonym}
+                    {vocab.synonymTranslation && (
+                      <span className="mr-1 text-neutral-400">({vocab.synonymTranslation})</span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-neutral-300 dark:text-neutral-600">—</span>
+                )}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="font-medium text-danger-600 dark:text-danger-400">مضاد:</span>
+                {vocab.antonym ? (
+                  <span dir="rtl">
+                    {vocab.antonym}
+                    {vocab.antonymTranslation && (
+                      <span className="mr-1 text-neutral-400">({vocab.antonymTranslation})</span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-neutral-300 dark:text-neutral-600">—</span>
+                )}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
