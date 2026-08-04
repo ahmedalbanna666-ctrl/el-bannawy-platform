@@ -239,7 +239,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps): Rea
           onMenuClick={(): void => { setSidebarOpen(!sidebarOpen); }}
         />
 
-        <main className="min-w-0 flex-1 p-3 pb-[calc(72px+env(safe-area-inset-bottom,0px)+0.75rem)] lg:p-4">
+        <main className="min-w-0 flex-1 p-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-[calc(72px+env(safe-area-inset-bottom,0px)+0.75rem)] lg:p-4">
           <ErrorBoundary>
             <CardBorderScope>
               <PageStatusGate pageKey={getPageKeyFromPath(pathname)}>

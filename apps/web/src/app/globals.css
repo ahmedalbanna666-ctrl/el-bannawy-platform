@@ -487,3 +487,46 @@
     }
   }
 }
+
+/* ── Installed PWA (standalone/fullscreen) safe-area & native feel ───── */
+html {
+  /* Use dynamic viewport height so mobile browser chrome never causes
+     layout shift when it appears/disappears (CLS/LCP friendly). */
+  height: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* When running as an installed app, extend the app into the status-bar and
+   navigation-bar safe areas (viewport-fit=cover) so the background bleeds
+   behind the notches and Android nav bar. */
+@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+  body {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* Prevent accidental rubber-band / scroll chaining while a native fullscreen
+   video (or dialog) is open. */
+html.elb-overflow-hidden,
+html.elb-overflow-hidden body {
+  overflow: hidden;
+  height: 100%;
+}
+
+/* Respect reduced transparency for overlays used in installed mode. */
+@media (prefers-reduced-transparency: reduce) {
+  .bg-white\/40,
+  .dark\:bg-neutral-950\/25,
+  .bg-white\/30 {
+    background-color: var(--color-surface, #fff) !important;
+  }
+}
+

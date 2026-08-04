@@ -43,6 +43,7 @@ export function Header({
     <header
       className={cn(
         "sticky top-0 z-30 flex flex-col border-b border-white/15 bg-white/30 px-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-colors dark:border-white/10 dark:bg-neutral-950/25 dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] lg:px-6",
+        "pt-[env(safe-area-inset-top,0px)]",
         className,
       )}
     >

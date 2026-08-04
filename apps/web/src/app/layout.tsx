@@ -21,13 +21,24 @@ const cairo = Cairo({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0a0e1a" },
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+  ],
 };
 
 export const metadata: Metadata = {
-  title: "El-bannawy Platform",
-  description: "AI-Powered English Learning Platform",
+  title: "منصة البناوي",
+  description: "منصة البناوي لتعليم اللغة الإنجليزية بالذكاء الاصطناعي",
+  applicationName: "البناوي",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "البناوي",
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" },
@@ -39,13 +50,10 @@ export const metadata: Metadata = {
     ],
   },
   other: {
-    "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "apple-mobile-web-app-title": "El-bannawy",
     "mobile-web-app-capable": "yes",
+    "format-detection": "telephone=no",
     "msapplication-TileColor": "#6366f1",
     "msapplication-TileImage": "/icons/icon-144.png",
-    "application-name": "El-bannawy",
   },
 };
 
@@ -58,14 +66,9 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" className={`dark ${inter.variable} ${cairo.variable}`} suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#6366f1" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="El-bannawy" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="msapplication-TileColor" content="#6366f1" />
-        <meta name="msapplication-TileImage" content="/icons/icon-144.png" />
-        <meta name="application-name" content="El-bannawy" />
+        <meta name="theme-color" content="#0a0e1a" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+        <meta name="format-detection" content="telephone=no" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" sizes="192x192" />
         <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="32x32" />
       </head>

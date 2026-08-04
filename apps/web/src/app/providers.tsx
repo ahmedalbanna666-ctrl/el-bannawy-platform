@@ -7,6 +7,7 @@ import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { PwaInstallPrompt } from "@/components/pwa/pwa-install-prompt";
+import { PwaRuntimeSync } from "@/components/pwa/pwa-runtime-sync";
 import { UiSettingsProvider } from "@/lib/use-ui-settings";
 
 export function Providers({ children }: { children: ReactNode }): ReactNode {
@@ -18,6 +19,7 @@ export function Providers({ children }: { children: ReactNode }): ReactNode {
             <AuthProvider>
               <NotificationProvider>
                 {children}
+                <PwaRuntimeSync />
                 <PwaInstallPrompt />
               </NotificationProvider>
             </AuthProvider>
