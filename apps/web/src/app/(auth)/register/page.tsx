@@ -452,7 +452,9 @@ export default function RegisterPage(): ReactNode {
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium text-neutral-200 break-all">{verifiedEmail}</span>
                   <span className="text-xs text-success-400">
-                    {oauthProvider === "google" ? "✓ تم التحقق بواسطة Google" : "✓ تم التحقق بواسطة Apple"}
+                    {oauthProvider === "google"
+                      ? "✓ تم تأكيد بريدك الإلكتروني عبر Google — لا تحتاج رمز تأكيد"
+                      : "✓ تم تأكيد بريدك الإلكتروني عبر Apple — لا تحتاج رمز تأكيد"}
                   </span>
                 </div>
               </div>
