@@ -69,7 +69,9 @@ export function PlyrVideoPlayer({
   const markersRef = useRef<HTMLDivElement[]>([]);
   const isSeekingProgrammaticallyRef = useRef(false);
   const isPlayingRef = useRef(false);
+  const startAtRef = useRef(startAt);
   completedActionsRef.current = completedActions;
+  startAtRef.current = startAt;
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
   const [activeQuestion, setActiveQuestion] = useState<{ event: VideoEvent; question: QuestionData } | null>(null);
@@ -362,7 +364,12 @@ export function PlyrVideoPlayer({
 
       player.on("ready", (): void => {
         setLoading(false);
-        if (startAt > 1) player.currentTime = startAt;
+        // Resume from the latest saved position, read through a ref so the
+        // player is never recreated when `startAt` changes mid-playback
+        // (e.g. the periodic video-progress refetch) — which previously
+        // destroyed the player and paused the video every ~90 seconds.
+        const resumeAt = startAtRef.current;
+        if (resumeAt > 1) player.currentTime = resumeAt;
         // Force the control bar (including the seek bar) to be visible right
         // away instead of waiting for a mouse move event.
         container.dispatchEvent(new Event("mousemove"));
@@ -451,7 +458,7 @@ export function PlyrVideoPlayer({
     };
 
     createPlayer();
-  }, [providerVideoId, startAt, enableLessonCompleted, handleComplete, renderQuestionMarkers, playerId, fireQuestion]);
+  }, [providerVideoId, enableLessonCompleted, handleComplete, renderQuestionMarkers, playerId, fireQuestion]);
 
   useEffect(() => {
     initPlayer();
