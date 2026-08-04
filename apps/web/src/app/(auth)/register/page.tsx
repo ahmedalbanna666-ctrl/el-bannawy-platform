@@ -275,7 +275,7 @@ export default function RegisterPage(): ReactNode {
   // Step 1 fields
   const [fullName, setFullName] = useState("");
   const [englishName, setEnglishName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState<string>(() => verifiedEmail ?? "");
   const [mobile, setMobile] = useState("");
   const [parentMobile, setParentMobile] = useState("");
   const [password, setPassword] = useState("");
@@ -466,6 +466,7 @@ export default function RegisterPage(): ReactNode {
               value={email}
               onChange={(e): void => { setEmail(e.target.value); }}
               leftIcon={<Mail className="h-5 w-5" />}
+              readOnly={isOAuth}
               required
             />
             <Input
