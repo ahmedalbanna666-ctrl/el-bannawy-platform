@@ -87,7 +87,7 @@ export class BookingEngineService {
         });
       }
 
-      const booking = await this.prisma.liveBooking.findUnique({
+      const booking = await tx.liveBooking.findUnique({
         where: { id: reservation.id },
         include: { session: true },
       });

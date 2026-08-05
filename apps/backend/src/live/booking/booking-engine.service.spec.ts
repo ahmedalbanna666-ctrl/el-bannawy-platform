@@ -89,13 +89,15 @@ describe("BookingEngineService", () => {
         const tx = {
           liveSession: { findUnique: jest.fn().mockResolvedValue(session) },
           user: { findUnique: jest.fn().mockResolvedValue(student) },
+          liveBooking: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: "b1",
+              sessionId: "s1",
+              session: { title: "Algebra", teacherId: "t1", startTime: new Date() },
+            }),
+          },
         };
         return cb(tx);
-      });
-      prisma.liveBooking.findUnique.mockResolvedValue({
-        id: "b1",
-        sessionId: "s1",
-        session: { title: "Algebra", teacherId: "t1", startTime: new Date() },
       });
 
       await service.book("stu1", { sessionId: "s1", subscriptionId: "sub1" });

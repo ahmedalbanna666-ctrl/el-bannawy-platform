@@ -23,6 +23,11 @@ function toTimeOfDay(date: Date): string {
   return date.toISOString().slice(11, 16);
 }
 
+/** Combine a target date ("YYYY-MM-DD") with an availability time-of-day into a concrete UTC Date. */
+function sessionTimeForDate(dateStr: string, availabilityDate: Date): Date {
+  return new Date(`${dateStr}T${toTimeOfDay(availabilityDate)}:00.000Z`);
+}
+
 /**
  * LiveAvailabilityService — the scheduling engine for live sessions.
  *
@@ -260,11 +265,26 @@ export class LiveAvailabilityService {
     });
     if (!avail) throw new NotFoundException("Slot not found");
 
+    const sessionDate = new Date(dateStr);
+    const startTime = sessionTimeForDate(dateStr, avail.startTime);
+    const endTime = sessionTimeForDate(dateStr, avail.endTime);
+
     const existing = await this.prisma.liveSession.findFirst({
-      where: { teacherId: avail.teacherId, date: new Date(dateStr), deletedAt: null },
-      select: { id: true, teacherId: true, type: true },
+      where: { availabilitySlotId: avail.id, date: sessionDate, deletedAt: null },
+      select: { id: true, teacherId: true, type: true, startTime: true, endTime: true },
     });
-    if (existing) return existing;
+    if (existing) {
+      if (
+        existing.startTime.getTime() !== startTime.getTime() ||
+        existing.endTime.getTime() !== endTime.getTime()
+      ) {
+        await this.prisma.liveSession.update({
+          where: { id: existing.id },
+          data: { startTime, endTime },
+        });
+      }
+      return { id: existing.id, teacherId: existing.teacherId, type: existing.type };
+    }
 
     return this.prisma.liveSession.create({
       data: {
@@ -272,9 +292,9 @@ export class LiveAvailabilityService {
         teacherId: avail.teacherId,
         gradeId: avail.gradeId,
         availabilitySlotId: avail.id,
-        date: new Date(dateStr),
-        startTime: avail.startTime,
-        endTime: avail.endTime,
+        date: sessionDate,
+        startTime,
+        endTime,
         maxStudents: avail.maxStudents,
         availableSeats: avail.maxStudents,
         type: avail.type,

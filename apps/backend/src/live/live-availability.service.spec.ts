@@ -20,6 +20,7 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
       create: jest.Mock;
+      update: jest.Mock;
     };
   };
   let access: { assertSessionOwner: jest.Mock };
@@ -33,7 +34,7 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
         update: jest.fn(),
       },
       teacherDateBlock: { findMany: jest.fn().mockResolvedValue([]) },
-      liveSession: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn(), create: jest.fn() },
+      liveSession: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     };
     access = { assertSessionOwner: jest.fn() };
 
@@ -227,17 +228,55 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
       );
     });
 
-    it("reuses an existing session for the teacher and date", async () => {
+    it("reuses an existing session for the slot and date", async () => {
       prisma.teacherAvailability.findFirst.mockResolvedValue({
         id: "avail1",
         teacherId: "t1",
         type: "PRIVATE",
+        startTime: new Date("1970-01-01T10:00:00.000Z"),
+        endTime: new Date("1970-01-01T11:00:00.000Z"),
       });
-      prisma.liveSession.findFirst.mockResolvedValue({ id: "s1", teacherId: "t1", type: "PRIVATE" });
+      prisma.liveSession.findFirst.mockResolvedValue({
+        id: "s1",
+        teacherId: "t1",
+        type: "PRIVATE",
+        startTime: new Date("2026-08-01T10:00:00.000Z"),
+        endTime: new Date("2026-08-01T11:00:00.000Z"),
+      });
 
       const result = await service.materializeSessionFromSlot("avail1", "2026-08-01");
 
       expect(result).toEqual({ id: "s1", teacherId: "t1", type: "PRIVATE" });
+      expect(prisma.liveSession.create).not.toHaveBeenCalled();
+    });
+
+    it("heals a session materialized with the 1970 base date", async () => {
+      prisma.teacherAvailability.findFirst.mockResolvedValue({
+        id: "avail1",
+        teacherId: "t1",
+        type: "PRIVATE",
+        startTime: new Date("1970-01-01T10:00:00.000Z"),
+        endTime: new Date("1970-01-01T11:00:00.000Z"),
+      });
+      prisma.liveSession.findFirst.mockResolvedValue({
+        id: "s1",
+        teacherId: "t1",
+        type: "PRIVATE",
+        startTime: new Date("1970-01-01T10:00:00.000Z"),
+        endTime: new Date("1970-01-01T11:00:00.000Z"),
+      });
+      prisma.liveSession.update.mockResolvedValue({ id: "s1" });
+
+      const result = await service.materializeSessionFromSlot("avail1", "2026-08-01");
+
+      expect(result).toEqual({ id: "s1", teacherId: "t1", type: "PRIVATE" });
+      expect(prisma.liveSession.update).toHaveBeenCalledWith({
+        where: { id: "s1" },
+        data: {
+          startTime: new Date("2026-08-01T10:00:00.000Z"),
+          endTime: new Date("2026-08-01T11:00:00.000Z"),
+        },
+      });
       expect(prisma.liveSession.create).not.toHaveBeenCalled();
     });
 
@@ -246,8 +285,8 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
         id: "avail1",
         teacherId: "t1",
         gradeId: "g1",
-        startTime: new Date("2026-08-01T10:00:00.000Z"),
-        endTime: new Date("2026-08-01T11:00:00.000Z"),
+        startTime: new Date("1970-01-01T10:00:00.000Z"),
+        endTime: new Date("1970-01-01T11:00:00.000Z"),
         maxStudents: 4,
         type: "GROUP",
       });
@@ -262,6 +301,8 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
             teacherId: "t1",
             availabilitySlotId: "avail1",
             date: new Date("2026-08-01T00:00:00.000Z"),
+            startTime: new Date("2026-08-01T10:00:00.000Z"),
+            endTime: new Date("2026-08-01T11:00:00.000Z"),
             availableSeats: 4,
             type: "GROUP",
             status: "PUBLISHED",

@@ -9,6 +9,15 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  constructor() {
+    super({
+      transactionOptions: {
+        maxWait: 10000,
+        timeout: 30000,
+      },
+    });
+  }
+
   async onModuleInit(): Promise<void> {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
