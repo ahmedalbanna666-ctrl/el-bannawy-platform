@@ -23,6 +23,8 @@ import { SummaryCard } from "@/components/live/summary-card";
 import { LiveEmpty } from "@/components/live/live-empty";
 import { LiveError } from "@/components/live/live-error";
 import { SuccessOverlay } from "@/components/live/success-overlay";
+import { JoinLiveSessionModal } from "@/components/live/join-live-session-modal";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface GroupDef {
@@ -75,6 +77,7 @@ export default function GroupPage(): ReactNode {
   const [selectedGroup, setSelectedGroup] = useState<GroupDef | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [joinTarget, setJoinTarget] = useState<LiveSessionItem | null>(null);
 
   const groupSessions = useMemo(
     () => (sessions ?? []).filter((s) => s.type === "GROUP" && s.status !== "DRAFT" && s.status !== "CANCELLED"),
@@ -289,6 +292,17 @@ export default function GroupPage(): ReactNode {
                       {seatsLeft > 0 ? `${String(seatsLeft)} مقعد` : "ممتلئة"}
                     </span>
                   )}
+                  {!past && session.status === "LIVE" && booked && (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      className="rounded-xl"
+                      onClick={() => { setJoinTarget(session); }}
+                    >
+                      <Play className="h-4 w-4" />
+                      انضم الآن
+                    </Button>
+                  )}
                 </div>
               );
             })}
@@ -325,6 +339,13 @@ export default function GroupPage(): ReactNode {
         title="انضممت للمجموعة!"
         subtitle="تم حجز أول حصة وسيتم تذكيرك بها."
       />
+
+      {joinTarget && (
+        <JoinLiveSessionModal
+          sessionId={joinTarget.id}
+          onClose={() => { setJoinTarget(null); }}
+        />
+      )}
     </div>
   );
 }

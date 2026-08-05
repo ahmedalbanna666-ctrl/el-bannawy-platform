@@ -13,6 +13,7 @@ import {
 } from "@/components/live/live-session-card";
 import { ProductCard } from "@/components/live/product-card";
 import { MyBookingsTabs } from "@/components/live/my-bookings-tabs";
+import { JoinLiveSessionModal } from "@/components/live/join-live-session-modal";
 import { LiveEmpty } from "@/components/live/live-empty";
 import {
   useLiveSubscriptions,
@@ -161,11 +162,10 @@ function StudentView(): ReactNode {
   const [cancelTarget, setCancelTarget] = useState<LiveBookingItem | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<LiveBookingItem | null>(null);
   const [rescheduleReason, setRescheduleReason] = useState("");
+  const [joinTarget, setJoinTarget] = useState<LiveBookingItem | null>(null);
 
   const handleJoin = useCallback((booking: LiveBookingItem): void => {
-    if (booking.session.meetingUrl) {
-      window.open(booking.session.meetingUrl, "_blank", "noopener,noreferrer");
-    }
+    setJoinTarget(booking);
   }, []);
 
   const handleCreateSubscription = useCallback(
@@ -335,6 +335,13 @@ function StudentView(): ReactNode {
           </Button>
         </DialogFooter>
       </Dialog>
+
+      {joinTarget && (
+        <JoinLiveSessionModal
+          sessionId={joinTarget.session.id}
+          onClose={() => { setJoinTarget(null); }}
+        />
+      )}
     </div>
   );
 }

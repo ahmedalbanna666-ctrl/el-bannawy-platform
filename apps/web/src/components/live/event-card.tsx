@@ -64,7 +64,6 @@ export function EventCard({ session, onJoin, onQuestions }: EventCardProps): Rea
             size="md"
             className="flex-1 rounded-2xl"
             onClick={() => { onJoin?.(session); }}
-            disabled={!session.meetingUrl}
           >
             <Play className="h-4 w-4" />
             انضم الآن

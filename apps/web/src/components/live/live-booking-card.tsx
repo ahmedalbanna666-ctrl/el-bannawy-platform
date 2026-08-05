@@ -111,7 +111,7 @@ export function LiveBookingCard({
             </span>
           ) : null}
 
-          {isLive && session.meetingUrl && (
+          {isLive && (
             <Button
               variant="danger"
               size="sm"

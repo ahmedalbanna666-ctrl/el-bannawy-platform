@@ -8,29 +8,29 @@ import { Button } from "@/components/ui/button";
 import { EventCard } from "@/components/live/event-card";
 import { LiveEmpty } from "@/components/live/live-empty";
 import { LiveError } from "@/components/live/live-error";
+import { JoinLiveSessionModal } from "@/components/live/join-live-session-modal";
 import { useLiveSessions, type LiveSessionItem } from "@/lib/live-api";
 
 export default function EventsPage(): ReactNode {
   const router = useRouter();
   const { data: sessions, isLoading, isError, refetch } = useLiveSessions();
   const [questionTarget, setQuestionTarget] = useState<LiveSessionItem | null>(null);
+  const [joinTarget, setJoinTarget] = useState<LiveSessionItem | null>(null);
 
   const events = useMemo(
     () =>
       (sessions ?? [])
         .filter(
           (s) =>
-            ["PUBLISHED", "SCHEDULED", "OPEN"].includes(s.status) &&
-            new Date(s.startTime) > new Date(),
+            ["PUBLISHED", "SCHEDULED", "OPEN", "LIVE"].includes(s.status) &&
+            new Date(s.endTime) > new Date(),
         )
         .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
     [sessions],
   );
 
   const handleJoin = (session: LiveSessionItem): void => {
-    if (session.meetingUrl) {
-      window.open(session.meetingUrl, "_blank", "noopener,noreferrer");
-    }
+    setJoinTarget(session);
   };
 
   return (
@@ -127,6 +127,13 @@ export default function EventsPage(): ReactNode {
           </Button>
         </DialogFooter>
       </Dialog>
+
+      {joinTarget && (
+        <JoinLiveSessionModal
+          sessionId={joinTarget.id}
+          onClose={() => { setJoinTarget(null); }}
+        />
+      )}
     </div>
   );
 }
