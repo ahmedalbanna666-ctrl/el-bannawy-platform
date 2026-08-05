@@ -39,8 +39,8 @@ export function VocabCell({
   const hasDetails = (vocab.definition?.length ?? 0) > 0 || (vocab.example?.length ?? 0) > 0;
 
   return (
-    <TableCell className="min-w-0 py-3 align-top">
-      <div className="flex items-start gap-1.5">
+    <TableCell className="min-w-0 py-3 align-top max-md:align-middle">
+      <div className="flex items-start gap-1.5 max-md:justify-center">
         <button
           type="button"
           aria-label={`استمع إلى نطق كلمة ${displayWord}`}
@@ -63,11 +63,11 @@ export function VocabCell({
           )}
         </button>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-1">
+          <div className="flex flex-wrap items-baseline gap-1 max-md:justify-center">
             <AutoFitText
               dir="ltr"
-              baseFont={14}
-              minFont={10}
+              baseFont={16}
+              minFont={15}
               className="font-bold text-primary-600 dark:text-primary-400"
             >
               {displayWord}
