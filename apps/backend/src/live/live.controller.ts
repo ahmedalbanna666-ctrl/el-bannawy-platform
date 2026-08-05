@@ -487,8 +487,11 @@ export class LiveController {
   }
 
   @Get("availability/calendar")
-  async getAvailableSlots(@Query() query: AvailableSlotQueryDto): Promise<ISuccessResponse<unknown[]>> {
-    const data = await this.availability.getAvailableSlots(query);
+  async getAvailableSlots(
+    @Query() query: AvailableSlotQueryDto,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown[]>> {
+    const data = await this.availability.getAvailableSlots(query, userId);
     return successResponse(data);
   }
 

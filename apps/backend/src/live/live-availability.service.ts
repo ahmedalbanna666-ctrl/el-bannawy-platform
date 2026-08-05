@@ -170,12 +170,15 @@ export class LiveAvailabilityService {
     return { id };
   }
 
-  async getAvailableSlots(dto: {
-    teacherId?: string;
-    gradeId?: string;
-    dateFrom: string;
-    dateTo: string;
-  }): Promise<unknown[]> {
+  async getAvailableSlots(
+    dto: {
+      teacherId?: string;
+      gradeId?: string;
+      dateFrom: string;
+      dateTo: string;
+    },
+    userId?: string,
+  ): Promise<unknown[]> {
     const from = new Date(dto.dateFrom);
     const to = new Date(dto.dateTo);
     const availability = await this.prisma.teacherAvailability.findMany({
@@ -214,6 +217,31 @@ export class LiveAvailabilityService {
       sessionMap.set(key, { id: session.id, availableSeats: session.availableSeats });
     }
 
+    // Slots already booked by the requesting student render as "booked" (red).
+    const bookedKeys = new Set<string>();
+    if (userId && availability.length > 0) {
+      const availIds = availability.map((a) => a.id);
+      const bookings = await this.prisma.liveBooking.findMany({
+        where: {
+          studentId: userId,
+          cancelledAt: null,
+          session: {
+            availabilitySlotId: { in: availIds },
+            date: { gte: from, lte: to },
+            deletedAt: null,
+          },
+        },
+        select: { session: { select: { availabilitySlotId: true, date: true } } },
+      });
+      for (const booking of bookings) {
+        const availId = booking.session.availabilitySlotId;
+        if (!availId) continue;
+        bookedKeys.add(
+          `${availId}:${booking.session.date.toISOString().split("T")[0]}`,
+        );
+      }
+    }
+
     const slots: unknown[] = [];
     for (const avail of availability) {
       const cur = new Date(from);
@@ -241,6 +269,7 @@ export class LiveAvailabilityService {
               gradeId: avail.gradeId,
               existingSessionId: existing?.id ?? null,
               availableSeats,
+              bookedByMe: bookedKeys.has(`${avail.id}:${dateStr}`),
             });
           }
         }

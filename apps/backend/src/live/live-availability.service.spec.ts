@@ -22,6 +22,9 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
       create: jest.Mock;
       update: jest.Mock;
     };
+    liveBooking: {
+      findMany: jest.Mock;
+    };
   };
   let access: { assertSessionOwner: jest.Mock };
 
@@ -35,6 +38,7 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
       },
       teacherDateBlock: { findMany: jest.fn().mockResolvedValue([]) },
       liveSession: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+      liveBooking: { findMany: jest.fn().mockResolvedValue([]) },
     };
     access = { assertSessionOwner: jest.fn() };
 
@@ -216,6 +220,45 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
       expect(slots[0]).toMatchObject({
         existingSessionId: null,
         availableSeats: 4,
+      });
+    });
+
+    it("marks slots already booked by the requesting student as booked", async () => {
+      prisma.teacherAvailability.findMany.mockResolvedValue([
+        {
+          id: "a1",
+          teacherId: "t1",
+          dayOfWeek: 1,
+          startTime: new Date("2026-01-05T10:00:00.000Z"),
+          endTime: new Date("2026-01-05T11:00:00.000Z"),
+          type: "PRIVATE",
+          maxStudents: 1,
+          gradeId: null,
+          teacher: { fullName: "Teacher One" },
+        },
+      ]);
+      prisma.liveBooking.findMany.mockResolvedValue([
+        {
+          session: {
+            availabilitySlotId: "a1",
+            date: new Date("2026-01-05T00:00:00.000Z"),
+          },
+        },
+      ]);
+
+      const slots = await service.getAvailableSlots(
+        {
+          teacherId: "t1",
+          dateFrom: "2026-01-04",
+          dateTo: "2026-01-06",
+        },
+        "student1",
+      );
+
+      expect(slots).toHaveLength(1);
+      expect(slots[0]).toMatchObject({
+        slotId: "a1:2026-01-05",
+        bookedByMe: true,
       });
     });
   });

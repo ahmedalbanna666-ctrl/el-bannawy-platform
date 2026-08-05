@@ -141,6 +141,7 @@ export interface AvailableSlotItem {
   gradeId: string | null;
   existingSessionId: string | null;
   availableSeats: number;
+  bookedByMe?: boolean;
 }
 
 export interface BookBySlotResponse {

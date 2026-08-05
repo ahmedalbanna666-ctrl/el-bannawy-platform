@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, BookOpen, CalendarDays, Check, Clock, User, Zap } from "lucide-react";
 import { useAvailableSlots, useBookBySlot, type AvailableSlotItem } from "@/lib/live-api";
-import { formatTime, slotTone, weekdayName } from "@/lib/live-format";
+import { formatTime, slotTone, weekdayName, type SlotTone } from "@/lib/live-format";
 import { StepIndicator } from "@/components/live/step-indicator";
 import { BottomCta } from "@/components/live/bottom-cta";
 import { SummaryCard, SummaryRow } from "@/components/live/summary-card";
@@ -25,6 +25,8 @@ const toneClasses = {
   available:
     "border-emerald-400/50 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300",
   few: "border-amber-400/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300",
+  booked:
+    "border-danger-400/60 bg-danger-500/10 text-danger-600 hover:bg-danger-500/20 dark:text-danger-300",
   full: "border-neutral-200 bg-neutral-100 text-neutral-400 line-through dark:border-white/5 dark:bg-white/5 dark:text-neutral-600",
   unavailable:
     "border-dashed border-neutral-200 bg-transparent text-neutral-300 dark:border-white/10 dark:text-neutral-700",
@@ -33,16 +35,17 @@ const toneClasses = {
 const dateToneClasses: Record<SlotTone, string> = {
   available: "border-emerald-400/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   few: "border-amber-400/50 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  booked:
+    "border-danger-400/60 bg-danger-500/10 text-danger-600 dark:text-danger-300",
   full: "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-white/5 dark:bg-white/5 dark:text-neutral-600",
   unavailable: "border-dashed border-neutral-200 text-neutral-300 dark:border-white/10 dark:text-neutral-700",
 };
-
-type SlotTone = "available" | "few" | "full" | "unavailable";
 
 function dateTone(slots: AvailableSlotItem[]): SlotTone {
   const tones = slots.map(slotTone);
   if (tones.includes("available")) return "available";
   if (tones.includes("few")) return "few";
+  if (tones.includes("booked")) return "booked";
   return "full";
 }
 
@@ -222,7 +225,11 @@ export default function OneTimeBookPage(): ReactNode {
                         {day.getDate()}
                       </span>
                       <span className="text-[10px] opacity-70">
-                        {seats > 0 ? `${String(seats)} مقعد` : "ممتلئ"}
+                        {tone === "booked"
+                          ? "محجوز"
+                          : seats > 0
+                            ? `${String(seats)} مقعد`
+                            : "ممتلئ"}
                       </span>
                     </button>
                   );
@@ -254,11 +261,11 @@ export default function OneTimeBookPage(): ReactNode {
                   <button
                     key={slot.slotId}
                     onClick={() => { handleSelectSlot(slot); }}
-                    disabled={tone === "full"}
+                    disabled={tone === "full" || tone === "booked"}
                     className={cn(
                       "flex flex-col items-center gap-1 rounded-2xl border px-4 py-4 text-center transition-all duration-200",
                       toneClasses[tone],
-                      !tone.includes("full") && "hover:scale-[1.02] active:scale-[0.98]",
+                      tone !== "full" && tone !== "booked" && "hover:scale-[1.02] active:scale-[0.98]",
                       selected && "ring-2 ring-primary-400 shadow-[0_0_18px_rgba(6,182,212,0.35)]",
                     )}
                   >
@@ -266,7 +273,11 @@ export default function OneTimeBookPage(): ReactNode {
                       {formatTime(slot.startTime)}
                     </span>
                     <span className="text-[11px] opacity-75">
-                      {slot.availableSeats > 0 ? `${String(slot.availableSeats)} مقعد` : "ممتلئ"}
+                      {tone === "booked"
+                        ? "محجوز"
+                        : slot.availableSeats > 0
+                          ? `${String(slot.availableSeats)} مقعد`
+                          : "ممتلئ"}
                     </span>
                   </button>
                 );

@@ -10,6 +10,8 @@ const toneClasses = {
   available:
     "border-emerald-400/50 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300",
   few: "border-amber-400/50 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300",
+  booked:
+    "border-danger-400/60 bg-danger-500/10 text-danger-600 hover:bg-danger-500/20 dark:text-danger-300",
   full: "border-neutral-200 bg-neutral-100 text-neutral-400 line-through dark:border-white/5 dark:bg-white/5 dark:text-neutral-600",
   unavailable:
     "border-dashed border-neutral-200 bg-transparent text-neutral-300 dark:border-white/10 dark:text-neutral-700",
@@ -46,7 +48,7 @@ export function WeeklySchedule({
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {sorted.map(([date, slot]) => {
         const tone = slotTone(slot);
-        const disabled = tone === "full";
+        const disabled = tone === "full" || tone === "booked";
         const selected = selectedDates.includes(date);
         const shownSlot = getSlotForDate ? getSlotForDate(date) ?? slot : slot;
         const dayName = new Date(date + "T12:00:00").toLocaleDateString("ar-EG-u-nu-latn", {

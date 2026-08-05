@@ -1,9 +1,10 @@
 import type { AvailableSlotItem, LiveBookingItem } from "@/lib/live-api";
 
 /** Visual tone for an available slot (green / yellow / red / gray). */
-export type SlotTone = "available" | "few" | "full" | "unavailable";
+export type SlotTone = "available" | "few" | "full" | "booked" | "unavailable";
 
 export function slotTone(slot: AvailableSlotItem): SlotTone {
+  if (slot.bookedByMe) return "booked";
   if (slot.availableSeats <= 0) return "full";
   if (slot.maxStudents > 0 && slot.availableSeats <= Math.max(2, Math.ceil(slot.maxStudents * 0.2))) {
     return "few";
