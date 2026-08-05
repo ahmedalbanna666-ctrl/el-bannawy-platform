@@ -118,7 +118,7 @@ The live module emits typed domain events through the `LiveDomainEventBus` port 
 
 ### Scheduling Engine
 
-`LiveAvailabilityService` owns teacher availability windows and slot materialization. Create/update reject overlapping windows for the same teacher on the same day and enforce `end > start`. `getAvailableSlots` derives seat counts from the authoritative `LiveSession.availableSeats` (ReservationService remains the single writer) and skips terminal sessions (`CANCELLED`, `COMPLETED`, `ARCHIVED`) via `TERMINAL_SESSION_STATUSES`.
+`LiveAvailabilityService` owns teacher availability windows and slot materialization. Create/update reject overlapping windows for the same teacher on the same day and enforce `end > start`. `getAvailableSlots` derives seat counts from the authoritative `LiveSession.availableSeats` (ReservationService remains the single writer), skips terminal sessions (`CANCELLED`, `COMPLETED`, `ARCHIVED`) via `TERMINAL_SESSION_STATUSES`, and marks slots already booked by the requesting student with `bookedByMe` (from the current user's non-cancelled bookings keyed by `availabilitySlotId + date`) so the UI renders them red and disables re-booking.
 
 ### Meeting Provider Port
 
