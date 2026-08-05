@@ -52,24 +52,18 @@ export const QuestionCard = memo(function QuestionCard({
             <span className="shrink-0 text-base font-extrabold text-primary-500 leading-relaxed">
               {index + 1}.
             </span>
+            {((): ReactNode => {
+              const [prefix] = extractPrefix(question.question);
+              return prefix ? (
+                <span className="shrink-0 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 text-[11px] font-bold text-black dark:text-white leading-normal">
+                  {prefix}
+                </span>
+              ) : null;
+            })()}
             <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                {((): ReactNode => {
-                  const [prefix, rest] = extractPrefix(question.question);
-                  return (
-                    <>
-                      {prefix && (
-                        <span className="rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 text-[11px] font-bold text-black dark:text-white shrink-0 leading-normal">
-                          {prefix}
-                        </span>
-                      )}
-                      <p className="min-w-0 flex-1 text-sm font-medium text-neutral-900 dark:text-neutral-100 leading-relaxed" dir="auto">
-                        {renderHighlightedText(rest)}
-                      </p>
-                    </>
-                  );
-                })()}
-              </div>
+              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 leading-relaxed max-md:text-[clamp(0.8125rem,3.6vw,0.875rem)]" dir="auto">
+                {renderQuestionText(question.question)}
+              </p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
               {showResult && isSubmitted && (
@@ -82,7 +76,7 @@ export const QuestionCard = memo(function QuestionCard({
             </div>
           </div>
 
-          <div className="pr-6 sm:pr-10">
+          <div className="pr-1 sm:pr-10">
             <QuestionRenderer
               question={question}
               index={index}
@@ -217,6 +211,11 @@ export function groupQuestions(questions: StudentQuestion[]): QuestionGroup[] {
   return [...groups.values()];
 }
 
+function renderQuestionText(text: string): ReactNode {
+  const [, rest] = extractPrefix(text);
+  return renderHighlightedText(rest);
+}
+
 function renderHighlightedText(text: string): ReactNode {
   const parts = text.split(/(\([^)]*\))/g);
   return parts.map((part, i) =>
@@ -274,12 +273,12 @@ function renderMCQGrid(
           <button key={oi} type="button"
             onClick={(): void => { if (!isSubmitted) onAnswerChange(index, val); }}
             disabled={isSubmitted}
-            className={`flex flex-row items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm text-start transition-colors shadow-sm sm:gap-2 sm:px-3 sm:py-2 ${styleClass}`}
+            className={`flex w-full flex-row items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm text-start transition-colors shadow-sm sm:gap-2 sm:px-3 sm:py-2 ${styleClass}`}
           >
-            <span className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold ${badgeClass}`}>
+            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold ${badgeClass}`}>
               {label}
             </span>
-            <span className="leading-relaxed">{opt}</span>
+            <span className="min-w-0 flex-1 leading-relaxed max-md:text-[clamp(0.8125rem,3.6vw,0.875rem)] [overflow-wrap:anywhere]">{opt}</span>
           </button>
         );
       })}
@@ -296,7 +295,7 @@ function renderTrueFalseInline(
   onAnswerChange: (index: number, value: string) => void,
 ): ReactNode {
   return (
-    <div className="flex gap-1.5">
+    <div className="grid w-full grid-cols-2 gap-1.5 sm:inline-flex sm:flex sm:w-auto sm:gap-1.5">
       {[["true", "T"], ["false", "F"]].map(([val, label]) => {
         const isSelected = selectedAnswer === val;
         const isCorrectOpt = showResult && val === correctAnswer;
@@ -315,7 +314,7 @@ function renderTrueFalseInline(
           <button key={val} type="button"
             onClick={(): void => { if (!isSubmitted) onAnswerChange(index, val); }}
             disabled={isSubmitted}
-            className={`flex h-7 min-w-[32px] items-center justify-center rounded-md px-2 text-xs font-bold transition-colors ${styleClass}`}
+            className={`flex h-7 w-full items-center justify-center rounded-md px-2 text-xs font-bold transition-colors sm:w-auto sm:min-w-[32px] ${styleClass}`}
           >
             {label}
           </button>
