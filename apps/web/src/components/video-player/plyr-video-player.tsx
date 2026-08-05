@@ -543,6 +543,11 @@ export function PlyrVideoPlayer({
         .plyr:not(.plyr--hide-controls) .plyr__controls { opacity: 1; }
 
         /* ── Native fullscreen (mobile) ────────────────────────────────── */
+        /* The fullscreen layer fills the screen with a black background and
+           letterboxes the 16:9 stage so the visible frame is IDENTICAL to
+           normal mode — never cropped, never zoomed. The embed iframe keeps
+           Plyr's native top:-50%; height:200% rules so the middle of the
+           video is shown inside the 16:9 stage, exactly as in normal mode. */
         .elb-video-root:fullscreen {
           width: 100vw !important;
           height: 100vh !important;
@@ -555,25 +560,34 @@ export function PlyrVideoPlayer({
           position: fixed !important;
           inset: 0 !important;
           z-index: 2147483647 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
         }
         .elb-video-root:fullscreen .plyr__video-embed {
-          width: 100vw !important;
-          height: 100vh !important;
-          overflow: hidden !important;
-        }
-        .elb-video-root:fullscreen .plyr__video-embed iframe {
-          top: 0 !important;
-          left: 0 !important;
-          width: 100vw !important;
-          height: 100vh !important;
+          width: min(100vw, calc(100vh * 16 / 9)) !important;
+          height: min(100vh, calc(100vw * 9 / 16)) !important;
+          aspect-ratio: 16 / 9 !important;
           max-width: none !important;
           max-height: none !important;
-          object-fit: cover !important;
+          overflow: hidden !important;
+          background: #000 !important;
+          flex: none !important;
+        }
+        /* Keep the embed iframe at its default Plyr sizing — do NOT stretch
+           it to fill the screen (that crops the top/bottom on 16:9+ screens). */
+        .elb-video-root:fullscreen .plyr__video-embed iframe {
+          top: -50% !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 200% !important;
+          max-width: none !important;
+          max-height: none !important;
         }
         .elb-video-root:fullscreen .plyr__controls {
           padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
         }
-        /* WebKit fullscreen (iOS Safari) */
+        /* WebKit fullscreen (iOS Safari) — same letterboxing rules. */
         .elb-video-root:-webkit-full-screen {
           width: 100vw !important;
           height: 100vh !important;
@@ -581,13 +595,27 @@ export function PlyrVideoPlayer({
           border-radius: 0 !important;
           overflow: hidden !important;
           background: #000 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+        .elb-video-root:-webkit-full-screen .plyr__video-embed {
+          width: min(100vw, calc(100vh * 16 / 9)) !important;
+          height: min(100vh, calc(100vw * 9 / 16)) !important;
+          aspect-ratio: 16 / 9 !important;
+          max-width: none !important;
+          max-height: none !important;
+          overflow: hidden !important;
+          background: #000 !important;
+          flex: none !important;
         }
         .elb-video-root:-webkit-full-screen .plyr__video-embed iframe {
-          top: 0 !important;
+          top: -50% !important;
           left: 0 !important;
-          width: 100vw !important;
-          height: 100vh !important;
-          object-fit: cover !important;
+          width: 100% !important;
+          height: 200% !important;
+          max-width: none !important;
+          max-height: none !important;
         }
         /* Keep overlays hidden while the native fullscreen layer is active
            so only the video + controls are visible (YouTube-style). */
