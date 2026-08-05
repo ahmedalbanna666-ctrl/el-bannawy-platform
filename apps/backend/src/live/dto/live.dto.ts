@@ -121,6 +121,18 @@ export class CreateLiveSessionDto {
   meetingProvider?: MeetingProviderEnum;
 
   @IsOptional()
+  @IsString()
+  zoomMeetingId?: string;
+
+  @IsOptional()
+  @IsString()
+  zoomPassword?: string;
+
+  @IsOptional()
+  @IsString()
+  zoomJoinUrl?: string;
+
+  @IsOptional()
   @IsBoolean()
   waitingRoom?: boolean;
 
@@ -189,6 +201,18 @@ export class UpdateLiveSessionDto {
   @IsOptional()
   @IsEnum(MeetingProviderEnum)
   meetingProvider?: MeetingProviderEnum;
+
+  @IsOptional()
+  @IsString()
+  zoomMeetingId?: string;
+
+  @IsOptional()
+  @IsString()
+  zoomPassword?: string;
+
+  @IsOptional()
+  @IsString()
+  zoomJoinUrl?: string;
 
   @IsOptional()
   @IsBoolean()

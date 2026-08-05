@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
   useCreateSession,
@@ -87,7 +86,10 @@ export function CreateSessionDialog({
   const [durationMinutes, setDurationMinutes] = useState("60");
   const [type, setType] = useState("GROUP");
   const [maxStudents, setMaxStudents] = useState("30");
-  const [createZoom, setCreateZoom] = useState(true);
+  const [meetingMode, setMeetingMode] = useState<"auto" | "manual" | "external">("auto");
+  const [manualZoomId, setManualZoomId] = useState("");
+  const [manualZoomPassword, setManualZoomPassword] = useState("");
+  const [externalUrl, setExternalUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -103,7 +105,16 @@ export function CreateSessionDialog({
       setDurationMinutes(String(session.durationMinutes));
       setType(session.type);
       setMaxStudents(String(session.maxStudents));
-      setCreateZoom(false);
+      if (session.meetingProvider === "ZOOM_SDK" && session.zoomMeetingId) {
+        setMeetingMode("manual");
+        setManualZoomId(session.zoomMeetingId);
+        setManualZoomPassword(session.zoomPassword ?? "");
+      } else if (session.meetingProvider === "EXTERNAL_URL" && session.meetingUrl) {
+        setMeetingMode("external");
+        setExternalUrl(session.meetingUrl);
+      } else {
+        setMeetingMode("auto");
+      }
       setError("");
       return;
     }
@@ -129,7 +140,10 @@ export function CreateSessionDialog({
     setDurationMinutes("60");
     setType("GROUP");
     setMaxStudents("30");
-    setCreateZoom(true);
+    setMeetingMode("auto");
+    setManualZoomId("");
+    setManualZoomPassword("");
+    setExternalUrl("");
     setError("");
   };
 
@@ -170,6 +184,17 @@ export function CreateSessionDialog({
             endTime: iso(end),
             durationMinutes: duration,
             maxStudents: Number(maxStudents) || undefined,
+            meetingProvider:
+              meetingMode === "external"
+                ? MeetingProviderEnum.EXTERNAL_URL
+                : MeetingProviderEnum.ZOOM_SDK,
+            ...(meetingMode === "manual"
+              ? {
+                  zoomMeetingId: manualZoomId.trim(),
+                  ...(manualZoomPassword.trim() ? { zoomPassword: manualZoomPassword.trim() } : {}),
+                }
+              : {}),
+            ...(meetingMode === "external" ? { meetingUrl: externalUrl.trim() } : {}),
           },
         });
         reset();
@@ -191,14 +216,20 @@ export function CreateSessionDialog({
         durationMinutes: duration,
         maxStudents: Number(maxStudents) || undefined,
         type: type === "PRIVATE" ? LiveSessionTypeEnum.PRIVATE : LiveSessionTypeEnum.GROUP,
-        meetingProvider: createZoom
-          ? MeetingProviderEnum.ZOOM_SDK
-          : MeetingProviderEnum.EXTERNAL_URL,
+        meetingProvider:
+          meetingMode === "external" ? MeetingProviderEnum.EXTERNAL_URL : MeetingProviderEnum.ZOOM_SDK,
+        ...(meetingMode === "manual"
+          ? {
+              zoomMeetingId: manualZoomId.trim(),
+              ...(manualZoomPassword.trim() ? { zoomPassword: manualZoomPassword.trim() } : {}),
+            }
+          : {}),
+        ...(meetingMode === "external" ? { meetingUrl: externalUrl.trim() } : {}),
       });
       const created = res.data;
       if (!created) throw new Error("تعذر إنشاء المحاضرة");
 
-      if (createZoom) {
+      if (meetingMode === "auto") {
         await createZoomMeeting.mutateAsync({
           sessionId: created.id,
           dto: {
@@ -303,19 +334,57 @@ export function CreateSessionDialog({
               onChange={(e) => { setMaxStudents(e.target.value); }}
             />
           </div>
-          <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-800/50">
-            <div className="flex items-center gap-2">
-              <Video className="h-5 w-5 text-danger-500" />
-              <div>
-                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                  إنشاء اجتماع Zoom
-                </p>
-                <p className="text-xs text-neutral-500">
-                  ينضم الطلاب من داخل المنصة مباشرة
-                </p>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-800/50">
+              <div className="flex items-center gap-2">
+                <Video className="h-5 w-5 text-danger-500" />
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                    نوع الاجتماع
+                  </p>
+                  <p className="text-xs text-neutral-500">
+                    ينضم الطلاب من داخل المنصة مباشرة
+                  </p>
+                </div>
               </div>
+              <Select
+                options={[
+                  { value: "auto", label: "إنشاء تلقائي (Zoom)" },
+                  { value: "manual", label: "رقم اجتماع يدوي" },
+                  { value: "external", label: "رابط خارجي" },
+                ]}
+                value={meetingMode}
+                onChange={(e): void => { setMeetingMode(e.target.value as "auto" | "manual" | "external"); }}
+              />
             </div>
-            <Switch checked={createZoom} onChange={(e) => { setCreateZoom(e.target.checked); }} />
+
+            {meetingMode === "manual" && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label="رقم الاجتماع (Zoom)"
+                  value={manualZoomId}
+                  onChange={(e): void => { setManualZoomId(e.target.value); }}
+                  placeholder="مثال: 1234567890"
+                  dir="ltr"
+                />
+                <Input
+                  label="كلمة المرور (اختياري)"
+                  value={manualZoomPassword}
+                  onChange={(e): void => { setManualZoomPassword(e.target.value); }}
+                  dir="ltr"
+                />
+              </div>
+            )}
+
+            {meetingMode === "external" && (
+              <Input
+                label="رابط الاجتماع"
+                value={externalUrl}
+                onChange={(e): void => { setExternalUrl(e.target.value); }}
+                placeholder="https://meet.google.com/... أو رابط Zoom"
+                dir="ltr"
+              />
+            )}
           </div>
           {error && (
             <p className="rounded-xl bg-danger-500/10 px-3 py-2 text-sm text-danger-500" role="alert">

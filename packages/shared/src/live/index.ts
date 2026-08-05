@@ -276,6 +276,9 @@ export interface ICreateLiveSessionDto {
   readonly meetingUrl?: string;
   readonly meetingPassword?: string;
   readonly meetingProvider?: MeetingProviderEnum;
+  readonly zoomMeetingId?: string;
+  readonly zoomPassword?: string;
+  readonly zoomJoinUrl?: string;
   readonly waitingRoom?: boolean;
   readonly autoRecord?: boolean;
   readonly notes?: string;
@@ -295,6 +298,9 @@ export interface IUpdateLiveSessionDto {
   readonly meetingUrl?: string;
   readonly meetingPassword?: string;
   readonly meetingProvider?: MeetingProviderEnum;
+  readonly zoomMeetingId?: string;
+  readonly zoomPassword?: string;
+  readonly zoomJoinUrl?: string;
   readonly waitingRoom?: boolean;
   readonly autoRecord?: boolean;
   readonly notes?: string;
