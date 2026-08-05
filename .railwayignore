@@ -22,3 +22,13 @@ docker
 .DS_Store
 .vscode
 .idea
+.git
+**/.git
+docs
+**/docs
+scripts
+.github
+el-bannawy-firebase
+**/el-bannawy-firebase
+*.md
+**/*.md
