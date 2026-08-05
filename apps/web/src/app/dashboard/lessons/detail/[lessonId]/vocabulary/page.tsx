@@ -18,6 +18,7 @@ import { usePronunciation } from "@/lib/use-pronunciation";
 import { VocabCell } from "@/components/vocabulary/vocabulary-cell";
 import { VocabularyGroupHeader } from "@/components/vocabulary/vocabulary-group-header";
 import { RelationVocabularyTable } from "@/components/vocabulary/relation-vocabulary-table";
+import { AutoFitText } from "@/components/vocabulary/auto-fit-text";
 import { BackButton } from "@/components/ui/back-button";
 
 interface VocabWord {
@@ -134,10 +135,10 @@ function StandardVocabTable({ items }: { items: readonly VocabWord[] }): ReactNo
       </div>
 
       <div className="md:hidden overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40">
-        <Table dir="ltr" className="table-auto w-fit [overflow-wrap:break-word]">
+        <Table dir="ltr" className="table-fixed w-full [overflow-wrap:break-word]">
           <TableHeader>
             <TableRow className="h-10 border-b border-neutral-200 bg-primary-50/60 dark:border-neutral-700 dark:bg-primary-500/5">
-              <TableHead className="px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400 whitespace-nowrap">
+              <TableHead className="w-[38%] px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400 whitespace-nowrap">
                 الكلمة
               </TableHead>
               <TableHead className="px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400 whitespace-nowrap">
@@ -156,8 +157,10 @@ function StandardVocabTable({ items }: { items: readonly VocabWord[] }): ReactNo
                   expanded={expandedId === v.id}
                   onToggleExpand={(): void => { toggleExpand(v.id); }}
                 />
-                <TableCell className="py-3 text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:break-word]" dir="rtl">
-                  {v.translation}
+                <TableCell className="py-3 text-sm leading-relaxed text-neutral-900 dark:text-neutral-100" dir="rtl">
+                  <AutoFitText dir="rtl" baseFont={14} minFont={10}>
+                    {v.translation}
+                  </AutoFitText>
                 </TableCell>
               </TableRow>
             ))}

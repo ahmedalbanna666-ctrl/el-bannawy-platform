@@ -1,5 +1,6 @@
 import { memo, type ReactNode } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AutoFitText } from "./auto-fit-text";
 
 interface RelationVocabularyTableProps {
   readonly items: readonly {
@@ -109,32 +110,36 @@ function RelationVocabularyTableBase({
         {items.map((vocab) => (
           <div
             key={vocab.id}
-            className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40"
+            className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40"
           >
             <div className="flex items-center justify-between gap-2">
-              <span
-                className="min-w-0 text-sm font-bold text-primary-600 dark:text-primary-400 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:break-word]"
+              <AutoFitText
                 dir="ltr"
+                baseFont={14}
+                minFont={10}
+                className="min-w-0 font-bold text-primary-600 dark:text-primary-400"
               >
                 {vocab.word}
-              </span>
-              <span
-                className="min-w-0 text-sm text-neutral-900 dark:text-neutral-100 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:break-word]"
+              </AutoFitText>
+              <AutoFitText
                 dir="rtl"
+                baseFont={14}
+                minFont={10}
+                className="min-w-0 text-neutral-900 dark:text-neutral-100"
               >
                 {vocab.translation}
-              </span>
+              </AutoFitText>
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-dashed border-neutral-100 pt-2 text-xs dark:border-neutral-800">
               <span className="flex min-w-0 items-center gap-1">
                 <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">مرادف:</span>
                 {vocab.synonym ? (
-                  <span dir="rtl" className="[overflow-wrap:break-word]">
+                  <AutoFitText dir="rtl" baseFont={12} minFont={9}>
                     {vocab.synonym}
                     {vocab.synonymTranslation && (
                       <span className="mr-1 text-neutral-400">({vocab.synonymTranslation})</span>
                     )}
-                  </span>
+                  </AutoFitText>
                 ) : (
                   <span className="text-neutral-300 dark:text-neutral-600">—</span>
                 )}
@@ -142,12 +147,12 @@ function RelationVocabularyTableBase({
               <span className="flex min-w-0 items-center gap-1">
                 <span className="shrink-0 font-medium text-danger-600 dark:text-danger-400">مضاد:</span>
                 {vocab.antonym ? (
-                  <span dir="rtl" className="[overflow-wrap:break-word]">
+                  <AutoFitText dir="rtl" baseFont={12} minFont={9}>
                     {vocab.antonym}
                     {vocab.antonymTranslation && (
                       <span className="mr-1 text-neutral-400">({vocab.antonymTranslation})</span>
                     )}
-                  </span>
+                  </AutoFitText>
                 ) : (
                   <span className="text-neutral-300 dark:text-neutral-600">—</span>
                 )}
