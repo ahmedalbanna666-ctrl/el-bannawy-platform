@@ -62,3 +62,39 @@ export function onForegroundMessage(callback: (payload: { title?: string; body?:
     return (): void => { /* noop */ };
   }
 }
+
+export function isPushSupported(): boolean {
+  if (typeof window === "undefined") return false;
+  return "Notification" in window && "serviceWorker" in navigator;
+}
+
+export type PushPermission = "default" | "granted" | "denied" | "unsupported";
+
+export function getPushPermission(): PushPermission {
+  if (!isPushSupported()) return "unsupported";
+  return Notification.permission;
+}
+
+/**
+ * User-initiated enable flow: registers the service worker, requests browser
+ * notification permission, fetches an FCM token and returns it. The caller
+ * persists the token via the backend device-token endpoint.
+ */
+export async function enableWebPush(): Promise<{ ok: boolean; token?: string; error?: string }> {
+  if (!isPushSupported()) {
+    return { ok: false, error: "هذا المتصفح لا يدعم إشعارات المتصفح" };
+  }
+  if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || !process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+    return { ok: false, error: "إشعارات المتصفح غير مهيأة في إعدادات المنصة" };
+  }
+  try {
+    await navigator.serviceWorker.register("/sw.js");
+    const token = await requestFcmToken();
+    if (!token) {
+      return { ok: false, error: "لم يتم منح إذن الإشعارات من المتصفح" };
+    }
+    return { ok: true, token };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "تعذر تفعيل إشعارات المتصفح" };
+  }
+}

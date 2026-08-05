@@ -58,3 +58,13 @@ export class SendTestWhatsAppDto {
   @IsString()
   message!: string;
 }
+
+export class SendTestPushDto {
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  message?: string;
+}

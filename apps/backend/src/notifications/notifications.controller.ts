@@ -13,6 +13,7 @@ import {
   UpdateNotificationTemplateDto,
   UpdateWhatsAppConfigDto,
   SendTestWhatsAppDto,
+  SendTestPushDto,
 } from "./dto/admin-notification.dto";
 
 @Controller("notifications")
@@ -101,6 +102,17 @@ export class NotificationsController {
   async sendTestWhatsApp(@Body() dto: SendTestWhatsAppDto): Promise<ISuccessResponse<unknown>> {
     const data = await this.whatsAppService.sendTestMessage(dto.to, dto.message);
     return successResponse(data, "Test message sent");
+  }
+
+  @Post("admin/push/test")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async sendTestPush(
+    @CurrentUser() userId: string,
+    @Body() dto: SendTestPushDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.notificationsService.sendTestPush(userId, dto.title, dto.message);
+    return successResponse(data, "Test push sent");
   }
 
   // ── User: Notifications ──────────────────────────────────────────────

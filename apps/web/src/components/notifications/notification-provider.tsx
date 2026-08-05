@@ -15,14 +15,13 @@ export function NotificationProvider({ children }: { readonly children: ReactNod
   useEffect(() => {
     if (!user) return;
     if (!FIREBASE_CONFIGURED) return;
-    if (!("Notification" in window)) return;
-    if (!("serviceWorker" in navigator)) return;
 
     let unsub: (() => void) | null = null;
 
     async function initialize(): Promise<void> {
       try {
-        const { requestFcmToken, onForegroundMessage } = await import("@/lib/firebase-messaging");
+        const { isPushSupported, enableWebPush, onForegroundMessage } = await import("@/lib/firebase-messaging");
+        if (!isPushSupported()) return;
 
         await navigator.serviceWorker.register("/sw.js");
 
@@ -35,11 +34,13 @@ export function NotificationProvider({ children }: { readonly children: ReactNod
           }
         });
 
+        // If the user already granted permission (e.g. via the preferences
+        // page), (re)register the current token so pushes keep flowing.
         if (Notification.permission === "granted") {
-          const token = await requestFcmToken();
-          if (token) {
+          const result = await enableWebPush();
+          if (result.ok && result.token) {
             await api.post("/notifications/device-token", {
-              token,
+              token: result.token,
               platform: "WEB",
             });
           }

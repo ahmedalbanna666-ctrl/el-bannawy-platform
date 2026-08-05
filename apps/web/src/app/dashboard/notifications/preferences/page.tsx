@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import {
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
-import { Bell, Save, ArrowRight } from "lucide-react";
+import { Bell, BellRing, CheckCircle2, XCircle, Save, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 interface NotificationPreferences {
@@ -45,6 +45,45 @@ const PREFERENCES: PreferenceItem[] = [
 
 export default function NotificationPreferencesPage(): ReactNode {
   const queryClient = useQueryClient();
+
+  const [pushPermission, setPushPermission] = useState<string>("default");
+  const [enablingPush, setEnablingPush] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
+
+  const refreshPushPermission = useCallback(async (): Promise<void> => {
+    try {
+      const { getPushPermission } = await import("@/lib/firebase-messaging");
+      setPushPermission(getPushPermission());
+    } catch {
+      setPushPermission("unsupported");
+    }
+  }, []);
+
+  useEffect(() => { void refreshPushPermission(); }, [refreshPushPermission]);
+
+  const handleEnablePush = async (): Promise<void> => {
+    setEnablingPush(true);
+    setPushMessage(null);
+    try {
+      const { enableWebPush } = await import("@/lib/firebase-messaging");
+      const result = await enableWebPush();
+      if (!result.ok || !result.token) {
+        setPushMessage(result.error ?? "تعذر تفعيل الإشعارات");
+        void refreshPushPermission();
+        return;
+      }
+      await api.post("/notifications/device-token", {
+        token: result.token,
+        platform: "WEB",
+      });
+      setPushMessage("تم تفعيل إشعارات المتصفح بنجاح");
+      void refreshPushPermission();
+    } catch (err) {
+      setPushMessage(err instanceof Error ? err.message : "تعذر تفعيل إشعارات المتصفح");
+    } finally {
+      setEnablingPush(false);
+    }
+  };
 
   const { data: prefs, isLoading, isError, error } = useQuery<NotificationPreferences>({
     queryKey: ["notification-preferences"],
@@ -132,6 +171,70 @@ export default function NotificationPreferencesPage(): ReactNode {
         />
       ) : !displayPrefs ? null : (
         <>
+          <Card variant="outline" padding="lg">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/10">
+                  <BellRing className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                    إشعارات المتصفح (FCM)
+                  </h2>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                    استقبل إشعارات المنصة على هذا المتصفح حتى وأنت خارج الموقع
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  {pushPermission === "granted" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      الإشعارات مفعّلة
+                    </span>
+                  ) : pushPermission === "denied" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                      <XCircle className="h-3.5 w-3.5" />
+                      الإشعارات محظورة
+                    </span>
+                  ) : pushPermission === "unsupported" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                      غير مدعوم في هذا المتصفح
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      غير مفعّلة
+                    </span>
+                  )}
+                </div>
+
+                {pushPermission !== "granted" && pushPermission !== "unsupported" && pushPermission !== "denied" && (
+                  <div>
+                    <Button size="sm" onClick={(): void => { void handleEnablePush(); }} loading={enablingPush} disabled={enablingPush}>
+                      <BellRing className="h-4 w-4" />
+                      تفعيل إشعارات المتصفح
+                    </Button>
+                  </div>
+                )}
+
+                {pushPermission === "denied" && (
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    لقد حظرت الإشعارات من هذا المتصفح. لإعادة التفعيل افتح إعدادات الموقع من أيقونة القفل بجانب رابط الموقع واسمح بالإشعارات.
+                  </p>
+                )}
+
+                {pushMessage && (
+                  <p className={`text-sm ${pushMessage.includes("بنجاح") ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                    {pushMessage}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card variant="outline" padding="lg">
             <CardHeader>
               <div className="flex items-center gap-3">

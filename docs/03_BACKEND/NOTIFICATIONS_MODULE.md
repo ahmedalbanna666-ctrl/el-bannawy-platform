@@ -1,11 +1,11 @@
 # Notifications Module
 
-Version: 2.1.0
+Version: 2.2.0
 Source: `apps/backend/src/notifications`
 
 ## Responsibility
 
-Persists in-app notifications, read state, soft deletion, notification preferences, admin notification configs/templates, and WhatsApp delivery.
+Persists in-app notifications, read state, soft deletion, notification preferences, admin notification configs/templates, device tokens, and WhatsApp delivery. Every persisted notification is also dispatched as an FCM push notification to the target user's registered devices.
 
 ## Persisted Models
 
@@ -15,6 +15,7 @@ Persists in-app notifications, read state, soft deletion, notification preferenc
 | `NotificationPreference` | Per-user toggle for each notification type (lesson, homework, live, etc.) |
 | `NotificationConfig` | Admin global settings per notification type (isEnabled, channel) |
 | `NotificationTemplate` | Pre-defined message templates with placeholders |
+| `DeviceToken` | Per-user FCM device registration (token, platform, userAgent) |
 | `WhatsAppConfig` | Singleton WhatsApp API configuration (provider, credentials) |
 | `WhatsAppMessage` | Log of sent WhatsApp messages with delivery status |
 
@@ -26,6 +27,8 @@ The controller exposes:
 - `GET /notifications` — paginated list for current user
 - `GET /notifications/preferences` — read user preferences
 - `PATCH /notifications/preferences` — update user preferences
+- `POST /notifications/device-token` — register an FCM device token
+- `DELETE /notifications/device-token` — unregister an FCM device token
 - `PATCH /notifications/read-all` — mark all as read
 - `GET /notifications/:id` — single notification detail
 - `PATCH /notifications/:id/read` — mark one as read
@@ -40,6 +43,7 @@ The controller exposes:
 - `PATCH /notifications/admin/whatsapp` — update WhatsApp settings
 - `GET /notifications/admin/whatsapp/logs` — paginated message logs
 - `POST /notifications/admin/whatsapp/test` — send test message
+- `POST /notifications/admin/push/test` — send a test FCM push to the caller's own registered devices
 
 ### Sender Endpoints (`TEACHER`, `SECRETARY`, `ADMINISTRATOR`)
 - `POST /notifications/send` — send notification to target (all_students, grade, individual)
@@ -61,10 +65,22 @@ Scheduled notifications use real `scheduledAt`/`sentAt` columns on `Notification
 | Channel | Status |
 |---------|--------|
 | IN_APP (database) | ✅ Active |
+| Firebase Push (FCM) | ✅ Active — every notification is pushed regardless of channel |
 | WhatsApp | ✅ Architecture ready (Twilio REST API or custom HTTP provider) |
-| Firebase Push | 🔧 Planned |
 | Email | 🔧 Planned |
 | SMS | 🔧 Planned |
+
+## FCM Push (Firebase Cloud Messaging)
+
+The `FcmService` initializes the Firebase Admin SDK from `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, and `NEXT_PUBLIC_FIREBASE_PROJECT_ID`. If those are missing the service logs a warning and push delivery is skipped.
+
+### Behavior
+
+- **Push for every notification** — `sendNotification` and `dispatchScheduled` send an FCM push to every target user who has a registered `DeviceToken`, regardless of the notification's channel. WhatsApp channel delivery still happens in addition.
+- **Device tokens** — clients register/unregister tokens via `POST /notifications/device-token` and `DELETE /notifications/device-token`.
+- **Invalid token cleanup** — when FCM reports an invalid/not-registered/mismatched token, the row is deleted automatically.
+- **Test push** — `POST /notifications/admin/push/test` sends a test push to the calling admin's own devices so FCM can be verified end-to-end.
+- **Push disabled gracefully** — if a user has no device tokens, push is skipped without error.
 
 ## WhatsApp Service
 

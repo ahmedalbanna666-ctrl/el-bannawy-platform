@@ -14,31 +14,83 @@ describe("NotificationsService scheduling (M4)", () => {
       findMany: jest.Mock;
       update: jest.Mock;
     };
+    notificationConfig: { findUnique: jest.Mock };
+    notificationPreference: { findMany: jest.Mock };
     user: { findMany: jest.Mock; findUnique: jest.Mock };
   };
+  let fcm: { sendPush: jest.Mock };
   let jobQueue: { schedule: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
       notification: { createMany: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+      notificationConfig: { findUnique: jest.fn().mockResolvedValue(null) },
+      notificationPreference: { findMany: jest.fn().mockResolvedValue([]) },
       user: { findMany: jest.fn(), findUnique: jest.fn() },
     };
     (prisma as unknown as { $transaction: unknown }).$transaction = jest.fn(
       async (cb: (tx: typeof prisma) => unknown) => cb(prisma),
     );
     jobQueue = { schedule: jest.fn().mockResolvedValue("job1") };
+    fcm = { sendPush: jest.fn().mockResolvedValue({ success: true }) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsService,
         { provide: PrismaService, useValue: prisma },
         { provide: WhatsAppService, useValue: { sendTestMessage: jest.fn().mockResolvedValue({}) } },
-        { provide: FcmService, useValue: { sendPush: jest.fn().mockResolvedValue({ success: true }) } },
+        { provide: FcmService, useValue: fcm },
         { provide: BullJobQueue, useValue: jobQueue },
       ],
     }).compile();
 
     service = module.get<NotificationsService>(NotificationsService);
+  });
+
+  describe("sendNotification", () => {
+    it("should dispatch FCM push for the default IN_APP channel", async () => {
+      prisma.user.findMany.mockResolvedValue([{ id: "u1" }, { id: "u2" }]);
+      prisma.notification.createMany.mockResolvedValue({ count: 2 });
+
+      const result = (await service.sendNotification("sender", {
+        type: "report_ready",
+        title: "Report",
+        message: "Your report is ready",
+        channel: NotificationChannel.IN_APP,
+        targetType: NotificationTargetType.ALL_STUDENTS,
+      })) as { sent: number; pushSent: number; whatsappSent: number };
+
+      expect(result.sent).toBe(2);
+      expect(result.pushSent).toBe(2);
+      expect(result.whatsappSent).toBe(0);
+      expect(fcm.sendPush).toHaveBeenCalledTimes(2);
+      expect(fcm.sendPush).toHaveBeenCalledWith("u1", "Report", "Your report is ready", { type: "report_ready" });
+    });
+
+    it("should dispatch FCM push for the explicit WHATSAPP channel as well", async () => {
+      prisma.user.findMany.mockResolvedValue([{ id: "u1", mobileNumber: "+201000000000" }]);
+      prisma.notification.createMany.mockResolvedValue({ count: 1 });
+
+      const result = (await service.sendNotification("sender", {
+        type: "report_ready",
+        title: "Report",
+        message: "Your report is ready",
+        channel: NotificationChannel.WHATSAPP,
+        targetType: NotificationTargetType.ALL_STUDENTS,
+      })) as { sent: number; pushSent: number; whatsappSent: number };
+
+      expect(result.pushSent).toBe(1);
+      expect(result.whatsappSent).toBe(1);
+      expect(fcm.sendPush).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("sendTestPush", () => {
+    it("should forward the test push to the requesting user", async () => {
+      const result = await service.sendTestPush("admin1", "اختبار", "رسالة تجريبية");
+      expect(result.success).toBe(true);
+      expect(fcm.sendPush).toHaveBeenCalledWith("admin1", "اختبار", "رسالة تجريبية", { type: "test" });
+    });
   });
 
   describe("scheduleNotification", () => {
@@ -81,7 +133,7 @@ describe("NotificationsService scheduling (M4)", () => {
   });
 
   describe("dispatchScheduled", () => {
-    it("should mark due notifications as sent (sentAt) and dispatch channel", async () => {
+    it("should mark due notifications as sent (sentAt) and dispatch FCM push even for IN_APP channel", async () => {
       prisma.notification.findMany.mockResolvedValue([
         { id: "n1", userId: "u1", title: "T", message: "M", type: "x", channel: NotificationChannel.IN_APP },
       ]);
@@ -90,6 +142,7 @@ describe("NotificationsService scheduling (M4)", () => {
       const result = await service.dispatchScheduled(new Date(), "x", NotificationChannel.IN_APP);
 
       expect(result.dispatched).toBe(1);
+      expect(fcm.sendPush).toHaveBeenCalledWith("u1", "T", "M", { type: "x" });
       expect(prisma.notification.update).toHaveBeenCalledWith({
         where: { id: "n1" },
         data: { sentAt: expect.any(Date) },

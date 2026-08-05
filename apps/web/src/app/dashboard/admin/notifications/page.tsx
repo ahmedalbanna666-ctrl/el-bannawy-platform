@@ -9,7 +9,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Bell, Smartphone, CheckCircle2, XCircle, Save,
+  Bell, BellRing, Smartphone, CheckCircle2, XCircle, Save,
   Send, RefreshCw, Settings, MessageSquare, RotateCcw,
   Wifi, WifiOff,
 } from "lucide-react";
@@ -66,6 +66,24 @@ export default function AdminNotificationsPage(): ReactNode {
         </CardHeader>
         <CardContent>
           <PlatformNotificationsSection />
+        </CardContent>
+      </Card>
+
+      {/* ── قسم إشعارات المتصفح (FCM) ── */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10">
+              <BellRing className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">إشعارات المتصفح (FCM)</h2>
+              <p className="text-xs text-neutral-500">إرسال تجريبي للتحقق من وصول الإشعارات الفورية لكل أجهزة المنصة</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <PushNotificationsSection />
         </CardContent>
       </Card>
 
@@ -158,6 +176,47 @@ function PlatformNotificationsSection(): ReactNode {
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// قسم إشعارات المتصفح (FCM)
+// ═══════════════════════════════════════════════════════════════════════
+
+function PushNotificationsSection(): ReactNode {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const sendTest = async (): Promise<void> => {
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await api.post<{ success: boolean; error?: string }>("/notifications/admin/push/test");
+      setResult(res.data?.success ? "تم إرسال الإشعار التجريبي بنجاح" : `فشل: ${res.data?.error ?? "خطأ"}`);
+    } catch (err) {
+      setResult(`خطأ: ${err instanceof Error ? err.message : "فشل"}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-neutral-500">
+        يرسل إشعار FCM تجريبي إلى المتصفح المسجل لحسابك الحالي. تأكد أولاً من تفعيل إشعارات المتصفح من صفحة
+        تفضيلات الإشعارات لاستقباله.
+      </p>
+      <div className="flex items-center gap-3">
+        <Button size="sm" variant="primary" onClick={(): void => { void sendTest(); }} disabled={sending}>
+          {sending ? "جارٍ الإرسال..." : "إرسال إشعار تجريبي"}
+        </Button>
+        {result && (
+          <p className={`text-sm ${result.includes("بنجاح") ? "text-emerald-600" : "text-red-500"}`}>
+            {result}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

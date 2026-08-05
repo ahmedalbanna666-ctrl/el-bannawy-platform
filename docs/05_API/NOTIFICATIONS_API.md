@@ -1,6 +1,6 @@
 # Notifications API
 
-Version: 2.0.0
+Version: 2.1.0
 Source: `apps/backend/src/notifications/notifications.controller.ts`
 Base path: `/api/v1/notifications`
 
@@ -31,6 +31,25 @@ Response: `paginatedResponse` with `{ id, title, message, type, priority, isRead
 | motivationalMessages | رسائل تحفيزية |
 | studyTips | نصائح دراسية |
 | teacherAnnouncements | إعلانات المعلم |
+
+---
+
+`POST /device-token` — Register an FCM device token for the current user
+
+| Body | Type | Description |
+|------|------|-------------|
+| token | string | FCM registration token |
+| platform | string? | `WEB`, `ANDROID`, `IOS` |
+| user-agent (header) | string? | Browser/device user agent |
+
+`DELETE /device-token` — Unregister an FCM device token
+
+| Body | Type | Description |
+|------|------|-------------|
+| token | string | The token to remove |
+
+> Note: Every notification persisted for a user is also delivered as an FCM push
+> to all of that user's registered devices, regardless of the channel.
 
 ---
 
@@ -87,6 +106,17 @@ Response: `paginatedResponse` with `{ id, title, message, type, priority, isRead
 |------|------|-------------|
 | to | string | Recipient phone number |
 | message | string | Message text |
+
+---
+
+`POST /admin/push/test` — Send a test FCM push to the calling admin's own registered devices
+
+| Body | Type | Description |
+|------|------|-------------|
+| title | string? | Optional push title |
+| message | string? | Optional push body |
+
+Returns `{ success, error? }`. `error` is `"No device tokens"` when the admin has not registered a browser device.
 
 ---
 

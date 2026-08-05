@@ -250,6 +250,13 @@ export class NotificationsService implements OnModuleInit {
     let whatsappSent = 0;
     let pushSent = 0;
 
+    // FCM push is enabled for every notification regardless of the channel.
+    // Users without registered device tokens are skipped internally by FcmService.
+    for (const uid of filteredUserIds) {
+      const result = await this.fcmService.sendPush(uid, dto.title, dto.message, { type: dto.type });
+      if (result.success) pushSent++;
+    }
+
     if (channel === NotificationChannel.WHATSAPP) {
       const users = await this.prisma.user.findMany({
         where: { id: { in: filteredUserIds }, deletedAt: null },
@@ -264,13 +271,6 @@ export class NotificationsService implements OnModuleInit {
             Logger.error(`WhatsApp send failed for user ${user.id}: ${err instanceof Error ? err.message : "Unknown"}`, "NotificationsService");
           }
         }
-      }
-    }
-
-    if (channel === NotificationChannel.PUSH) {
-      for (const uid of filteredUserIds) {
-        const result = await this.fcmService.sendPush(uid, dto.title, dto.message, { type: dto.type });
-        if (result.success) pushSent++;
       }
     }
 
@@ -300,6 +300,23 @@ export class NotificationsService implements OnModuleInit {
       skipped: filteredUserIds.length !== targetUserIds.length,
       skippedCount: targetUserIds.length - filteredUserIds.length,
     };
+  }
+
+  /**
+   * Send a test FCM push to the requesting user's own registered devices.
+   * Used by the admin UI to verify end-to-end push delivery.
+   */
+  async sendTestPush(
+    userId: string,
+    title?: string,
+    message?: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.fcmService.sendPush(
+      userId,
+      title ?? "إشعار اختبار",
+      message ?? "هذا إشعار تجريبي من منصة البناوي — تم تفعيل FCM بنجاح",
+      { type: "test" },
+    );
   }
 
   async scheduleNotification(_senderId: string, dto: ScheduleNotificationDto): Promise<unknown> {
@@ -442,6 +459,12 @@ export class NotificationsService implements OnModuleInit {
     let dispatched = 0;
     for (const notification of due) {
       const ch = notification.channel as NotificationChannel;
+
+      // FCM push is enabled for every notification regardless of the channel.
+      await this.fcmService.sendPush(notification.userId, notification.title, notification.message, {
+        type: notification.type,
+      });
+
       if (ch === NotificationChannel.WHATSAPP) {
         const user = await this.prisma.user.findUnique({
           where: { id: notification.userId },
@@ -457,10 +480,6 @@ export class NotificationsService implements OnModuleInit {
             );
           }
         }
-      } else if (ch === NotificationChannel.PUSH) {
-        await this.fcmService.sendPush(notification.userId, notification.title, notification.message, {
-          type: notification.type,
-        });
       }
 
       await this.prisma.notification.update({
