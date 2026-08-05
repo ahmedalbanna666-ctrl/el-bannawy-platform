@@ -134,13 +134,13 @@ function StandardVocabTable({ items }: { items: readonly VocabWord[] }): ReactNo
       </div>
 
       <div className="md:hidden overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40">
-        <Table dir="ltr" className="table-fixed [overflow-wrap:anywhere]">
+        <Table dir="ltr" className="table-fixed [overflow-wrap:break-word]">
           <TableHeader>
             <TableRow className="h-10 border-b border-neutral-200 bg-primary-50/60 dark:border-neutral-700 dark:bg-primary-500/5">
-              <TableHead className="w-[38%] px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+              <TableHead className="w-[38%] px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400 whitespace-nowrap">
                 الكلمة
               </TableHead>
-              <TableHead className="px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+              <TableHead className="px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400 whitespace-nowrap">
                 المعنى
               </TableHead>
             </TableRow>
@@ -156,7 +156,7 @@ function StandardVocabTable({ items }: { items: readonly VocabWord[] }): ReactNo
                   expanded={expandedId === v.id}
                   onToggleExpand={(): void => { toggleExpand(v.id); }}
                 />
-                <TableCell className="py-3 text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:anywhere]" dir="rtl">
+                <TableCell className="py-3 min-w-0 whitespace-normal text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:break-word]" dir="rtl">
                   {v.translation}
                 </TableCell>
               </TableRow>
@@ -200,7 +200,7 @@ export default function StudentVocabularyPage(): ReactNode {
 
   if (isError) {
     return (
-      <div className="mx-auto max-w-5xl px-4 pt-8">
+      <div className="mx-auto max-w-5xl px-0 pt-8 md:px-4">
         <ErrorState
           title="فشل تحميل المفردات"
           description={error instanceof Error ? error.message : "حدث خطأ غير متوقع"}
@@ -210,7 +210,7 @@ export default function StudentVocabularyPage(): ReactNode {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-3 py-3 md:px-4">
+    <div className="mx-auto max-w-5xl px-0 py-3 md:px-4">
       <div className="mb-2 hidden items-center justify-between md:flex">
         <BackButton fallbackHref="/dashboard/units" />
       </div>
@@ -248,7 +248,6 @@ export default function StudentVocabularyPage(): ReactNode {
               </span>
             )}
           </div>
-          <p className="mt-0.5 hidden text-sm text-neutral-500 md:block">كلمات ومفردات الدرس مع المرادفات والمضادات</p>
         </div>
       </div>
 
@@ -301,7 +300,7 @@ export default function StudentVocabularyPage(): ReactNode {
 
 function VocabularySkeleton(): ReactNode {
   return (
-    <div className="mx-auto max-w-5xl px-3 py-4">
+    <div className="mx-auto max-w-5xl px-0 py-4 md:px-4">
       <div className="mb-6 flex items-center gap-3">
         <Skeleton className="h-11 w-11 rounded-2xl" />
         <div>

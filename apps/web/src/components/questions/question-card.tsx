@@ -53,7 +53,7 @@ export const QuestionCard = memo(function QuestionCard({
               {index + 1}.
             </span>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                 {((): ReactNode => {
                   const [prefix, rest] = extractPrefix(question.question);
                   return (
@@ -63,7 +63,7 @@ export const QuestionCard = memo(function QuestionCard({
                           {prefix}
                         </span>
                       )}
-                      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 leading-relaxed" dir="auto">
+                      <p className="min-w-0 flex-1 text-sm font-medium text-neutral-900 dark:text-neutral-100 leading-relaxed" dir="auto">
                         {renderHighlightedText(rest)}
                       </p>
                     </>
@@ -82,7 +82,7 @@ export const QuestionCard = memo(function QuestionCard({
             </div>
           </div>
 
-          <div className="pr-10">
+          <div className="pr-6 sm:pr-10">
             <QuestionRenderer
               question={question}
               index={index}
@@ -234,8 +234,12 @@ function renderMCQGrid(
   _isCorrect: boolean, _isWrong: boolean,
   onAnswerChange: (index: number, value: string) => void,
 ): ReactNode {
+  // On mobile, show a 2×2 grid when every option is short enough to fit
+  // comfortably; fall back to one-per-row automatically when any option is long.
+  const longestOptionLength = options.reduce((max, opt) => Math.max(max, opt.length), 0);
+  const isCompact = options.length >= 2 && longestOptionLength <= 18;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+    <div className={`grid gap-1.5 sm:gap-2 ${isCompact ? "grid-cols-2" : "grid-cols-1"} sm:grid-cols-2 lg:grid-cols-4`}>
       {options.map((opt, oi) => {
         const val = String(oi);
         const isSelected = selectedAnswer === val;
@@ -270,7 +274,7 @@ function renderMCQGrid(
           <button key={oi} type="button"
             onClick={(): void => { if (!isSubmitted) onAnswerChange(index, val); }}
             disabled={isSubmitted}
-            className={`flex flex-row items-center gap-2 rounded-lg border px-3 py-2 text-sm text-start transition-colors shadow-sm ${styleClass}`}
+            className={`flex flex-row items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm text-start transition-colors shadow-sm sm:gap-2 sm:px-3 sm:py-2 ${styleClass}`}
           >
             <span className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold ${badgeClass}`}>
               {label}

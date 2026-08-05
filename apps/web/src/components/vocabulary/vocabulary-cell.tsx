@@ -36,6 +36,10 @@ export function VocabCell({
   const displayPos = vocab.partOfSpeech ?? legacyPos;
   const speaking = isSpeaking(vocab.id);
   const hasDetails = (vocab.definition?.length ?? 0) > 0 || (vocab.example?.length ?? 0) > 0;
+  // If a single word is too long for the fixed column, shrink the font slightly
+  // on mobile instead of breaking the word in the middle.
+  const longestWordLength = displayWord.split(/\s+/).reduce((max, w) => Math.max(max, w.length), 0);
+  const shrinkLongWord = longestWordLength > 16;
 
   return (
     <TableCell className="min-w-0 py-3 align-top">
@@ -64,7 +68,11 @@ export function VocabCell({
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-1">
             <span
-              className="text-sm font-bold text-primary-600 dark:text-primary-400 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:anywhere]"
+              className={`text-sm font-bold text-primary-600 dark:text-primary-400 [overflow-wrap:break-word] ${
+                shrinkLongWord
+                  ? "max-md:text-[clamp(0.625rem,2.8vw,0.75rem)]"
+                  : "max-md:text-[clamp(0.75rem,3.4vw,0.875rem)]"
+              }`}
               dir="ltr"
             >
               {displayWord}

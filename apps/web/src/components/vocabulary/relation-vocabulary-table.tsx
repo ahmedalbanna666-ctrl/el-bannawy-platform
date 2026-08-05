@@ -113,13 +113,13 @@ function RelationVocabularyTableBase({
           >
             <div className="flex items-center justify-between gap-2">
               <span
-                className="min-w-0 text-sm font-bold text-primary-600 dark:text-primary-400 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:anywhere]"
+                className="min-w-0 text-sm font-bold text-primary-600 dark:text-primary-400 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:break-word]"
                 dir="ltr"
               >
                 {vocab.word}
               </span>
               <span
-                className="min-w-0 text-sm text-neutral-900 dark:text-neutral-100 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:anywhere]"
+                className="min-w-0 text-sm text-neutral-900 dark:text-neutral-100 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:break-word]"
                 dir="rtl"
               >
                 {vocab.translation}
@@ -129,7 +129,7 @@ function RelationVocabularyTableBase({
               <span className="flex min-w-0 items-center gap-1">
                 <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">مرادف:</span>
                 {vocab.synonym ? (
-                  <span dir="rtl" className="[overflow-wrap:anywhere]">
+                  <span dir="rtl" className="[overflow-wrap:break-word]">
                     {vocab.synonym}
                     {vocab.synonymTranslation && (
                       <span className="mr-1 text-neutral-400">({vocab.synonymTranslation})</span>
@@ -142,7 +142,7 @@ function RelationVocabularyTableBase({
               <span className="flex min-w-0 items-center gap-1">
                 <span className="shrink-0 font-medium text-danger-600 dark:text-danger-400">مضاد:</span>
                 {vocab.antonym ? (
-                  <span dir="rtl" className="[overflow-wrap:anywhere]">
+                  <span dir="rtl" className="[overflow-wrap:break-word]">
                     {vocab.antonym}
                     {vocab.antonymTranslation && (
                       <span className="mr-1 text-neutral-400">({vocab.antonymTranslation})</span>
