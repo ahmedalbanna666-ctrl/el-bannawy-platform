@@ -4,7 +4,6 @@ import { type ReactNode } from "react";
 import { Volume2, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { TableCell } from "@/components/ui/table";
 import { parseDisplayWord } from "@/lib/word-display";
-import { AutoFitText } from "./auto-fit-text";
 
 export interface VocabCellItem {
   readonly id: string;
@@ -37,6 +36,10 @@ export function VocabCell({
   const displayPos = vocab.partOfSpeech ?? legacyPos;
   const speaking = isSpeaking(vocab.id);
   const hasDetails = (vocab.definition?.length ?? 0) > 0 || (vocab.example?.length ?? 0) > 0;
+  // Keep the word readable: 16px normally, dip to 15px only for unusually long
+  // single words. Wrapping inside a word is left as a last resort by CSS.
+  const longestWordLength = displayWord.split(/\s+/).reduce((max, w) => Math.max(max, w.length), 0);
+  const wordFont = longestWordLength > 16 ? "text-[15px]" : "text-[16px]";
 
   return (
     <TableCell className="min-w-0 py-3 align-top max-md:align-middle">
@@ -64,14 +67,12 @@ export function VocabCell({
         </button>
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-1 max-md:justify-center">
-            <AutoFitText
+            <span
               dir="ltr"
-              baseFont={16}
-              minFont={15}
-              className="font-bold text-primary-600 dark:text-primary-400"
+              className={`whitespace-normal font-bold text-primary-600 dark:text-primary-400 [overflow-wrap:break-word] ${wordFont}`}
             >
               {displayWord}
-            </AutoFitText>
+            </span>
             {displayPos && (
               <span className="text-xs text-neutral-400 max-md:text-[10px]">({displayPos})</span>
             )}
