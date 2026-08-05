@@ -42,7 +42,7 @@ Required environment variables: `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`, and `ZOO
 
 Token storage reuses the existing `SystemSetting` key/value table — no schema migration is required.
 
-The client lazily loads the Zoom Web SDK from the official CDN only when a user joins (`apps/web/src/lib/zoom-sdk.ts` + `apps/web/src/components/live/zoom-meeting-room.tsx`).
+The client lazily loads the Zoom Web SDK from the official CDN only when a user joins (`apps/web/src/lib/zoom-sdk.ts` + `apps/web/src/components/live/zoom-meeting-room.tsx`). The shared `JoinLiveSessionModal` (`apps/web/src/components/live/join-live-session-modal.tsx`) is the single in-platform join surface: it calls `/join`, renders the Zoom room for `ZOOM_SDK` sessions, or falls back to opening the external `meetingUrl`. It is wired into every student entry point — booked sessions (`/dashboard/live`), lesson-linked sessions (`lesson-live-session-card`), free events (`/dashboard/live/events`), and group schedules (`/dashboard/live/group`) — so the join button appears for any live session regardless of provider.
 
 ## Lifecycle
 
