@@ -112,18 +112,24 @@ function RelationVocabularyTableBase({
             className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-bold text-primary-600 dark:text-primary-400" dir="ltr">
+              <span
+                className="min-w-0 text-sm font-bold text-primary-600 dark:text-primary-400 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:anywhere]"
+                dir="ltr"
+              >
                 {vocab.word}
               </span>
-              <span className="text-sm text-neutral-900 dark:text-neutral-100" dir="rtl">
+              <span
+                className="min-w-0 text-sm text-neutral-900 dark:text-neutral-100 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:anywhere]"
+                dir="rtl"
+              >
                 {vocab.translation}
               </span>
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-dashed border-neutral-100 pt-2 text-xs dark:border-neutral-800">
-              <span className="flex items-center gap-1">
-                <span className="font-medium text-emerald-600 dark:text-emerald-400">مرادف:</span>
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">مرادف:</span>
                 {vocab.synonym ? (
-                  <span dir="rtl">
+                  <span dir="rtl" className="[overflow-wrap:anywhere]">
                     {vocab.synonym}
                     {vocab.synonymTranslation && (
                       <span className="mr-1 text-neutral-400">({vocab.synonymTranslation})</span>
@@ -133,10 +139,10 @@ function RelationVocabularyTableBase({
                   <span className="text-neutral-300 dark:text-neutral-600">—</span>
                 )}
               </span>
-              <span className="flex items-center gap-1">
-                <span className="font-medium text-danger-600 dark:text-danger-400">مضاد:</span>
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="shrink-0 font-medium text-danger-600 dark:text-danger-400">مضاد:</span>
                 {vocab.antonym ? (
-                  <span dir="rtl">
+                  <span dir="rtl" className="[overflow-wrap:anywhere]">
                     {vocab.antonym}
                     {vocab.antonymTranslation && (
                       <span className="mr-1 text-neutral-400">({vocab.antonymTranslation})</span>

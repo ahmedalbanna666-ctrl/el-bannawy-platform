@@ -134,13 +134,13 @@ function StandardVocabTable({ items }: { items: readonly VocabWord[] }): ReactNo
       </div>
 
       <div className="md:hidden overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/40">
-        <Table dir="ltr">
+        <Table dir="ltr" className="table-fixed [overflow-wrap:anywhere]">
           <TableHeader>
             <TableRow className="h-10 border-b border-neutral-200 bg-primary-50/60 dark:border-neutral-700 dark:bg-primary-500/5">
-              <TableHead className="w-1/2 px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+              <TableHead className="w-[38%] px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
                 الكلمة
               </TableHead>
-              <TableHead className="w-1/2 px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+              <TableHead className="px-2 text-[11px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
                 المعنى
               </TableHead>
             </TableRow>
@@ -156,7 +156,7 @@ function StandardVocabTable({ items }: { items: readonly VocabWord[] }): ReactNo
                   expanded={expandedId === v.id}
                   onToggleExpand={(): void => { toggleExpand(v.id); }}
                 />
-                <TableCell className="py-3 text-sm leading-relaxed text-neutral-900 dark:text-neutral-100" dir="rtl">
+                <TableCell className="py-3 text-sm leading-relaxed text-neutral-900 dark:text-neutral-100 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:anywhere]" dir="rtl">
                   {v.translation}
                 </TableCell>
               </TableRow>
@@ -210,11 +210,11 @@ export default function StudentVocabularyPage(): ReactNode {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-3 py-3">
-      <div className="mb-2 flex items-center justify-between">
+    <div className="mx-auto max-w-5xl px-3 py-3 md:px-4">
+      <div className="mb-2 hidden items-center justify-between md:flex">
         <BackButton fallbackHref="/dashboard/units" />
       </div>
-      <nav className="mb-3 flex items-center gap-2 text-sm text-neutral-500">
+      <nav className="mb-3 hidden items-center gap-2 text-sm text-neutral-500 md:flex">
         <Link href="/dashboard/units" className="hover:text-primary-500 transition-colors">
           الدروس
         </Link>
@@ -234,21 +234,21 @@ export default function StudentVocabularyPage(): ReactNode {
       </nav>
 
       <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500/20 to-primary-500/5 shadow-sm">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500/20 to-primary-500/5 shadow-sm">
           <Languages className="h-5 w-5 text-primary-600 dark:text-primary-400" />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
+            <h1 className="truncate text-xl font-bold text-neutral-900 dark:text-neutral-100">
               مفردات الدرس
             </h1>
             {totalCount > 0 && (
-              <span className="inline-flex items-center rounded-full bg-primary-500/10 px-2.5 py-0.5 text-xs font-bold text-primary-600 dark:text-primary-400">
+              <span className="inline-flex shrink-0 items-center rounded-full bg-primary-500/10 px-2.5 py-0.5 text-xs font-bold text-primary-600 dark:text-primary-400">
                 {totalCount} كلمة
               </span>
             )}
           </div>
-          <p className="text-sm text-neutral-500">كلمات ومفردات الدرس مع المرادفات والمضادات</p>
+          <p className="mt-0.5 hidden text-sm text-neutral-500 md:block">كلمات ومفردات الدرس مع المرادفات والمضادات</p>
         </div>
       </div>
 
@@ -288,6 +288,11 @@ export default function StudentVocabularyPage(): ReactNode {
               </div>
             );
           })}
+
+          {/* Mobile back button — after all vocabulary sections */}
+          <div className="mt-2 md:hidden">
+            <BackButton fallbackHref="/dashboard/units" className="w-full" />
+          </div>
         </div>
       )}
     </div>

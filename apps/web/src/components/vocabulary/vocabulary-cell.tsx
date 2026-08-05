@@ -38,7 +38,7 @@ export function VocabCell({
   const hasDetails = (vocab.definition?.length ?? 0) > 0 || (vocab.example?.length ?? 0) > 0;
 
   return (
-    <TableCell className="py-3">
+    <TableCell className="min-w-0 py-3 align-top">
       <div className="flex items-start gap-1.5">
         <button
           type="button"
@@ -63,11 +63,14 @@ export function VocabCell({
         </button>
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-1">
-            <span className="text-sm font-bold text-primary-600 dark:text-primary-400" dir="ltr">
+            <span
+              className="text-sm font-bold text-primary-600 dark:text-primary-400 max-md:text-[clamp(0.75rem,3.4vw,0.875rem)] [overflow-wrap:anywhere]"
+              dir="ltr"
+            >
               {displayWord}
             </span>
             {displayPos && (
-              <span className="text-xs text-neutral-400">({displayPos})</span>
+              <span className="text-xs text-neutral-400 max-md:text-[10px]">({displayPos})</span>
             )}
           </div>
           {hasDetails && (
