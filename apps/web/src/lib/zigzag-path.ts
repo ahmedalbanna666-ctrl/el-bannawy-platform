@@ -3,14 +3,14 @@ export interface ZigzagPoint {
   y: number;
 }
 
-const MIN_OFFSET_PX = 40;
-const MAX_OFFSET_PX = 60;
+const MIN_OFFSET_PX = 48;
+const MAX_OFFSET_PX = 76;
 const DESKTOP_OFFSET_PX = 64;
 const DESKTOP_BREAKPOINT = 768;
 
 export function computeZigzagOffset(width: number): number {
   if (width >= DESKTOP_BREAKPOINT) return DESKTOP_OFFSET_PX;
-  return Math.min(Math.max(width * 0.14, MIN_OFFSET_PX), MAX_OFFSET_PX);
+  return Math.min(Math.max(width * 0.16, MIN_OFFSET_PX), MAX_OFFSET_PX);
 }
 
 export function buildZigzagPath(

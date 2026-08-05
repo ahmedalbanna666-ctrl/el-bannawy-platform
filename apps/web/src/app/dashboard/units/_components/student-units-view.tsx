@@ -278,7 +278,7 @@ export function StudentUnitsView(): ReactNode {
                       }
                     }}
                     onClick={handleOpen}
-                    className={`flex h-[72px] w-[72px] sm:h-[84px] sm:w-[84px] cursor-pointer flex-col items-center justify-center gap-1 rounded-[20px] sm:rounded-[24px] border-2 transition-all duration-200 hover:scale-[1.02] ${ringColor} ${hoverColor} ${locked ? "opacity-70" : ""}`}
+                    className={`flex h-[80px] w-[80px] cursor-pointer flex-col items-center justify-between rounded-[20px] border-2 px-1 py-2 transition-all duration-200 hover:scale-[1.02] sm:h-[84px] sm:w-[84px] sm:justify-center sm:gap-1 sm:rounded-[24px] sm:px-0 sm:py-0 ${ringColor} ${hoverColor} ${locked ? "opacity-70" : ""}`}
                   >
                     <span className="font-cairo text-[10px] font-extrabold uppercase tracking-[0.15em] text-primary-500/60">
                       UNIT
@@ -369,7 +369,7 @@ function UnitsSkeleton(): ReactNode {
             className="flex flex-col items-center"
             style={{ transform: `translateX(${String(i % 2 === 0 ? 64 : -64)}px)` }}
           >
-            <Skeleton className="h-[72px] w-[72px] sm:h-[84px] sm:w-[84px] rounded-[20px] sm:rounded-[24px]" />
+            <Skeleton className="h-[80px] w-[80px] rounded-[20px] sm:h-[84px] sm:w-[84px] sm:rounded-[24px]" />
           </div>
         ))}
       </div>
