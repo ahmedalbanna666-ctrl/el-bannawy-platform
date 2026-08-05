@@ -43,7 +43,7 @@ export function VocabCell({
 
   return (
     <TableCell className="min-w-0 py-3 align-top max-md:align-middle">
-      <div className="flex items-start gap-1.5 max-md:justify-center">
+      <div className="flex items-start gap-1.5">
         <button
           type="button"
           aria-label={`استمع إلى نطق كلمة ${displayWord}`}
@@ -66,7 +66,7 @@ export function VocabCell({
           )}
         </button>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-1 max-md:justify-center">
+          <div className="flex flex-wrap items-baseline gap-1">
             <span
               dir="ltr"
               className={`whitespace-normal font-bold text-primary-600 dark:text-primary-400 [overflow-wrap:break-word] ${wordFont}`}
