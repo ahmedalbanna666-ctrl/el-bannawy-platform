@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { createHmac } from "node:crypto";
 import { ConfigurationService } from "../config/configuration.service";
+import { PrismaService } from "../prisma/prisma.service";
 
 /**
  * ZoomMeetingPayload — normalized meeting data returned by the Zoom REST API.
@@ -38,7 +39,15 @@ export type UpdateZoomMeetingInput = Partial<CreateZoomMeetingInput>;
 
 interface ZoomOAuthResponse {
   readonly access_token?: string;
+  readonly refresh_token?: string;
   readonly expires_in?: number;
+}
+
+/** Persisted Zoom OAuth token set (stored encrypted-at-rest-free as config; never exposed). */
+export interface ZoomOAuthTokenSet {
+  readonly accessToken: string;
+  readonly refreshToken: string | null;
+  readonly expiresAt: number;
 }
 
 interface ZoomErrorPayload {
@@ -54,7 +63,12 @@ interface ZoomSignatureResponse {
  * ZoomService — server-side Zoom Meeting SDK integration.
  *
  * Responsibilities:
- *  1. Mint an OAuth access token from ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET (client credentials grant).
+ *  1. Mint an OAuth access token. Two grants are supported:
+ *     - Authorization-code flow (preferred): tokens are minted through
+ *       `ZoomOAuthController` (`/zoom/oauth/*`), persisted in `SystemSetting`
+ *       and refreshed transparently with the rotating refresh token.
+ *     - Client-credentials grant (fallback): minted directly from
+ *       ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET when no refresh token exists.
  *  2. Create / update / delete Zoom meetings through the REST API.
  *  3. Generate in-browser Meeting SDK signatures (SDK Key + SDK Secret JWT, or OAuth signature endpoint).
  *
@@ -63,10 +77,14 @@ interface ZoomSignatureResponse {
 @Injectable()
 export class ZoomService {
   private readonly logger = new Logger(ZoomService.name);
+  private static readonly TOKEN_SETTING_KEY = "zoom_oauth_tokens";
 
   private cachedToken: { token: string; expiresAt: number } | null = null;
 
-  constructor(private readonly config: ConfigurationService) {}
+  constructor(
+    private readonly config: ConfigurationService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   isConfigured(): boolean {
     const cfg = this.config.zoom;
@@ -91,8 +109,40 @@ export class ZoomService {
     }
   }
 
+  // ── OAuth token storage (SystemSetting key/value store) ──────────────────
+
+  private async loadStoredTokens(): Promise<ZoomOAuthTokenSet | null> {
+    const row = await this.prisma.systemSetting.findUnique({
+      where: { key: ZoomService.TOKEN_SETTING_KEY },
+    });
+    if (!row) return null;
+    try {
+      return JSON.parse(row.value) as ZoomOAuthTokenSet;
+    } catch {
+      return null;
+    }
+  }
+
+  private async persistTokens(tokens: ZoomOAuthTokenSet): Promise<void> {
+    await this.prisma.systemSetting.upsert({
+      where: { key: ZoomService.TOKEN_SETTING_KEY },
+      create: { key: ZoomService.TOKEN_SETTING_KEY, value: JSON.stringify(tokens) },
+      update: { value: JSON.stringify(tokens) },
+    });
+  }
+
+  /** Whether an authorization-code session has been completed (refresh token persisted). */
+  async isOAuthAuthorized(): Promise<boolean> {
+    const stored = await this.loadStoredTokens();
+    return Boolean(stored?.refreshToken);
+  }
+
   /**
-   * OAuth client-credentials access token, cached until expiry.
+   * OAuth access token, cached until expiry.
+   *
+   * Uses the persisted refresh token (authorization-code flow) when available,
+   * otherwise falls back to the client-credentials grant. Zoom rotates refresh
+   * tokens on every refresh, so the latest one is persisted back.
    */
   async getAccessToken(): Promise<string> {
     this.assertConfigured();
@@ -107,11 +157,16 @@ export class ZoomService {
     }
 
     const cfg = this.config.zoom;
-    const body = new URLSearchParams({
-      grant_type: "client_credentials",
-    });
+    const stored = await this.loadStoredTokens();
+    const body = new URLSearchParams();
     body.set("client_id", cfg.clientId);
     body.set("client_secret", cfg.clientSecret);
+    if (stored?.refreshToken) {
+      body.set("grant_type", "refresh_token");
+      body.set("refresh_token", stored.refreshToken);
+    } else {
+      body.set("grant_type", "client_credentials");
+    }
 
     let response: Response;
     try {
@@ -137,8 +192,85 @@ export class ZoomService {
     }
 
     const ttlMs = (data.expires_in ?? 3600) * 1000;
+    const refreshToken = data.refresh_token ?? stored?.refreshToken ?? null;
+    if (refreshToken) {
+      await this.persistTokens({
+        accessToken: data.access_token,
+        refreshToken,
+        expiresAt: Date.now() + ttlMs,
+      });
+    }
     this.cachedToken = { token: data.access_token, expiresAt: Date.now() + ttlMs };
     return data.access_token;
+  }
+
+  /**
+   * Build the Zoom authorization URL for the authorization-code flow.
+   */
+  getAuthorizationUrl(state: string): string {
+    const cfg = this.config.zoom;
+    if (!cfg.clientId) {
+      throw new ServiceUnavailableException("Zoom OAuth client id is not configured");
+    }
+    const url = new URL(cfg.authorizeBaseUrl);
+    url.searchParams.set("client_id", cfg.clientId);
+    if (cfg.redirectUri) url.searchParams.set("redirect_uri", cfg.redirectUri);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("state", state);
+    return url.toString();
+  }
+
+  /**
+   * Exchange an authorization code for an access/refresh token pair and persist it.
+   */
+  async exchangeAuthorizationCode(code: string): Promise<ZoomOAuthTokenSet> {
+    if (!this.isRestConfigured()) {
+      throw new ServiceUnavailableException(
+        "Zoom REST API credentials (ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET) are required for this operation.",
+      );
+    }
+
+    const cfg = this.config.zoom;
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+    });
+    if (cfg.redirectUri) body.set("redirect_uri", cfg.redirectUri);
+
+    let response: Response;
+    try {
+      response = await fetch(cfg.oauthBaseUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      });
+    } catch (err) {
+      this.logger.error(`Zoom OAuth code exchange failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new ServiceUnavailableException("Unable to reach Zoom authentication server");
+    }
+
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => ({}))) as ZoomErrorPayload;
+      this.logger.error(`Zoom OAuth code error ${String(response.status)}: ${errorBody.message ?? response.statusText}`);
+      throw new BadGatewayException(errorBody.message ?? "Zoom OAuth authorization failed");
+    }
+
+    const data = (await response.json()) as ZoomOAuthResponse;
+    if (!data.access_token) {
+      throw new BadGatewayException("Zoom OAuth returned no access token");
+    }
+
+    const ttlMs = (data.expires_in ?? 3600) * 1000;
+    const tokens: ZoomOAuthTokenSet = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? null,
+      expiresAt: Date.now() + ttlMs,
+    };
+    await this.persistTokens(tokens);
+    this.cachedToken = { token: tokens.accessToken, expiresAt: tokens.expiresAt };
+    return tokens;
   }
 
   /**

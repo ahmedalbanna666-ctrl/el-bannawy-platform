@@ -21,10 +21,26 @@ Live sessions may use the `ZOOM_SDK` meeting provider so students join the class
 
 The live module depends on the `MeetingProvider` port (`apps/backend/src/live/meeting-provider/meeting-provider.interface.ts`), implemented by `ZoomProvider` (`apps/backend/src/live/meeting-provider/zoom.provider.ts`). Domain services inject `MeetingProvider` through the `MEETING_PROVIDER` DI token; the concrete vendor implementation is confined to the adapter. `LiveZoomMeetingService` and `LiveAttendanceService` never import `ZoomService` directly.
 
-- **Signature generation**: the provider mints short-lived in-browser SDK signatures using either the Meeting SDK Key/Secret pair (JWT/HMAC-SHA256) or the OAuth client-credentials flow against Zoom's `/sdk/signature` endpoint. The frontend only ever receives the signature, meeting number and sdk key.
+- **Signature generation**: the provider mints short-lived in-browser SDK signatures using either the Meeting SDK Key/Secret pair (JWT/HMAC-SHA256) or the OAuth flow against Zoom's `/sdk/signature` endpoint. The frontend only ever receives the signature, meeting number and sdk key.
 - **Meeting management**: `POST/PATCH/DELETE /api/v1/live/sessions/:id/zoom-meeting` create/update/delete a Zoom meeting through the REST API and persist `zoomMeetingId`, `zoomPassword`, `zoomJoinUrl`, `waitingRoom`, and `autoRecord` on the `LiveSession`.
 - **Join**: `POST /api/v1/live/sessions/:id/join` runs all access checks server-side (active subscription, non-expired subscription, grade enrollment, session window, provider configured), records attendance, and returns the SDK join config.
 - **Leave**: `POST /api/v1/live/sessions/:id/leave` closes the attendance record (sets `leftAt`, computes `durationMinutes`, updates `attendanceStatus`).
+
+### Zoom OAuth (authorization-code flow)
+
+Zoom REST operations require an access token. Two grants are supported by `ZoomService` (`apps/backend/src/zoom/zoom.service.ts`):
+
+1. **Authorization-code flow (preferred)** — the operator completes a one-time browser authorization:
+
+   - `GET /api/v1/zoom/oauth/start` redirects to Zoom's authorize page (`ZOOM_AUTHORIZE_BASE_URL`, default `https://zoom.us/oauth/authorize`) with a short-lived in-memory CSRF `state`.
+   - `GET /api/v1/zoom/oauth/callback` (public, browser redirect) exchanges the `code` via `grant_type=authorization_code`, persists the access/refresh token pair in the `SystemSetting` table under key `zoom_oauth_tokens`, and returns the result.
+   - Subsequent `getAccessToken()` calls refresh transparently (`grant_type=refresh_token`); Zoom rotates the refresh token, so the latest one is written back to `SystemSetting`.
+
+2. **Client-credentials grant (fallback)** — used automatically when no refresh token has been stored yet (works for Server-to-Server OAuth apps without a redirect URI).
+
+Required environment variables: `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`, and `ZOOM_REDIRECT_URI` (must match the app's allowlisted redirect URL, e.g. `https://el-bannawy-backend-production.up.railway.app/api/v1/zoom/oauth/callback`). Optional: `ZOOM_AUTHORIZE_BASE_URL`.
+
+Token storage reuses the existing `SystemSetting` key/value table — no schema migration is required.
 
 The client lazily loads the Zoom Web SDK from the official CDN only when a user joins (`apps/web/src/lib/zoom-sdk.ts` + `apps/web/src/components/live/zoom-meeting-room.tsx`).
 

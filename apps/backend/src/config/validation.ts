@@ -79,6 +79,8 @@ export const validationSchema = Joi.object({
   ZOOM_SDK_KEY: Joi.string().allow("").optional(),
   ZOOM_SDK_SECRET: Joi.string().allow("").optional(),
   ZOOM_OAUTH_BASE_URL: Joi.string().uri().optional(),
+  ZOOM_AUTHORIZE_BASE_URL: Joi.string().uri().optional(),
+  ZOOM_REDIRECT_URI: Joi.string().uri().optional(),
   ZOOM_API_BASE_URL: Joi.string().uri().optional(),
   ZOOM_SDK_SIGNATURE_URL: Joi.string().uri().optional(),
   ZOOM_SIGNATURE_TTL_SECONDS: Joi.number().min(60).max(86400).optional(),

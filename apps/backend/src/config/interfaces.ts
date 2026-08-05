@@ -74,6 +74,10 @@ export interface ZoomConfig {
   sdkSecret: string;
   /** OAuth base URL used to mint access tokens. */
   oauthBaseUrl: string;
+  /** Zoom OAuth authorize URL used to start the authorization-code flow. */
+  authorizeBaseUrl: string;
+  /** Zoom OAuth redirect URI (must match the app's allowlisted redirect URL). */
+  redirectUri: string;
   /** Zoom REST API base URL. */
   apiBaseUrl: string;
   /** Meeting SDK signature endpoint. */

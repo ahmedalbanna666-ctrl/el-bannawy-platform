@@ -97,6 +97,8 @@ export class ConfigurationService {
       sdkKey: this.configService.get<string>("ZOOM_SDK_KEY", ""),
       sdkSecret: this.configService.get<string>("ZOOM_SDK_SECRET", ""),
       oauthBaseUrl: this.configService.get<string>("ZOOM_OAUTH_BASE_URL", "https://zoom.us/oauth/token"),
+      authorizeBaseUrl: this.configService.get<string>("ZOOM_AUTHORIZE_BASE_URL", "https://zoom.us/oauth/authorize"),
+      redirectUri: this.configService.get<string>("ZOOM_REDIRECT_URI", ""),
       apiBaseUrl: this.configService.get<string>("ZOOM_API_BASE_URL", "https://api.zoom.us/v2"),
       sdkSignatureUrl: this.configService.get<string>("ZOOM_SDK_SIGNATURE_URL", "https://zoom.us/sdk/signature"),
       signatureTtlSeconds: Number(this.configService.get<string>("ZOOM_SIGNATURE_TTL_SECONDS", "7200")),
