@@ -55,12 +55,12 @@ export function VocabularyGroupHeader({
         </span>
         <div className="min-w-0 flex-1">
           {englishTitle && (
-            <p dir="ltr" className="text-[13px] font-bold leading-tight text-neutral-800 dark:text-neutral-100">
+            <p dir="ltr" className="text-center text-[13px] font-bold leading-tight text-neutral-800 dark:text-neutral-100">
               {englishTitle}
             </p>
           )}
           {arabicTitle && (
-            <p dir="rtl" className="text-xs font-semibold leading-snug text-neutral-500 dark:text-neutral-400">
+            <p dir="rtl" className="text-center text-xs font-semibold leading-snug text-neutral-500 dark:text-neutral-400">
               {arabicTitle}
             </p>
           )}
