@@ -2,10 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
-import { useAuthStore } from "@/lib/auth-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -13,11 +12,9 @@ import { UnitLockOverlay } from "@/components/coins/unit-lock-overlay";
 import { CertificateModal } from "@/components/certificates/certificate-modal";
 import {
   fetchCertificates,
-  fetchCertificateConfig,
-  generateCertificatePdf,
-  issueCertificate,
   type UnitCertificate,
 } from "@/lib/certificates";
+import { useAutoIssueCertificates } from "@/lib/use-auto-issue-certificates";
 import {
   buildZigzagPath,
   computeZigzagOffset,
@@ -62,22 +59,10 @@ interface Stage {
   }[];
 }
 
-function firstNonEmpty(
-  ...values: (string | null | undefined)[]
-): string | null {
-  for (const value of values) {
-    if (value?.trim()) return value;
-  }
-  return null;
-}
-
 export function StudentUnitsView(): ReactNode {
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const user = useAuthStore((s) => s.user);
   const [openUnitId, setOpenUnitId] = useState<string | null>(null);
   const [certificateModal, setCertificateModal] = useState<UnitCertificate | null>(null);
-  const isIssuingRef = useRef(false);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -98,72 +83,13 @@ export function StudentUnitsView(): ReactNode {
     refetchOnWindowFocus: true,
   });
 
+  useAutoIssueCertificates(!isLoading);
+
   const { data: certificates = [] } = useQuery({
     queryKey: ["certificates"],
     queryFn: fetchCertificates,
     staleTime: 60_000,
   });
-
-  const { data: certConfig } = useQuery({
-    queryKey: ["certificate-config"],
-    queryFn: fetchCertificateConfig,
-    staleTime: 60_000,
-  });
-
-  const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
-    queryFn: async () => {
-      const res = await api.get<{ englishName?: string | null; fullName?: string }>("/profile");
-      return res.data ?? null;
-    },
-    enabled: Boolean(user?.id),
-    staleTime: 300_000,
-  });
-
-  useEffect(() => {
-    if (isLoading || !stages) return;
-    if (isIssuingRef.current) return;
-    const threshold = certConfig?.threshold ?? 80;
-    const issuedUnitIds = new Set(certificates.map((c) => c.unit.id));
-    const flattenedUnits = stages.flatMap((stage) =>
-      stage.grades.flatMap((grade) => grade.units),
-    );
-    const eligible = flattenedUnits.filter(
-      (u) => u.progress >= threshold && !issuedUnitIds.has(u.id),
-    );
-    if (eligible.length === 0) return;
-
-    isIssuingRef.current = true;
-    void (async (): Promise<void> => {
-      try {
-        const studentName = firstNonEmpty(
-          profile?.englishName,
-          profile?.fullName,
-          user?.fullName,
-        ) ?? "Student";
-        for (const unit of eligible) {
-          try {
-            const data = await generateCertificatePdf({
-              studentName,
-              unitNumber: unit.displayOrder,
-              unitTitle: unit.title,
-              percentage: unit.progress,
-            });
-            await issueCertificate(
-              unit.id,
-              `certificate-unit-${String(unit.displayOrder)}.pdf`,
-              data,
-            );
-          } catch {
-            // per-unit failure is retried on the next visit
-          }
-        }
-      } finally {
-        isIssuingRef.current = false;
-        await queryClient.invalidateQueries({ queryKey: ["certificates"] });
-      }
-    })();
-  }, [isLoading, stages, certificates, certConfig, profile, user, queryClient]);
 
   const drawPath = useCallback((): void => {
     const wrapper = wrapperRef.current;

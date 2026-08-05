@@ -276,3 +276,15 @@ export async function issueCertificate(
   if (!res.data) throw new Error("فشل إصدار الشهادة");
   return res.data;
 }
+
+export interface EligibleUnit {
+  unitId: string;
+  title: string;
+  displayOrder: number;
+  progress: number;
+}
+
+export async function fetchEligibleUnits(): Promise<EligibleUnit[]> {
+  const res = await api.get<EligibleUnit[]>("/certificates/eligible");
+  return res.data ?? [];
+}

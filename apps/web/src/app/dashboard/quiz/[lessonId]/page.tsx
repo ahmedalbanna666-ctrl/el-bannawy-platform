@@ -13,6 +13,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
 import { TeacherContextBanner } from "@/components/ui/teacher-context-banner";
 import { QuestionCard, groupQuestions, type StudentQuestion } from "@/components/questions/question-card";
+import { useAutoIssueCertificates } from "@/lib/use-auto-issue-certificates";
 import {
   GraduationCap,
   ChevronLeft,
@@ -171,6 +172,8 @@ export default function QuizPage(): ReactNode {
   });
 
   const isSubmitted = result !== null && result.passed !== null;
+
+  useAutoIssueCertificates(isSubmitted && result.passed === true);
 
   useEffect(() => {
     if (!quiz) return;

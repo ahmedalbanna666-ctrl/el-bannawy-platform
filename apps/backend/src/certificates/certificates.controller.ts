@@ -37,6 +37,11 @@ export class CertificatesController {
     return successResponse(await this.service.getConfig(), "Certificate config retrieved");
   }
 
+  @Get("eligible")
+  async getEligibleUnits(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown[]>> {
+    return successResponse(await this.service.listEligibleUnits(userId), "Eligible units retrieved");
+  }
+
   @Get()
   async list(@CurrentUser() userId: string): Promise<ISuccessResponse<unknown[]>> {
     return successResponse(await this.service.list(userId), "Certificates retrieved");

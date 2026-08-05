@@ -42,6 +42,72 @@ export class CertificatesService {
     });
   }
 
+  /**
+   * Compute the student's progress for every unit in their curriculum and
+   * return the units whose progress meets the certificate threshold but for
+   * which no certificate has been issued yet.
+   */
+  async listEligibleUnits(userId: string): Promise<{ unitId: string; title: string; displayOrder: number; progress: number }[]> {
+    const ctx = await this.academicContext.getStudentContext(userId);
+    if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) return [];
+
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key: "certificate_threshold" },
+    });
+    const threshold = Number(setting?.value ?? 80);
+
+    const units = await this.prisma.unit.findMany({
+      where: {
+        unitType: "UNIT",
+        published: true,
+        gradeId: ctx.gradeId,
+        academicYearId: ctx.academicYearId,
+        termId: ctx.termId,
+        ...(ctx.educationalSystem
+          ? {
+              OR: [
+                { educationalSystem: ctx.educationalSystem },
+                { educationalSystem: null },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        displayOrder: true,
+        lessons: { where: { published: true }, select: { id: true } },
+      },
+    });
+
+    const issuedUnitIds = new Set(
+      (await this.prisma.unitCertificate.findMany({
+        where: { userId },
+        select: { unitId: true },
+      })).map((c) => c.unitId),
+    );
+
+    const lessonProgressRows = await this.prisma.lessonProgress.findMany({
+      where: { userId, completed: true },
+      select: { lessonId: true },
+    });
+    const completedLessonIds = new Set(lessonProgressRows.map((r) => r.lessonId));
+
+    const eligible: { unitId: string; title: string; displayOrder: number; progress: number }[] = [];
+    for (const unit of units) {
+      if (issuedUnitIds.has(unit.id)) continue;
+      const total = unit.lessons.length;
+      if (total === 0) continue;
+      const completed = unit.lessons.filter((l) => completedLessonIds.has(l.id)).length;
+      const progress = Math.round((completed / total) * 100);
+      if (progress >= threshold) {
+        eligible.push({ unitId: unit.id, title: unit.title, displayOrder: unit.displayOrder, progress });
+      }
+    }
+
+    return eligible;
+  }
+
   async issue(userId: string, unitId: string, dto: IssueCertificateInput): Promise<unknown> {
     const unit = await this.prisma.unit.findUnique({
       where: { id: unitId },

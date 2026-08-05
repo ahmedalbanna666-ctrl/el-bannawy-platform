@@ -130,15 +130,16 @@ export default function LessonPdfPage(): ReactNode {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-neutral-950">
-      <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
-        <div className="flex items-center gap-2 truncate text-sm font-medium text-neutral-700 dark:text-neutral-200">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 px-3 py-2.5 dark:border-neutral-800 sm:px-4 sm:py-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 truncate text-sm font-medium text-neutral-700 dark:text-neutral-200">
           <FileText className="h-4 w-4 shrink-0 text-primary-500" />
           <span className="truncate">{docMeta.fileName}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             variant="outline"
             size="sm"
+            className="px-3 sm:px-4"
             onClick={() => {
               setIsDownloading(true);
               const a = window.document.createElement("a");
@@ -155,6 +156,7 @@ export default function LessonPdfPage(): ReactNode {
           <Button
             variant={isSaved ? "secondary" : "primary"}
             size="sm"
+            className="px-3 sm:px-4"
             onClick={() => {
               setSaveError(null);
               if (!isSaved) saveMutation.mutate();
@@ -177,10 +179,10 @@ export default function LessonPdfPage(): ReactNode {
           </Button>
         </div>
         {saveError && (
-          <span className="text-xs text-red-500 dark:text-red-400">{saveError}</span>
+          <span className="w-full text-xs text-red-500 dark:text-red-400">{saveError}</span>
         )}
         {saveSuccess && (
-          <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+          <span className="flex w-full items-center gap-1 text-xs text-green-600 dark:text-green-400">
             <CheckCircle className="h-3 w-3" />
             تم الحفظ
           </span>
