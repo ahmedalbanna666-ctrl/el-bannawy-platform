@@ -603,41 +603,42 @@ function NavigationFooter({
   nextLesson: LessonSummary | null;
 }): ReactNode {
   return (
-    <div className="flex items-center justify-between gap-3 pt-2">
-      {prevLesson ? (
-        <Link href={`/dashboard/lessons/detail/${prevLesson.id}`}>
-          <Button variant="outline" size="sm" className="gap-1">
-            <ChevronRight className="h-4 w-4" />
-            <span className="hidden sm:inline">الدرس السابق</span>
-            <span className="hidden sm:inline text-xs text-neutral-400 ml-1">
-              {prevLesson.title}
-            </span>
+    <div className="flex flex-col gap-3 pt-2">
+      {/* Primary: Back + Next Lesson — equal size, right & left */}
+      <div className="flex items-stretch gap-3">
+        <BackButton fallbackHref="/dashboard/units" className="flex-1" />
+        {nextLesson ? (
+          <Link href={`/dashboard/lessons/detail/${nextLesson.id}`} className="flex-1">
+            <Button variant="outline" size="sm" className="w-full gap-1">
+              <ChevronLeft className="h-4 w-4" />
+              الدرس التالي
+            </Button>
+          </Link>
+        ) : (
+          <div className="flex-1" />
+        )}
+      </div>
+
+      {/* Secondary: previous lesson + back to units */}
+      <div className="flex items-center justify-between gap-3">
+        {prevLesson ? (
+          <Link href={`/dashboard/lessons/detail/${prevLesson.id}`}>
+            <Button variant="ghost" size="sm" className="gap-1">
+              <ChevronRight className="h-4 w-4" />
+              <span className="hidden sm:inline">الدرس السابق</span>
+            </Button>
+          </Link>
+        ) : (
+          <div />
+        )}
+
+        <Link href="/dashboard/units">
+          <Button variant="ghost" size="sm">
+            <BookOpen className="mr-2 h-4 w-4" />
+            العودة للوحدات
           </Button>
         </Link>
-      ) : (
-        <div />
-      )}
-
-      <Link href="/dashboard/units">
-        <Button variant="ghost" size="sm">
-          <BookOpen className="mr-2 h-4 w-4" />
-          العودة للوحدات
-        </Button>
-      </Link>
-
-      {nextLesson ? (
-        <Link href={`/dashboard/lessons/detail/${nextLesson.id}`}>
-          <Button variant="outline" size="sm" className="gap-1">
-            <span className="hidden sm:inline text-xs text-neutral-400 mr-1">
-              {nextLesson.title}
-            </span>
-            <span className="hidden sm:inline">الدرس التالي</span>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-      ) : (
-        <div />
-      )}
+      </div>
     </div>
   );
 }
@@ -755,9 +756,6 @@ export default function LessonDetailPage(): ReactNode {
   // ── Render ──
   return (
     <div data-card-border className="flex flex-col gap-4 pb-4">
-      <div className="flex items-center justify-between">
-        <BackButton fallbackHref="/dashboard/units" />
-      </div>
       <Breadcrumb gradeName={lesson.unit.grade.name} unitTitle={lesson.unit.title} />
 
       <LessonHeader
