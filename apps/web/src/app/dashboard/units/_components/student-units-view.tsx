@@ -278,7 +278,7 @@ export function StudentUnitsView(): ReactNode {
                       }
                     }}
                     onClick={handleOpen}
-                    className={`flex h-[80px] w-[80px] cursor-pointer flex-col items-center justify-between rounded-[20px] border-2 px-1 py-2 transition-all duration-200 hover:scale-[1.02] sm:h-[84px] sm:w-[84px] sm:justify-center sm:gap-1 sm:rounded-[24px] sm:px-0 sm:py-0 ${ringColor} ${hoverColor} ${locked ? "opacity-70" : ""}`}
+                    className={`flex h-[80px] w-[80px] cursor-pointer flex-col items-center justify-between rounded-[20px] border-2 px-1 pt-2 pb-3 transition-all duration-200 hover:scale-[1.02] sm:h-[84px] sm:w-[84px] sm:justify-center sm:gap-1 sm:rounded-[24px] sm:px-0 sm:py-0 ${ringColor} ${hoverColor} ${locked ? "opacity-70" : ""}`}
                   >
                     <span className="font-cairo text-[10px] font-extrabold uppercase tracking-[0.15em] text-primary-500/60">
                       UNIT
@@ -287,19 +287,19 @@ export function StudentUnitsView(): ReactNode {
                       {unit.displayOrder}
                     </span>
                     {showProgress ? (
-                      <div className="flex w-11 items-center gap-1">
+                      <div className="mb-0.5 flex w-11 items-center gap-1 sm:mb-0">
                         <div className="h-1 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                           <div
                             className={`h-full rounded-full transition-all ${barColor}`}
                             style={{ width: `${String(unit.progress)}%` }}
                           />
                         </div>
-                        <span className="text-[9px] font-bold text-neutral-400">
+                        <span className="text-[9px] font-bold leading-none text-neutral-400">
                           {String(unit.progress)}%
                         </span>
                       </div>
                     ) : (
-                      <span className="text-[9px] font-semibold text-neutral-400">
+                      <span className="mb-0.5 text-[9px] font-semibold leading-none text-neutral-400 sm:mb-0">
                         قريباً
                       </span>
                     )}
