@@ -76,15 +76,13 @@ export function StudentDashboard(): ReactNode {
               size="sm"
               className="shrink-0 rounded-full bg-purple-500 text-xs font-medium text-white hover:bg-purple-600"
               onClick={() => {
-                if (data.continueLearning?.lessonId) {
-                  router.push(`/dashboard/lessons/detail/${data.continueLearning.lessonId}`);
-                } else {
-                  router.push("/dashboard/units");
-                }
+                // Fully dynamic: label + destination come from the backend
+                // nextAction, computed from the student's saved progress.
+                router.push(data.nextAction?.href ?? "/dashboard/units");
               }}
             >
               <Play className="h-3.5 w-3.5 ml-1" />
-              {data.continueLearning ? "استكمل الدرس" : "ابدأ الآن"}
+              {data.nextAction?.label ?? "ابدأ الآن"}
             </Button>
           </div>
           <div className="px-4 pb-4">

@@ -23,6 +23,11 @@ interface DashboardData {
     progress: number;
     lessonId: string;
   } | null;
+  nextAction: {
+    type: "start" | "continue" | "next_lesson" | "next_unit" | "final_review";
+    label: string;
+    href: string;
+  } | null;
   recentActivity: {
     id: string;
     type: string;
@@ -280,6 +285,8 @@ export class HomeService {
       ? Math.round((attendancePresent / attendanceTotal) * 100)
       : 0;
 
+    const nextAction = await this.resolveNextAction(userId, ctx, currentProgress);
+
     return {
       user: {
         id: user.id,
@@ -302,6 +309,7 @@ export class HomeService {
             lessonId: currentProgress.lessonId,
           }
         : null,
+      nextAction,
       recentActivity: recentActivity.slice(0, 10),
       upcomingLiveClasses: [],
       stats: {
@@ -312,6 +320,93 @@ export class HomeService {
         attendanceRate,
       },
     };
+  }
+
+  /**
+   * Resolve the student's next learning action from saved database progress.
+   * Deterministic across refreshes, logouts and devices (no local state).
+   */
+  private async resolveNextAction(
+    userId: string,
+    ctx: {
+      gradeId: string | null;
+      academicYearId: string | null;
+      termId: string | null;
+      educationalSystem: string | null;
+    } | null,
+    currentProgress: { lessonId: string } | null,
+  ): Promise<DashboardData["nextAction"]> {
+    // 1) The student has an unfinished lesson → resume it.
+    if (currentProgress) {
+      return {
+        type: "continue",
+        label: "استكمل الدرس",
+        href: `/dashboard/lessons/detail/${currentProgress.lessonId}`,
+      };
+    }
+
+    // Without an academic context we cannot resolve the ordered curriculum.
+    if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) {
+      return { type: "start", label: "ابدأ الآن", href: "/dashboard/units" };
+    }
+
+    // 2) Ordered curriculum (units → lessons) for the student's context.
+    const units = await this.prisma.unit.findMany({
+      where: {
+        unitType: "UNIT",
+        published: true,
+        gradeId: ctx.gradeId,
+        academicYearId: ctx.academicYearId,
+        termId: ctx.termId,
+        ...(ctx.educationalSystem
+          ? { OR: [{ educationalSystem: ctx.educationalSystem }, { educationalSystem: null }] }
+          : {}),
+      },
+      orderBy: { displayOrder: "asc" },
+      select: {
+        id: true,
+        lessons: {
+          where: { published: true },
+          orderBy: { displayOrder: "asc" },
+          select: { id: true },
+        },
+      },
+    });
+
+    const orderedLessons = units.flatMap((unit) =>
+      unit.lessons.map((lesson) => ({ lessonId: lesson.id, unitId: unit.id })),
+    );
+
+    const progressRows = await this.prisma.lessonProgress.findMany({
+      where: { userId, completed: true },
+      orderBy: { completedAt: "desc" },
+      select: { lessonId: true, completedAt: true, lesson: { select: { unitId: true } } },
+    });
+    const completedIds = new Set(progressRows.map((row) => row.lessonId));
+
+    // 3) First lesson that is not completed yet.
+    const next = orderedLessons.find((item) => !completedIds.has(item.lessonId)) ?? null;
+
+    // 4) Entire curriculum completed → final review.
+    if (!next) {
+      return { type: "final_review", label: "ابدأ المراجعة النهائية", href: "/dashboard/final-reviews" };
+    }
+
+    // 5) Nothing completed yet → start with the first available lesson.
+    if (completedIds.size === 0) {
+      return { type: "start", label: "ابدأ الآن", href: `/dashboard/lessons/detail/${next.lessonId}` };
+    }
+
+    // 6) Next lesson is in the same unit as the most recently completed one.
+    //    progressRows is non-empty here (completedIds.size > 0), ordered by
+    //    completedAt desc, so [0] is the most recent completed lesson.
+    const lastCompleted = progressRows[0];
+    if (lastCompleted.lesson.unitId === next.unitId) {
+      return { type: "next_lesson", label: "ابدأ الدرس التالي", href: `/dashboard/lessons/detail/${next.lessonId}` };
+    }
+
+    // 7) A new unit is next.
+    return { type: "next_unit", label: "ابدأ الوحدة التالية", href: `/dashboard/lessons/detail/${next.lessonId}` };
   }
 
   async getLeaderboard(userId: string): Promise<{
@@ -385,7 +480,7 @@ export class HomeService {
     });
 
     const xpMap = new Map(xpByUser.map((x) => [x.userId, x._sum.amount ?? 0]));
-    const coinsMap = new Map(coinsByUser.map((c) => [c.userId, c.balance ?? 0]));
+    const coinsMap = new Map(coinsByUser.map((c) => [c.userId, c.balance]));
 
     const ranked = students
       .map((s) => {

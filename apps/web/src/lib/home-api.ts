@@ -9,6 +9,11 @@ export interface HomeData {
   achievements: number;
   streak: number;
   continueLearning: { unitName: string; lessonName: string; progress: number; lessonId: string } | null;
+  nextAction: {
+    type: "start" | "continue" | "next_lesson" | "next_unit" | "final_review";
+    label: string;
+    href: string;
+  } | null;
   recentActivity: { id: string; type: string; description: string; createdAt: string }[];
   upcomingLiveClasses: { id: string; title: string; date: string; teacherName: string }[];
   stats: { completedLessons: number; totalLessons: number; homeworkPending: number; quizPassRate: number; attendanceRate: number };
