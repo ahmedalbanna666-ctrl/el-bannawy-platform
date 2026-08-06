@@ -35,7 +35,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       where: { id: payload.sub, deletedAt: null },
     });
 
-    if (user?.status !== "ACTIVE") {
+    // ACTIVE and PENDING_VERIFICATION users hold a valid session and may
+    // proceed. PENDING_VERIFICATION covers email-verification and Google/Apple
+    // signups that still need to complete their profile on /register?oauth=...
+    if (user?.status !== "ACTIVE" && user?.status !== "PENDING_VERIFICATION") {
       throw new UnauthorizedException("Invalid or inactive user");
     }
 
