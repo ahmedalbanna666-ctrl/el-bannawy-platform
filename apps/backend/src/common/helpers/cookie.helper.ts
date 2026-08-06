@@ -34,6 +34,9 @@ export function setAuthCookies(
 }
 
 export function clearAuthCookies(res: Response): void {
-  res.clearCookie(ACCESS_TOKEN_COOKIE, { path: "/" });
-  res.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/api/v1/auth" });
+  const isProduction = process.env.NODE_ENV === "production";
+  const sameSite: "none" | "lax" = isProduction ? "none" : "lax";
+  // Match the exact attributes used by setAuthCookies so the browser deletes them.
+  res.clearCookie(ACCESS_TOKEN_COOKIE, { path: "/", secure: isProduction, sameSite });
+  res.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/api/v1/auth", secure: isProduction, sameSite });
 }

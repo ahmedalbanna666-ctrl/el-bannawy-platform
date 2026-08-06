@@ -1,5 +1,6 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import { HttpAdapterHost } from "@nestjs/core";
+import { clearAuthCookies } from "../helpers/cookie.helper";
 
 interface ErrorResponse {
   statusCode: number;
@@ -26,6 +27,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const isHttpException = exception instanceof HttpException;
     const message = isHttpException ? exception.message : "Internal server error";
     const isInternalServerError = httpStatus === 500;
+
+    // An expired / superseded session must drop its auth cookies, otherwise the
+    // frontend middleware keeps bouncing /login → /dashboard forever.
+    const unauthorizedStatus: number = HttpStatus.UNAUTHORIZED;
+    if (httpStatus === unauthorizedStatus) {
+      clearAuthCookies(ctx.getResponse());
+    }
 
     const path = typeof httpAdapter.getRequestUrl === "function" ? httpAdapter.getRequestUrl(request) as string : "";
     const correlationId = (request["x-correlation-id"] as string | undefined) ?? "-";
