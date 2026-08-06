@@ -10,6 +10,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GovernorateSelect } from "@/components/ui/governorate-select";
 import { normalizeEgyptMobile, validateEgyptMobile } from "@/lib/phone";
+import { suggestEnglishName } from "@/lib/arabic-names";
 import {
   EDUCATIONAL_SYSTEMS,
   EDUCATIONAL_STAGES,
@@ -55,38 +56,6 @@ interface RegisterPayload {
 type Step = 1 | 2 | 3 | 4;
 
 const TOTAL_STEPS = 4;
-
-// ── Arabic → Latin transliteration (auto-suggests the English name) ────
-
-const AR_TO_LATIN: Record<string, string> = {
-  "ا": "a", "أ": "a", "إ": "e", "آ": "a", "ب": "b", "ت": "t", "ث": "th",
-  "ج": "g", "ح": "h", "خ": "kh", "د": "d", "ذ": "z", "ر": "r", "ز": "z",
-  "س": "s", "ش": "sh", "ص": "s", "ض": "d", "ط": "t", "ظ": "z", "ع": "a",
-  "غ": "gh", "ف": "f", "ق": "q", "ك": "k", "ل": "l", "م": "m", "ن": "n",
-  "ه": "h", "و": "w", "ي": "y", "ء": "", "ة": "a", "ى": "a", "ؤ": "u",
-  "ئ": "i", "لا": "la", "لأ": "la", "لإ": "le", "لآ": "la", " ": " ",
-};
-
-function transliterateArabicName(name: string): string {
-  const normalized = name.replace(/[^\u0621-\u064A\s]/g, " ");
-  let result = "";
-  let i = 0;
-  while (i < normalized.length) {
-    const two = normalized.slice(i, i + 2);
-    if (AR_TO_LATIN[two]) {
-      result += AR_TO_LATIN[two];
-      i += 2;
-      continue;
-    }
-    result += AR_TO_LATIN[normalized[i]] ?? "";
-    i += 1;
-  }
-  return result
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 // ── Preparing Screen ─────────────────────────────────────────────────
 
@@ -337,7 +306,7 @@ function RegisterForm(): ReactNode {
   // edits the English field manually (then their edit is preserved).
   useEffect(() => {
     if (englishNameTouched) return;
-    setEnglishName(fullName.trim() ? transliterateArabicName(fullName) : "");
+    setEnglishName(fullName.trim() ? suggestEnglishName(fullName) : "");
   }, [fullName, englishNameTouched]);
 
   const validateStep1 = useCallback((): boolean => {
