@@ -18,7 +18,13 @@ export default function AuthLayout({
 
   useEffect(() => {
     setMounted(true);
-    if (isAuthenticated) {
+    // Authenticated OAuth users who still need to complete their profile are
+    // allowed to stay on /register?oauth=... — only redirect the rest.
+    const isOAuthCompletion =
+      typeof window !== "undefined" &&
+      window.location.pathname === "/register" &&
+      new URLSearchParams(window.location.search).get("oauth") !== null;
+    if (isAuthenticated && !isOAuthCompletion) {
       router.push("/dashboard");
     }
   }, [isAuthenticated, router]);
