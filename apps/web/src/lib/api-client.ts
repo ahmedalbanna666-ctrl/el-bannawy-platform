@@ -147,6 +147,11 @@ async function request<T>(
             skipAuthRetry: true,
           });
         }
+        // Session is gone (e.g. superseded by a login on another device) —
+        // notify the app so it can log out and send the user to /login.
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("elbannawy:session-expired"));
+        }
         throw new ApiError(message || "Session expired", 401);
       }
 

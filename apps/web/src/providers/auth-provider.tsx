@@ -75,6 +75,22 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   const queryClient = useQueryClient();
 
+  // Global handler: any API 401 that also fails to refresh (e.g. the session was
+  // superseded by a login on another device) clears the auth state and returns
+  // the user to the login page.
+  useEffect(() => {
+    const onSessionExpired = (): void => {
+      clearStore();
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.assign("/login");
+      }
+    };
+    window.addEventListener("elbannawy:session-expired", onSessionExpired);
+    return (): void => {
+      window.removeEventListener("elbannawy:session-expired", onSessionExpired);
+    };
+  }, [clearStore]);
+
   const fetchUser = useCallback(async (): Promise<void> => {
     try {
       const response = await api.get<{
