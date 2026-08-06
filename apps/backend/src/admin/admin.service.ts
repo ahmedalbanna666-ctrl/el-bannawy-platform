@@ -926,6 +926,47 @@ export class AdminService {
     return { id };
   }
 
+  async permanentlyDeleteUser(id: string, role: "STUDENT" | "TEACHER"): Promise<{ id: string }> {
+    const user = await this.prisma.user.findFirst({ where: { id, role } });
+    if (!user) {
+      throw new NotFoundException(role === "TEACHER" ? "Teacher not found" : "Student not found");
+    }
+
+    // Delete rows whose FK to users is required and has NO onDelete: Cascade.
+    // Prisma defaults those to Restrict, which would block user.delete().
+    // Every other relation referencing User uses Cascade or SetNull, so a single
+    // user.delete() afterwards cleans up the rest transactionally.
+    await this.prisma.$transaction(async (tx) => {
+      const unlockCodes = await tx.unlockCode.findMany({
+        where: { createdById: id },
+        select: { id: true },
+      });
+      const codeIds = unlockCodes.map((c) => c.id);
+
+      await tx.userPermissionGrant.deleteMany({
+        where: { OR: [{ userId: id }, { grantedByUserId: id }] },
+      });
+      await tx.auditLog.deleteMany({ where: { actorId: id } });
+      if (codeIds.length > 0) {
+        await tx.codeRedemption.deleteMany({ where: { codeId: { in: codeIds } } });
+      }
+      await tx.unlockCode.deleteMany({ where: { createdById: id } });
+      await tx.referralCampaign.deleteMany({ where: { createdById: id } });
+      await tx.competitionParticipant.deleteMany({ where: { studentId: id } });
+      await tx.competition.deleteMany({ where: { createdById: id } });
+      await tx.liveAnnouncement.deleteMany({ where: { senderId: id } });
+      await tx.liveSessionControlLog.deleteMany({ where: { actorId: id } });
+      await tx.liveSession.deleteMany({ where: { teacherId: id } });
+      // Remove the user's own bookings/subscriptions before user.delete() so the
+      // Restrict FK LiveBooking.subscriptionId -> LiveSubscription cannot block the cascade.
+      await tx.liveBooking.deleteMany({ where: { studentId: id } });
+      await tx.liveSubscription.deleteMany({ where: { userId: id } });
+      await tx.user.delete({ where: { id } });
+    });
+
+    return { id };
+  }
+
   async getStudentProgress(id: string, page = 1, limit = 20): Promise<unknown> {
     const student = await this.prisma.user.findFirst({
       where: { id, role: "STUDENT", deletedAt: null },

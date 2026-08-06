@@ -95,6 +95,15 @@ export class AdminController {
     return successResponse(data, "Teacher status updated successfully");
   }
 
+  @Delete("teachers/:id")
+  async permanentlyDeleteTeacher(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() _userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.adminService.permanentlyDeleteUser(id, "TEACHER");
+    return successResponse(data, "Teacher permanently deleted");
+  }
+
   @Post("teachers/:id/grades")
   async assignGrades(
     @Param("id", ParseUUIDPipe) id: string,
@@ -312,6 +321,15 @@ export class AdminController {
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.adminService.updateStudentStatus(id, dto);
     return successResponse(data, "Student status updated successfully");
+  }
+
+  @Delete("students/:id")
+  async permanentlyDeleteStudent(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() _userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.adminService.permanentlyDeleteUser(id, "STUDENT");
+    return successResponse(data, "Student permanently deleted");
   }
 
   @Get("students/:id/progress")

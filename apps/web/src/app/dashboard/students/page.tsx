@@ -234,6 +234,7 @@ export default function StudentsPage(): ReactNode {
       switch (payload.method) {
         case "patch": return api.patch(payload.endpoint, payload.body);
         case "post": return api.post(payload.endpoint, payload.body);
+        case "delete": return api.delete(payload.endpoint);
         default: return api.patch(payload.endpoint, payload.body);
       }
     },
@@ -822,7 +823,7 @@ function ActionDialogs({
         return {
           title: "حذف الحساب",
           fields: [{ label: "السبب", placeholder: "سبب الحذف (اختياري)", key: "reason" }],
-          action: (): void => { confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/status`, body: { status: "DELETED", reason: fieldValues.reason || undefined } }); },
+          action: (): void => { confirmAction.mutate({ method: "delete", endpoint: `/admin/students/${studentId}` }); },
         };
       default:
         return {

@@ -267,7 +267,11 @@ Authentication
 
 Administrator
 
-User records should never be permanently deleted.
+Users are soft-deleted by default. Permanent deletion of students and
+teachers is only available through the admin dashboard endpoints
+(`DELETE /admin/students/{id}` and `DELETE /admin/teachers/{id}`), which
+remove the user row and all related records (progress, sessions, payments,
+audit logs, live bookings, competitions, etc.) in a single transaction.
 
 ---
 

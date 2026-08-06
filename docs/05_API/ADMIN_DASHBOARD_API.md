@@ -108,7 +108,9 @@ DELETE
 
 /admin/students/{studentId}
 
-Soft Delete.
+Permanent delete. Removes the user row and all related records (sessions,
+progress, payments, audit logs, competitions, live bookings, etc.) in a single
+transaction. Irreversible.
 
 ---
 
@@ -152,7 +154,9 @@ DELETE
 
 /admin/teachers/{teacherId}
 
-Soft Delete.
+Permanent delete. Removes the teacher row and all related records (assigned
+grades, permissions, audit logs, live sessions, competitions, unlock codes,
+etc.) in a single transaction. Irreversible.
 
 ---
 

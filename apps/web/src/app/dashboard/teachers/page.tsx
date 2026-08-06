@@ -86,6 +86,7 @@ export default function TeachersPage(): ReactNode {
       switch (payload.method) {
         case "patch": return api.patch(payload.endpoint, payload.body);
         case "post": return api.post(payload.endpoint, payload.body);
+        case "delete": return api.delete(payload.endpoint);
         default: return api.patch(payload.endpoint, payload.body);
       }
     },
@@ -826,7 +827,7 @@ function ActionDialogs({
             </>
           ),
           action: (): void => {
-            confirmAction.mutate({ method: "patch", endpoint: `/admin/teachers/${teacherId}/status`, body: { status: "DELETED", reason: deleteReason || undefined } });
+            confirmAction.mutate({ method: "delete", endpoint: `/admin/teachers/${teacherId}` });
           },
         };
       default:
