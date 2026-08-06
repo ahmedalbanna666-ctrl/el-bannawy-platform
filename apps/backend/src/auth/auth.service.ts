@@ -14,6 +14,7 @@ import { RegisterDto, LoginDto, RefreshTokenDto, ResetPasswordDto, CompleteOAuth
 import { normalizeEgyptMobile } from "./phone.util";
 import * as bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
+import type { User } from "@prisma/client";
 
 const ACCESS_TOKEN_EXPIRY = 3600;
 const ACCESS_TOKEN_REMEMBER_ME_EXPIRY = 30 * 24 * 3600;
@@ -72,7 +73,7 @@ export class AuthService {
     const tokens = await this.authRepo.revokeExpiredRefreshTokens();
     const history = await this.authRepo.deleteOldLoginHistory(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000));
     if (sessions > 0 || tokens > 0 || history > 0) {
-      Logger.log(`Cleanup: ${sessions} sessions, ${tokens} tokens, ${history} login history records`, "AuthService");
+      Logger.log(`Cleanup: ${String(sessions)} sessions, ${String(tokens)} tokens, ${String(history)} login history records`, "AuthService");
     }
     return { sessions, tokens, history };
   }
@@ -88,9 +89,11 @@ export class AuthService {
       throw new ConflictException("Email already registered");
     }
 
-    if (dto.mobile) {
+    // Always store the canonical +201XXXXXXXXX form so phone login matches.
+    const normalizedMobile = dto.mobile ? normalizeEgyptMobile(dto.mobile) : null;
+    if (normalizedMobile) {
       const existingMobile = await this.prisma.user.findFirst({
-        where: { mobileNumber: dto.mobile, deletedAt: null },
+        where: { mobileNumber: normalizedMobile, deletedAt: null },
       });
       if (existingMobile) {
         throw new ConflictException("Mobile number already registered");
@@ -118,7 +121,7 @@ export class AuthService {
         fullName: dto.fullName,
         englishName: dto.englishName ?? null,
         email: normalizedEmail,
-        mobileNumber: dto.mobile ?? null,
+        mobileNumber: normalizedMobile,
         parentMobile: dto.parentMobile ?? null,
         passwordHash,
         firebaseUid,
@@ -534,17 +537,19 @@ export class AuthService {
     return this.generateTokens(pending.userId, pending.role, tokenExpiry);
   }
 
-  async cancelNewDevice(confirmToken: string): Promise<void> {
+  cancelNewDevice(confirmToken: string): Promise<void> {
     this.pendingLogins.delete(confirmToken);
+    return Promise.resolve();
   }
 
-  async cleanupExpiredPendingLogins(): Promise<void> {
+  cleanupExpiredPendingLogins(): Promise<void> {
     const now = new Date();
     for (const [token, data] of this.pendingLogins.entries()) {
       if (data.expiresAt < now) {
         this.pendingLogins.delete(token);
       }
     }
+    return Promise.resolve();
   }
 
   async oauthLogin(params: {
@@ -705,7 +710,7 @@ export class AuthService {
       data: {
         fullName: dto.fullName,
         englishName: dto.englishName ?? null,
-        mobileNumber: dto.mobile ?? null,
+        mobileNumber: dto.mobile ? normalizeEgyptMobile(dto.mobile) : null,
         parentMobile: dto.parentMobile ?? null,
         passwordHash: passwordHash ?? undefined,
         status: "ACTIVE",
@@ -784,7 +789,7 @@ export class AuthService {
     };
   }
 
-  private async findUserByIdentifier(identifier: string) {
+  private async findUserByIdentifier(identifier: string): Promise<User | null> {
     const isEmail = identifier.includes("@");
     const normalizedMobile = isEmail ? null : normalizeEgyptMobile(identifier);
     return this.prisma.user.findFirst({
