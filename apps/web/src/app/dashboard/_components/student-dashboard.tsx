@@ -139,7 +139,7 @@ export function StudentDashboard(): ReactNode {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">وحدات المنهج</h3>
-                <p className="text-sm text-neutral-500">تصفح جميع الوحدات</p>
+                <p className="text-xs text-neutral-500">تصفح جميع الوحدات</p>
               </div>
               <ChevronLeft className="h-5 w-5 text-neutral-400" />
             </div>
@@ -157,7 +157,7 @@ export function StudentDashboard(): ReactNode {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">قصص المنهج</h3>
-                <p className="text-sm text-neutral-500">شاهد القصص</p>
+                <p className="text-xs text-neutral-500">شاهد القصص</p>
               </div>
               <ChevronLeft className="h-5 w-5 text-neutral-400" />
             </div>
@@ -175,7 +175,7 @@ export function StudentDashboard(): ReactNode {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">المراجعة النهائية</h3>
-                <p className="text-sm text-neutral-500">متاحة فقط أثناء مراجعات الامتحانات</p>
+                <p className="text-xs text-neutral-500">فقط أثناء الامتحانات</p>
               </div>
               <ChevronLeft className="h-5 w-5 text-neutral-400" />
             </div>
