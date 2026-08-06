@@ -159,6 +159,10 @@ export class AiService {
       data: { conversationId: dto.conversationId, role: "user", content: sanitizedMessage },
     });
 
+    if (msgCount === 0) {
+      await this.autoTitleConversation(dto.conversationId, sanitizedMessage);
+    }
+
     const recentMessages = await this.prisma.conversationMessage.findMany({
       where: { conversationId: dto.conversationId },
       orderBy: { createdAt: "desc" },
@@ -178,7 +182,7 @@ export class AiService {
       + ragResults.reduce((sum, r) => sum + this.aiCost.estimateTokens(r.content), 0);
     const embeddingCost = this.aiCost.computeEmbeddingCost("text-embedding-3-small", embeddingTokens);
 
-    const aiReply = await this.generateResponse(sanitizedMessage, recentMessages.reverse(), lessonContext, ragResults, activeModelConfig);
+    const aiReply = await this.generateResponse(sanitizedMessage, recentMessages.reverse(), lessonContext, ragResults, activeModelConfig, this.extractFirstName(studentInfo?.fullName));
 
     const safeReply = aiReply.content;
     const providerUsed = aiReply.provider;
@@ -276,6 +280,10 @@ export class AiService {
       data: { conversationId: dto.conversationId, role: "user", content: sanitizedMessage },
     });
 
+    if (msgCount === 0) {
+      await this.autoTitleConversation(dto.conversationId, sanitizedMessage);
+    }
+
     const recentMessages = await this.prisma.conversationMessage.findMany({
       where: { conversationId: dto.conversationId },
       orderBy: { createdAt: "desc" },
@@ -291,7 +299,7 @@ export class AiService {
       termId: studentInfo?.termId ?? undefined,
     });
 
-    const messages = await this.buildChatMessages(sanitizedMessage, recentMessages.reverse(), lessonContext, ragResults);
+    const messages = await this.buildChatMessages(sanitizedMessage, recentMessages.reverse(), lessonContext, ragResults, this.extractFirstName(studentInfo?.fullName));
 
     const assistantMsg = await this.prisma.conversationMessage.create({
       data: { conversationId: dto.conversationId, role: "assistant", content: "" },
@@ -304,6 +312,7 @@ export class AiService {
     const { providerService, prisma, aiSettings, aiCost } = this;
     const redactOutput = this.redactOutput.bind(this);
     const ruleBasedResponse = this.ruleBasedResponse.bind(this);
+    const studentName = this.extractFirstName(studentInfo?.fullName);
     let accumulated = "";
     const finalProvider = "rule-based";
     const finalModel = this.config.ai.model;
@@ -316,7 +325,7 @@ export class AiService {
         yield chunk;
       }
       if (!usedProvider) {
-        const fallback = ruleBasedResponse(sanitizedMessage, lessonContext, ragResults);
+        const fallback = ruleBasedResponse(sanitizedMessage, lessonContext, ragResults, studentName);
         accumulated = fallback;
         yield fallback;
       }
@@ -519,13 +528,33 @@ export class AiService {
     return `Current lesson: "${lesson.title}" in unit "${lesson.unit.title}" (${lesson.unit.grade.name})`;
   }
 
-  private async getStudentInfo(userId: string): Promise<{ gradeId?: string; termId?: string } | null> {
+  private generateConversationTitle(message: string): string {
+    const cleaned = message.replace(/\s+/g, " ").trim();
+    if (!cleaned) return "New Conversation";
+    return cleaned.length > 60 ? `${cleaned.slice(0, 60)}...` : cleaned;
+  }
+
+  private async autoTitleConversation(conversationId: string, firstMessage: string): Promise<void> {
+    const title = this.generateConversationTitle(firstMessage);
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { title },
+    });
+  }
+
+  private async getStudentInfo(userId: string): Promise<{ gradeId?: string; termId?: string; fullName?: string } | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { gradeId: true, termId: true },
+      select: { gradeId: true, termId: true, fullName: true },
     });
     if (!user) return null;
-    return { gradeId: user.gradeId ?? undefined, termId: user.termId ?? undefined };
+    return { gradeId: user.gradeId ?? undefined, termId: user.termId ?? undefined, fullName: user.fullName };
+  }
+
+  private extractFirstName(fullName?: string): string | undefined {
+    if (!fullName) return undefined;
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    return parts.length > 0 ? parts[0] : undefined;
   }
 
   private sanitizeInput(input: string): string {
@@ -573,6 +602,7 @@ export class AiService {
     history: { role: string; content: string }[],
     lessonContext: string | null,
     ragResults: { content: string; sourceTitle: string; score: number }[],
+    studentName?: string,
   ): Promise<ChatMessage[]> {
     const teachingStyle = await this.aiSettings.getActiveTeachingStyle();
     const styleInstructions = teachingStyle?.content ?? "";
@@ -581,8 +611,8 @@ export class AiService {
       ? `\n\nRelevant educational content from your curriculum:\n${ragResults.map((r) => `[From: ${r.sourceTitle}]\n${r.content}`).join("\n\n")}\n\nUse this content to answer the student's question. If the content doesn't contain the answer, say so honestly.`
       : "";
 
-    const systemPrompt = await this.buildSystemPrompt(lessonContext, styleInstructions, ragContext);
-    const guardedMessage = `[Student message - respond as an English tutor only]: ${message}`;
+    const systemPrompt = await this.buildSystemPrompt(lessonContext, styleInstructions, ragContext, studentName);
+    const guardedMessage = `[Student message — respond as an English tutor, explain in Egyptian Arabic with the English content in English]: ${message}`;
 
     return [
       { role: "system", content: systemPrompt },
@@ -597,6 +627,7 @@ export class AiService {
     lessonContext: string | null,
     ragResults: { content: string; sourceTitle: string; score: number }[],
     _activeModelConfig?: { apiKey: string; modelName: string; baseUrl?: string | null; maxTokens?: number } | null,
+    studentName?: string,
   ): Promise<{
     content: string;
     provider: string;
@@ -611,7 +642,7 @@ export class AiService {
     totalCost?: number | null;
     currency?: string;
   }> {
-    const messages = await this.buildChatMessages(message, history, lessonContext, ragResults);
+    const messages = await this.buildChatMessages(message, history, lessonContext, ragResults, studentName);
 
     try {
       const result = await this.providerService.chat(messages, { maxTokens: 500 });
@@ -636,17 +667,21 @@ export class AiService {
     }
 
     return {
-      content: this.ruleBasedResponse(message, lessonContext, ragResults),
+      content: this.ruleBasedResponse(message, lessonContext, ragResults, studentName),
       provider: "rule-based",
       modelUsed: this.config.ai.model,
       currency: this.aiCost.currency,
     };
   }
 
-  private async buildSystemPrompt(lessonContext: string | null, styleInstructions: string, ragContext: string): Promise<string> {
+  private async buildSystemPrompt(lessonContext: string | null, styleInstructions: string, ragContext: string, studentName?: string): Promise<string> {
     const parts: string[] = [
       "You are \"مساعد مستر أحمد البنا الذكي\" (Mr. Ahmed El-Bannawy's Smart Assistant), an expert English teacher assistant for Arabic-speaking students.",
     ];
+
+    if (studentName) {
+      parts.push(`\nThe student's name is ${studentName}. Use their first name when greeting or addressing them.`);
+    }
 
     if (lessonContext) {
       parts.push(`\n${lessonContext}.`);
@@ -685,8 +720,12 @@ Core identity:
 Behavior:
 - Always be encouraging, positive, and friendly
 - Speak like an Egyptian teacher — use simple, clear language suitable for students
+- Respond in Egyptian Arabic (العامية المصرية) by default; use English for the teaching content (words, sentences, grammar rules, examples) being explained
+- The explanation itself should be in Arabic so the student clearly understands; keep the English words/phrases/sentences in English
 - Break down explanations into simple steps
 - Give plenty of examples
+- Answer only what the student actually asked. If the student names a topic without a specific question (e.g. "عندي سؤال في المضارع التام" or "إيه رأيك في الفعل المساعد؟"), do NOT start a full explanation. First ask a short clarifying question to learn their exact question, e.g. "ممتاز! إيه السؤال بالظبط في المضارع التام؟" and wait for their reply before explaining.
+- Match the length and depth of your answer to the size of the question. Short question = short answer. Do not lecture or dump a full lesson unless the student explicitly asks for a full explanation.
  - If the student makes a mistake, don't say "wrong answer" — use encouraging phrases instead
  - If the question is a practice exercise, don't give the answer directly — guide the student step by step
  - If the student keeps making the same mistake, give hints then the solution with explanation
@@ -707,13 +746,15 @@ Knowledge boundaries:
     return parts.join("\n");
   }
 
-  private ruleBasedResponse(message: string, context: string | null, _ragResults: { content: string; sourceTitle: string; score: number }[]): string {
+  private ruleBasedResponse(message: string, context: string | null, _ragResults: { content: string; sourceTitle: string; score: number }[], studentName?: string): string {
     const lower = message.toLowerCase();
 
     const greeting = context ? `You're currently studying: ${context}. ` : "";
+    const nameGreeting = studentName ? `أهلاً يا ${studentName}! ` : "أهلاً بك! ";
+    const whoAmI = "أنا مساعد مستر أحمد البنا الذكي، جاهز أساعدك في تعلم اللغة الإنجليزية.";
 
     if (lower.includes("hello") || lower.includes("hi") || lower.includes("السلام")) {
-      return `أهلاً بك! يلا يا بطل 💪 أنا مساعد مستر أحمد البنا الذكي، جاهز أساعدك في تعلم اللغة الإنجليزية. ${greeting}عندك سؤال في المفردات أو القواعد أو أي حاجة تخص الإنجليزي؟`;
+      return `${nameGreeting}يلا يا بطل 💪 ${whoAmI} ${greeting}عندك سؤال في المفردات أو القواعد أو أي حاجة تخص الإنجليزي؟`;
     }
 
     if (lower.includes("grammar") || lower.includes("قواعد")) {
@@ -740,7 +781,7 @@ Knowledge boundaries:
       return "مفيش داعي للقلق من الامتحان! ركز شوية وكل حاجة هتبقى سهلة. عندك سؤال معين في المنهج عايز تفهمه؟ أو عايز مراجعة سريعة؟";
     }
 
-    return `أهلاً بك في مساعد مستر أحمد البنا الذكي! 😊 ${greeting}أنا هنا عشان أساعدك في أي حاجة تخص الإنجليزية — قواعد، مفردات، قراءة، كتابة، أو شرح المنهج. إيه اللي عايز تبدأ فيه النهارده؟`;
+    return `${nameGreeting}${whoAmI} ${greeting}أنا هنا عشان أساعدك في أي حاجة تخص الإنجليزية — قواعد، مفردات، قراءة، كتابة، أو شرح المنهج. إيه اللي عايز تبدأ فيه النهارده؟`;
   }
 
   private generateSuggestions(_message: string): string[] {

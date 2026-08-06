@@ -75,9 +75,13 @@ interface CreditsInfo {
 }
 
 interface UserProfile {
-  grade?: string;
-  term?: string;
-  name?: string;
+  fullName?: string;
+  englishName?: string;
+  roleProfile?: {
+    grade?: { name?: string } | null;
+    stage?: { name?: string } | null;
+    currentTerm?: { name?: string } | null;
+  };
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() ?? "http://localhost:4000/api/v1";
@@ -86,6 +90,12 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 function isServerMessageId(id: string): boolean {
   return UUID_REGEX.test(id);
+}
+
+function extractFirstName(fullName?: string): string {
+  if (!fullName) return "";
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  return parts.length > 0 ? parts[0] : "";
 }
 
 /** Lightweight markdown renderer (headings, bold, italic, code, lists, links). */
@@ -229,6 +239,11 @@ export default function AiChatPage(): ReactNode {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [pendingAssistantId, setPendingAssistantId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const studentFirstName = extractFirstName(userProfile?.fullName ?? userProfile?.englishName);
+  const gradeName = userProfile?.roleProfile?.grade?.name ?? userProfile?.roleProfile?.stage?.name;
+  const termName = userProfile?.roleProfile?.currentTerm?.name;
+  const greetingTitle = studentFirstName ? `أهلاً يا ${studentFirstName}! 👋` : "اسأل البنا AI";
 
   useEffect(() => {
     async function fetchInitial(): Promise<void> {
@@ -552,15 +567,25 @@ export default function AiChatPage(): ReactNode {
   if (loading) return <AiSkeleton />;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={(): void => { router.push("/dashboard"); }}
-          className="flex w-fit items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          العودة للرئيسية
-        </button>
+    <div className="fixed inset-0 z-40 flex flex-col gap-4 overflow-hidden bg-white p-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] dark:bg-neutral-950 md:static md:z-auto md:flex md:gap-4 md:overflow-visible md:bg-transparent md:p-0 md:pt-0 md:pb-0 md:dark:bg-transparent">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(): void => { router.push("/dashboard"); }}
+            className="flex w-fit items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            العودة للرئيسية
+          </button>
+          <button
+            onClick={(): void => { setShowMobileConv(true); }}
+            className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:text-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 md:hidden"
+            aria-label="المحادثات"
+          >
+            <MessageSquare className="h-4 w-4" />
+            المحادثات
+          </button>
+        </div>
         {credits && (
           <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 dark:border-neutral-700 dark:bg-neutral-800">
             <Coins className="h-4 w-4 text-amber-500" />
@@ -575,17 +600,7 @@ export default function AiChatPage(): ReactNode {
           </div>
         )}
       </div>
-      <div className="flex gap-6" style={{ minHeight: "calc(100vh - 180px)" }}>
-        {/* Mobile conversation toggle */}
-        {activeId && (
-          <button
-            onClick={(): void => { setShowMobileConv(true); }}
-            className="fixed bottom-24 end-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary-500 text-white shadow-lg md:hidden"
-            aria-label="المحادثات"
-          >
-            <MessageSquare className="h-5 w-5" />
-          </button>
-        )}
+      <div className="flex min-h-0 flex-1 gap-6 md:min-h-[calc(100vh-180px)] md:flex-none">
 
         {/* Desktop Sidebar */}
         <div className="hidden w-64 shrink-0 flex-col gap-3 md:flex">
@@ -681,12 +696,16 @@ export default function AiChatPage(): ReactNode {
         )}
 
         {/* Chat area */}
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {!activeId ? (
             <div className="flex flex-1 items-center justify-center">
               <EmptyState
-                title="اسأل البنا AI"
-                description="ابدأ محادثة جديدة للحصول على مساعدة في تعلم الإنجليزية"
+                title={greetingTitle}
+                description={
+                  studentFirstName
+                    ? `أهلاً بيك يا ${studentFirstName}! اسألني عن أي حاجة في الإنجليزية وأنا جاهز أساعدك في تعلمها.`
+                    : "ابدأ محادثة جديدة للحصول على مساعدة في تعلم الإنجليزية"
+                }
                 icon={<Sparkles className="h-16 w-16" />}
                 actionLabel="ابدأ محادثة جديدة"
                 onAction={(): void => { void newConversation(); }}
@@ -694,11 +713,11 @@ export default function AiChatPage(): ReactNode {
             </div>
           ) : (
             <>
-              <div className="flex-1 space-y-4 overflow-y-auto pb-4">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
                 <div className="flex items-center gap-2 rounded-xl bg-primary-500/5 px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400">
                   <BadgeInfo className="h-4 w-4 shrink-0 text-primary-500" />
                   <span>
-                    {userProfile?.grade ? `${userProfile.grade}${userProfile.term ? ` - ${userProfile.term}` : ""}` : "مرحباً بك في مساعد البنا AI"}
+                    {gradeName ? `${gradeName}${termName ? ` - ${termName}` : ""}` : (studentFirstName ? `أهلاً يا ${studentFirstName}! جاهز أساعدك في تعلم الإنجليزية` : "مرحباً بك في مساعد البنا AI")}
                   </span>
                 </div>
                 {messages.length === 0 && (
@@ -714,12 +733,12 @@ export default function AiChatPage(): ReactNode {
                           <Bot className="h-4 w-4 text-white" />
                         </div>
                       )}
-                      <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
+                      <div className={`rounded-2xl px-4 py-3 text-sm ${
                         msg.role === "user"
-                          ? "bg-primary-500 text-white"
+                          ? "max-w-[80%] bg-primary-500 text-white"
                           : msg.isError
-                            ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                            : "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+                            ? "flex-1 bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            : "flex-1 bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
                       }`}>
                         {msg.isStreaming && msg.content === "" ? (
                           <div className="flex gap-1">

@@ -105,18 +105,6 @@ interface ReindexPayload {
   sourceId?: string;
 }
 
-interface PaginationMeta {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
-
-interface SourcesResponse {
-  items: KnowledgeSource[];
-  meta: PaginationMeta;
-}
-
 const STATUS_CONFIG: Record<string, { label: string; variant: "primary" | "secondary" | "success" | "warning" | "danger" | "info" }> = {
   PENDING: { label: "قيد الانتظار", variant: "warning" },
   PROCESSING: { label: "قيد المعالجة", variant: "info" },
@@ -224,13 +212,13 @@ export default function KnowledgeBasePage(): ReactNode {
 
       const qs = params.toString();
       const [sourcesRes, gradesRes, termsRes, statsRes] = await Promise.all([
-        api.get<SourcesResponse>(`/ai-knowledge-base/sources${qs ? `?${qs}` : ""}`),
+        api.get<KnowledgeSource[]>(`/ai-knowledge-base/sources${qs ? `?${qs}` : ""}`),
         api.get<Grade[]>("/ai-knowledge-base/grades"),
         api.get<Term[]>("/ai-knowledge-base/terms"),
         api.get<KnowledgeStats>("/ai-knowledge-base/stats"),
       ]);
 
-      if (sourcesRes.data) setSources(sourcesRes.data.items);
+      if (Array.isArray(sourcesRes.data)) setSources(sourcesRes.data);
       if (gradesRes.data) setGrades(gradesRes.data);
       if (termsRes.data) setTerms(termsRes.data);
       if (statsRes.data) setStats(statsRes.data);
