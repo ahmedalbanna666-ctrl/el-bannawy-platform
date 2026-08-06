@@ -229,13 +229,13 @@ export async function generateCertificatePdf(input: CertificateInput): Promise<s
       useCORS: true,
       allowTaint: false,
     });
-    const pngDataUrl = canvas.toDataURL("image/png");
+    const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.92);
     const pdf = new jsPDF({
       orientation: "landscape",
       unit: "px",
       format: [CERTIFICATE_WIDTH, CERTIFICATE_HEIGHT],
     });
-    pdf.addImage(pngDataUrl, "PNG", 0, 0, CERTIFICATE_WIDTH, CERTIFICATE_HEIGHT);
+    pdf.addImage(jpegDataUrl, "JPEG", 0, 0, CERTIFICATE_WIDTH, CERTIFICATE_HEIGHT);
     const dataUri = pdf.output("datauristring");
     return dataUri.split(",")[1] ?? "";
   } finally {
