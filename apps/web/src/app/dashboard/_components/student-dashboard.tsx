@@ -25,13 +25,6 @@ import { useMyBookings } from "@/lib/live-api";
 import { useAuthStore } from "@/lib/auth-store";
 import { useHomeData, type HomeData } from "@/lib/home-api";
 
-/** Renders "1 و 2 و 3" from the completed lessons' display orders. */
-function formatLessonNumbers(lessons: HomeData["unitProgress"]["lessons"]): string {
-  const done = lessons.filter((l) => l.completed);
-  if (done.length === 0) return "0";
-  return [...done].sort((a, b) => a.displayOrder - b.displayOrder).map((l) => String(l.displayOrder)).join(" و ");
-}
-
 export function StudentDashboard(): ReactNode {
   const router = useRouter();
   const { data: liveBookings } = useMyBookings();
@@ -53,6 +46,13 @@ export function StudentDashboard(): ReactNode {
 
   const unitProgress = data.unitProgress.percent;
 
+  // Current lesson: first unfinished lesson in the current unit,
+  // otherwise the most recently completed one.
+  const lessons = [...data.unitProgress.lessons].sort(
+    (a, b) => a.displayOrder - b.displayOrder,
+  );
+  const currentLesson = lessons.find((l) => !l.completed) ?? lessons[lessons.length - 1];
+
   return (
     <div className="flex flex-col gap-4">
 
@@ -71,9 +71,11 @@ export function StudentDashboard(): ReactNode {
                     <p className="font-semibold text-neutral-700 dark:text-neutral-300">
                       الوحدة {data.unitProgress.unitDisplayOrder ?? ""} — {data.unitProgress.unitName}
                     </p>
-                    <p>
-                      الدرس {formatLessonNumbers(data.unitProgress.lessons)} — {String(data.unitProgress.completedActivities)} من {String(data.unitProgress.totalActivities)} نشاط
-                    </p>
+                    {lessons.length > 0 ? (
+                      <p>
+                        الدرس {currentLesson.displayOrder} — {currentLesson.title}
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="text-xs text-neutral-500">
