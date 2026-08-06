@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { School, Mail, Lock, KeyRound, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
-export default function ResetPasswordPage(): ReactNode {
+function ResetPasswordForm(): ReactNode {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState("");
+  const searchParams = useSearchParams();
+  const prefilledIdentifier = searchParams.get("identifier") ?? "";
+  const [identifier, setIdentifier] = useState(prefilledIdentifier);
   const [verificationCode, setVerificationCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -114,5 +116,13 @@ export default function ResetPasswordPage(): ReactNode {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+export default function ResetPasswordPage(): ReactNode {
+  return (
+    <Suspense fallback={<div className="flex min-h-[200px] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

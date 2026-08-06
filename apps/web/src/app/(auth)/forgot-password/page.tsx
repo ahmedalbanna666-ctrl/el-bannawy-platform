@@ -2,13 +2,15 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { School, Mail, Send, ArrowLeft } from "lucide-react";
+import { School, Mail, Send, ArrowLeft, KeyRound } from "lucide-react";
 
 export default function ForgotPasswordPage(): ReactNode {
+  const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +69,19 @@ export default function ForgotPasswordPage(): ReactNode {
             <p className="rounded-xl bg-success-500/10 px-4 py-3 text-sm text-success-600 dark:text-success-400">
               {message}
             </p>
+          )}
+
+          {message && (
+            <Button
+              type="button"
+              fullWidth
+              onClick={(): void => {
+                router.push(`/reset-password?identifier=${encodeURIComponent(identifier)}`);
+              }}
+            >
+              <KeyRound className="h-5 w-5" />
+              Continue to enter the code
+            </Button>
           )}
 
           <Button type="submit" fullWidth loading={loading}>
