@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { School, Mail, Lock, LogIn, Eye, EyeOff, AlertTriangle } from "lucide-react";
+import { School, Mail, Lock, LogIn, Eye, EyeOff, MonitorSmartphone } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -213,20 +213,47 @@ function LoginForm(): ReactNode {
         </form>
 
         <Dialog open={showConfirmDialog} onClose={() => { void handleCancelLogin(); }} title="">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Confirm New Device
+          <div className="flex flex-col gap-5 pt-2">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/15">
+                <MonitorSmartphone className="h-7 w-7 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+                  لديك جلسة على جهاز آخر
+                </h2>
+                <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                  تم تسجيل الدخول من هذا الحساب على جهاز آخر
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              You already have an active session on another device. Logging in here will log you out of the other device.
-            </p>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => { void handleCancelLogin(); }} disabled={confirming}>
-                Cancel
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20">
+              <p className="text-sm leading-relaxed text-amber-800 dark:text-amber-200">
+                تسجيل الدخول من هذا الجهاز سيؤدي إلى{" "}
+                <span className="font-bold">تسجيل خروج فعلي</span> من الحساب على
+                الجهاز الآخر.
+              </p>
+              <p className="mt-1.5 text-xs text-amber-700/90 dark:text-amber-300/90">
+                هل تريد المتابعة؟
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => { void handleCancelLogin(); }}
+                disabled={confirming}
+                className="w-full sm:w-auto"
+              >
+                إلغاء
               </Button>
-              <Button onClick={() => { void handleConfirmLogin(); }} loading={confirming}>
-                Yes, Log Me In
+              <Button
+                onClick={() => { void handleConfirmLogin(); }}
+                loading={confirming}
+                className="w-full sm:w-auto"
+              >
+                نعم، تسجيل الدخول
               </Button>
             </div>
           </div>

@@ -526,9 +526,14 @@ export class AuthService {
     }
     this.pendingLogins.delete(confirmToken);
 
-    // Delete old sessions
+    // Delete old sessions AND revoke the user's refresh tokens so the
+    // superseded device cannot silently refresh back into a logged-in state.
     await this.prisma.session.deleteMany({
       where: { id: { in: pending.oldSessionIds } },
+    });
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: pending.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
     });
 
     const tokenExpiry = pending.rememberMe
