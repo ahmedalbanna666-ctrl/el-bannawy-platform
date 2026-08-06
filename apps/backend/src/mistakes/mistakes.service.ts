@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unnecessary-optional-chain, @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unsafe-assignment */
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { MistakeSource, type MistakeQueryDto } from "./dto/mistake-query.dto";
@@ -32,6 +32,7 @@ interface MiniExamQuestion {
   source: string;
   question: string;
   options: MistakeOption[];
+  correctAnswer: string;
   explanation: string | null;
 }
 
@@ -300,6 +301,7 @@ export class MistakesService {
       source: item.source,
       question: item.question,
       options: item.options,
+      correctAnswer: item.correctAnswer,
       explanation: item.explanation,
     }));
 
@@ -365,9 +367,11 @@ export class MistakesService {
     const answerRecords = questions.map((q) => {
       const submitted = dto.answers.find((a) => a.questionId === q.questionId);
       const correctOption = q.options.find((o) => o.isCorrect);
-      const isCorrect = submitted
-        ? submitted.answer === correctOption?.text
-        : false;
+      // Multiple-choice: grade against the correct option's text. Text /
+      // fill-in-the-blank questions (no options): grade against the saved
+      // correct answer so a correct typed answer is never marked wrong.
+      const expected = correctOption?.text ?? q.correctAnswer;
+      const isCorrect = submitted ? submitted.answer === expected : false;
       if (isCorrect) correctCount++;
 
       return {

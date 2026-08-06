@@ -170,8 +170,6 @@ export default function MistakesPage(): ReactNode {
         durationMinutes,
         unitId: examUnitIds.length === 1 ? examUnitIds[0] : undefined,
         unitIds: examUnitIds.length > 0 ? examUnitIds : undefined,
-        source: params.source,
-        search: params.search,
       },
       {
         onSuccess: (result) => {
@@ -183,7 +181,7 @@ export default function MistakesPage(): ReactNode {
         },
       },
     );
-  }, [createExam, questionCount, durationMinutes, examUnitIds, params.source, params.search]);
+  }, [createExam, questionCount, durationMinutes, examUnitIds]);
 
   const handleSubmitExam = useCallback(() => {
     if (!examId) return;
