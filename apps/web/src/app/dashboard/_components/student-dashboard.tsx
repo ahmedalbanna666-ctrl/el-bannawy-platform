@@ -51,7 +51,10 @@ export function StudentDashboard(): ReactNode {
   const lessons = [...data.unitProgress.lessons].sort(
     (a, b) => a.displayOrder - b.displayOrder,
   );
-  const currentLesson = lessons.find((l) => !l.completed) ?? lessons[lessons.length - 1];
+  const currentLessonTitle =
+    lessons.find((l) => !l.completed)?.title ??
+    lessons.at(-1)?.title ??
+    null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -68,8 +71,8 @@ export function StudentDashboard(): ReactNode {
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">التقدم الدراسي</p>
                 {data.unitProgress.unitName ? (
                   <p className="mt-0.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                    {currentLesson
-                      ? `${data.unitProgress.unitName} — ${currentLesson.title}`
+                    {currentLessonTitle
+                      ? `${data.unitProgress.unitName} — ${currentLessonTitle}`
                       : data.unitProgress.unitName}
                   </p>
                 ) : (
@@ -135,8 +138,8 @@ export function StudentDashboard(): ReactNode {
                 <BookOpen className="h-6 w-6 text-blue-500" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">الوحدات التعليمية</h3>
-                <p className="text-sm text-neutral-500">تصفح جميع الوحدات وتابع تقدمك</p>
+                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">وحدات المنهج</h3>
+                <p className="text-sm text-neutral-500">تصفح جميع الوحدات</p>
               </div>
               <ChevronLeft className="h-5 w-5 text-neutral-400" />
             </div>
@@ -154,7 +157,7 @@ export function StudentDashboard(): ReactNode {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">قصص المنهج</h3>
-                <p className="text-sm text-neutral-500">استمتع بقراءة قصص المنهج ومتابعة الفصول</p>
+                <p className="text-sm text-neutral-500">شاهد القصص</p>
               </div>
               <ChevronLeft className="h-5 w-5 text-neutral-400" />
             </div>
@@ -172,7 +175,7 @@ export function StudentDashboard(): ReactNode {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">المراجعة النهائية</h3>
-                <p className="text-sm text-neutral-500">استعد للامتحانات عبر مراجعة جميع الأقسام</p>
+                <p className="text-sm text-neutral-500">متاحة فقط أثناء مراجعات الامتحانات</p>
               </div>
               <ChevronLeft className="h-5 w-5 text-neutral-400" />
             </div>

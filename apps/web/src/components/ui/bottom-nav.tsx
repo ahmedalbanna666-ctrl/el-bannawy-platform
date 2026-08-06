@@ -25,8 +25,8 @@ export function BottomNav({ items, className }: BottomNavProps): ReactNode {
   return (
     <nav
       className={cn(
-        "sticky bottom-0 start-0 end-0 z-30 flex h-[64px] items-stretch justify-around border-t border-white/15 bg-white/40 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-colors dark:border-white/10 dark:bg-neutral-950/30 dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] sm:h-[72px]",
-        "pt-[env(safe-area-inset-top,0px)] pb-[calc(env(safe-area-inset-bottom,0px)+4px)]",
+        "sticky bottom-0 start-0 end-0 z-30 flex h-[calc(64px+env(safe-area-inset-bottom,0px)+4px)] items-stretch justify-around border-t border-white/15 bg-white/40 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-colors dark:border-white/10 dark:bg-neutral-950/30 dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] sm:h-[72px]",
+        "pb-[calc(env(safe-area-inset-bottom,0px)+4px)]",
         className,
       )}
     >
@@ -70,7 +70,7 @@ export function BottomNav({ items, className }: BottomNavProps): ReactNode {
         );
 
         const className =
-          "group relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 pt-1 text-xs font-medium transition-all duration-200";
+          "group relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 pt-1 text-xs font-medium transition-all duration-200 sm:gap-1";
 
         if (item.href) {
           return (
