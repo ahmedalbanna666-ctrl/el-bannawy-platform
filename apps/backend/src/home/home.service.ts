@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
 import { CacheService } from "../common/services/cache.service";
+import { UnitProgressService } from "../common/services/unit-progress.service";
 
 interface DashboardData {
   user: {
@@ -27,8 +28,8 @@ interface DashboardData {
   unitProgress: {
     unitId: string | null;
     unitName: string | null;
-    completedLessons: number;
-    totalLessons: number;
+    completedActivities: number;
+    totalActivities: number;
     percent: number;
   };
   nextAction: {
@@ -63,6 +64,7 @@ export class HomeService {
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
     private readonly cache: CacheService,
+    private readonly unitProgress: UnitProgressService,
   ) {}
 
   async getDashboard(userId: string): Promise<DashboardData> {
@@ -295,7 +297,8 @@ export class HomeService {
 
     const nextAction = await this.resolveNextAction(userId, ctx, currentProgress);
 
-    const unitProgress = await this.computeUnitProgress(userId, ctx, currentProgress);
+    // Current unit progress based on video + homework + quiz activities.
+    const unitProgress = await this.resolveUnitActivityProgress(userId, ctx, currentProgress);
 
     return {
       user: {
@@ -421,15 +424,19 @@ export class HomeService {
   }
 
   /**
-   * Compute progress within the student's CURRENT unit (0–100).
+   * Resolve activity-based progress within the student's CURRENT unit (0–100).
    *
    * The "current" unit is derived from the last unfinished lesson when the
    * student is mid-unit; otherwise it falls back to the unit of the most
    * recently completed lesson. Because the current unit changes whenever the
    * student completes a unit and moves on, the percentage naturally restarts
    * from ~0 for each new unit instead of reflecting the whole curriculum.
+   *
+   * The percentage itself is based on the three lesson activities the student
+   * must complete: watching the video(s), solving the homework, and passing
+   * the quiz (see UnitProgressService).
    */
-  private async computeUnitProgress(
+  private async resolveUnitActivityProgress(
     userId: string,
     ctx: {
       gradeId: string | null;
@@ -452,47 +459,18 @@ export class HomeService {
       unitId = lastCompleted?.lesson.unitId ?? null;
     }
 
-    // No context or no current unit → nothing meaningful to show.
-    if (!unitId || !ctx?.gradeId || !ctx.academicYearId || !ctx.termId) {
-      return { unitId, unitName: currentProgress?.lesson.unit.title ?? null, completedLessons: 0, totalLessons: 0, percent: 0 };
+    if (!unitId) {
+      return { unitId, unitName: null, completedActivities: 0, totalActivities: 0, percent: 0 };
     }
 
-    // Published lessons of this unit, ordered.
-    const unit = await this.prisma.unit.findUnique({
-      where: { id: unitId },
-      select: {
-        id: true,
-        title: true,
-        lessons: {
-          where: { published: true },
-          orderBy: { displayOrder: "asc" },
-          select: { id: true },
-        },
-      },
-    });
-
-    if (!unit) {
-      return { unitId, unitName: null, completedLessons: 0, totalLessons: 0, percent: 0 };
-    }
-
-    const totalLessons = unit.lessons.length;
-    if (totalLessons === 0) {
-      return { unitId, unitName: unit.title, completedLessons: 0, totalLessons: 0, percent: 0 };
-    }
-
-    const lessonIds = unit.lessons.map((l) => l.id);
-    const completedInUnit = await this.prisma.lessonProgress.count({
-      where: { userId, completed: true, lessonId: { in: lessonIds } },
-    });
-
-    const percent = Math.min(100, Math.round((completedInUnit / totalLessons) * 100));
+    const progress = await this.unitProgress.getUnitProgress(userId, unitId);
 
     return {
-      unitId,
-      unitName: unit.title,
-      completedLessons: completedInUnit,
-      totalLessons,
-      percent,
+      unitId: progress.unitId,
+      unitName: progress.unitName ?? currentProgress?.lesson.unit.title ?? null,
+      completedActivities: progress.completedActivities,
+      totalActivities: progress.totalActivities,
+      percent: progress.percent,
     };
   }
 

@@ -60,7 +60,7 @@ export function StudentDashboard(): ReactNode {
               <div>
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">التقدم الدراسي</p>
                 <p className="text-xs text-neutral-500">
-                  {data.unitProgress.unitName ? `${data.unitProgress.unitName} — ${String(data.unitProgress.completedLessons)} من ${String(data.unitProgress.totalLessons)} دروس` : `${String(data.stats.completedLessons)} من ${String(data.stats.totalLessons)} دروس مكتملة`}
+                  {data.unitProgress.unitName ? `${data.unitProgress.unitName} — ${String(data.unitProgress.completedActivities)} من ${String(data.unitProgress.totalActivities)} نشاط` : `${String(data.stats.completedLessons)} من ${String(data.stats.totalLessons)} دروس مكتملة`}
                 </p>
               </div>
             </div>

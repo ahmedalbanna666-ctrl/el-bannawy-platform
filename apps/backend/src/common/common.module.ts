@@ -4,6 +4,7 @@ import { AuditService } from "./services/audit.service";
 import { AcademicContextService } from "./services/academic-context.service";
 import { CacheService } from "./services/cache.service";
 import { EncryptionService } from "./services/encryption.service";
+import { UnitProgressService } from "./services/unit-progress.service";
 import { AcademicContextController } from "./academic-context.controller";
 import { ConfigurationService } from "../config/configuration.service";
 import { AllExceptionsFilter } from "./filters/http-exception.filter";
@@ -18,6 +19,7 @@ import { LoggingInterceptor } from "./interceptors/logging.interceptor";
     AcademicContextService,
     CacheService,
     EncryptionService,
+    UnitProgressService,
     ConfigurationService,
     {
       provide: APP_FILTER,
@@ -32,7 +34,7 @@ import { LoggingInterceptor } from "./interceptors/logging.interceptor";
       useClass: LoggingInterceptor,
     },
   ],
-  exports: [AuditService, AcademicContextService, CacheService, EncryptionService, ConfigurationService],
+  exports: [AuditService, AcademicContextService, CacheService, EncryptionService, UnitProgressService, ConfigurationService],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class CommonModule {}

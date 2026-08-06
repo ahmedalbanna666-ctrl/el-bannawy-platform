@@ -12,8 +12,8 @@ export interface HomeData {
   unitProgress: {
     unitId: string | null;
     unitName: string | null;
-    completedLessons: number;
-    totalLessons: number;
+    completedActivities: number;
+    totalActivities: number;
     percent: number;
   };
   nextAction: {

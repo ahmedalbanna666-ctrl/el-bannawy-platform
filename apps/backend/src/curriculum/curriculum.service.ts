@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from "@nestjs/comm
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
 import { CacheService } from "../common/services/cache.service";
+import { UnitProgressService, type UnitActivityProgress } from "../common/services/unit-progress.service";
 import type {
   CreateUnitDto,
   UpdateUnitDto,
@@ -15,6 +16,7 @@ export class CurriculumService {
     private readonly prisma: PrismaService,
     private readonly academicContext: AcademicContextService,
     private readonly cache: CacheService,
+    private readonly unitProgress: UnitProgressService,
   ) {}
 
   async getCurriculum(userId: string, unitType: "UNIT" | "STORY" | "FINAL_REVIEW" = "UNIT"): Promise<unknown[]> {
@@ -85,19 +87,12 @@ export class CurriculumService {
           },
         },
       });
-      const progressRows = await this.prisma.lessonProgress.findMany({
-        where: { userId },
-        select: { completed: true, lesson: { select: { unitId: true } } },
-      });
-      const completedByUnit = new Map<string, number>();
-      for (const row of progressRows) {
-        if (!row.completed) continue;
-        completedByUnit.set(
-          row.lesson.unitId,
-          (completedByUnit.get(row.lesson.unitId) ?? 0) + 1,
-        );
-      }
-      const enriched = await this.attachUnlockState(result, userId, false, completedByUnit);
+      // Activity-based progress (video + homework + quiz) for every unit.
+      const unitIds = result.flatMap((stage) =>
+        stage.grades.flatMap((grade) => grade.units.map((unit) => unit.id)),
+      );
+      const progressByUnit = await this.unitProgress.getUnitsProgress(userId, unitIds);
+      const enriched = await this.attachUnlockState(result, userId, false, progressByUnit);
       await this.cache.set(cacheKey, enriched, 30);
       return enriched;
     }
@@ -509,7 +504,7 @@ export class CurriculumService {
     result: CurriculumStage[],
     userId: string,
     forceUnlocked = false,
-    completedByUnit?: Map<string, number>,
+    progressByUnit?: Map<string, UnitActivityProgress>,
   ): Promise<CurriculumStage[]> {
     const unitUnlocks = new Set<string>();
     const termUnlocks = new Set<string>();
@@ -533,15 +528,11 @@ export class CurriculumService {
         return {
           ...grade,
           units: grade.units.map((unit) => {
-            const totalLessons = unit.lessons.length;
-            const completedLessons = Math.min(
-              completedByUnit?.get(unit.id) ?? 0,
-              totalLessons,
-            );
-            const progress = totalLessons > 0
-              ? Math.round((completedLessons / totalLessons) * 100)
-              : 0;
-            const completed = totalLessons > 0 && completedLessons === totalLessons;
+            const unitProgress = progressByUnit?.get(unit.id);
+            const progress = unitProgress?.percent ?? 0;
+            const total = unitProgress?.totalActivities ?? 0;
+            const done = unitProgress?.completedActivities ?? 0;
+            const completed = total > 0 && done >= total;
 
             const owned =
               unitUnlocks.has(unit.id) ||
@@ -572,8 +563,8 @@ export class CurriculumService {
               ...unit,
               progress,
               completed,
-              totalLessons,
-              completedLessons,
+              totalActivities: unitProgress?.totalActivities ?? 0,
+              completedActivities: unitProgress?.completedActivities ?? 0,
               status,
               unlocked,
               lessons: unit.lessons.map((lesson) => ({
