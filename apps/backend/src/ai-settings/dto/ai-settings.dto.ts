@@ -609,3 +609,10 @@ export class AddCreditsDto {
   @IsString()
   reason?: string;
 }
+
+export class BuyCreditsDto {
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  amount!: number;
+}

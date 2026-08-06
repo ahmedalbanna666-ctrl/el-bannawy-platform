@@ -107,6 +107,9 @@ export class AiController {
       suggestions: result.suggestions,
       creditsConsumed: result.creditsConsumed,
       sourcesUsed: result.sourcesUsed,
+      creditsExhausted: result.creditsExhausted,
+      credits: result.credits,
+      walletBalance: result.walletBalance,
     });
 
     try {

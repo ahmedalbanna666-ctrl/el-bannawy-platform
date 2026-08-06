@@ -589,6 +589,59 @@ export class AiSettingsService {
     });
   }
 
+  async buyCreditsWithCoins(userId: string, amount: number): Promise<unknown> {
+    const credits = await this.getStudentCredits(userId);
+    if (!credits) throw new BadRequestException("No credit plan assigned");
+
+    const wallet = await this.prisma.coinWallet.upsert({
+      where: { userId },
+      update: {},
+      create: { userId, balance: 0 },
+    });
+
+    if (wallet.balance < amount) {
+      throw new BadRequestException("Insufficient coins");
+    }
+
+    const updated = await this.prisma.$transaction([
+      this.prisma.coinWallet.update({
+        where: { userId },
+        data: { balance: { decrement: amount } },
+      }),
+      this.prisma.studentAiCredits.update({
+        where: { id: credits.id },
+        data: { creditsLimit: { increment: amount } },
+      }),
+    ]);
+
+    await this.prisma.aiUsageLog.create({
+      data: {
+        userId,
+        question: "credit-purchase-with-coins",
+        response: `Purchased ${String(amount)} credit(s) with coins`,
+        creditsConsumed: 0,
+        success: true,
+      },
+    });
+
+    const check = await this.checkCredits(userId);
+    return {
+      creditsAdded: amount,
+      coinsSpent: amount,
+      walletBalance: updated[0].balance,
+      credits: check,
+    };
+  }
+
+  async getWalletBalance(userId: string): Promise<number> {
+    const wallet = await this.prisma.coinWallet.upsert({
+      where: { userId },
+      update: {},
+      create: { userId, balance: 0 },
+    });
+    return wallet.balance;
+  }
+
   async getCreditHistory(userId: string, page = 1, limit = 50): Promise<unknown> {
     const where = { userId };
     const [logs, total] = await Promise.all([

@@ -20,6 +20,7 @@ import {
   ModerationLogQueryDto,
   AnalyticsQueryDto,
   AddCreditsDto,
+  BuyCreditsDto,
 } from "./dto/ai-settings.dto";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
@@ -237,6 +238,11 @@ export class AiSettingsController {
   @Roles("ADMINISTRATOR")
   async addCredits(@Body() dto: AddCreditsDto): Promise<ISuccessResponse<unknown>> {
     return successResponse(await this.service.addCredits(dto.userId, dto.amount, dto.reason), "Credits added");
+  }
+
+  @Post("credits/buy")
+  async buyCredits(@CurrentUser() userId: string, @Body() dto: BuyCreditsDto): Promise<ISuccessResponse<unknown>> {
+    return successResponse(await this.service.buyCreditsWithCoins(userId, dto.amount), "Credits purchased");
   }
 
   // ---------- Usage logs ----------

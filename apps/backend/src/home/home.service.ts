@@ -28,9 +28,17 @@ interface DashboardData {
   unitProgress: {
     unitId: string | null;
     unitName: string | null;
+    unitDisplayOrder: number | null;
     completedActivities: number;
     totalActivities: number;
     percent: number;
+    /** Published lessons of the current unit with completion state. */
+    lessons: {
+      id: string;
+      title: string;
+      displayOrder: number;
+      completed: boolean;
+    }[];
   };
   nextAction: {
     type: "start" | "continue" | "next_lesson" | "next_unit" | "final_review";
@@ -444,7 +452,10 @@ export class HomeService {
       termId: string | null;
       educationalSystem: string | null;
     } | null,
-    currentProgress: { lesson: { unitId: string; unit: { title: string } } } | null,
+    currentProgress: {
+      lessonId: string;
+      lesson: { unitId: string; unit: { title: string }; title: string; displayOrder: number };
+    } | null,
   ): Promise<DashboardData["unitProgress"]> {
     // Determine the current unit id.
     let unitId = currentProgress?.lesson.unitId ?? null;
@@ -454,23 +465,69 @@ export class HomeService {
       const lastCompleted = await this.prisma.lessonProgress.findFirst({
         where: { userId, completed: true },
         orderBy: { completedAt: "desc" },
-        select: { lesson: { select: { unitId: true, unit: { select: { title: true } } } } },
+        select: {
+          lesson: {
+            select: {
+              unitId: true,
+              unit: { select: { title: true } },
+              title: true,
+              displayOrder: true,
+            },
+          },
+        },
       });
       unitId = lastCompleted?.lesson.unitId ?? null;
     }
 
     if (!unitId) {
-      return { unitId, unitName: null, completedActivities: 0, totalActivities: 0, percent: 0 };
+      return {
+        unitId,
+        unitName: null,
+        unitDisplayOrder: null,
+        completedActivities: 0,
+        totalActivities: 0,
+        percent: 0,
+        lessons: [],
+      };
     }
 
-    const progress = await this.unitProgress.getUnitProgress(userId, unitId);
+    const [progress, unit] = await Promise.all([
+      this.unitProgress.getUnitProgress(userId, unitId),
+      this.prisma.unit.findUnique({
+        where: { id: unitId },
+        select: {
+          displayOrder: true,
+          lessons: {
+            where: { published: true },
+            orderBy: { displayOrder: "asc" },
+            select: { id: true, title: true, displayOrder: true },
+          },
+        },
+      }),
+    ]);
+
+    const lessonIds = unit?.lessons.map((l) => l.id) ?? [];
+    const completedRows = lessonIds.length > 0
+      ? await this.prisma.lessonProgress.findMany({
+          where: { userId, completed: true, lessonId: { in: lessonIds } },
+          select: { lessonId: true },
+        })
+      : [];
+    const completedSet = new Set(completedRows.map((r) => r.lessonId));
 
     return {
       unitId: progress.unitId,
       unitName: progress.unitName ?? currentProgress?.lesson.unit.title ?? null,
+      unitDisplayOrder: unit?.displayOrder ?? null,
       completedActivities: progress.completedActivities,
       totalActivities: progress.totalActivities,
       percent: progress.percent,
+      lessons: (unit?.lessons ?? []).map((lesson) => ({
+        id: lesson.id,
+        title: lesson.title,
+        displayOrder: lesson.displayOrder,
+        completed: completedSet.has(lesson.id),
+      })),
     };
   }
 

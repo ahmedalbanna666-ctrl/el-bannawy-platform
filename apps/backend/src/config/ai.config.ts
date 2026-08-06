@@ -16,6 +16,7 @@ const DEFAULT_PRICES: Record<string, AiCostRate> = {
   "gemini-2.0-flash": { inputPerMillion: 0.1, outputPerMillion: 0.4, cachedInputPerMillion: 0.025, embeddingPerMillion: 0.02 },
   "claude-3-5-sonnet": { inputPerMillion: 3, outputPerMillion: 15, cachedInputPerMillion: 0.3, embeddingPerMillion: 0.02 },
   "claude-3-haiku": { inputPerMillion: 0.25, outputPerMillion: 1.25, cachedInputPerMillion: 0.03, embeddingPerMillion: 0.02 },
+  "deepseek-v4-flash": { inputPerMillion: 0.14, outputPerMillion: 0.28, cachedInputPerMillion: 0.0028, embeddingPerMillion: 0.02 },
 };
 
 export default registerAs("ai", () => {

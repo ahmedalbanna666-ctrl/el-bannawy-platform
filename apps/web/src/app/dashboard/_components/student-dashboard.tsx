@@ -25,6 +25,13 @@ import { useMyBookings } from "@/lib/live-api";
 import { useAuthStore } from "@/lib/auth-store";
 import { useHomeData, type HomeData } from "@/lib/home-api";
 
+/** Renders "1 و 2 و 3" from the completed lessons' display orders. */
+function formatLessonNumbers(lessons: HomeData["unitProgress"]["lessons"]): string {
+  const done = lessons.filter((l) => l.completed);
+  if (done.length === 0) return "0";
+  return [...done].sort((a, b) => a.displayOrder - b.displayOrder).map((l) => String(l.displayOrder)).join(" و ");
+}
+
 export function StudentDashboard(): ReactNode {
   const router = useRouter();
   const { data: liveBookings } = useMyBookings();
@@ -59,9 +66,20 @@ export function StudentDashboard(): ReactNode {
               </div>
               <div>
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">التقدم الدراسي</p>
-                <p className="text-xs text-neutral-500">
-                  {data.unitProgress.unitName ? `${data.unitProgress.unitName} — ${String(data.unitProgress.completedActivities)} من ${String(data.unitProgress.totalActivities)} نشاط` : `${String(data.stats.completedLessons)} من ${String(data.stats.totalLessons)} دروس مكتملة`}
-                </p>
+                {data.unitProgress.unitName ? (
+                  <div className="mt-0.5 space-y-0.5 text-xs text-neutral-500">
+                    <p className="font-semibold text-neutral-700 dark:text-neutral-300">
+                      الوحدة {data.unitProgress.unitDisplayOrder ?? ""} — {data.unitProgress.unitName}
+                    </p>
+                    <p>
+                      الدرس {formatLessonNumbers(data.unitProgress.lessons)} — {String(data.unitProgress.completedActivities)} من {String(data.unitProgress.totalActivities)} نشاط
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-neutral-500">
+                    {String(data.stats.completedLessons)} من {String(data.stats.totalLessons)} دروس مكتملة
+                  </p>
+                )}
               </div>
             </div>
             <Button

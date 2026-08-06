@@ -12,9 +12,16 @@ export interface HomeData {
   unitProgress: {
     unitId: string | null;
     unitName: string | null;
+    unitDisplayOrder: number | null;
     completedActivities: number;
     totalActivities: number;
     percent: number;
+    lessons: {
+      id: string;
+      title: string;
+      displayOrder: number;
+      completed: boolean;
+    }[];
   };
   nextAction: {
     type: "start" | "continue" | "next_lesson" | "next_unit" | "final_review";

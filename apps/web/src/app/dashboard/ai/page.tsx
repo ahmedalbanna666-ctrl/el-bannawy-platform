@@ -18,11 +18,8 @@ import {
   Plus,
   Trash2,
   MessageSquare,
-  Bot,
-  User,
   ArrowLeft,
   Coins,
-  FileText,
   BadgeInfo,
   Star,
   RefreshCw,
@@ -48,6 +45,8 @@ interface Message {
   sources?: { title: string; type: string; score: number }[];
   isStreaming?: boolean;
   feedback?: { rating: number | null };
+  creditsExhausted?: boolean;
+  walletBalance?: number;
 }
 
 interface ChatResponse {
@@ -65,6 +64,8 @@ interface ChatResponse {
     type: string;
     score: number;
   }[];
+  creditsExhausted?: boolean;
+  walletBalance?: number;
 }
 
 interface CreditsInfo {
@@ -238,6 +239,11 @@ export default function AiChatPage(): ReactNode {
   const [feedbackComment, setFeedbackComment] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [pendingAssistantId, setPendingAssistantId] = useState<string | null>(null);
+  const [buyCreditsOpen, setBuyCreditsOpen] = useState(false);
+  const [buyAmount, setBuyAmount] = useState(5);
+  const [buyError, setBuyError] = useState("");
+  const [buySuccess, setBuySuccess] = useState(false);
+  const [buying, setBuying] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const studentFirstName = extractFirstName(userProfile?.fullName ?? userProfile?.englishName);
@@ -437,6 +443,8 @@ export default function AiChatPage(): ReactNode {
       let full = "";
       let suggestions: string[] = [];
       let sources: { title: string; type: string; score: number }[] = [];
+      let creditsExhausted = false;
+      let walletBalance: number | undefined;
 
       setMessages((prev) => [
         ...prev,
@@ -481,6 +489,8 @@ export default function AiChatPage(): ReactNode {
             if (parsed.messageId && !assistantId) assistantId = parsed.messageId as string;
             if (Array.isArray(parsed.suggestions)) suggestions = parsed.suggestions as string[];
             if (Array.isArray(parsed.sourcesUsed)) sources = parsed.sourcesUsed as { title: string; type: string; score: number }[];
+            if (typeof parsed.creditsExhausted === "boolean") creditsExhausted = parsed.creditsExhausted;
+            if (typeof parsed.walletBalance === "number") walletBalance = parsed.walletBalance;
             if (typeof parsed.text === "string") appendDelta(parsed.text);
             if (parsed.full) full = parsed.full as string;
           } catch {
@@ -499,6 +509,8 @@ export default function AiChatPage(): ReactNode {
                 isStreaming: false,
                 isError: false,
                 sources: sources.length > 0 ? sources : undefined,
+                creditsExhausted,
+                walletBalance,
               }
             : m,
         ),
@@ -529,6 +541,30 @@ export default function AiChatPage(): ReactNode {
     }
   };
 
+  const buyCredits = async (): Promise<void> => {
+    if (buying || buyAmount <= 0) return;
+    setBuying(true);
+    setBuyError("");
+    setBuySuccess(false);
+    try {
+      const res = await api.post<{ creditsAdded: number; coinsSpent: number; walletBalance: number; credits: CreditsInfo }>(
+        "/ai-settings/credits/buy",
+        { amount: buyAmount },
+      );
+      if (res.data) {
+        setBuySuccess(true);
+        setTimeout(() => {
+          setBuyCreditsOpen(false);
+          setBuySuccess(false);
+        }, 1400);
+        void fetchCredits();
+      }    } catch (err) {
+      setBuyError(err instanceof Error ? err.message : "فشل شراء الكريدت. حاول مرة أخرى.");
+    } finally {
+      setBuying(false);
+    }
+  };
+
   const handleSend = async (e?: SyntheticEvent): Promise<void> => {
     e?.preventDefault();
     if (!input.trim() || !activeId || sending) return;
@@ -546,7 +582,7 @@ export default function AiChatPage(): ReactNode {
         const res = await api.post<ChatResponse>("/ai/chat", { conversationId: activeId, message: userMsg });
         const data = res.data;
         if (data) {
-          setMessages((prev) => [...prev, { id: data.messageId, role: "assistant", content: data.reply, createdAt: new Date().toISOString(), sources: data.sourcesUsed }]);
+          setMessages((prev) => [...prev, { id: data.messageId, role: "assistant", content: data.reply, createdAt: new Date().toISOString(), sources: data.sourcesUsed, creditsExhausted: data.creditsExhausted, walletBalance: data.walletBalance }]);
           if (data.credits) setCredits(data.credits);
           if (data.suggestions.length > 0) setSuggestions(data.suggestions);
         }
@@ -728,11 +764,6 @@ export default function AiChatPage(): ReactNode {
                 {messages.map((msg) => (
                   <div key={msg.id}>
                     <div className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                      {msg.role === "assistant" && (
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500">
-                          <Bot className="h-4 w-4 text-white" />
-                        </div>
-                      )}
                       <div className={`rounded-2xl px-4 py-3 text-sm ${
                         msg.role === "user"
                           ? "max-w-[80%] bg-primary-500 text-white"
@@ -746,19 +777,42 @@ export default function AiChatPage(): ReactNode {
                             <span className="h-2 w-2 animate-bounce rounded-full bg-neutral-400" style={{ animationDelay: "150ms" }} />
                             <span className="h-2 w-2 animate-bounce rounded-full bg-neutral-400" style={{ animationDelay: "300ms" }} />
                           </div>
+                        ) : msg.creditsExhausted ? (
+                          <div className="flex-1 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-orange-500/5 p-5 text-center">
+                            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/15">
+                              <Coins className="h-7 w-7 text-amber-500" />
+                            </div>
+                            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                              انتهت كريدتك المجانية
+                            </h3>
+                            <p className="mx-auto mt-2 max-w-sm text-sm text-neutral-600 dark:text-neutral-400">
+                              عشان تكمّل المحادثة، اشتري كريدت إضافية بعملاتك — كل كريدت بـ 1 كوين.
+                            </p>
+                            <div className="mx-auto mt-3 flex w-fit items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                              <Coins className="h-3.5 w-3.5" />
+                              رصيدك الحالي: {typeof msg.walletBalance === "number" ? msg.walletBalance : 0} كوين
+                            </div>
+                            <button
+                              onClick={(): void => {
+                                setBuyAmount(5);
+                                setBuyError("");
+                                setBuySuccess(false);
+                                setBuyCreditsOpen(true);
+                              }}
+                              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
+                            >
+                              <Coins className="h-4 w-4" />
+                              اشتري كريدت
+                            </button>
+                          </div>
                         ) : (
                           <MarkdownContent content={msg.content} />
                         )}
                       </div>
-                      {msg.role === "user" && (
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-500/10">
-                          <User className="h-4 w-4 text-primary-500" />
-                        </div>
-                      )}
                     </div>
 
                     {msg.role === "assistant" && !msg.isStreaming && msg.content !== "" && isServerMessageId(msg.id) && (
-                      <div className="mr-11 mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <button
                           onClick={(): void => { void copyMessage(msg.id, msg.content); }}
                           className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500 hover:text-primary-500 dark:bg-neutral-800 dark:text-neutral-400"
@@ -788,21 +842,11 @@ export default function AiChatPage(): ReactNode {
                         >
                           <ThumbsDown className="h-3 w-3" />
                         </button>
-                        {msg.sources && msg.sources.length > 0 && (
-                          <span className="text-xs text-neutral-400">المصادر المستخدمة:</span>
-                        )}
-                        {msg.sources?.map((source, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-                            <FileText className="h-3 w-3" />
-                            {source.title}
-                            <span className="text-neutral-400" dir="ltr">({Math.round(source.score * 100)}%)</span>
-                          </span>
-                        ))}
                       </div>
                     )}
 
                     {msg.role === "assistant" && !msg.isStreaming && msg.id !== pendingAssistantId && isServerMessageId(msg.id) && msg.content !== "" && (
-                      <div className="mr-11 mt-1">
+                      <div className="mt-1">
                         <button
                           onClick={(): void => { setPendingAssistantId(msg.id); void regenerateLast(); }}
                           disabled={sending}
@@ -818,9 +862,6 @@ export default function AiChatPage(): ReactNode {
                 ))}
                 {sending && messages[messages.length - 1]?.role !== "assistant" && (
                   <div className="flex gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500">
-                      <Bot className="h-4 w-4 text-white" />
-                    </div>
                     <div className="rounded-2xl bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
                       <div className="flex gap-1">
                         <span className="h-2 w-2 animate-bounce rounded-full bg-neutral-400" style={{ animationDelay: "0ms" }} />
@@ -881,6 +922,77 @@ export default function AiChatPage(): ReactNode {
         <DialogFooter>
           <Button variant="outline" onClick={(): void => { setFeedbackTarget(null); setFeedbackComment(""); }}>إلغاء</Button>
           <Button onClick={(): void => { void submitFeedbackWithComment(); }}>إرسال</Button>
+        </DialogFooter>
+      </Dialog>
+
+      <Dialog
+        open={buyCreditsOpen}
+        onClose={(): void => {
+          setBuyCreditsOpen(false);
+          setBuyError("");
+          setBuySuccess(false);
+        }}
+        title="اشتري كريدت إضافية"
+      >
+        <DialogContent className="space-y-4">
+          <div className="flex items-center gap-3 rounded-xl bg-amber-500/10 p-3">
+            <Coins className="h-6 w-6 shrink-0 text-amber-500" />
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              كل كريدت بيعادل <span className="font-bold text-neutral-900 dark:text-neutral-100">1 كوين</span> من محفظتك.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400">عدد الكريدت</label>
+            <div className="flex flex-wrap gap-2">
+              {[5, 10, 20, 50].map((amount) => (
+                <button
+                  key={amount}
+                  onClick={(): void => { setBuyAmount(amount); setBuyError(""); setBuySuccess(false); }}
+                  className={`flex-1 rounded-xl border px-3 py-2.5 text-center transition-all ${
+                    buyAmount === amount
+                      ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                      : "border-neutral-200 text-neutral-500 hover:border-neutral-300 dark:border-neutral-600 dark:hover:border-neutral-500"
+                  }`}
+                >
+                  <span className="block text-sm font-bold">{amount}</span>
+                  <span className="block text-[10px] text-neutral-400">= {amount} كوين</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {buyError && <p className="text-sm text-danger-500">{buyError}</p>}
+          {buySuccess && (
+            <div className="flex items-center gap-2 rounded-lg bg-success-500/10 p-3 text-sm text-success-600 dark:text-success-400">
+              <Check className="h-5 w-5" />
+              تم شراء {buyAmount} كريدت بنجاح! تقدر تكمل المحادثة الآن.
+            </div>
+          )}
+
+          <div className="flex items-center justify-between rounded-xl bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
+            <span className="text-sm text-neutral-600 dark:text-neutral-400">التكلفة من المحفظة</span>
+            <span className="flex items-center gap-1 text-sm font-bold text-amber-500">
+              <Coins className="h-4 w-4" />
+              {buyAmount} كوين
+            </span>
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={(): void => {
+              setBuyCreditsOpen(false);
+              setBuyError("");
+              setBuySuccess(false);
+            }}
+          >
+            إلغاء
+          </Button>
+          <Button variant="primary" loading={buying} onClick={(): void => { void buyCredits(); }}>
+            <Coins className="mr-1 h-4 w-4" />
+            {buySuccess ? "تم!" : "اشترِ الآن"}
+          </Button>
         </DialogFooter>
       </Dialog>
     </div>

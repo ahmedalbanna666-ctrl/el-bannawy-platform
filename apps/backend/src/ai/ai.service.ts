@@ -51,6 +51,86 @@ const NON_ENGLISH_KEYWORDS = [
   /\b(math|physics|chemistry|biology|science|history|geography|religion|politics|medicine|engineering|programming|coding|sports|news|economy)\b/i,
 ];
 
+interface FastReplyRule {
+  pattern: RegExp;
+  replies: string[];
+}
+
+const FAST_REPLY_RULES: FastReplyRule[] = [
+  {
+    pattern: /^(السلام عليكم ورحمة الله وبركاته|السلام عليكم ورحمة الله|السلام عليكم|سلام عليكم|هلا والله|هلا بيك|هلا|اهلا|أهلا|اهلاً|أهلاً|هاي|هلو|هيلو|سلام|السلام|مرحبا|مرحبتين|صباح الخير|صباح الفل|مساء الخير|مساء الفل|good morning|good evening|hello there|hi there|hello|hi|hey)$/iu,
+    replies: [
+      "وعليكم السلام يا {name}! 😄 يلا قولّي، عايز أساعدك في إيه النهارده؟",
+      "أهلاً يا {name}! 👋 مسرور بشوفتك. اسألني أي حاجة تخص الإنجليزي وأنا جاهز.",
+      "ازيك يا {name}! 💪 اتفضل قولّي محتاج مساعدة في إيه؟",
+    ],
+  },
+  {
+    pattern: /^(ازيك|إزيك|ازيكم|إزيكم|عامل ايه|عامل إيه|عاملين ايه|اخبارك|أخبارك|اخبارك ايه|أخبارك إيه|how are you)$/iu,
+    replies: [
+      "الحمد لله يا {name}! 😄 وإنت عامل إيه؟ يلا قولّي محتاج حاجة في الإنجليزي؟",
+      "أنا تمام يا {name}! 🌟 المهم إنت كويس؟ إيه اللي تقدر أساعدك فيه؟",
+    ],
+  },
+  {
+    pattern: /^(من انت|من أنت|انت مين|إنت مين|انتي مين|انت مين يا مستر|مين انت|مين أنت|who are you)$/iu,
+    replies: [
+      "أنا مساعد مستر أحمد البنا الذكي يا {name}! 🤖 متخصص في تعليم الإنجليزية، وواجبي أساعدك تتقنها خطوة بخطوة. إيه سؤالك؟",
+      "أنا ذراع مستر البنا التقني يا {name}! 😄 بتاع الإنجليزية، اتفضل اسألني عن أي درس أو قاعدة أو كلمة.",
+    ],
+  },
+  {
+    pattern: /^(عندي سؤال|عندي سؤال\.\.\.|عندي سؤال؟|عايز اسأل|عايز أسأل|ممكن اسأل|ممكن أسأل|حابب اسأل|حابب أسأل|جاي اسأل|عايز أسال)$/iu,
+    replies: [
+      "تمام يا {name}! 👍 اتفضل اسألني، إيه هو السؤال؟",
+      "سيبك من المقدمات يا {name} 😄 قولّي سؤالك مباشرة وأنا هرد عليك فورًا.",
+      "أوكي يا {name}! 🎯 اتفضل اكتب سؤالك وأنا معاك خطوة بخطوة.",
+    ],
+  },
+  {
+    pattern: /^(شكرا|شكراً|متشكر|تسلم|جزاك الله خيرا|تسلم ايدك|تسلم يا غالي|شكرا جدا|شكراً جدا|شكراً جزيلا|شكرا جزيلا|thank you|thanks|thx|ty)$/iu,
+    replies: [
+      "العفو يا {name}! 😊 دي مهمتي، إحنا هنا عشان نتعلم مع بعض.",
+      "ولا يهمك يا {name}! 🌟 لو محتاج أي مساعدة تانية أنا موجود.",
+      "تسلم يا {name}! 💙 ده واجبي، يلا بينا نكمل.",
+    ],
+  },
+  {
+    pattern: /^(تمام|اوكي|اوك|ok|okay|fine|حاضر|معاك|معك|تمام جدا|ماشي|خلاص)$/iu,
+    replies: [
+      "تمام يا {name}! 😄 يلا قولّي عايز نبدأ منين؟",
+      "حاضر يا بطل! 🚀 اتفضل اطلب أي حاجة.",
+    ],
+  },
+  {
+    pattern: /^(مع السلامة|السلامة|مع سلامة|باى|باي|bye|goodbye|good bye|see you|see you later)$/iu,
+    replies: [
+      "مع السلامة يا {name}! 👋 ربنا يوفقك، وأنا في انتظارك في أي وقت تيجي تسأل.",
+      "باي يا {name}! 🌟 كمل شطارتك، وإحنا موجودين لو محتاج أي حاجة.",
+    ],
+  },
+  {
+    pattern: /^(ممكن تساعدني|ممكن مساعدة|عايز مساعدة|عايزة مساعدة|ساعدني|ساعديني|اتفضل ساعدني|help|help me|i need help)$/iu,
+    replies: [
+      "أكيد يا {name}! 🤝 اتفضل قولّي محتاج مساعدة في إيه بالظبط: قاعدة، كلمة، أو حل سؤال؟",
+      "أنا معاك يا {name}! 💪 خبرني إيه اللي واقف معاك وأنا هبسطهالك.",
+    ],
+  },
+];
+
+const QUICK_REFERENCE_PATTERNS = [
+  {
+    type: "meaning" as const,
+    pattern: /(معنى|معني|ما معنى|يعني ايه|يعني إيه|ايه معنى|إيه معنى|تعني ايه|تعني إيه)\s*[:"']?\s*([a-zA-Z]+)/i,
+    targetIndex: 2,
+  },
+  {
+    type: "translation" as const,
+    pattern: /(ترجم|ترجمة|ترجم لي|ترجمي|ترجمة لي|translate|translation)\s*[:"']?\s*(.+)/i,
+    targetIndex: 2,
+  },
+];
+
 @Injectable()
 export class AiService {
   constructor(
@@ -126,6 +206,38 @@ export class AiService {
 
     const sanitizedMessage = this.sanitizeInput(dto.message);
 
+    const studentInfo = await this.getStudentInfo(userId);
+    const studentName = this.extractFirstName(studentInfo?.fullName);
+
+    const fastReply = this.getFastReply(sanitizedMessage, studentName);
+    if (fastReply) {
+      const existingMsgCount = await this.prisma.conversationMessage.count({
+        where: { conversationId: dto.conversationId },
+      });
+      await this.prisma.conversationMessage.create({
+        data: { conversationId: dto.conversationId, role: "user", content: sanitizedMessage },
+      });
+      const assistantMsg = await this.prisma.conversationMessage.create({
+        data: { conversationId: dto.conversationId, role: "assistant", content: fastReply },
+      });
+      await this.prisma.conversation.update({
+        where: { id: dto.conversationId },
+        data: { updatedAt: new Date() },
+      });
+      if (existingMsgCount === 0) {
+        await this.autoTitleConversation(dto.conversationId, sanitizedMessage);
+      }
+      return {
+        reply: fastReply,
+        messageId: assistantMsg.id,
+        suggestions: this.generateSuggestions(sanitizedMessage),
+        creditsConsumed: 0,
+        credits: await this.aiSettings.checkCredits(userId),
+      };
+    }
+
+    const quickRef = this.detectQuickReference(sanitizedMessage);
+
     if (this.isNonEnglishTopic(sanitizedMessage)) {
       return {
         reply: "أنا مساعد مستر أحمد البنا الذكي، ومهمتي مساعدتك في تعلم اللغة الإنجليزية فقط. إذا كان لديك أي سؤال يتعلق بالمفردات أو القواعد أو القراءة أو الكتابة أو المنهج، فسأكون سعيدًا بمساعدتك.",
@@ -137,12 +249,15 @@ export class AiService {
 
     const credits = await this.aiSettings.checkCredits(userId);
     if (!credits.allowed) {
+      const walletBalance = await this.aiSettings.getWalletBalance(userId);
       return {
-        reply: "عذرًا، لقد استنفدت رصيدك المجاني من الرسائل. يرجى الاشتراك في إحدى الباقات المتاحة لمواصلة استخدام المساعد الذكي.",
+        reply: "انتهت كريدتك المجانية! 😅 عشان تكمّل، تقدر تشتري كريدت إضافية بعملاتك — كل كريدت بكوين واحد.",
         messageId: null,
-        suggestions: ["How do I subscribe?", "Show me available plans", "When will my credits reset?"],
+        suggestions: [],
         creditsConsumed: 0,
         credits,
+        creditsExhausted: true,
+        walletBalance,
       };
     }
 
@@ -171,7 +286,6 @@ export class AiService {
     });
 
     const lessonContext = dto.lessonId ? await this.getLessonContext(dto.lessonId) : null;
-    const studentInfo = await this.getStudentInfo(userId);
 
     const ragResults = await this.knowledgeBase.searchKnowledge(sanitizedMessage, {
       gradeId: studentInfo?.gradeId ?? undefined,
@@ -182,7 +296,7 @@ export class AiService {
       + ragResults.reduce((sum, r) => sum + this.aiCost.estimateTokens(r.content), 0);
     const embeddingCost = this.aiCost.computeEmbeddingCost("text-embedding-3-small", embeddingTokens);
 
-    const aiReply = await this.generateResponse(sanitizedMessage, recentMessages.reverse(), lessonContext, ragResults, activeModelConfig, this.extractFirstName(studentInfo?.fullName));
+    const aiReply = await this.generateResponse(sanitizedMessage, recentMessages.reverse(), lessonContext, ragResults, activeModelConfig, studentName, quickRef);
 
     const safeReply = aiReply.content;
     const providerUsed = aiReply.provider;
@@ -254,6 +368,9 @@ export class AiService {
     sourcesUsed: { title: string; type: string; score: number }[];
     reply: string;
     stream: AsyncGenerator<string>;
+    creditsExhausted?: boolean;
+    credits?: { allowed: boolean; remaining: number; plan: string; total: number; unlimited: boolean };
+    walletBalance?: number;
   }> {
     const startTime = Date.now();
 
@@ -264,9 +381,74 @@ export class AiService {
 
     const sanitizedMessage = this.sanitizeInput(dto.message);
 
+    const studentInfo = await this.getStudentInfo(userId);
+    const studentName = this.extractFirstName(studentInfo?.fullName);
+
+    const fastReply = this.getFastReply(sanitizedMessage, studentName);
+    if (fastReply) {
+      const existingMsgCount = await this.prisma.conversationMessage.count({
+        where: { conversationId: dto.conversationId },
+      });
+      await this.prisma.conversationMessage.create({
+        data: { conversationId: dto.conversationId, role: "user", content: sanitizedMessage },
+      });
+      const assistantMsg = await this.prisma.conversationMessage.create({
+        data: { conversationId: dto.conversationId, role: "assistant", content: fastReply },
+      });
+      await this.prisma.conversation.update({
+        where: { id: dto.conversationId },
+        data: { updatedAt: new Date() },
+      });
+      if (existingMsgCount === 0) {
+        await this.autoTitleConversation(dto.conversationId, sanitizedMessage);
+      }
+
+      const reply = fastReply;
+
+      async function* fastStream(): AsyncGenerator<string> {
+        yield reply;
+        await Promise.resolve();
+      }
+
+      return {
+        conversationId: dto.conversationId,
+        messageId: assistantMsg.id,
+        provider: "rule-based",
+        modelUsed: this.config.ai.model,
+        suggestions: this.generateSuggestions(sanitizedMessage),
+        creditsConsumed: 0,
+        sourcesUsed: [],
+        reply: fastReply,
+        stream: fastStream(),
+      };
+    }
+
+    const quickRef = this.detectQuickReference(sanitizedMessage);
+
     const credits = await this.aiSettings.checkCredits(userId);
     if (!credits.allowed) {
-      throw new BadRequestException("Insufficient AI credits");
+      const walletBalance = await this.aiSettings.getWalletBalance(userId);
+      const reply = "انتهت كريدتك المجانية! 😅 عشان تكمّل، تقدر تشتري كريدت إضافية بعملاتك — كل كريدت بكوين واحد.";
+
+      async function* exhaustedStream(): AsyncGenerator<string> {
+        yield reply;
+        await Promise.resolve();
+      }
+
+      return {
+        conversationId: dto.conversationId,
+        messageId: "",
+        provider: "rule-based",
+        modelUsed: this.config.ai.model,
+        suggestions: [],
+        creditsConsumed: 0,
+        sourcesUsed: [],
+        reply,
+        creditsExhausted: true,
+        credits,
+        walletBalance,
+        stream: exhaustedStream(),
+      };
     }
 
     const msgCount = await this.prisma.conversationMessage.count({
@@ -292,14 +474,13 @@ export class AiService {
     });
 
     const lessonContext = dto.lessonId ? await this.getLessonContext(dto.lessonId) : null;
-    const studentInfo = await this.getStudentInfo(userId);
 
     const ragResults = await this.knowledgeBase.searchKnowledge(sanitizedMessage, {
       gradeId: studentInfo?.gradeId ?? undefined,
       termId: studentInfo?.termId ?? undefined,
     });
 
-    const messages = await this.buildChatMessages(sanitizedMessage, recentMessages.reverse(), lessonContext, ragResults, this.extractFirstName(studentInfo?.fullName));
+    const messages = await this.buildChatMessages(sanitizedMessage, recentMessages.reverse(), lessonContext, ragResults, studentName, quickRef);
 
     const assistantMsg = await this.prisma.conversationMessage.create({
       data: { conversationId: dto.conversationId, role: "assistant", content: "" },
@@ -312,14 +493,14 @@ export class AiService {
     const { providerService, prisma, aiSettings, aiCost } = this;
     const redactOutput = this.redactOutput.bind(this);
     const ruleBasedResponse = this.ruleBasedResponse.bind(this);
-    const studentName = this.extractFirstName(studentInfo?.fullName);
+    const maxTokens = quickRef ? 200 : 500;
     let accumulated = "";
     const finalProvider = "rule-based";
     const finalModel = this.config.ai.model;
 
     async function* stream(): AsyncGenerator<string> {
       let usedProvider = false;
-      for await (const chunk of providerService.streamChat(messages, { maxTokens: 500 })) {
+      for await (const chunk of providerService.streamChat(messages, { maxTokens })) {
         usedProvider = true;
         accumulated += chunk;
         yield chunk;
@@ -603,6 +784,7 @@ export class AiService {
     lessonContext: string | null,
     ragResults: { content: string; sourceTitle: string; score: number }[],
     studentName?: string,
+    quickRef?: { type: "meaning" | "translation"; target: string } | null,
   ): Promise<ChatMessage[]> {
     const teachingStyle = await this.aiSettings.getActiveTeachingStyle();
     const styleInstructions = teachingStyle?.content ?? "";
@@ -612,13 +794,21 @@ export class AiService {
       : "";
 
     const systemPrompt = await this.buildSystemPrompt(lessonContext, styleInstructions, ragContext, studentName);
-    const guardedMessage = `[Student message — respond as an English tutor, explain in Egyptian Arabic with the English content in English]: ${message}`;
+    const guardedMessage = quickRef
+      ? `[Student message — respond with a QUICK REFERENCE in Egyptian Arabic with light humor]: ${message}`
+      : `[Student message — respond as an English tutor, explain in Egyptian Arabic with the English content in English]: ${message}`;
 
-    return [
+    const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
       ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
       { role: "user", content: guardedMessage },
     ];
+
+    if (quickRef) {
+      messages.push({ role: "system", content: this.buildQuickReferencePrompt(quickRef) });
+    }
+
+    return messages;
   }
 
   private async generateResponse(
@@ -628,6 +818,7 @@ export class AiService {
     ragResults: { content: string; sourceTitle: string; score: number }[],
     _activeModelConfig?: { apiKey: string; modelName: string; baseUrl?: string | null; maxTokens?: number } | null,
     studentName?: string,
+    quickRef?: { type: "meaning" | "translation"; target: string } | null,
   ): Promise<{
     content: string;
     provider: string;
@@ -642,10 +833,11 @@ export class AiService {
     totalCost?: number | null;
     currency?: string;
   }> {
-    const messages = await this.buildChatMessages(message, history, lessonContext, ragResults, studentName);
+    const messages = await this.buildChatMessages(message, history, lessonContext, ragResults, studentName, quickRef);
+    const maxTokens = quickRef ? 200 : 500;
 
     try {
-      const result = await this.providerService.chat(messages, { maxTokens: 500 });
+      const result = await this.providerService.chat(messages, { maxTokens });
       if (result?.content) {
         return {
           content: this.redactOutput(result.content),
@@ -782,6 +974,42 @@ Knowledge boundaries:
     }
 
     return `${nameGreeting}${whoAmI} ${greeting}أنا هنا عشان أساعدك في أي حاجة تخص الإنجليزية — قواعد، مفردات، قراءة، كتابة، أو شرح المنهج. إيه اللي عايز تبدأ فيه النهارده؟`;
+  }
+
+  private getFastReply(message: string, studentName?: string): string | null {
+    const trimmed = message.trim().replace(/[!؟?.,،\s]+$/u, "");
+    for (const rule of FAST_REPLY_RULES) {
+      if (rule.pattern.test(trimmed)) {
+        const pool = rule.replies;
+        const selected = pool[Math.floor(Math.random() * pool.length)];
+        return studentName ? selected.replace(/\{name\}/g, studentName) : selected.replace(/\{name\}/g, "صديقي");
+      }
+    }
+    return null;
+  }
+
+  private detectQuickReference(message: string): { type: "meaning" | "translation"; target: string } | null {
+    for (const rule of QUICK_REFERENCE_PATTERNS) {
+      const match = rule.pattern.exec(message);
+      const target = match?.[rule.targetIndex];
+      if (typeof target === "string" && target.trim().length > 0) {
+        return { type: rule.type, target: target.trim() };
+      }
+    }
+    return null;
+  }
+
+  private buildQuickReferencePrompt(ref: { type: "meaning" | "translation"; target: string }): string {
+    if (ref.type === "meaning") {
+      return `The student asked for the meaning of the English word "${ref.target}".
+Respond in Egyptian Arabic (العامية المصرية) with light Egyptian humor.
+Keep it SHORT and direct. Give: 1) the Arabic meaning(s), 2) one simple example sentence in English with its meaning.
+Do NOT write a full lesson — just a quick word reference.`;
+    }
+    return `The student asked to translate this into Arabic: "${ref.target}".
+Respond in Egyptian Arabic (العامية المصرية) with light Egyptian humor.
+Keep it SHORT and direct. Give: 1) the translation, 2) a brief note if the phrase has a special meaning.
+Do NOT write a full lesson — just a quick translation reference.`;
   }
 
   private generateSuggestions(_message: string): string[] {
