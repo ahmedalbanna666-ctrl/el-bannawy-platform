@@ -497,6 +497,22 @@ function ExamOrResultsView({
 
   const groupedQuestions = useMemo(() => groupQuestions(studentQuestions), [studentQuestions]);
 
+  const getSelectedIndex = (questionId: string): string => {
+    const q = questions.find((x) => x.questionId === questionId);
+    if (!q) return "";
+    if (q.options.length === 0) return examAnswers[questionId] ?? "";
+    const idx = q.options.findIndex((o) => o.text === examAnswers[questionId]);
+    return idx >= 0 ? String(idx) : "";
+  };
+
+  const handleAnswerChange = useCallback((index: number, value: string): void => {
+    setExamAnswers((prev) => {
+      const q = questions[index];
+      const opt = q.options[Number(value)] as { text: string } | undefined;
+      return { ...prev, [q.questionId]: opt ? opt.text : value };
+    });
+  }, [questions]);
+
   if (loading || !exam) return <PageSkeleton />;
 
   if (view === "results") {
@@ -533,22 +549,6 @@ function ExamOrResultsView({
       </div>
     );
   }
-
-  const getSelectedIndex = (questionId: string): string => {
-    const q = questions.find((x) => x.questionId === questionId);
-    if (!q) return "";
-    if (q.options.length === 0) return examAnswers[questionId] ?? "";
-    const idx = q.options.findIndex((o) => o.text === examAnswers[questionId]);
-    return idx >= 0 ? String(idx) : "";
-  };
-
-  const handleAnswerChange = useCallback((index: number, value: string): void => {
-    setExamAnswers((prev) => {
-      const q = questions[index];
-      const opt = q.options[Number(value)] as { text: string } | undefined;
-      return { ...prev, [q.questionId]: opt ? opt.text : value };
-    });
-  }, [questions]);
 
   return (
     <div className="flex flex-col gap-4">
