@@ -23,9 +23,7 @@ export function NotificationProvider({ children }: { readonly children: ReactNod
         const { isPushSupported, enableWebPush, onForegroundMessage } = await import("@/lib/firebase-messaging");
         if (!isPushSupported()) return;
 
-        await navigator.serviceWorker.register("/sw.js");
-
-        unsub = onForegroundMessage((payload: { title?: string; body?: string }): void => {
+        unsub = await onForegroundMessage((payload: { title?: string; body?: string }): void => {
           if (payload.title) {
             (toast as (message: string, options?: Record<string, unknown>) => void)(payload.title, {
               description: payload.body,

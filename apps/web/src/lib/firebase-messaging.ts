@@ -11,8 +11,11 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "",
 };
 
+const SW_PATH = "/sw.js";
+
 let app: FirebaseApp | null = null;
 let messaging: Messaging | null = null;
+let swRegistrationPromise: Promise<ServiceWorkerRegistration> | null = null;
 
 function getFcmApp(): FirebaseApp {
   app = app ?? initializeApp(firebaseConfig, "fcm");
@@ -22,6 +25,17 @@ function getFcmApp(): FirebaseApp {
 function getFcmMessaging(): Messaging {
   messaging = messaging ?? getMessaging(getFcmApp());
   return messaging;
+}
+
+/**
+ * Registers (and memoizes) our custom service worker. The Firebase Messaging
+ * SDK needs an explicit registration when the app does not use the default
+ * `firebase-messaging-sw.js` worker, otherwise `getToken()`/`onMessage()` fail
+ * silently because the default worker file does not exist.
+ */
+function getSwRegistration(): Promise<ServiceWorkerRegistration> {
+  swRegistrationPromise = swRegistrationPromise ?? navigator.serviceWorker.register(SW_PATH);
+  return swRegistrationPromise;
 }
 
 export async function requestFcmToken(): Promise<string | null> {
@@ -38,9 +52,10 @@ export async function requestFcmToken(): Promise<string | null> {
       return null;
     }
 
+    const registration = await getSwRegistration();
     const msg = getFcmMessaging();
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- getToken is the standard FCM web push API
-    const token = await getToken(msg, { vapidKey });
+    const token = await getToken(msg, { vapidKey, serviceWorkerRegistration: registration });
     return token;
   } catch (err) {
     console.error("FCM token request failed:", err);
@@ -48,8 +63,11 @@ export async function requestFcmToken(): Promise<string | null> {
   }
 }
 
-export function onForegroundMessage(callback: (payload: { title?: string; body?: string }) => void): () => void {
+export async function onForegroundMessage(
+  callback: (payload: { title?: string; body?: string }) => void,
+): Promise<() => void> {
   try {
+    await getSwRegistration();
     const msg = getFcmMessaging();
     const unsubscribe = onMessage(msg, (payload) => {
       callback({
@@ -88,7 +106,7 @@ export async function enableWebPush(): Promise<{ ok: boolean; token?: string; er
     return { ok: false, error: "إشعارات المتصفح غير مهيأة في إعدادات المنصة" };
   }
   try {
-    await navigator.serviceWorker.register("/sw.js");
+    await getSwRegistration();
     const token = await requestFcmToken();
     if (!token) {
       return { ok: false, error: "لم يتم منح إذن الإشعارات من المتصفح" };
