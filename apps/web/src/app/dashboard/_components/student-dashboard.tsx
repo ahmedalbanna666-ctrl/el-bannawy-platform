@@ -67,16 +67,11 @@ export function StudentDashboard(): ReactNode {
               <div>
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">التقدم الدراسي</p>
                 {data.unitProgress.unitName ? (
-                  <div className="mt-0.5 space-y-0.5 text-xs text-neutral-500">
-                    <p className="font-semibold text-neutral-700 dark:text-neutral-300">
-                      الوحدة {data.unitProgress.unitDisplayOrder ?? ""} — {data.unitProgress.unitName}
-                    </p>
-                    {lessons.length > 0 ? (
-                      <p>
-                        الدرس {currentLesson.displayOrder} — {currentLesson.title}
-                      </p>
-                    ) : null}
-                  </div>
+                  <p className="mt-0.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    {currentLesson
+                      ? `${data.unitProgress.unitName} — ${currentLesson.title}`
+                      : data.unitProgress.unitName}
+                  </p>
                 ) : (
                   <p className="text-xs text-neutral-500">
                     {String(data.stats.completedLessons)} من {String(data.stats.totalLessons)} دروس مكتملة
