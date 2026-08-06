@@ -20,8 +20,6 @@ import {
   Users,
   BarChart3,
   Target,
-  Flame,
-  Zap,
 } from "lucide-react";
 import { useMyBookings } from "@/lib/live-api";
 import { useAuthStore } from "@/lib/auth-store";
@@ -46,18 +44,12 @@ export function StudentDashboard(): ReactNode {
     return <EmptyState title="لا توجد بيانات" description="لا توجد بيانات متاحة للوحة التحكم" icon={<BookOpen className="h-16 w-16" />} />;
   }
 
-  const progressPercent = data.stats.totalLessons > 0
-    ? Math.round((data.stats.completedLessons / data.stats.totalLessons) * 100)
-    : 0;
-
-  const xpProgress = data.xp.nextLevelXp > 0
-    ? Math.min(100, Math.round((data.xp.total / data.xp.nextLevelXp) * 100))
-    : 0;
+  const unitProgress = data.unitProgress.percent;
 
   return (
     <div className="flex flex-col gap-4">
 
-      {/* 1 — Progress Card + Daily Goal */}
+      {/* 1 — Progress Card */}
       <Card variant="outline" padding="none">
         <CardContent>
           <div className="flex items-center justify-between p-4 pb-3">
@@ -68,7 +60,7 @@ export function StudentDashboard(): ReactNode {
               <div>
                 <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">التقدم الدراسي</p>
                 <p className="text-xs text-neutral-500">
-                  {data.stats.completedLessons} من {data.stats.totalLessons} دروس مكتملة
+                  {data.unitProgress.unitName ? `${data.unitProgress.unitName} — ${String(data.unitProgress.completedLessons)} من ${String(data.unitProgress.totalLessons)} دروس` : `${String(data.stats.completedLessons)} من ${String(data.stats.totalLessons)} دروس مكتملة`}
                 </p>
               </div>
             </div>
@@ -90,46 +82,15 @@ export function StudentDashboard(): ReactNode {
               <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
                 <div
                   className="h-full rounded-full bg-purple-500 transition-all"
-                  style={{ width: `${String(progressPercent)}%` }}
+                  style={{ width: `${String(unitProgress)}%` }}
                 />
               </div>
               <span className="shrink-0 text-xs font-medium text-purple-500">
-                {progressPercent}%
+                {unitProgress}%
               </span>
             </div>
           </div>
         </CardContent>
-
-        {/* Daily Goal */}
-        <div className="border-t border-neutral-100 px-4 py-3 dark:border-neutral-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <Flame className="h-4 w-4 text-amber-500" />
-                <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                  {data.streak} يوم
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Zap className="h-4 w-4 text-yellow-500" />
-                <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                  المستوى {data.xp.level}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-24 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 transition-all"
-                  style={{ width: `${String(xpProgress)}%` }}
-                />
-              </div>
-              <span className="text-[10px] font-medium text-neutral-500">
-                {data.xp.total}/{data.xp.nextLevelXp} XP
-              </span>
-            </div>
-          </div>
-        </div>
       </Card>
 
       {/* Grade not set warning */}

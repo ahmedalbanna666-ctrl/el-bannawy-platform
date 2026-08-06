@@ -23,6 +23,14 @@ interface DashboardData {
     progress: number;
     lessonId: string;
   } | null;
+  /** Progress within the student's current unit (0–100), restarts per unit. */
+  unitProgress: {
+    unitId: string | null;
+    unitName: string | null;
+    completedLessons: number;
+    totalLessons: number;
+    percent: number;
+  };
   nextAction: {
     type: "start" | "continue" | "next_lesson" | "next_unit" | "final_review";
     label: string;
@@ -287,6 +295,8 @@ export class HomeService {
 
     const nextAction = await this.resolveNextAction(userId, ctx, currentProgress);
 
+    const unitProgress = await this.computeUnitProgress(userId, ctx, currentProgress);
+
     return {
       user: {
         id: user.id,
@@ -309,6 +319,7 @@ export class HomeService {
             lessonId: currentProgress.lessonId,
           }
         : null,
+      unitProgress,
       nextAction,
       recentActivity: recentActivity.slice(0, 10),
       upcomingLiveClasses: [],
@@ -407,6 +418,82 @@ export class HomeService {
 
     // 7) A new unit is next.
     return { type: "next_unit", label: "ابدأ الوحدة التالية", href: `/dashboard/lessons/detail/${next.lessonId}` };
+  }
+
+  /**
+   * Compute progress within the student's CURRENT unit (0–100).
+   *
+   * The "current" unit is derived from the last unfinished lesson when the
+   * student is mid-unit; otherwise it falls back to the unit of the most
+   * recently completed lesson. Because the current unit changes whenever the
+   * student completes a unit and moves on, the percentage naturally restarts
+   * from ~0 for each new unit instead of reflecting the whole curriculum.
+   */
+  private async computeUnitProgress(
+    userId: string,
+    ctx: {
+      gradeId: string | null;
+      academicYearId: string | null;
+      termId: string | null;
+      educationalSystem: string | null;
+    } | null,
+    currentProgress: { lesson: { unitId: string; unit: { title: string } } } | null,
+  ): Promise<DashboardData["unitProgress"]> {
+    // Determine the current unit id.
+    let unitId = currentProgress?.lesson.unitId ?? null;
+
+    // Fallback: most recently completed lesson's unit.
+    if (!unitId) {
+      const lastCompleted = await this.prisma.lessonProgress.findFirst({
+        where: { userId, completed: true },
+        orderBy: { completedAt: "desc" },
+        select: { lesson: { select: { unitId: true, unit: { select: { title: true } } } } },
+      });
+      unitId = lastCompleted?.lesson.unitId ?? null;
+    }
+
+    // No context or no current unit → nothing meaningful to show.
+    if (!unitId || !ctx?.gradeId || !ctx.academicYearId || !ctx.termId) {
+      return { unitId, unitName: currentProgress?.lesson.unit.title ?? null, completedLessons: 0, totalLessons: 0, percent: 0 };
+    }
+
+    // Published lessons of this unit, ordered.
+    const unit = await this.prisma.unit.findUnique({
+      where: { id: unitId },
+      select: {
+        id: true,
+        title: true,
+        lessons: {
+          where: { published: true },
+          orderBy: { displayOrder: "asc" },
+          select: { id: true },
+        },
+      },
+    });
+
+    if (!unit) {
+      return { unitId, unitName: null, completedLessons: 0, totalLessons: 0, percent: 0 };
+    }
+
+    const totalLessons = unit.lessons.length;
+    if (totalLessons === 0) {
+      return { unitId, unitName: unit.title, completedLessons: 0, totalLessons: 0, percent: 0 };
+    }
+
+    const lessonIds = unit.lessons.map((l) => l.id);
+    const completedInUnit = await this.prisma.lessonProgress.count({
+      where: { userId, completed: true, lessonId: { in: lessonIds } },
+    });
+
+    const percent = Math.min(100, Math.round((completedInUnit / totalLessons) * 100));
+
+    return {
+      unitId,
+      unitName: unit.title,
+      completedLessons: completedInUnit,
+      totalLessons,
+      percent,
+    };
   }
 
   async getLeaderboard(userId: string): Promise<{

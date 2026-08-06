@@ -9,6 +9,13 @@ export interface HomeData {
   achievements: number;
   streak: number;
   continueLearning: { unitName: string; lessonName: string; progress: number; lessonId: string } | null;
+  unitProgress: {
+    unitId: string | null;
+    unitName: string | null;
+    completedLessons: number;
+    totalLessons: number;
+    percent: number;
+  };
   nextAction: {
     type: "start" | "continue" | "next_lesson" | "next_unit" | "final_review";
     label: string;
