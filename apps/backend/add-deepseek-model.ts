@@ -53,8 +53,8 @@ async function main(): Promise<void> {
 
   const prisma = new PrismaClient();
   try {
-    const modelName = "deepseek-v4-flash";
-    const baseUrl = "https://opencode.ai/zen/go/v1/chat/completions";
+    const modelName = "deepseek-v4-flash-free";
+    const baseUrl = "https://opencode.ai/zen/v1/chat/completions";
 
     const existing = await prisma.aiModelConfig.findFirst({
       where: { provider: "OPENAI", modelName },

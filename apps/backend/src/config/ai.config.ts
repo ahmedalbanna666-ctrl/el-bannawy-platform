@@ -17,6 +17,7 @@ const DEFAULT_PRICES: Record<string, AiCostRate> = {
   "claude-3-5-sonnet": { inputPerMillion: 3, outputPerMillion: 15, cachedInputPerMillion: 0.3, embeddingPerMillion: 0.02 },
   "claude-3-haiku": { inputPerMillion: 0.25, outputPerMillion: 1.25, cachedInputPerMillion: 0.03, embeddingPerMillion: 0.02 },
   "deepseek-v4-flash": { inputPerMillion: 0.14, outputPerMillion: 0.28, cachedInputPerMillion: 0.0028, embeddingPerMillion: 0.02 },
+  "deepseek-v4-flash-free": { inputPerMillion: 0, outputPerMillion: 0, cachedInputPerMillion: 0, embeddingPerMillion: 0.02 },
 };
 
 export default registerAs("ai", () => {
