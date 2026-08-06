@@ -32,7 +32,11 @@ export function middleware(request: NextRequest): NextResponse {
   }
 
   if (isAuthPage && accessToken && !isTokenExpired(accessToken)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const isOAuthCompletion =
+      pathname === "/register" && request.nextUrl.searchParams.get("oauth") !== null;
+    if (!isOAuthCompletion) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   return NextResponse.next();

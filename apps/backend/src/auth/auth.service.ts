@@ -569,8 +569,17 @@ export class AuthService {
     });
 
     if (existingUser) {
+      const needsProfileCompletion =
+        existingUser.status === "PENDING_VERIFICATION" ||
+        !existingUser.fullName.trim();
+
       await this.linkOAuthProvider(existingUser.id, provider, providerId);
       const tokens = await this.generateTokens(existingUser.id, existingUser.role);
+
+      if (needsProfileCompletion) {
+        return { ...tokens, type: "new" };
+      }
+
       return { ...tokens, type: "existing" };
     }
 

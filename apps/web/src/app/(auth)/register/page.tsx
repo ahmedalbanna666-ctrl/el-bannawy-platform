@@ -333,16 +333,18 @@ function RegisterForm(): ReactNode {
       return false;
     }
 
-    if (!password || password.length < 8) { setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل"); return false; }
-    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(password)) {
-      setError("كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم على الأقل");
-      return false;
+    if (!isOAuth) {
+      if (!password || password.length < 8) { setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل"); return false; }
+      if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(password)) {
+        setError("كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم على الأقل");
+        return false;
+      }
+      if (password !== confirmPassword) { setError("كلمات المرور غير متطابقة"); return false; }
     }
-    if (password !== confirmPassword) { setError("كلمات المرور غير متطابقة"); return false; }
 
     if (!governorate) { setError("يرجى اختيار المحافظة"); return false; }
     return true;
-  }, [fullName, email, mobile, parentMobile, password, confirmPassword, governorate]);
+  }, [fullName, email, mobile, parentMobile, password, confirmPassword, governorate, isOAuth]);
 
   const validateStep2 = useCallback((): boolean => {
     if (!educationalSystem) { setError("يرجى اختيار النظام التعليمي"); return false; }
