@@ -81,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   useEffect(() => {
     const onSessionExpired = (): void => {
       clearStore();
+      queryClient.clear();
       if (typeof window !== "undefined" && window.location.pathname !== "/login") {
         window.location.assign("/login");
       }
@@ -89,7 +90,22 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     return (): void => {
       window.removeEventListener("elbannawy:session-expired", onSessionExpired);
     };
-  }, [clearStore]);
+  }, [clearStore, queryClient]);
+
+  // When the tab regains focus, re-validate the session so a device whose
+  // session was superseded by another login is sent back to /login promptly.
+  useEffect(() => {
+    const onFocus = (): void => {
+      if (!isAuthenticated) return;
+      void api.get("/auth/me").catch(() => {
+        // 401 → the api-client dispatches "elbannawy:session-expired" → logout + redirect
+      });
+    };
+    window.addEventListener("focus", onFocus);
+    return (): void => {
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [isAuthenticated]);
 
   const fetchUser = useCallback(async (): Promise<void> => {
     try {
