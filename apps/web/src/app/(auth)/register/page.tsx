@@ -56,6 +56,38 @@ type Step = 1 | 2 | 3 | 4;
 
 const TOTAL_STEPS = 4;
 
+// ── Arabic → Latin transliteration (auto-suggests the English name) ────
+
+const AR_TO_LATIN: Record<string, string> = {
+  "ا": "a", "أ": "a", "إ": "e", "آ": "a", "ب": "b", "ت": "t", "ث": "th",
+  "ج": "g", "ح": "h", "خ": "kh", "د": "d", "ذ": "z", "ر": "r", "ز": "z",
+  "س": "s", "ش": "sh", "ص": "s", "ض": "d", "ط": "t", "ظ": "z", "ع": "a",
+  "غ": "gh", "ف": "f", "ق": "q", "ك": "k", "ل": "l", "م": "m", "ن": "n",
+  "ه": "h", "و": "w", "ي": "y", "ء": "", "ة": "a", "ى": "a", "ؤ": "u",
+  "ئ": "i", "لا": "la", "لأ": "la", "لإ": "le", "لآ": "la", " ": " ",
+};
+
+function transliterateArabicName(name: string): string {
+  const normalized = name.replace(/[^\u0621-\u064A\s]/g, " ");
+  let result = "";
+  let i = 0;
+  while (i < normalized.length) {
+    const two = normalized.slice(i, i + 2);
+    if (AR_TO_LATIN[two]) {
+      result += AR_TO_LATIN[two];
+      i += 2;
+      continue;
+    }
+    result += AR_TO_LATIN[normalized[i]] ?? "";
+    i += 1;
+  }
+  return result
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 // ── Preparing Screen ─────────────────────────────────────────────────
 
 function PreparingScreen({ onDone }: { onDone: () => void }): ReactNode {
@@ -283,6 +315,7 @@ function RegisterForm(): ReactNode {
   // Step 1 fields
   const [fullName, setFullName] = useState("");
   const [englishName, setEnglishName] = useState("");
+  const [englishNameTouched, setEnglishNameTouched] = useState(false);
   const [email, setEmail] = useState<string>(() => verifiedEmail ?? "");
   const [mobile, setMobile] = useState("");
   const [parentMobile, setParentMobile] = useState("");
@@ -300,8 +333,19 @@ function RegisterForm(): ReactNode {
   // Step 4
   const [grade, setGrade] = useState("");
 
+  // Auto-suggest the English name from the Arabic name until the student
+  // edits the English field manually (then their edit is preserved).
+  useEffect(() => {
+    if (englishNameTouched) return;
+    setEnglishName(fullName.trim() ? transliterateArabicName(fullName) : "");
+  }, [fullName, englishNameTouched]);
+
   const validateStep1 = useCallback((): boolean => {
-    if (!fullName || fullName.length < 2) { setError("الاسم العربي مطلوب"); return false; }
+    const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+    if (nameParts.length < 3) {
+      setError("الاسم العربي يجب أن يتكون من ثلاثة أجزاء (الاسم الأول، اسم الأب، اسم العائلة)");
+      return false;
+    }
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("يرجى إدخال بريد إلكتروني صحيح"); return false; }
 
@@ -313,6 +357,11 @@ function RegisterForm(): ReactNode {
     if (parentMobile) {
       const parentResult = validateEgyptMobile(parentMobile);
       if (!parentResult.valid) { setError(parentResult.message ?? "رقم ولي الأمر غير صحيح"); return false; }
+    }
+
+    if (mobile && parentMobile && normalizeEgyptMobile(mobile) === normalizeEgyptMobile(parentMobile)) {
+      setError("رقم ولي الأمر لا يمكن أن يكون نفس رقم الطالب");
+      return false;
     }
 
     if (!password || password.length < 8) { setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل"); return false; }
@@ -467,8 +516,8 @@ function RegisterForm(): ReactNode {
                 </div>
               </div>
             )}
-            <Input label="الاسم بالعربية" placeholder="أحمد حسن" value={fullName} onChange={(e): void => { setFullName(e.target.value); }} required />
-            <Input label="الاسم بالإنجليزية" placeholder="Ahmed Hassan" value={englishName} onChange={(e): void => { setEnglishName(e.target.value); }} leftIcon={<Globe className="h-5 w-5" />} />
+            <Input label="الاسم بالعربية (ثلاثي)" placeholder="الاسم الأول - اسم الأب - اسم العائلة" value={fullName} onChange={(e): void => { setFullName(e.target.value); }} required />
+            <Input label="الاسم بالإنجليزية" placeholder="Ahmed Hassan Ali" value={englishName} onChange={(e): void => { setEnglishNameTouched(true); setEnglishName(e.target.value); }} leftIcon={<Globe className="h-5 w-5" />} />
             <Input
               label="البريد الإلكتروني"
               type="email"
