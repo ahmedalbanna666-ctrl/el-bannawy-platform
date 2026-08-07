@@ -156,8 +156,8 @@ export function StudentDashboard(): ReactNode {
                 <ScrollText className="h-6 w-6 text-teal-500" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">قصص المنهج</h3>
-                <p className="text-xs text-neutral-500">شاهد القصص</p>
+                <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">قصه المنهج</h3>
+                <p className="text-[11px] text-neutral-500">القصه بطريقه تفاعليه</p>
               </div>
               <ChevronLeft className="h-5 w-5 text-neutral-400" />
             </div>
