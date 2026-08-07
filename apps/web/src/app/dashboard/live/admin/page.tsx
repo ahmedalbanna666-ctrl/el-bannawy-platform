@@ -206,6 +206,13 @@ export default function LiveAdminInfrastructurePage(): ReactNode {
           >
             أدوات التدريس
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(): void => { router.push("/dashboard/live/admin/commerce"); }}
+          >
+            متجر الحصص
+          </Button>
         </div>
       </div>
 

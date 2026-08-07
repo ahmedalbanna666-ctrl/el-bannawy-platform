@@ -15,6 +15,10 @@ import {
 const MONTHLY_TYPES: ReadonlySet<string> = new Set([
   LiveSubscriptionTypeEnum.PRIVATE_MONTHLY,
   LiveSubscriptionTypeEnum.GROUP_MONTHLY,
+  LiveSubscriptionTypeEnum.PRIVATE_PLAN_A,
+  LiveSubscriptionTypeEnum.PRIVATE_PLAN_B,
+  LiveSubscriptionTypeEnum.GROUP_PLAN_A,
+  LiveSubscriptionTypeEnum.GROUP_PLAN_B,
 ]);
 
 /**
@@ -53,7 +57,7 @@ export class LiveSubscriptionService {
 
   async createSubscription(
     userId: string,
-    dto: { teacherId: string; type: string },
+    dto: { teacherId: string; type: string; scheduleId?: string; price?: number },
   ): Promise<unknown> {
     const teacher = await this.prisma.user.findUnique({
       where: { id: dto.teacherId },
@@ -64,16 +68,19 @@ export class LiveSubscriptionService {
     const end = new Date(now);
     end.setMonth(end.getMonth() + 1);
     const isGroup = dto.type.includes("GROUP");
+    const isPlan = dto.type.includes("PLAN_");
     const count = isGroup ? 8 : 4;
     const created = await this.prisma.liveSubscription.create({
       data: {
         userId,
         teacherId: dto.teacherId,
+        ...(dto.scheduleId ? { scheduleId: dto.scheduleId } : {}),
         type: dto.type as $Enums.LiveSubscriptionType,
         status: LiveSubscriptionStatusEnum.ACTIVE,
-        packageLabel: isGroup ? "GROUP" : "PRIVATE",
+        packageLabel: isGroup ? "GROUP" : isPlan ? "PRIVATE" : "PRIVATE",
         packageSessionCount: count,
         sessionsTotal: count,
+        price: dto.price ?? 0,
         currentPeriodStart: now,
         currentPeriodEnd: end,
         nextBillingDate: end,
@@ -252,13 +259,13 @@ export class LiveSubscriptionService {
     teacherId: string,
     kind: LiveSessionKindEnum,
   ): Promise<{ remaining: number; total: number; used: number }> {
-    const type = this.kindToType(kind);
+    const types = this.kindToTypes(kind);
     const now = new Date();
     const subs = await this.prisma.liveSubscription.findMany({
       where: {
         userId,
         teacherId,
-        type,
+        type: { in: types },
         status: LiveSubscriptionStatusEnum.ACTIVE,
         deletedAt: null,
         currentPeriodEnd: { gte: now },
@@ -476,14 +483,22 @@ export class LiveSubscriptionService {
     return { renewed, expired };
   }
 
-  private kindToType(kind: LiveSessionKindEnum): LiveSubscriptionTypeEnum {
+  private kindToTypes(kind: LiveSessionKindEnum): LiveSubscriptionTypeEnum[] {
     switch (kind) {
       case LiveSessionKindEnum.PRIVATE_MONTHLY:
-        return LiveSubscriptionTypeEnum.PRIVATE_MONTHLY;
+        return [
+          LiveSubscriptionTypeEnum.PRIVATE_MONTHLY,
+          LiveSubscriptionTypeEnum.PRIVATE_PLAN_A,
+          LiveSubscriptionTypeEnum.PRIVATE_PLAN_B,
+        ];
       case LiveSessionKindEnum.GROUP:
-        return LiveSubscriptionTypeEnum.GROUP_MONTHLY;
+        return [
+          LiveSubscriptionTypeEnum.GROUP_MONTHLY,
+          LiveSubscriptionTypeEnum.GROUP_PLAN_A,
+          LiveSubscriptionTypeEnum.GROUP_PLAN_B,
+        ];
       case LiveSessionKindEnum.ONE_TIME:
-        return LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE;
+        return [LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE];
       case LiveSessionKindEnum.FREE:
         throw new BadRequestException("FREE sessions have no subscription type");
     }

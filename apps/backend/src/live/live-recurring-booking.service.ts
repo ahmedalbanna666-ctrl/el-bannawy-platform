@@ -40,7 +40,7 @@ export class LiveRecurringBookingService {
   async bookSeries(
     userId: string,
     slotId: string,
-    dto: { dateFrom: string; dateTo: string; subscriptionId?: string },
+    dto: { dateFrom: string; dateTo: string; subscriptionId?: string; maxCount?: number },
   ): Promise<unknown> {
     const [availId] = slotId.split(":");
     const avail = await this.prisma.teacherAvailability.findFirst({
@@ -62,8 +62,9 @@ export class LiveRecurringBookingService {
       avail.teacherId,
     );
 
+    const maxCount = dto.maxCount ?? dates.length;
     const occurrences: RecurringOccurrence[] = [];
-    for (const dateStr of dates) {
+    for (const dateStr of dates.slice(0, maxCount)) {
       occurrences.push(await this.bookOccurrence(userId, availId, dateStr, activeTypes, dto.subscriptionId));
     }
 

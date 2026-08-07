@@ -467,9 +467,7 @@ export class CreateSubscriptionDto {
 
   @IsEnum(LiveSubscriptionTypeEnum)
   type!: LiveSubscriptionTypeEnum;
-}
-
-export class UpdateSubscriptionDto {
+}export class UpdateSubscriptionDto {
   @IsOptional()
   @IsEnum(LiveSubscriptionTypeEnum)
   type?: LiveSubscriptionTypeEnum;
@@ -533,4 +531,88 @@ export class RequestRescheduleDto {
 export class RescheduleDecisionDto {
   @IsEnum(LiveBookingRescheduleStatusEnum)
   decision!: LiveBookingRescheduleStatusEnum;
+}
+
+export class CreateStudyScheduleDto {
+  @IsString()
+  name!: string;
+
+  @IsEnum(LiveSessionTypeEnum)
+  type!: LiveSessionTypeEnum;
+
+  /** Days of week (0=Sunday .. 6=Saturday). */
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(6, { each: true })
+  days!: number[];
+
+  @IsAvailabilityTime()
+  startTime!: string;
+
+  @IsAvailabilityTime()
+  endTime!: string;
+
+  @IsOptional()
+  @IsUUID()
+  gradeId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  maxStudents?: number;
+
+  @IsOptional()
+  @IsDateString()
+  effectiveFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  effectiveTo?: string;
+}
+
+export class UpdateStudyScheduleDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsEnum(LiveSessionTypeEnum)
+  type?: LiveSessionTypeEnum;
+
+  @IsOptional()
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(6, { each: true })
+  days?: number[];
+
+  @IsOptional()
+  @IsAvailabilityTime()
+  startTime?: string;
+
+  @IsOptional()
+  @IsAvailabilityTime()
+  endTime?: string;
+
+  @IsOptional()
+  @IsUUID()
+  gradeId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  maxStudents?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  effectiveFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  effectiveTo?: string;
 }

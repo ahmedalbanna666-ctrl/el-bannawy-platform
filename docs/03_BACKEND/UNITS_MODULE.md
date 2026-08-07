@@ -267,17 +267,28 @@ Rules:
 - Certificates are stored in `unit_certificates` (one per student + unit, idempotent).
 - The certificate appears on the completed unit card in the units map (شهادة button).
 - Certificates are listed on the Achievements page (الإنجازات) with view + PDF download.
-- The uploaded PDF must not exceed `MAX_FILE_SIZE` (5 MB); the frontend embeds a JPEG (quality 0.92) at scale 3 to keep the file well under the limit.
+- The uploaded PDF must not exceed `MAX_FILE_SIZE` (5 MB); the frontend embeds a JPEG (quality 0.92) at scale 3.125 to keep the file well under the limit.
 
-Certificate design (v2):
+Certificate design (v3 — premium international standard):
 
-- English language (CERTIFICATE OF ACHIEVEMENT), premium editorial layout on an ivory paper texture with gold double frame and corner ornaments, watermark "EL-BANNAWY", decorative top/bottom waves, and the platform logo.
-- Fonts: Cinzel (title), Playfair Display (student name / serif accents), Inter (supporting text). Loaded from Google Fonts.
+- English language (CERTIFICATE OF ACHIEVEMENT), optimized for A4 landscape printing at 300 DPI (canvas 3506×2478 px) and CMYK-friendly light backgrounds.
+- Colors: premium ivory paper (`#F8F4E8` primary / `#FFFDF9` secondary) with a soft radial gradient, deep navy text (`#102A5A`), and gold accent (`#C8A95B`) used only for borders, icons, decorations, lines, and the seal. No saturated yellow, no dark backgrounds, no cyan.
+- Background: very subtle paper texture, faint geometric pattern, soft gold wave lines top/bottom, and an almost invisible watermark (huge transparent AB logo at 4% opacity, no blur) behind the student name.
+- Double gold border (outer 1.5px, inner 1px) with small classic ornaments in the four corners only.
+- Fonts (maximum three): Cinzel (serif — platform name, title, student name, seal, serial capsule), Inter (sans — labels, recognition text, metadata), Great Vibes (signature — founder signature). Loaded from Google Fonts.
+- Header: enlarged logo (86px, +~15%) with breathing space, "EL-BANNAWY PLATFORM" in wide-tracked navy Cinzel, "AI-POWERED ENGLISH LEARNING" in small light gray-gold, then "CERTIFICATE OF ACHIEVEMENT" reduced ~10% in elegant gold serif.
+- Student area: "PROUDLY PRESENTED TO", the student name in large navy serif with decorative gold dividers above and below, then "in recognition of outstanding dedication and successful completion of".
+- Course information: course name (e.g. "English Language") and "UNIT N" on two separate lines — never duplicating names.
+- Result cards: thin gold border, rounded corners, light ivory fill, small gold line icons (✓ for Completion, trophy for Result), no heavy shadows.
+- Information row (one elegant row): Issue Date, Academic Year, Course, Grade, Stage — equal spacing with small premium gold icons.
+- Verification seal: circular gold-metallic embossed seal centered with "EL-BANNAWY / VERIFIED / AI POWERED".
+- QR section: QR code, "SCAN TO VERIFY", and "verify.el-bannawy.com" centered below.
+- Certificate ID: placed in a premium rounded gold capsule (official serial look).
+- Signature: "Mr. Ahmed El-Banna" in Great Vibes script with thinner line and "FOUNDER & CEO" below.
 - Student name: uses the student's English name (`englishName`) from the profile; falls back to the Arabic name (`fullName`) when no English name is set.
-- Shows: unit number + title, completion percentage, derived grade label, stage, grade, course, academic year, and issue date.
+- Shows: course, unit number, completion percentage, derived grade label, stage, grade, academic year, and issue date.
 - Grade label is derived from the completion percentage: `Excellent` ≥ 90, `Very Good` ≥ 80, `Good` ≥ 70, `Pass` ≥ 60, otherwise `Needs Improvement`.
-- Includes the signature block (Mr. Ahmed Elbanna — Founder & CEO), a verified badge, the certificate ID (verification code), and a QR code linking to the public verification page.
-- The official stamp bearing "MR. AHMED ELBANNA — FOUNDER" was replaced by the signature block + verified badge in v2.
+- Includes the signature block, the gold verification seal, the certificate ID capsule, and a QR code linking to the public verification page.
 
 Verification:
 

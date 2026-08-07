@@ -74,6 +74,16 @@ export class CreateQuizDto {
   @IsBoolean()
   showAnswers?: boolean;
 
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  questionCount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  durationMinutes?: number;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateQuizQuestionDto)

@@ -271,10 +271,10 @@ export default function TeacherLiveStudioPage(): ReactNode {
           <Button
             variant="outline"
             size="sm"
-            onClick={(): void => { router.push("/dashboard/live/availability"); }}
+            onClick={(): void => { router.push("/dashboard/live/schedules"); }}
             leftIcon={<Settings2 className="h-4 w-4" />}
           >
-            إدارة الأوقات
+            جداول الدراسة
           </Button>
           <Button
             size="sm"
@@ -462,7 +462,7 @@ export default function TeacherLiveStudioPage(): ReactNode {
             <Button
               variant="outline"
               size="sm"
-              onClick={(): void => { router.push("/dashboard/live/availability"); }}
+              onClick={(): void => { router.push("/dashboard/live/schedules"); }}
             >
               <Settings2 className="h-4 w-4" />
               إدارة كاملة

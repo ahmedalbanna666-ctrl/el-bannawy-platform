@@ -6,7 +6,7 @@ import { RolesGuard } from "../common/guards/roles.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { Roles } from "../common/decorators/roles.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
-import { CheckoutDto, VerifyPaymentDto, CreateCouponDto, UpdateCouponDto, ValidateCouponDto } from "./dto/payment.dto";
+import { CheckoutDto, VerifyPaymentDto, CreateCouponDto, UpdateCouponDto, ValidateCouponDto, SubmitPaymentProofDto, ReviewPaymentDto } from "./dto/payment.dto";
 
 @Controller("payments")
 export class PaymentsController {
@@ -61,6 +61,38 @@ export class PaymentsController {
   async getPayment(@Param("paymentId", ParseUUIDPipe) paymentId: string): Promise<ISuccessResponse<unknown>> {
     const data = await this.paymentsService.getPayment(paymentId);
     return successResponse(data, "Payment details retrieved");
+  }
+
+  // --- Instapay manual approval ---
+
+  @Post("proof")
+  @UseGuards(JwtAuthGuard)
+  async submitProof(
+    @CurrentUser() userId: string,
+    @Body() dto: SubmitPaymentProofDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.paymentsService.submitPaymentProof(userId, dto);
+    return successResponse(data, "Payment proof submitted");
+  }
+
+  @Get("approvals/list")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR", "SECRETARY", "SUPPORT")
+  async listApprovals(): Promise<ISuccessResponse<unknown[]>> {
+    const data = await this.paymentsService.listApprovals();
+    return successResponse(data, "Approvals retrieved");
+  }
+
+  @Post(":paymentId/review")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR", "SECRETARY", "SUPPORT")
+  async reviewPayment(
+    @Param("paymentId", ParseUUIDPipe) paymentId: string,
+    @CurrentUser() userId: string,
+    @Body() dto: ReviewPaymentDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.paymentsService.reviewPayment(paymentId, userId, dto);
+    return successResponse(data, "Payment reviewed");
   }
 
   @Get("invoices/all")

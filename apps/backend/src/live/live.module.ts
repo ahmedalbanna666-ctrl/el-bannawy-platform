@@ -24,6 +24,9 @@ import { LiveAnalyticsService } from "./live-analytics.service";
 import { LiveDashboardService } from "./live-dashboard.service";
 import { LiveNotificationService } from "./live-notification.service";
 import { LiveSubscriptionSchedulerService } from "./live-subscription-scheduler.service";
+import { LiveProductPricingService } from "./live-product-pricing.service";
+import { StudyScheduleService } from "./study-schedule.service";
+import { LiveActivationService } from "./live-activation.service";
 import { SubscriptionPeriodEndProcessor } from "./subscription-period-end.processor";
 import { ZoomProvider } from "./meeting-provider/zoom.provider";
 import { MEETING_PROVIDER } from "./meeting-provider/meeting-provider.interface";
@@ -49,6 +52,9 @@ import { ZoomModule } from "../zoom/zoom.module";
     LiveDashboardService,
     LiveNotificationService,
     LiveSubscriptionSchedulerService,
+    LiveProductPricingService,
+    StudyScheduleService,
+    LiveActivationService,
     SubscriptionPeriodEndProcessor,
     SessionKindResolver,
     BookingValidationService,
@@ -65,6 +71,10 @@ import { ZoomModule } from "../zoom/zoom.module";
     LiveBookingService,
     LiveSubscriptionService,
     LiveAvailabilityService,
+    LiveProductPricingService,
+    LiveRecurringBookingService,
+    StudyScheduleService,
+    LiveActivationService,
   ],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- NestJS module container

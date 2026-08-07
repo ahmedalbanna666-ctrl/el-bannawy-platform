@@ -4,6 +4,10 @@ import { PaymentsService } from "./payments.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ConfigurationService } from "../config/configuration.service";
 import { LiveRefundStatusEnum } from "@el-bannawy/shared";
+import { LiveProductPricingService } from "../live/live-product-pricing.service";
+import { LiveActivationService } from "../live/live-activation.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { ReferralService } from "../referral/referral.service";
 
 describe("PaymentsService refund ledger (M5)", () => {
   let service: PaymentsService;
@@ -27,6 +31,10 @@ describe("PaymentsService refund ledger (M5)", () => {
         PaymentsService,
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigurationService, useValue: { payment: { webhookSecret: "secret" } } },
+        { provide: LiveProductPricingService, useValue: { getPrice: jest.fn().mockResolvedValue(200) } },
+        { provide: LiveActivationService, useValue: { activate: jest.fn().mockResolvedValue(undefined) } },
+        { provide: NotificationsService, useValue: { sendNotification: jest.fn().mockResolvedValue(undefined) } },
+        { provide: ReferralService, useValue: { applyReferral: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 

@@ -71,11 +71,15 @@ Coin purchase and unlock records are separate from learning progress. `ContentUn
 
 `Payment.couponId` is a FK to `Coupon` (added in Phase 1B); orphan coupon references were scanned before the constraint was applied. Refunds are recorded in the `LiveRefund` ledger (unique by `paymentId`) instead of a bare `Payment.status` flip, mirroring the `XPTransaction` movement-ledger pattern.
 
+`Payment` also covers live product purchases (`LIVE_*` product types). Instapay transfers follow a manual lifecycle `PENDING → AWAITING_APPROVAL → SUCCESSFUL/REJECTED`; proof fields (`proofGatewayRef`, `proofSenderNumber`, `proofTransactionRef`, `proofScreenshot`, `adminNote`) store the submitted evidence and review note. Live product prices are stored in `system_settings` under key `live_product_prices` as a JSON map keyed by product code (defaults applied when unset).
+
 ### Live Learning
 
-`LiveSession`, `LiveAnnouncement`, `LiveSessionControlLog`, `LiveBooking`, `LiveSubscription`, `LiveWaitingList`, `LiveAttendance`, `TeacherAvailability`, `TeacherDateBlock`, `TeacherLiveSettings`.
+`LiveSession`, `LiveAnnouncement`, `LiveSessionControlLog`, `LiveBooking`, `LiveSubscription`, `LiveWaitingList`, `LiveAttendance`, `TeacherAvailability`, `TeacherDateBlock`, `TeacherLiveSettings`, `StudySchedule`, `StudyScheduleDay`.
 
 Availability and date blocks use soft-delete fields. A booking is unique by `(sessionId, studentId)`. A waiting-list entry is unique by `(sessionId, studentId)` and carries a `position` for first-in-first-out promotion. `LiveBooking` stores the reschedule request lifecycle (`rescheduleRequestedAt`, `rescheduleReason`, `rescheduleStatus`, `rescheduleResolvedAt`, `rescheduleResolvedById`) with status `REQUESTED` → `APPROVED`/`REJECTED`.
+
+`StudySchedule` is a recurring weekly template (name, type `PRIVATE`/`GROUP`, optional grade, `maxStudents`, `isActive`) owned by a teacher. `StudyScheduleDay` holds one recurring day row per schedule (`dayOfWeek`, `startTime`, `endTime`, optional `maxStudents`). Together they drive monthly plan purchases: a purchase payload references a schedule id and the activation service distributes the plan's session count evenly across the schedule's days.
 
 ### Communication And AI
 

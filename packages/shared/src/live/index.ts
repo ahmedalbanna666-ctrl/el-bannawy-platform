@@ -44,6 +44,32 @@ export enum LiveSubscriptionTypeEnum {
   PRIVATE_MONTHLY = "PRIVATE_MONTHLY",
   GROUP_MONTHLY = "GROUP_MONTHLY",
   ONE_TIME_PRIVATE = "ONE_TIME_PRIVATE",
+  PRIVATE_PLAN_A = "PRIVATE_PLAN_A",
+  PRIVATE_PLAN_B = "PRIVATE_PLAN_B",
+  GROUP_PLAN_A = "GROUP_PLAN_A",
+  GROUP_PLAN_B = "GROUP_PLAN_B",
+}
+
+/**
+ * The six bookable live products exposed to students.
+ * Plan A = one session per week, Plan B = two sessions per week (both monthly).
+ * ONE_TIME and FREE are standalone. Prices are stored in SystemSetting
+ * (`live_product_prices`), not in code.
+ */
+export const LIVE_PRODUCTS = [
+  "PRIVATE_PLAN_A",
+  "PRIVATE_PLAN_B",
+  "GROUP_PLAN_A",
+  "GROUP_PLAN_B",
+  "ONE_TIME",
+  "FREE",
+] as const;
+
+export type LiveProductCode = (typeof LIVE_PRODUCTS)[number];
+
+/** Payment.productType values for live products (prefix used by PaymentsService). */
+export function liveProductType(code: LiveProductCode): string {
+  return code === "FREE" ? "LIVE_FREE" : `LIVE_${code}`;
 }
 
 export enum LiveSubscriptionStatusEnum {

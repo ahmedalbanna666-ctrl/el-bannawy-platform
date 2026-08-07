@@ -1,6 +1,6 @@
 # Live API
 
-Version: 4.0.0
+Version: 4.1.0
 Source: `apps/backend/src/live/live.controller.ts`
 
 ## Base And Authorization
@@ -107,6 +107,41 @@ Behavior (reuse-only, no new business rules):
 - Each occurrence is materialized through the Scheduling Engine (`LiveAvailabilityService.materializeSessionFromSlot`) and booked through the unified `BookingEngineService` (all V1–V9 checks per occurrence).
 - `LiveSubscriptionService.isEligible`/`isExhausted` are checked per occurrence; once the entitlement is exhausted the remaining occurrences are reported `SKIPPED`.
 - Response: `data.occurrences` array with `{ date, status: "BOOKED" | "SKIPPED", reason?, booking? }`; `data.bookedCount` and `data.skippedCount` summarize the series. A `BOOKED` occurrence carries the engine booking payload including its `bookingKind`.
+
+## Study Schedules
+
+Recurring weekly templates that drive monthly plan purchases.
+
+| Method | Path               | Roles                 | Purpose                                  |
+| ------ | ------------------ | --------------------- | ---------------------------------------- |
+| GET    | `/schedules`       | Authenticated         | List schedules; optional `teacherId` query |
+| GET    | `/schedules/:id`   | Authenticated         | Read one schedule                        |
+| POST   | `/schedules`       | Administrator/Teacher | Create schedule                          |
+| PATCH  | `/schedules/:id`   | Administrator/Teacher | Update schedule (name, type, days, active) |
+| DELETE | `/schedules/:id`   | Administrator/Teacher | Delete schedule                          |
+
+`POST /schedules` body (`CreateStudyScheduleDto`):
+
+| Field         | Type     | Required | Description                                                        |
+| ------------- | -------- | -------- | ------------------------------------------------------------------ |
+| `name`        | string   | Yes      | Display name of the schedule                                       |
+| `type`        | enum     | Yes      | `PRIVATE` or `GROUP`                                               |
+| `maxStudents` | number   | No       | Group capacity (used by GROUP schedules)                           |
+| `gradeId`     | UUID     | No       | Optional grade scope                                               |
+| `days`        | array    | Yes      | Recurring day rows: `{ dayOfWeek, startTime, endTime, maxStudents? }` |
+
+Students read schedules through the shared `GET /schedules`; write operations are restricted to administrators and teachers.
+
+## Live Product Pricing
+
+| Method | Path                 | Roles         | Purpose                                             |
+| ------ | -------------------- | ------------- | --------------------------------------------------- |
+| GET    | `/products/pricing`  | Authenticated | Read the six live product prices (flat code → price map) |
+| PUT    | `/products/pricing`  | Administrator | Update one or more product prices                   |
+
+Products (`LIVE_*` codes): `PRIVATE_PLAN_A` (4 sessions), `PRIVATE_PLAN_B` (8), `GROUP_PLAN_A` (4), `GROUP_PLAN_B` (8), `ONE_TIME` (1), `FREE` (0).
+
+`GET /products/pricing` returns a flat map, e.g. `{ PRIVATE_PLAN_A: 500, ... }`. Persisted in `SystemSetting` under key `live_product_prices` with defaults applied when unset. `PUT /products/pricing` accepts the same flat map; invalid (negative / non-finite) prices are rejected.
 
 ## Per-Product Reports
 

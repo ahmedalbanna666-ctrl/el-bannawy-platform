@@ -20,12 +20,12 @@ import {
   useLiveSessions,
   useCancelBooking,
   useRequestReschedule,
-  useCreateSubscription,
   deriveSessionState,
   type LiveSubscriptionItem,
   type LiveSessionItem,
   type LiveBookingItem,
 } from "@/lib/live-api";
+import { useLivePricing } from "@/lib/live-shop-api";
 import { useAuthStore } from "@/lib/auth-store";
 import {
   Users,
@@ -44,11 +44,9 @@ import {
 function SubscriptionCard({
   subscriptions,
   isLoading,
-  onCreateSubscription,
 }: {
   subscriptions: LiveSubscriptionItem[];
   isLoading: boolean;
-  onCreateSubscription: (sub: LiveSubscriptionItem) => void;
 }): ReactNode {
   const router = useRouter();
 
@@ -138,7 +136,9 @@ function SubscriptionCard({
                   variant="outline"
                   size="sm"
                   className="shrink-0 rounded-xl border-primary-400/40 text-primary-600 dark:text-primary-300"
-                  onClick={(): void => { onCreateSubscription(sub); }}
+                  onClick={(): void => {
+                    router.push(isPrivate ? "/dashboard/live/private-monthly" : "/dashboard/live/group");
+                  }}
                 >
                   <RefreshCw className="h-4 w-4" />
                   تجديد
@@ -153,11 +153,10 @@ function SubscriptionCard({
 }
 
 function StudentView(): ReactNode {
-  const user = useAuthStore((s) => s.user);
   const { data: subscriptions, isLoading: subsLoading } = useLiveSubscriptions();
-  const { mutateAsync: createSubscription } = useCreateSubscription();
   const { mutateAsync: cancelBooking, isPending: isCancelling } = useCancelBooking();
   const { mutateAsync: requestReschedule } = useRequestReschedule();
+  const { data: pricing } = useLivePricing();
 
   const [cancelTarget, setCancelTarget] = useState<LiveBookingItem | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<LiveBookingItem | null>(null);
@@ -167,14 +166,6 @@ function StudentView(): ReactNode {
   const handleJoin = useCallback((booking: LiveBookingItem): void => {
     setJoinTarget(booking);
   }, []);
-
-  const handleCreateSubscription = useCallback(
-    (sub: LiveSubscriptionItem): void => {
-      if (!user || !sub.teacherId) return;
-      void createSubscription({ teacherId: sub.teacherId, type: sub.type });
-    },
-    [createSubscription, user],
-  );
 
   const handleConfirmCancel = useCallback(async (): Promise<void> => {
     if (!cancelTarget) return;
@@ -219,7 +210,6 @@ function StudentView(): ReactNode {
         <SubscriptionCard
           subscriptions={subscriptions ?? []}
           isLoading={subsLoading}
-          onCreateSubscription={handleCreateSubscription}
         />
       </section>
 
@@ -235,7 +225,7 @@ function StudentView(): ReactNode {
             icon={<User className="h-8 w-8" />}
             title="اشتراك فردي شهري"
             description="حصص خاصة أسبوعية متكررة مع معلمك."
-            price="اشتراك شهري"
+            price={pricing ? `من ${String(pricing.PRIVATE_PLAN_A)} EGP` : "اشتراك شهري"}
             badge="الأكثر طلباً"
             href="/dashboard/live/private-monthly"
             cta="اختر خطتك"
@@ -246,7 +236,7 @@ function StudentView(): ReactNode {
             icon={<Users className="h-8 w-8" />}
             title="حصص المجموعة"
             description="ادرس ضمن مجموعة ثابتة من زملائك."
-            price="اشتراك مجموعة"
+            price={pricing ? `من ${String(pricing.GROUP_PLAN_A)} EGP` : "اشتراك مجموعة"}
             href="/dashboard/live/group"
             cta="تصفح المجموعات"
             tone="violet"
@@ -255,7 +245,7 @@ function StudentView(): ReactNode {
             icon={<Zap className="h-8 w-8" />}
             title="حصة منفردة"
             description="احجز حصة واحدة حسب المواعيد المتاحة."
-            price="حسب الجدول"
+            price={pricing ? `${String(pricing.ONE_TIME)} EGP` : "حسب الجدول"}
             href="/dashboard/live/book"
             cta="احجز الآن"
             tone="amber"
@@ -264,6 +254,7 @@ function StudentView(): ReactNode {
             icon={<Gift className="h-8 w-8" />}
             title="فعاليات مجانية"
             description="انضم إلى جلسات مباشرة مجانية أسبوعياً."
+            price="مجاناً"
             href="/dashboard/live/events"
             cta="استكشف الفعاليات"
             tone="emerald"

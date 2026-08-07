@@ -4,6 +4,7 @@ import {
   Post,
   Patch,
   Delete,
+  Put,
   Param,
   Body,
   Query,
@@ -25,6 +26,8 @@ import { LiveRecurringBookingService } from "./live-recurring-booking.service";
 import { LiveReportsService } from "./live-reports.service";
 import { LiveAnalyticsService } from "./live-analytics.service";
 import { LiveDashboardService } from "./live-dashboard.service";
+import { LiveProductPricingService } from "./live-product-pricing.service";
+import { StudyScheduleService } from "./study-schedule.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
@@ -49,6 +52,8 @@ import {
   RecurringBookDto,
   ProductReportQueryDto,
   AnalyticsQueryDto,
+  CreateStudyScheduleDto,
+  UpdateStudyScheduleDto,
 } from "./dto/live.dto";
 
 @Controller("live")
@@ -68,6 +73,8 @@ export class LiveController {
     private readonly reports: LiveReportsService,
     private readonly analytics: LiveAnalyticsService,
     private readonly dashboard: LiveDashboardService,
+    private readonly pricing: LiveProductPricingService,
+    private readonly studySchedules: StudyScheduleService,
   ) {}
 
   @Get("sessions")
@@ -513,6 +520,81 @@ export class LiveController {
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.recurringBookings.bookSeries(userId, slotId, dto);
     return successResponse(data, "Recurring series booked");
+  }
+
+  // ── Study schedules ────────────────────────────────────────────────────
+
+  @Get("schedules")
+  async listSchedules(
+    @CurrentUser() userId: string,
+    @Query("teacherId") teacherId?: string,
+  ): Promise<ISuccessResponse<unknown[]>> {
+    const role = await this.access.resolveRole(userId);
+    const data = await this.studySchedules.listSchedules(userId, role, teacherId);
+    return successResponse(data);
+  }
+
+  @Get("schedules/:id")
+  async getSchedule(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const role = await this.access.resolveRole(userId);
+    const data = await this.studySchedules.getSchedule(id, userId, role);
+    return successResponse(data);
+  }
+
+  @Post("schedules")
+  @Roles("ADMINISTRATOR", "TEACHER")
+  async createSchedule(
+    @CurrentUser() userId: string,
+    @Body() dto: CreateStudyScheduleDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const role = await this.access.resolveRole(userId);
+    const data = await this.studySchedules.createSchedule(userId, role, dto);
+    return successResponse(data, "Study schedule created");
+  }
+
+  @Patch("schedules/:id")
+  @Roles("ADMINISTRATOR", "TEACHER")
+  async updateSchedule(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+    @Body() dto: UpdateStudyScheduleDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const role = await this.access.resolveRole(userId);
+    const data = await this.studySchedules.updateSchedule(id, userId, role, dto as Record<string, unknown>);
+    return successResponse(data, "Study schedule updated");
+  }
+
+  @Delete("schedules/:id")
+  @Roles("ADMINISTRATOR", "TEACHER")
+  async deleteSchedule(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<null>> {
+    const role = await this.access.resolveRole(userId);
+    await this.studySchedules.deleteSchedule(id, userId, role);
+    return successResponse(null, "Study schedule deleted");
+  }
+
+  // ── Live product pricing ───────────────────────────────────────────────
+
+  @Get("products/pricing")
+  async getProductPricing(): Promise<ISuccessResponse<unknown>> {
+    const data = await this.pricing.getPrices();
+    return successResponse(data);
+  }
+
+  @Put("products/pricing")
+  @Roles("ADMINISTRATOR")
+  async updateProductPricing(
+    @CurrentUser() userId: string,
+    @Body() prices: Record<string, number>,
+  ): Promise<ISuccessResponse<unknown>> {
+    const role = await this.access.resolveRole(userId);
+    const data = await this.pricing.updatePrices(userId, role, prices);
+    return successResponse(data, "Product pricing updated");
   }
 
   @Get("reports/products")

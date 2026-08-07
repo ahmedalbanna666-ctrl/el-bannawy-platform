@@ -111,6 +111,7 @@ export function PlyrVideoPlayer({
   const [customTime, setCustomTime] = useState(0);
   const [customDuration, setCustomDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubValue, setScrubValue] = useState(0);
@@ -190,6 +191,27 @@ export function PlyrVideoPlayer({
     setIsMuted(plyr.muted);
     showControlsTemporarily();
   }, [showControlsTemporarily]);
+
+  const setVideoVolume = useCallback((value: number): void => {
+    const clamped = Math.min(1, Math.max(0, value));
+    const plyr = plyrRef.current as { volume: number; muted: boolean } | null;
+    if (!plyr) return;
+    plyr.volume = clamped;
+    if (clamped > 0 && plyr.muted) {
+      plyr.muted = false;
+      setIsMuted(false);
+    }
+    setVolume(clamped);
+    showControlsTemporarily();
+  }, [showControlsTemporarily]);
+
+  const volumeUp = useCallback((): void => {
+    setVideoVolume(Math.min(1, (volume + 0.1)));
+  }, [setVideoVolume, volume]);
+
+  const volumeDown = useCallback((): void => {
+    setVideoVolume(Math.max(0, (volume - 0.1)));
+  }, [setVideoVolume, volume]);
 
   const applyQuality = useCallback((value: string): void => {
     setQuality(value);
@@ -499,6 +521,7 @@ export function PlyrVideoPlayer({
 
       player.on("ready", (): void => {
         setLoading(false);
+        setVolume(player.volume);
         // Resume from the latest saved position, read through a ref so the
         // player is never recreated when `startAt` changes mid-playback
         // (e.g. the periodic video-progress refetch) — which previously
@@ -524,6 +547,7 @@ export function PlyrVideoPlayer({
 
       player.on("volumechange", (): void => {
         setIsMuted(player.muted);
+        setVolume(player.volume);
       });
 
       player.on("qualitychange", (level: unknown): void => {
@@ -637,20 +661,30 @@ export function PlyrVideoPlayer({
         .plyr__controls { display: none !important; }
 
         /* ── Custom two-row control bar (AL-RAYAN identity) ─────────────── */
-        .elb-ctrl { position: absolute !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 6; display: flex !important; flex-direction: column !important; gap: 8px !important; padding: 10px 10px 8px !important; border-radius: 0 0 16px 16px !important; background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(10,14,26,0.72) 45%, rgba(10,14,26,0.88) 100%) !important; backdrop-filter: blur(14px) !important; -webkit-backdrop-filter: blur(14px) !important; border-top: 1px solid rgba(255,255,255,0.08) !important; transition: opacity 0.3s ease, transform 0.3s ease !important; }
+        .elb-ctrl { position: absolute !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 6; display: flex !important; flex-direction: column !important; gap: 8px !important; padding: 10px 10px 8px !important; border-radius: 0 0 16px 16px !important; background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.22) 55%, rgba(0,0,0,0.32) 100%) !important; backdrop-filter: blur(8px) !important; -webkit-backdrop-filter: blur(8px) !important; border-top: 1px solid rgba(255,255,255,0.06) !important; transition: opacity 0.3s ease, transform 0.3s ease !important; }
         .elb-ctrl.elb-ctrl-hidden { opacity: 0 !important; transform: translateY(10px) !important; pointer-events: none !important; }
         .elb-ctrl-row { display: flex !important; align-items: center !important; gap: 6px !important; min-width: 0 !important; }
-        .elb-ctrl-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 44px !important; height: 44px !important; min-width: 44px !important; border-radius: 12px !important; border: none !important; background: rgba(255,255,255,0.08) !important; color: rgba(255,255,255,0.92) !important; cursor: pointer !important; transition: background 0.2s, transform 0.1s !important; -webkit-tap-highlight-color: transparent !important; }
-        .elb-ctrl-btn:hover, .elb-ctrl-btn:active { background: rgba(255,255,255,0.16) !important; }
+        .elb-ctrl-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 44px !important; height: 44px !important; min-width: 44px !important; border-radius: 12px !important; border: none !important; background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.92) !important; cursor: pointer !important; transition: background 0.2s, transform 0.1s !important; -webkit-tap-highlight-color: transparent !important; }
+        .elb-ctrl-btn:hover, .elb-ctrl-btn:active { background: rgba(255,255,255,0.14) !important; }
         .elb-ctrl-btn svg { width: 22px !important; height: 22px !important; }
         .elb-ctrl-seek { position: relative !important; flex: 1 !important; min-width: 0 !important; height: 40px !important; display: flex !important; align-items: center !important; touch-action: none !important; cursor: pointer !important; }
-        .elb-ctrl-seek input[type=range] { -webkit-appearance: none !important; appearance: none !important; width: 100% !important; height: 6px !important; border-radius: 999px !important; background: rgba(255,255,255,0.2) !important; outline: none !important; margin: 0 !important; cursor: pointer !important; }
+        .elb-ctrl-seek input[type=range] { -webkit-appearance: none !important; appearance: none !important; width: 100% !important; height: 6px !important; border-radius: 999px !important; background: rgba(255,255,255,0.22) !important; outline: none !important; margin: 0 !important; cursor: pointer !important; }
         .elb-ctrl-seek input[type=range]::-webkit-slider-thumb { -webkit-appearance: none !important; appearance: none !important; width: 18px !important; height: 18px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important; cursor: pointer !important; }
         .elb-ctrl-seek input[type=range]::-moz-range-thumb { width: 18px !important; height: 18px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
-        .elb-ctrl-time { font-size: 12px !important; font-variant-numeric: tabular-nums !important; color: rgba(255,255,255,0.85) !important; white-space: nowrap !important; letter-spacing: 0.3px !important; }
+        .elb-ctrl-time { font-size: 12px !important; font-variant-numeric: tabular-nums !important; color: rgba(255,255,255,0.9) !important; white-space: nowrap !important; letter-spacing: 0.3px !important; }
         .elb-ctrl-spacer { flex: 1 !important; }
-        .elb-ctrl-quality-btn { display: inline-flex !important; align-items: center !important; gap: 4px !important; height: 40px !important; padding: 0 12px !important; border-radius: 12px !important; border: none !important; background: rgba(255,255,255,0.08) !important; color: rgba(255,255,255,0.92) !important; font-size: 12px !important; font-weight: 600 !important; cursor: pointer !important; transition: background 0.2s !important; -webkit-tap-highlight-color: transparent !important; }
-        .elb-ctrl-quality-btn:hover, .elb-ctrl-quality-btn:active { background: rgba(255,255,255,0.16) !important; }
+
+        /* Volume controls: mute toggle + up/down steppers + thin slider */
+        .elb-ctrl-volume { display: inline-flex !important; align-items: center !important; gap: 2px !important; padding: 0 4px !important; }
+        .elb-ctrl-volume .elb-ctrl-btn { width: 36px !important; height: 36px !important; min-width: 36px !important; border-radius: 10px !important; }
+        .elb-ctrl-volume .elb-ctrl-btn svg { width: 18px !important; height: 18px !important; }
+        .elb-ctrl-volume-slider { width: 64px !important; display: flex !important; align-items: center !important; }
+        .elb-ctrl-volume-slider input[type=range] { -webkit-appearance: none !important; appearance: none !important; width: 100% !important; height: 4px !important; border-radius: 999px !important; background: rgba(255,255,255,0.25) !important; outline: none !important; cursor: pointer !important; }
+        .elb-ctrl-volume-slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none !important; appearance: none !important; width: 14px !important; height: 14px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
+        .elb-ctrl-volume-slider input[type=range]::-moz-range-thumb { width: 14px !important; height: 14px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
+
+        .elb-ctrl-quality-btn { display: inline-flex !important; align-items: center !important; gap: 4px !important; height: 40px !important; padding: 0 12px !important; border-radius: 12px !important; border: none !important; background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.92) !important; font-size: 12px !important; font-weight: 600 !important; cursor: pointer !important; transition: background 0.2s !important; -webkit-tap-highlight-color: transparent !important; }
+        .elb-ctrl-quality-btn:hover, .elb-ctrl-quality-btn:active { background: rgba(255,255,255,0.14) !important; }
         .elb-ctrl-quality-btn svg { width: 18px !important; height: 18px !important; }
 
         /* ── Quality bottom sheet ───────────────────────────────────────── */
@@ -869,20 +903,49 @@ export function PlyrVideoPlayer({
                 </div>
               </div>
 
-              {/* Row 2: mute + time + quality + fullscreen */}
+              {/* Row 2: volume controls + time + quality + fullscreen */}
               <div className="elb-ctrl-row">
-                <button
-                  type="button"
-                  className="elb-ctrl-btn"
-                  aria-label={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
-                  onClick={(): void => { toggleMute(); }}
-                >
-                  {isMuted ? (
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
-                  ) : (
+                <div className="elb-ctrl-volume">
+                  <button
+                    type="button"
+                    className="elb-ctrl-btn"
+                    aria-label={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
+                    onClick={(): void => { toggleMute(); }}
+                  >
+                    {isMuted || volume === 0 ? (
+                      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" /></svg>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="elb-ctrl-btn"
+                    aria-label="خفض الصوت"
+                    onClick={(): void => { volumeDown(); }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 9v6h4l5 5V4L9 9H5z" /></svg>
+                  </button>
+                  <div className="elb-ctrl-volume-slider">
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={volume}
+                      onChange={(e): void => { setVideoVolume(Number(e.target.value)); }}
+                      aria-label="مستوى الصوت"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="elb-ctrl-btn"
+                    aria-label="رفع الصوت"
+                    onClick={(): void => { volumeUp(); }}
+                  >
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" /></svg>
-                  )}
-                </button>
+                  </button>
+                </div>
 
                 <span className="elb-ctrl-time" dir="ltr">
                   {formatTime(Math.floor(isScrubbing ? scrubValue : customTime))} / {formatTime(Math.floor(customDuration))}

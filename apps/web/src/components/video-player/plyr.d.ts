@@ -14,6 +14,7 @@ declare class Plyr {
   currentTime: number;
   readonly duration: number;
   muted: boolean;
+  volume: number;
   play(): void;
   pause(): void;
   restart(): void;

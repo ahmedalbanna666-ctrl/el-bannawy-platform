@@ -1,12 +1,23 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from "@nestjs/common";
 import { createHmac } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { ConfigurationService } from "../config/configuration.service";
 import { ReferralService } from "../referral/referral.service";
 import { LiveRefundStatusEnum } from "@el-bannawy/shared";
-import type { CheckoutDto, VerifyPaymentDto, CreateCouponDto, UpdateCouponDto, ValidateCouponDto } from "./dto/payment.dto";
+import { LiveProductPricingService } from "../live/live-product-pricing.service";
+import { LiveActivationService } from "../live/live-activation.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationPriority, NotificationTargetType } from "../notifications/dto/notification.dto";
+import type { CheckoutDto, VerifyPaymentDto, CreateCouponDto, UpdateCouponDto, ValidateCouponDto, SubmitPaymentProofDto, ReviewPaymentDto } from "./dto/payment.dto";
 
 const PAYMENT_TIMEOUT_MS = 30 * 60 * 1000;
+
+const REVIEWER_ROLES: readonly ("ADMINISTRATOR" | "SECRETARY" | "SUPPORT")[] = [
+  "ADMINISTRATOR",
+  "SECRETARY",
+  "SUPPORT",
+];
 
 @Injectable()
 export class PaymentsService {
@@ -14,6 +25,9 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigurationService,
     private readonly referralService: ReferralService,
+    private readonly livePricing: LiveProductPricingService,
+    private readonly liveActivation: LiveActivationService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private get paymentMode(): string {
@@ -61,7 +75,7 @@ export class PaymentsService {
         where: { id: payload.paymentId },
         data: { status: "SUCCESSFUL", gatewayRef: payload.gatewayRef, completedAt: new Date() },
       });
-      await this.activateContent(payment.userId, payment.productType, payment.productId, payment.amount);
+      await this.activateContent(payment.userId, payment.productType, payment.productId, payment.amount, payment.id);
     });
 
     return { received: true };
@@ -81,6 +95,10 @@ export class PaymentsService {
     let discount = 0;
     let couponId: string | null = null;
 
+    const livePrice = this.isLiveProduct(dto.productType)
+      ? await this.livePricing.getPrice(LiveProductPricingService.codeFromProductType(dto.productType))
+      : null;
+
     if (dto.couponCode) {
       const coupon = await this.prisma.coupon.findUnique({ where: { code: dto.couponCode } });
       if (!coupon) throw new BadRequestException("Invalid coupon code");
@@ -94,12 +112,13 @@ export class PaymentsService {
       }
 
       couponId = coupon.id;
+      const base = livePrice ?? this.getProductPrice(dto.productType);
       discount = coupon.discountType === "PERCENTAGE"
-        ? Math.round((this.getProductPrice(dto.productType) * coupon.discountValue) / 100)
+        ? Math.round((base * coupon.discountValue) / 100)
         : coupon.discountValue;
     }
 
-    const amount = Math.max(0, this.getProductPrice(dto.productType) - discount);
+    const amount = Math.max(0, (livePrice ?? this.getProductPrice(dto.productType)) - discount);
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -110,6 +129,7 @@ export class PaymentsService {
         paymentMethod: dto.paymentMethod,
         discount,
         ...(couponId ? { couponId } : {}),
+        ...(livePrice !== null && dto.metadata ? { metadata: dto.metadata as unknown as Prisma.InputJsonValue } : {}),
       },
     });
 
@@ -172,7 +192,7 @@ export class PaymentsService {
       );
     }
 
-    const gatewayFormatValid = this.verifyGatewayFormat(payment.paymentMethod, dto.gatewayRef ?? "");
+    const gatewayFormatValid = this.verifyGatewayFormat(payment.paymentMethod, dto.gatewayRef);
 
     if (!gatewayFormatValid && this.isProduction) {
       await this.prisma.payment.update({
@@ -186,7 +206,7 @@ export class PaymentsService {
 
     await this.prisma.$transaction(async (tx) => {
       const current = await tx.payment.findUnique({ where: { id: checkoutId }, select: { status: true } });
-      if (!current || current.status !== "PENDING") {
+      if (!current?.status || current.status !== "PENDING") {
         throw new ForbiddenException("Payment already processed");
       }
 
@@ -194,14 +214,14 @@ export class PaymentsService {
         where: { id: checkoutId },
         data: {
           status,
-          gatewayRef: dto.gatewayRef ?? null,
+          gatewayRef: dto.gatewayRef,
           gatewayResponse: JSON.stringify({ verified: signatureValid, signature: providedSig }),
           completedAt: new Date(),
         },
       });
 
       if (status === "SUCCESSFUL") {
-        await this.activateContent(updated.userId, updated.productType, updated.productId, updated.amount);
+        await this.activateContent(updated.userId, updated.productType, updated.productId, updated.amount, updated.id);
 
         const invoiceNumber = `INV-${String(Date.now())}-${String(Math.floor(Math.random() * 10000))}`;
         await tx.invoice.create({
@@ -263,6 +283,12 @@ export class PaymentsService {
         paymentMethod: true,
         status: true,
         gatewayRef: true,
+        metadata: true,
+        proofGatewayRef: true,
+        proofSenderNumber: true,
+        proofTransactionRef: true,
+        proofScreenshot: true,
+        adminNote: true,
         discount: true,
         createdAt: true,
         completedAt: true,
@@ -272,6 +298,154 @@ export class PaymentsService {
 
     if (!payment) throw new NotFoundException("Payment not found");
     return payment;
+  }
+
+  // ── Instapay manual approval flow ──────────────────────────────────────
+
+  async submitPaymentProof(
+    userId: string,
+    dto: SubmitPaymentProofDto,
+  ): Promise<unknown> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: dto.paymentId },
+    });
+    if (!payment) throw new NotFoundException("Payment not found");
+    if (payment.userId !== userId) {
+      throw new ForbiddenException("Not your payment");
+    }
+    if (payment.status !== "PENDING") {
+      throw new BadRequestException("Payment is not pending");
+    }
+
+    const updated = await this.prisma.payment.update({
+      where: { id: dto.paymentId },
+      data: {
+        status: "AWAITING_APPROVAL",
+        proofGatewayRef: dto.gatewayRef,
+        proofSenderNumber: dto.senderNumber,
+        proofTransactionRef: dto.transactionRef,
+        proofScreenshot: dto.screenshot ?? null,
+      },
+    });
+
+    void this.notifyReviewers(updated).catch((err: unknown) => {
+      Logger.error(
+        `Approval notification failed: ${err instanceof Error ? err.message : "Unknown"}`,
+        undefined,
+        "PaymentsService",
+      );
+    });
+
+    return updated;
+  }
+
+  async listApprovals(): Promise<unknown[]> {
+    return this.prisma.payment.findMany({
+      where: { status: "AWAITING_APPROVAL" },
+      orderBy: { createdAt: "asc" },
+      include: { user: { select: { id: true, fullName: true, email: true, mobileNumber: true } } },
+    });
+  }
+
+  async reviewPayment(
+    paymentId: string,
+    reviewerId: string,
+    dto: ReviewPaymentDto,
+  ): Promise<unknown> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+    });
+    if (!payment) throw new NotFoundException("Payment not found");
+    if (payment.status !== "AWAITING_APPROVAL") {
+      throw new BadRequestException("Payment is not awaiting approval");
+    }
+
+    const approved = dto.decision === "APPROVED";
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.payment.update({
+        where: { id: paymentId },
+        data: {
+          status: approved ? "SUCCESSFUL" : "REJECTED",
+          adminNote: dto.adminNote ?? null,
+          reviewedById: reviewerId,
+          reviewedAt: new Date(),
+          completedAt: approved ? new Date() : null,
+        },
+      });
+
+      if (approved) {
+        await this.activateContent(updated.userId, updated.productType, updated.productId, updated.amount, paymentId);
+
+        const existingInvoice = await tx.invoice.findUnique({ where: { paymentId } });
+        if (!existingInvoice) {
+          const invoiceNumber = `INV-${String(Date.now())}-${String(Math.floor(Math.random() * 10000))}`;
+          await tx.invoice.create({
+            data: { paymentId, number: invoiceNumber },
+          });
+        }
+      }
+
+      return updated;
+    });
+
+    void this.notifyStudentReview(reviewerId, payment, approved, dto.adminNote).catch((err: unknown) => {
+      Logger.error(
+        `Review notification failed: ${err instanceof Error ? err.message : "Unknown"}`,
+        undefined,
+        "PaymentsService",
+      );
+    });
+
+    return result;
+  }
+
+  private async notifyReviewers(payment: {
+    userId: string;
+    amount: number;
+    productType: string;
+  }): Promise<void> {
+    const reviewers = await this.prisma.user.findMany({
+      where: { role: { in: [...REVIEWER_ROLES] }, deletedAt: null },
+      select: { id: true },
+    });
+    const student = await this.prisma.user.findUnique({
+      where: { id: payment.userId },
+      select: { fullName: true },
+    });
+    const studentName = student?.fullName ?? "طالب";
+    const productName = payment.productType;
+
+    for (const reviewer of reviewers) {
+      await this.notifications.sendNotification(reviewer.id, {
+        type: "payment_receipt",
+        title: "طلب دفع جديد بانتظار المراجعة",
+        message:
+          `أرسل الطالب ${studentName} إثبات دفع: ${productName} ` +
+          `(${String(payment.amount)} EGP). برجاء مراجعة الطلب.`,
+        priority: NotificationPriority.MEDIUM,
+        targetType: NotificationTargetType.INDIVIDUAL,
+        targetId: reviewer.id,
+      });
+    }
+  }
+
+  private async notifyStudentReview(
+    reviewerId: string,
+    payment: { userId: string; amount: number; productType: string },
+    approved: boolean,
+    adminNote?: string,
+  ): Promise<void> {
+    void reviewerId;
+    await this.notifications.sendNotification(payment.userId, {
+      type: "payment_receipt",
+      title: approved ? "تمت الموافقة على طلب الدفع" : "تم رفض طلب الدفع",
+      message: approved
+        ? `تمت الموافقة على طلبك ودفع: ${payment.productType} (${String(payment.amount)} EGP).`
+        : `نعتذر، تم رفض طلب الدفع الخاص بك.${adminNote ? ` السبب: ${adminNote}` : ""}`,
+      priority: approved ? NotificationPriority.MEDIUM : NotificationPriority.HIGH,
+      targetType: NotificationTargetType.INDIVIDUAL,
+      targetId: payment.userId,
+    });
   }
 
   async getInvoices(userId: string): Promise<unknown> {
@@ -478,10 +652,13 @@ export class PaymentsService {
   }
 
   private normalizeProductType(productType: string): string {
-    return productType?.toLowerCase() ?? "";
+    return productType.toLowerCase();
   }
 
   private getProductPrice(productType: string): number {
+    if (this.isLiveProduct(productType)) {
+      return 0;
+    }
     const prices: Record<string, number> = {
       lesson: 200,
       unit: 800,
@@ -490,7 +667,16 @@ export class PaymentsService {
     return prices[this.normalizeProductType(productType)] ?? 200;
   }
 
-  private async activateContent(userId: string, productType: string, productId: string, amount: number): Promise<void> {
+  private isLiveProduct(productType: string): boolean {
+    return productType.toUpperCase().startsWith("LIVE_");
+  }
+
+  private async activateContent(userId: string, productType: string, productId: string, amount: number, paymentId?: string): Promise<void> {
+    if (this.isLiveProduct(productType)) {
+      if (!paymentId) throw new BadRequestException("Live activation requires the payment id");
+      await this.liveActivation.activate(userId, productType, paymentId);
+      return;
+    }
     switch (this.normalizeProductType(productType)) {
       case "coins": {
         const coinsToAdd = amount * 10;

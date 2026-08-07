@@ -3,7 +3,7 @@
 # El-bannawy Platform
 ## Payments API Specification
 
-Version: 1.0.0
+Version: 1.1.0
 
 ---
 
@@ -179,6 +179,77 @@ Response
     "transactionId":""
 }
 ```
+
+---
+
+# ==========================
+# MANUAL PAYMENT APPROVAL (INSTAPAY)
+# ==========================
+
+POST
+
+/payments/proof
+
+Description
+
+Submit Instapay transfer proof for an existing checkout.
+
+Role
+
+Authenticated student.
+
+Body
+
+```json
+{
+    "paymentId": "checkout-id",
+    "gatewayRef": "operation-number",
+    "senderNumber": "01xxxxxxxxx",
+    "transactionRef": "transfer-number",
+    "screenshot": "data:image/png;base64,..."
+}
+```
+
+`screenshot` is optional (base64 data URL). Submitting proof moves the payment from `PENDING` to `AWAITING_APPROVAL`.
+
+GET
+
+/payments/approvals/list
+
+Description
+
+List payments awaiting manual approval (`AWAITING_APPROVAL`).
+
+Role
+
+Administrator / Secretary / Support.
+
+POST
+
+/payments/:paymentId/review
+
+Description
+
+Approve or reject a payment awaiting manual approval.
+
+Role
+
+Administrator / Secretary / Support.
+
+Body
+
+```json
+{
+    "decision": "APPROVED",
+    "adminNote": "optional"
+}
+```
+
+`decision` is `APPROVED` or `REJECTED`. Approval activates the underlying live subscription idempotently (re-activation on repeated approval is a no-op); rejection requires an `adminNote`.
+
+Lifecycle
+
+`PENDING → AWAITING_APPROVAL → SUCCESSFUL / REJECTED`
 
 ---
 

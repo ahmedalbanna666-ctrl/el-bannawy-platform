@@ -4,9 +4,10 @@ import { PaymentsService } from "./payments.service";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { PaymentsRepository } from "./payments.repository";
 import { ReferralModule } from "../referral/referral.module";
+import { LiveModule } from "../live/live.module";
 
 @Module({
-  imports: [ReferralModule],
+  imports: [ReferralModule, LiveModule],
   controllers: [PaymentsController],
   providers: [PaymentsService, RolesGuard, PaymentsRepository],
   exports: [PaymentsService],

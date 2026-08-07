@@ -5,6 +5,7 @@ import { CacheService } from "../common/services/cache.service";
 import { EssayEvaluationService } from "../essay-evaluation/essay-evaluation.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { NotificationPriority, NotificationTargetType } from "../notifications/dto/notification.dto";
+import { selectQuestionsForAttempt } from "../common/utils/quiz-selection";
 import type { CreateQuizDto } from "./dto/create-quiz.dto";
 import type { UpdateQuizDto } from "./dto/update-quiz.dto";
 import type { SaveQuizAnswerDto } from "./dto/save-quiz.dto";
@@ -26,6 +27,8 @@ interface QuizSummary {
   published: boolean;
   allowRetry: boolean;
   showAnswers: boolean;
+  questionCount: number | null;
+  durationMinutes: number | null;
   _count: { questions: number };
 }
 
@@ -60,6 +63,8 @@ export class QuizService {
         published: true,
         allowRetry: true,
         showAnswers: true,
+        questionCount: true,
+        durationMinutes: true,
         _count: { select: { questions: true } },
       },
     });
@@ -96,9 +101,37 @@ export class QuizService {
     const quiz = await this.getQuiz(lessonId, userId);
     if (!quiz) throw new NotFoundException("Quiz not found");
 
-    const questions = await this.prisma.quizQuestion.findMany({
-      where: { quizId: quiz.id },
-      orderBy: { displayOrder: "asc" },
+    // Resolve the attempt whose subset will be shown.
+    const activeAttempt = await this.prisma.quizAttempt.findFirst({
+      where: { userId, quizId: quiz.id, submitted: false },
+      orderBy: { attemptNum: "desc" },
+      select: { id: true, attemptNum: true, questionIds: true },
+    });
+
+    let questionIds: string[];
+    let attemptNum: number;
+    if (activeAttempt && Array.isArray(activeAttempt.questionIds) && (activeAttempt.questionIds as string[]).length > 0) {
+      questionIds = activeAttempt.questionIds as string[];
+      attemptNum = activeAttempt.attemptNum;
+    } else {
+      // No active attempt yet → deterministic subset for the next attempt.
+      const usedAttempts = await this.prisma.quizAttempt.count({ where: { userId, quizId: quiz.id } });
+      attemptNum = usedAttempts + 1;
+      const all = await this.prisma.quizQuestion.findMany({
+        where: { quizId: quiz.id },
+        orderBy: { displayOrder: "asc" },
+        select: { id: true },
+      });
+      questionIds = selectQuestionsForAttempt(
+        all.map((q) => q.id),
+        quiz.id,
+        attemptNum,
+        quiz.questionCount,
+      );
+    }
+
+    const rows = await this.prisma.quizQuestion.findMany({
+      where: { id: { in: questionIds } },
       select: {
         id: true,
         type: true,
@@ -107,8 +140,12 @@ export class QuizService {
         displayOrder: true,
       },
     });
+    const byId = new Map(rows.map((r) => [r.id, r]));
 
-    return { questions };
+    return {
+      questions: questionIds.map((id) => byId.get(id)).filter((q): q is NonNullable<typeof q> => q !== undefined),
+      attemptNum,
+    };
   }
 
   async startAttempt(lessonId: string, userId: string): Promise<unknown> {
@@ -127,12 +164,28 @@ export class QuizService {
       throw new ForbiddenException("Maximum attempts reached");
     }
 
+    const attemptNum = totalAttempts + 1;
+
+    // Deterministic random subset for this attempt.
+    const allQuestionIds = await this.prisma.quizQuestion.findMany({
+      where: { quizId: quiz.id },
+      orderBy: { displayOrder: "asc" },
+      select: { id: true },
+    });
+    const questionIds = selectQuestionsForAttempt(
+      allQuestionIds.map((q) => q.id),
+      quiz.id,
+      attemptNum,
+      quiz.questionCount,
+    );
+
     const attempt = await this.prisma.quizAttempt.create({
       data: {
         userId,
         quizId: quiz.id,
-        attemptNum: totalAttempts + 1,
+        attemptNum,
         startedAt: new Date(),
+        questionIds,
       },
       select: {
         id: true,
@@ -141,7 +194,7 @@ export class QuizService {
       },
     });
 
-    return attempt;
+    return { ...attempt, questionCount: questionIds.length };
   }
 
   async submitQuiz(
@@ -162,6 +215,7 @@ export class QuizService {
             question: true,
             options: true,
             correctAnswer: true,
+            explanation: true,
             correctionMode: true,
           },
         },
@@ -177,20 +231,37 @@ export class QuizService {
 
     if (!latestAttempt) throw new ForbiddenException("No active attempt found. Start a new attempt first.");
 
+    // Grade only the questions selected for this attempt (random subset).
+    const selectedIds = Array.isArray(latestAttempt.questionIds) && (latestAttempt.questionIds as string[]).length > 0
+      ? (latestAttempt.questionIds as string[])
+      : quiz.questions.map((q) => q.id);
+
+    const byId = new Map(quiz.questions.map((q) => [q.id, q]));
+    const questions = selectedIds
+      .map((id) => byId.get(id))
+      .filter((q): q is NonNullable<typeof q> => q !== undefined);
+
     const quizAnswerRecords: {
       attemptId: string; questionId: string; answer: string; isCorrect: boolean;
       aiScore?: number; aiFeedback?: string; aiDetails?: unknown;
       grammarScore?: number; grammarErrors?: unknown;
       teacherReviewed?: boolean;
     }[] = [];
-    const wrongAnswersList: { questionId: string; studentAnswer: string }[] = [];
+    const wrongAnswersList: {
+      questionId: string; studentAnswer: string; correctAnswer: string | null;
+    }[] = [];
+    const details: {
+      id: string; type: string; question: string; options: string | null;
+      studentAnswer: string | null; correctAnswer: string | null;
+      explanation: string | null; isCorrect: boolean;
+    }[] = [];
     let correctCount = 0;
 
     const TEXT_QUESTION_TYPES = new Set(["FILL_IN_BLANKS", "SHORT_ANSWER", "ESSAY", "WRITING"]);
     const ESSAY_TYPES = new Set(["ESSAY", "WRITING"]);
 
-    for (let i = 0; i < quiz.questions.length; i++) {
-      const question = quiz.questions[i];
+    for (let i = 0; i < questions.length; i++) {
+      const question = questions[i];
       const rawAnswer = i < answers.length ? answers[i] : "";
       const studentAnswer = TEXT_QUESTION_TYPES.has(question.type) ? rawAnswer.trim() : rawAnswer.trim().toLowerCase();
       const correct = TEXT_QUESTION_TYPES.has(question.type) ? (question.correctAnswer ?? "").trim() : (question.correctAnswer ?? "").trim().toLowerCase();
@@ -237,18 +308,31 @@ export class QuizService {
         teacherReviewed,
       });
 
+      details.push({
+        id: question.id,
+        type: question.type,
+        question: question.question,
+        options: question.options,
+        studentAnswer: rawAnswer.trim() || null,
+        correctAnswer: question.correctAnswer,
+        explanation: question.explanation,
+        isCorrect,
+      });
+
       if (isCorrect) {
         correctCount++;
       } else {
         wrongAnswersList.push({
           questionId: question.id,
           studentAnswer: rawAnswer.trim(),
+          correctAnswer: question.correctAnswer,
         });
       }
     }
 
-    const score = quiz.questions.length > 0
-      ? Math.round((correctCount / quiz.questions.length) * 100)
+    const totalQuestions = questions.length;
+    const score = totalQuestions > 0
+      ? Math.round((correctCount / totalQuestions) * 100)
       : 0;
     const passed = score >= quiz.passingScore;
 
@@ -301,12 +385,13 @@ export class QuizService {
       score,
       correctAnswers: correctCount,
       wrongAnswers: wrongAnswersList.length,
-      totalQuestions: quiz.questions.length,
+      totalQuestions,
       passed,
       attemptNum: latestAttempt.attemptNum,
       xpAwarded,
       nextLessonUnlocked,
       wrongAnswersList,
+      details,
     };
   }
 
@@ -405,13 +490,21 @@ export class QuizService {
 
     if (!latestAttempt) throw new NotFoundException("No completed attempt found");
 
+    const selectedIds = Array.isArray(latestAttempt.questionIds) && (latestAttempt.questionIds as string[]).length > 0
+      ? (latestAttempt.questionIds as string[])
+      : quiz.questions.map((q) => q.id);
+    const byId = new Map(quiz.questions.map((q) => [q.id, q]));
+    const orderedQuestions = selectedIds
+      .map((id) => byId.get(id))
+      .filter((q): q is NonNullable<typeof q> => q !== undefined);
+
     const answerMap = new Map(latestAttempt.answers.map((a) => [a.questionId, a]));
 
     return {
       score: latestAttempt.score,
       passed: latestAttempt.passed,
       attemptNum: latestAttempt.attemptNum,
-      questions: quiz.questions.map((q) => {
+      questions: orderedQuestions.map((q) => {
         const studentAnswer = answerMap.get(q.id);
         return {
           id: q.id,
@@ -511,6 +604,8 @@ export class QuizService {
         published: dto.published ?? true,
         allowRetry: dto.allowRetry ?? true,
         showAnswers: dto.showAnswers ?? true,
+        questionCount: dto.questionCount,
+        durationMinutes: dto.durationMinutes,
         questions: {
           createMany: {
             data: dto.questions.map((q) => ({
@@ -595,6 +690,8 @@ export class QuizService {
         ...(dto.published !== undefined ? { published: dto.published } : {}),
         ...(dto.allowRetry !== undefined ? { allowRetry: dto.allowRetry } : {}),
         ...(dto.showAnswers !== undefined ? { showAnswers: dto.showAnswers } : {}),
+        ...(dto.questionCount !== undefined ? { questionCount: dto.questionCount } : {}),
+        ...(dto.durationMinutes !== undefined ? { durationMinutes: dto.durationMinutes } : {}),
       },
       include: {
         questions: {

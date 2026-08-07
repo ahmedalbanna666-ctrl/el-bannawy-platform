@@ -79,7 +79,7 @@ export async function generateCertificatePdf(input: CertificateInput): Promise<s
         errorCorrectionLevel: "M",
         margin: 1,
         width: 240,
-        color: { dark: "#16233f", light: "#ffffff" },
+        color: { dark: "#102A5A", light: "#ffffff" },
       });
     } catch {
       qrDataUrl = "";
@@ -91,9 +91,10 @@ export async function generateCertificatePdf(input: CertificateInput): Promise<s
   const node = buildCertificateNode(input, logoDataUri, qrDataUrl);
   document.body.appendChild(node);
   try {
+    // scale 3.125 ≈ 300 DPI on A4 landscape (1122px * 3.125 ≈ 3506px wide).
     const canvas = await html2canvas(node, {
-      scale: 3,
-      backgroundColor: "#fdfaf3",
+      scale: 3.125,
+      backgroundColor: "#F8F4E8",
       useCORS: true,
       allowTaint: false,
     });

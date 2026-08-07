@@ -107,6 +107,8 @@ interface LessonDocument {
 interface QuizData {
   readonly id: string;
   readonly title: string;
+  readonly questionCount: number | null;
+  readonly durationMinutes: number | null;
   readonly _count?: { readonly questions: number };
 }
 
@@ -974,6 +976,20 @@ function QuizBlock({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [questionCount, setQuestionCount] = useState<string>("");
+  const [durationMinutes, setDurationMinutes] = useState<string>("");
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  // Initialize settings inputs whenever the quiz data is (re)loaded.
+  const quizId = quiz?.id;
+  const initialCount = quiz?.questionCount ?? null;
+  const initialDuration = quiz?.durationMinutes ?? null;
+  const settingsInitRef = useRef(false);
+  if (quizId && !settingsInitRef.current) {
+    setQuestionCount(initialCount !== null ? String(initialCount) : "");
+    setDurationMinutes(initialDuration !== null ? String(initialDuration) : "");
+    settingsInitRef.current = true;
+  }
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) =>
@@ -986,6 +1002,31 @@ function QuizBlock({
     },
     onError: (err) => {
       setUploadError(err instanceof Error ? err.message : "فشل رفع الملف");
+    },
+  });
+
+  const settingsMutation = useMutation({
+    mutationFn: async () => {
+      if (!quizId) return;
+      const payload: Record<string, number> = {};
+      const qc = Number(questionCount);
+      if (questionCount.trim() !== "" && Number.isFinite(qc) && qc > 0) {
+        payload.questionCount = qc;
+      }
+      const dm = Number(durationMinutes);
+      if (durationMinutes.trim() !== "" && Number.isFinite(dm) && dm > 0) {
+        payload.durationMinutes = dm;
+      }
+      await api.patch(`/quizzes/${quizId}`, payload);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["quiz", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["/quizzes", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      setSettingsError(null);
+    },
+    onError: (err) => {
+      setSettingsError(err instanceof Error ? err.message : "فشل حفظ إعدادات الاختبار");
     },
   });
 
@@ -1034,6 +1075,52 @@ function QuizBlock({
             <div className="flex items-center gap-2 text-sm text-neutral-500">
               <Loader2 className="h-4 w-4 animate-spin text-primary-500" />
               <span>جاري الرفع...</span>
+            </div>
+          )}
+
+          {quiz && (
+            <div className="grid grid-cols-1 gap-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3 dark:border-neutral-700 dark:bg-neutral-900/40 sm:grid-cols-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                  عدد الأسئلة في كل محاولة (فارغ = كل الأسئلة)
+                </span>
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder={initialCount !== null ? String(initialCount) : "كل الأسئلة"}
+                  value={questionCount}
+                  onChange={(e): void => { setQuestionCount(e.target.value); }}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                  مدة الاختبار بالدقائق (فارغ = بدون مؤقت)
+                </span>
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder={initialDuration !== null ? String(initialDuration) : "بدون مؤقت"}
+                  value={durationMinutes}
+                  onChange={(e): void => { setDurationMinutes(e.target.value); }}
+                />
+              </label>
+              {settingsError && (
+                <p className="text-sm text-danger-500 sm:col-span-2" role="alert">{settingsError}</p>
+              )}
+              {settingsMutation.isSuccess && (
+                <p className="text-sm text-success-600 sm:col-span-2">تم حفظ إعدادات الاختبار</p>
+              )}
+              <div className="flex justify-end sm:col-span-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={settingsMutation.isPending}
+                  disabled={settingsMutation.isPending}
+                  onClick={(): void => { settingsMutation.mutate(); }}
+                >
+                  حفظ إعدادات الاختبار
+                </Button>
+              </div>
             </div>
           )}
 

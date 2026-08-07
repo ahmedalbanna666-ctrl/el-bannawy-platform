@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -40,6 +41,8 @@ interface QuizData {
   published: boolean;
   allowRetry: boolean;
   showAnswers: boolean;
+  questionCount: number | null;
+  durationMinutes: number | null;
   _count: { questions: number };
 }
 
@@ -49,6 +52,17 @@ interface QuizQuestion {
   question: string;
   options: string | null;
   displayOrder: number;
+}
+
+interface QuizDetail {
+  id: string;
+  type: string;
+  question: string;
+  options: string | null;
+  studentAnswer: string | null;
+  correctAnswer: string | null;
+  explanation: string | null;
+  isCorrect: boolean;
 }
 
 interface QuizResult {
@@ -61,7 +75,8 @@ interface QuizResult {
   attemptNum: number;
   xpAwarded?: number;
   nextLessonUnlocked?: boolean;
-  wrongAnswersList?: { questionId: string; studentAnswer: string; correctAnswer: string }[];
+  wrongAnswersList?: { questionId: string; studentAnswer: string; correctAnswer: string | null }[];
+  details?: QuizDetail[];
 }
 
 interface ReviewQuestion {
@@ -108,6 +123,8 @@ export default function QuizPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [prereqError, setPrereqError] = useState<string | null>(null);
+  const [resultDialogOpen, setResultDialogOpen] = useState(false);
+  const [resultFilter, setResultFilter] = useState<"all" | "correct" | "wrong">("all");
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queryClient = useQueryClient();
 
@@ -252,6 +269,8 @@ export default function QuizPage(): ReactNode {
       });
       if (res.data) {
         setResult(res.data);
+        setResultFilter("all");
+        setResultDialogOpen(true);
         if (saveTimerRef.current) clearInterval(saveTimerRef.current);
       }
     } catch (err) {
@@ -264,6 +283,8 @@ export default function QuizPage(): ReactNode {
           });
           if (retryRes.data) {
             setResult(retryRes.data);
+            setResultFilter("all");
+            setResultDialogOpen(true);
             if (saveTimerRef.current) clearInterval(saveTimerRef.current);
             return;
           }
@@ -405,13 +426,18 @@ href={`/dashboard/lessons/detail/${lessonId}`}
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-500">
               <span className="flex items-center gap-1">
                 <GraduationCap className="h-4 w-4" />
-                {quiz._count.questions} سؤال
+                {questions.length} من {quiz._count.questions} سؤال
               </span>
               <span className="flex items-center gap-1">
                 <Trophy className="h-4 w-4" />
                 نسبة النجاح {quiz.passingScore}%
               </span>
               <span>الحد الأقصى {quiz.maxAttempts} محاولات</span>
+              {quiz.durationMinutes !== null && quiz.durationMinutes > 0 && (
+                <span className="flex items-center gap-1">
+                  ⏱ مدة الاختبار {quiz.durationMinutes} دقيقة
+                </span>
+              )}
               {quiz.xpReward > 0 && (
                 <span className="flex items-center gap-1">
                   <Zap className="h-4 w-4" />
@@ -429,6 +455,7 @@ href={`/dashboard/lessons/detail/${lessonId}`}
           <div className="flex items-center gap-2 flex-wrap">
             <QuizCountdown
               active={!isSubmitted && !viewingReview && questions.length > 0}
+              durationMinutes={quiz.durationMinutes}
               onExpire={(): void => { void handleSubmit(); }}
             />
             {isSubmitted && quiz.showAnswers && (
@@ -547,6 +574,14 @@ href={`/dashboard/lessons/detail/${lessonId}`}
           </Button>
         </div>
       )}
+
+      <QuizResultDialog
+        open={resultDialogOpen}
+        result={result}
+        filter={resultFilter}
+        onFilterChange={setResultFilter}
+        onClose={(): void => { setResultDialogOpen(false); }}
+      />
     </div>
   );
 }
@@ -585,9 +620,11 @@ function QuizSkeleton(): ReactNode {
 // Isolated countdown: updates only this component every second (not the whole page).
 function QuizCountdown({
   active,
+  durationMinutes,
   onExpire,
 }: {
   active: boolean;
+  durationMinutes: number | null;
   onExpire: () => void;
 }): ReactNode {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -602,13 +639,14 @@ function QuizCountdown({
       setTimeLeft(null);
       return;
     }
+    const totalSeconds = (durationMinutes ?? 30) * 60;
     const savedEnd = localStorage.getItem("quiz_end_time");
     let endTime: number;
     if (savedEnd) {
       endTime = parseInt(savedEnd, 10);
       if (Date.now() >= endTime) { onExpireRef.current(); return; }
     } else {
-      endTime = Date.now() + 30 * 60 * 1000;
+      endTime = Date.now() + totalSeconds * 1000;
       localStorage.setItem("quiz_end_time", String(endTime));
     }
 
@@ -623,7 +661,7 @@ function QuizCountdown({
     }, 1000);
 
     return (): void => { clearInterval(id); };
-  }, [active]);
+  }, [active, durationMinutes]);
 
   if (timeLeft === null) return null;
 
@@ -640,5 +678,110 @@ function QuizCountdown({
     >
       ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
     </div>
+  );
+}
+
+// Result dialog after submitting: shows the percentage and lets the student
+// filter the questions by الصواب / الخطأ / كل الأسئلة.
+function QuizResultDialog({
+  open,
+  result,
+  filter,
+  onFilterChange,
+  onClose,
+}: {
+  open: boolean;
+  result: QuizResult | null;
+  filter: "all" | "correct" | "wrong";
+  onFilterChange: (f: "all" | "correct" | "wrong") => void;
+  onClose: () => void;
+}): ReactNode {
+  const details = result?.details ?? [];
+
+  const filtered = details.filter((d) => {
+    if (filter === "correct") return d.isCorrect;
+    if (filter === "wrong") return !d.isCorrect;
+    return true;
+  });
+
+  const filterButtons: { key: "all" | "correct" | "wrong"; label: string; count: number }[] = [
+    { key: "all", label: "كل الأسئلة", count: details.length },
+    { key: "correct", label: "الصواب", count: details.filter((d) => d.isCorrect).length },
+    { key: "wrong", label: "الخطأ", count: details.filter((d) => !d.isCorrect).length },
+  ];
+
+  return (
+    <Dialog open={open} onClose={onClose} title="نتيجة الاختبار">
+      <div className="flex flex-col gap-4">
+        {/* Score headline */}
+        <div className="flex flex-col items-center gap-2 py-2 text-center">
+          {result?.passed ? (
+            <CheckCircle className="h-10 w-10 text-success-500" />
+          ) : (
+            <XCircle className="h-10 w-10 text-warning-500" />
+          )}
+          <p className="text-3xl font-black text-neutral-900 dark:text-neutral-100">
+            {result?.score ?? 0}%
+          </p>
+          <p className="text-sm text-neutral-500">
+            {result?.correctAnswers ?? 0} صحيحة / {result?.wrongAnswers ?? 0} خاطئة من أصل {result?.totalQuestions ?? 0} سؤال
+          </p>
+          <Badge variant={result?.passed ? "success" : "warning"}>
+            {result?.passed ? "ناجح" : "حاول مرة أخرى"}
+          </Badge>
+        </div>
+
+        {/* Filter buttons */}
+        <div className="grid grid-cols-3 gap-2">
+          {filterButtons.map((btn) => (
+            <Button
+              key={btn.key}
+              variant={filter === btn.key ? "primary" : "outline"}
+              size="sm"
+              onClick={(): void => { onFilterChange(btn.key); }}
+            >
+              {btn.label} ({btn.count})
+            </Button>
+          ))}
+        </div>
+
+        {/* Filtered questions */}
+        {filtered.length === 0 ? (
+          <p className="py-6 text-center text-sm text-neutral-400">لا توجد أسئلة في هذا التصنيف</p>
+        ) : (
+          <div className="max-h-[50vh] flex flex-col gap-2 overflow-y-auto pe-1">
+            {filtered.map((d, idx) => (
+              <div
+                key={d.id}
+                className={`rounded-xl border p-3 text-sm ${
+                  d.isCorrect
+                    ? "border-success-500/50 bg-success-500/5"
+                    : "border-danger-500/50 bg-danger-500/5"
+                }`}
+              >
+                <p className="font-medium text-neutral-900 dark:text-neutral-100">
+                  {idx + 1}. {d.question}
+                </p>
+                <div className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
+                  <p>
+                    <span>إجابتك: </span>
+                    <span className={d.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
+                      {d.studentAnswer ?? "(فارغ)"}
+                    </span>
+                  </p>
+                  {!d.isCorrect && d.correctAnswer && (
+                    <p>
+                      <span>الإجابة الصحيحة: </span>
+                      <span className="font-medium text-success-600">{d.correctAnswer}</span>
+                    </p>
+                  )}
+                  {d.explanation && <p className="italic text-neutral-400">{d.explanation}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Dialog>
   );
 }
