@@ -393,7 +393,7 @@ function RegisterForm(): ReactNode {
           englishName: englishName || undefined,
           mobile: mobile ? normalizeEgyptMobile(mobile) : undefined,
           parentMobile: parentMobile ? normalizeEgyptMobile(parentMobile) : undefined,
-          password: password || undefined,
+          password: undefined,
           governorate: governorate || undefined,
           school: school || undefined,
           educationalSystem,
@@ -517,21 +517,25 @@ function RegisterForm(): ReactNode {
               onBlur={(): void => { setParentMobile(parentMobile ? normalizeEgyptMobile(parentMobile) : ""); }}
               leftIcon={<Phone className="h-5 w-5" />}
             />
-            <Input
-              label="كلمة المرور"
-              type={showPassword ? "text" : "password"}
-              placeholder="8 أحرف على الأقل"
-              value={password}
-              onChange={(e): void => { setPassword(e.target.value); }}
-              leftIcon={<Lock className="h-5 w-5" />}
-              rightIcon={
-                <button type="button" onClick={(): void => { setShowPassword(!showPassword); }} className="text-neutral-400 hover:text-neutral-600" aria-label={showPassword ? "إخفاء" : "إظهار"}>
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              }
-              required
-            />
-            <Input label="تأكيد كلمة المرور" type={showPassword ? "text" : "password"} placeholder="أعد كتابة كلمة المرور" value={confirmPassword} onChange={(e): void => { setConfirmPassword(e.target.value); }} leftIcon={<Lock className="h-5 w-5" />} required />
+            {!isOAuth && (
+              <>
+                <Input
+                  label="كلمة المرور"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="8 أحرف على الأقل"
+                  value={password}
+                  onChange={(e): void => { setPassword(e.target.value); }}
+                  leftIcon={<Lock className="h-5 w-5" />}
+                  rightIcon={
+                    <button type="button" onClick={(): void => { setShowPassword(!showPassword); }} className="text-neutral-400 hover:text-neutral-600" aria-label={showPassword ? "إخفاء" : "إظهار"}>
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  }
+                  required
+                />
+                <Input label="تأكيد كلمة المرور" type={showPassword ? "text" : "password"} placeholder="أعد كتابة كلمة المرور" value={confirmPassword} onChange={(e): void => { setConfirmPassword(e.target.value); }} leftIcon={<Lock className="h-5 w-5" />} required />
+              </>
+            )}
             <GovernorateSelect value={governorate} onChange={setGovernorate} required />
             <Input label="المدرسة" placeholder="اسم المدرسة" value={school} onChange={(e): void => { setSchool(e.target.value); }} leftIcon={<Building2 className="h-5 w-5" />} />
           </div>
