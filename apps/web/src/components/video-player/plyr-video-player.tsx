@@ -27,25 +27,6 @@ function isMobileViewport(): boolean {
   );
 }
 
-/** Request fullscreen on a specific element (with WebKit fallback). */
-function requestFullscreenOn(el: HTMLElement): Promise<void> {
-  try {
-    return el.requestFullscreen().catch(() => undefined);
-  } catch {
-    // fall through to WebKit variant
-  }
-  try {
-    const webkit = (el as HTMLElement & { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen;
-    if (webkit) {
-      webkit.call(el);
-      return Promise.resolve();
-    }
-  } catch {
-    // ignore
-  }
-  return Promise.resolve();
-}
-
 interface ScreenOrientationLike {
   lock?: (orientation: string) => Promise<void>;
   unlock?: () => void;
@@ -80,7 +61,35 @@ function unlockOrientation(): void {
 }
 
 function isDocumentFullscreen(): boolean {
-  return typeof document !== "undefined" && Boolean(document.fullscreenElement);
+  if (typeof document === "undefined") return false;
+  const doc = document as Document & {
+    webkitFullscreenElement?: Element | null;
+    webkitIsFullScreen?: boolean;
+  };
+  return Boolean(doc.fullscreenElement ?? doc.webkitFullscreenElement ?? doc.webkitIsFullScreen ?? false);
+}
+
+/** Request fullscreen on a specific element (with WebKit fallback). */
+function requestFullscreenOn(el: HTMLElement): Promise<void> {
+  const node = el as HTMLElement & {
+    webkitRequestFullscreen?: () => void;
+  };
+  try {
+    if (typeof node.requestFullscreen === "function") {
+      return node.requestFullscreen().catch(() => undefined);
+    }
+  } catch {
+    // fall through to WebKit variant
+  }
+  try {
+    if (node.webkitRequestFullscreen) {
+      node.webkitRequestFullscreen();
+      return Promise.resolve();
+    }
+  } catch {
+    // ignore
+  }
+  return Promise.resolve();
 }
 
 /** Format seconds as MM:SS (or H:MM:SS for durations >= 1h). */
@@ -525,6 +534,12 @@ export function PlyrVideoPlayer({
 
       player.on("ready", (): void => {
         setLoading(false);
+        // Ensure the video is NOT muted on start (browsers sometimes default
+        // to muted for iframe embeds without user gesture).
+        try {
+          player.muted = false;
+          if (typeof player.volume === "number") player.volume = 1;
+        } catch { /* ignore */ }
         // Resume from the latest saved position, read through a ref so the
         // player is never recreated when `startAt` changes mid-playback
         // (e.g. the periodic video-progress refetch) — which previously
@@ -650,7 +665,7 @@ export function PlyrVideoPlayer({
       <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
       <style>{`
         .plyr__video-embed { position: relative; overflow: hidden; pointer-events: none; }
-        .plyr__video-embed > * { pointer-events: auto; }
+        .plyr__video-embed iframe { pointer-events: none !important; }
         .plyr__video-embed iframe { position: absolute; top: -50% !important; left: 0; width: 100%; height: 200% !important; border: 0; max-width: none; }
         .plyr__poster { background-size: cover !important; background-position: center center !important; z-index: 4 !important; transition: opacity 0.2s ease; }
         .plyr--paused .plyr__poster { display: block !important; opacity: 1 !important; visibility: visible !important; }
@@ -674,6 +689,15 @@ export function PlyrVideoPlayer({
         .elb-ctrl-quality-btn { display: inline-flex !important; align-items: center !important; gap: 3px !important; height: 32px !important; padding: 0 8px !important; border-radius: 10px !important; border: none !important; background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.92) !important; font-size: 11px !important; font-weight: 600 !important; cursor: pointer !important; transition: background 0.2s !important; -webkit-tap-highlight-color: transparent !important; }
         .elb-ctrl-quality-btn:hover, .elb-ctrl-quality-btn:active { background: rgba(255,255,255,0.14) !important; }
         .elb-ctrl-quality-btn svg { width: 15px !important; height: 15px !important; }
+
+        /* Large center play button */
+        .elb-center-play { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 76px !important; height: 76px !important; border-radius: 50% !important; border: none !important; background: rgba(245,158,11,0.92) !important; color: #0a0e1a !important; cursor: pointer !important; box-shadow: 0 8px 30px rgba(0,0,0,0.45) !important; transition: transform 0.15s ease, background 0.2s ease !important; -webkit-tap-highlight-color: transparent !important; }
+        .elb-center-play:hover, .elb-center-play:active { transform: scale(1.06) !important; background: #fbbf24 !important; }
+        .elb-center-play svg { width: 34px !important; height: 34px !important; margin-left: 3px !important; }
+        @media (max-width: 768px) {
+          .elb-center-play { width: 64px !important; height: 64px !important; }
+          .elb-center-play svg { width: 28px !important; height: 28px !important; }
+        }
 
         /* Smaller, denser controls on phones. */
         @media (max-width: 768px) {
@@ -808,6 +832,20 @@ export function PlyrVideoPlayer({
         {loading && (
           <div className="elb-video-overlay absolute inset-0 flex items-center justify-center bg-neutral-900">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+          </div>
+        )}
+
+        {/* Large center play/pause button */}
+        {!loading && !activeQuestion && !completed && !isPlaying && (
+          <div className="absolute inset-0 z-[5] flex items-center justify-center">
+            <button
+              type="button"
+              aria-label="تشغيل الفيديو"
+              onClick={(): void => { togglePlay(); }}
+              className="elb-center-play"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+            </button>
           </div>
         )}
 
