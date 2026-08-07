@@ -18,25 +18,6 @@ interface PlyrVideoPlayerProps {
 const SAVE_INTERVAL_MS = 90_000;
 const EVENT_CHECK_INTERVAL_MS = 500;
 
-/** Best-effort request fullscreen on an element (with WebKit fallback). */
-function requestFullscreenOn(el: HTMLElement): Promise<void> {
-  try {
-    return el.requestFullscreen().catch(() => undefined);
-  } catch {
-    // Some older WebKit builds expose only webkitRequestFullscreen.
-  }
-  try {
-    const webkit = (el as HTMLElement & { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen;
-    if (webkit) {
-      webkit.call(el);
-      return Promise.resolve();
-    }
-  } catch {
-    // ignore
-  }
-  return Promise.resolve();
-}
-
 /** Mobile detection used to trim controls and auto-rotate on fullscreen. */
 function isMobileViewport(): boolean {
   return (
@@ -372,51 +353,17 @@ export function PlyrVideoPlayer({
         tooltips: { controls: true, seek: true },
       });
 
-      // On phones, entering fullscreen must use the native Fullscreen API on
-      // the root wrapper so the whole page is hidden and the orientation can be
-      // locked to landscape. Plyr's own YouTube fullscreen can leave the page
-      // visible behind the player and never fires screen.orientation.lock.
-      //
-      // IMPORTANT: Plyr enters fullscreen on its INTERNAL container first, so
-      // by the time `enterfullscreen` fires, `document.fullscreenElement` is
-      // already set and our `requestFullscreenOn(root)` is skipped — which is
-      // why the video was stretched to the screen ratio and cropped. We
-      // intercept the fullscreen button click (capture phase) so Plyr never
-      // enters fullscreen itself, and we drive it on `root` where our
-      // letterboxing CSS applies.
-      if (isMobile) {
-        const toggleMobileFullscreen = (): void => {
-          const root = rootRef.current;
-          if (!root) return;
-          if (isDocumentFullscreen()) {
-            void document.exitFullscreen().catch(() => undefined);
-            unlockOrientation();
-          } else {
-            void requestFullscreenOn(root).finally((): void => {
-              // Give the browser a moment to promote the element to fullscreen
-              // before requesting the orientation lock, otherwise it is rejected.
-              window.setTimeout(lockLandscape, 120);
-            });
-          }
-        };
-
-        // Capture-phase click handler on the container catches the Plyr
-        // fullscreen control (including when it is rendered asynchronously)
-        // and stops Plyr from handling it.
-        container.addEventListener(
-          "click",
-          (e: Event): void => {
-            const target = e.target as HTMLElement | null;
-            if (target?.closest('[data-plyr="fullscreen"]')) {
-              e.preventDefault();
-              e.stopPropagation();
-              toggleMobileFullscreen();
-            }
-          },
-          true,
-        );
-      }
-
+      // On phones, fullscreen is handled by Plyr on its internal container.
+      // We fix the crop purely in CSS (see `.plyr:fullscreen` rules below) by
+      // letterboxing the 16:9 stage, so the visible frame matches normal mode.
+      // We do NOT intercept the fullscreen button — Plyr must keep working.
+      player.on("enterfullscreen", (): void => {
+        if (isMobileViewport()) {
+          // Give the browser a moment to promote the element to fullscreen
+          // before requesting the orientation lock, otherwise it is rejected.
+          window.setTimeout(lockLandscape, 120);
+        }
+      });
       player.on("exitfullscreen", (): void => {
         unlockOrientation();
         // Also exit native fullscreen if it was left active.
@@ -567,13 +514,14 @@ export function PlyrVideoPlayer({
         .plyr.plyr--hide-controls .plyr__controls { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
         .plyr:not(.plyr--hide-controls) .plyr__controls { opacity: 1; }
 
-        /* ── Native fullscreen (mobile) ────────────────────────────────── */
-        /* The fullscreen layer fills the screen with a black background and
-           letterboxes the 16:9 stage so the visible frame is IDENTICAL to
-           normal mode — never cropped, never zoomed. The embed iframe keeps
-           Plyr's native top:-50%; height:200% rules so the middle of the
-           video is shown inside the 16:9 stage, exactly as in normal mode. */
-        .elb-video-root:fullscreen {
+        /* ── Fullscreen (mobile + desktop) ─────────────────────────────── */
+        /* Plyr requests fullscreen on its own container (#playerId = .plyr),
+           so the crop must be fixed on .plyr:fullscreen, not the wrapper.
+           The fullscreen layer fills the screen with a black background and
+           letterboxes a 16:9 stage so the visible frame is IDENTICAL to
+           normal mode — never cropped, never zoomed. */
+        .plyr:fullscreen,
+        .plyr--fullscreen-fallback {
           width: 100vw !important;
           height: 100vh !important;
           max-width: none !important;
@@ -589,33 +537,26 @@ export function PlyrVideoPlayer({
           align-items: center !important;
           justify-content: center !important;
         }
-        .elb-video-root:fullscreen .plyr__video-embed {
+        /* The embedded iframe becomes the 16:9 letterboxed stage. */
+        .plyr:fullscreen iframe,
+        .plyr--fullscreen-fallback iframe {
+          position: relative !important;
+          top: auto !important;
+          left: auto !important;
           width: min(100vw, calc(100vh * 16 / 9)) !important;
           height: min(100vh, calc(100vw * 9 / 16)) !important;
           aspect-ratio: 16 / 9 !important;
           max-width: none !important;
           max-height: none !important;
-          overflow: hidden !important;
-          background: #000 !important;
           flex: none !important;
-        }
-        /* Keep the embed iframe at its default Plyr sizing — do NOT stretch
-           it to fill the screen (that crops the top/bottom on 16:9+ screens). */
-        .elb-video-root:fullscreen .plyr__video-embed iframe {
-          top: -50% !important;
-          left: 0 !important;
-          width: 100% !important;
-          height: 200% !important;
-          max-width: none !important;
-          max-height: none !important;
-        }
-        .elb-video-root:fullscreen .plyr__controls {
-          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
+          border: 0 !important;
         }
         /* WebKit fullscreen (iOS Safari) — same letterboxing rules. */
-        .elb-video-root:-webkit-full-screen {
+        .plyr:-webkit-full-screen {
           width: 100vw !important;
           height: 100vh !important;
+          max-width: none !important;
+          max-height: none !important;
           aspect-ratio: auto !important;
           border-radius: 0 !important;
           overflow: hidden !important;
@@ -624,28 +565,28 @@ export function PlyrVideoPlayer({
           align-items: center !important;
           justify-content: center !important;
         }
-        .elb-video-root:-webkit-full-screen .plyr__video-embed {
+        .plyr:-webkit-full-screen iframe {
+          position: relative !important;
+          top: auto !important;
+          left: auto !important;
           width: min(100vw, calc(100vh * 16 / 9)) !important;
           height: min(100vh, calc(100vw * 9 / 16)) !important;
           aspect-ratio: 16 / 9 !important;
           max-width: none !important;
           max-height: none !important;
-          overflow: hidden !important;
-          background: #000 !important;
           flex: none !important;
+          border: 0 !important;
         }
-        .elb-video-root:-webkit-full-screen .plyr__video-embed iframe {
-          top: -50% !important;
-          left: 0 !important;
-          width: 100% !important;
-          height: 200% !important;
-          max-width: none !important;
-          max-height: none !important;
+        .plyr:fullscreen .plyr__controls,
+        .plyr--fullscreen-fallback .plyr__controls,
+        .plyr:-webkit-full-screen .plyr__controls {
+          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
         }
-        /* Keep overlays hidden while the native fullscreen layer is active
-           so only the video + controls are visible (YouTube-style). */
-        .elb-video-root:fullscreen .elb-video-overlay,
-        .elb-video-root:-webkit-full-screen .elb-video-overlay { display: none !important; }
+        /* Keep overlays hidden while fullscreen is active so only the video
+           + controls are visible (YouTube-style). */
+        .plyr:fullscreen .elb-video-overlay,
+        .plyr--fullscreen-fallback .elb-video-overlay,
+        .plyr:-webkit-full-screen .elb-video-overlay { display: none !important; }
       `}</style>
 
       <div
