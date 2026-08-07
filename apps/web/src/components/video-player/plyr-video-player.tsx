@@ -129,8 +129,6 @@ export function PlyrVideoPlayer({
   // ── Custom control bar state ──────────────────────────────────────────
   const [customTime, setCustomTime] = useState(0);
   const [customDuration, setCustomDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubValue, setScrubValue] = useState(0);
@@ -202,35 +200,6 @@ export function PlyrVideoPlayer({
     setCustomTime(value);
     showControlsTemporarily();
   }, [showControlsTemporarily]);
-
-  const toggleMute = useCallback((): void => {
-    const plyr = plyrRef.current as { muted: boolean } | null;
-    if (!plyr) return;
-    plyr.muted = !plyr.muted;
-    setIsMuted(plyr.muted);
-    showControlsTemporarily();
-  }, [showControlsTemporarily]);
-
-  const setVideoVolume = useCallback((value: number): void => {
-    const clamped = Math.min(1, Math.max(0, value));
-    const plyr = plyrRef.current as { volume: number; muted: boolean } | null;
-    if (!plyr) return;
-    plyr.volume = clamped;
-    if (clamped > 0 && plyr.muted) {
-      plyr.muted = false;
-      setIsMuted(false);
-    }
-    setVolume(clamped);
-    showControlsTemporarily();
-  }, [showControlsTemporarily]);
-
-  const volumeUp = useCallback((): void => {
-    setVideoVolume(Math.min(1, (volume + 0.1)));
-  }, [setVideoVolume, volume]);
-
-  const volumeDown = useCallback((): void => {
-    setVideoVolume(Math.max(0, (volume - 0.1)));
-  }, [setVideoVolume, volume]);
 
   const applyQuality = useCallback((value: string): void => {
     setQuality(value);
@@ -556,7 +525,6 @@ export function PlyrVideoPlayer({
 
       player.on("ready", (): void => {
         setLoading(false);
-        setVolume(player.volume);
         // Resume from the latest saved position, read through a ref so the
         // player is never recreated when `startAt` changes mid-playback
         // (e.g. the periodic video-progress refetch) — which previously
@@ -578,11 +546,6 @@ export function PlyrVideoPlayer({
         if (prevDuration <= 0 && player.duration > 0) {
           renderQuestionMarkers();
         }
-      });
-
-      player.on("volumechange", (): void => {
-        setIsMuted(player.muted);
-        setVolume(player.volume);
       });
 
       player.on("qualitychange", (level: unknown): void => {
@@ -707,16 +670,6 @@ export function PlyrVideoPlayer({
         .elb-ctrl-seek input[type=range]::-webkit-slider-thumb { -webkit-appearance: none !important; appearance: none !important; width: 15px !important; height: 15px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important; cursor: pointer !important; }
         .elb-ctrl-seek input[type=range]::-moz-range-thumb { width: 15px !important; height: 15px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
         .elb-ctrl-time { font-size: 11px !important; font-variant-numeric: tabular-nums !important; color: rgba(255,255,255,0.9) !important; white-space: nowrap !important; letter-spacing: 0.3px !important; }
-        .elb-ctrl-spacer { flex: 1 !important; }
-
-        /* Volume controls: mute toggle + up/down steppers + thin slider */
-        .elb-ctrl-volume { display: inline-flex !important; align-items: center !important; gap: 2px !important; padding: 0 2px !important; }
-        .elb-ctrl-volume .elb-ctrl-btn { width: 30px !important; height: 30px !important; min-width: 30px !important; border-radius: 8px !important; }
-        .elb-ctrl-volume .elb-ctrl-btn svg { width: 15px !important; height: 15px !important; }
-        .elb-ctrl-volume-slider { width: 52px !important; display: flex !important; align-items: center !important; }
-        .elb-ctrl-volume-slider input[type=range] { -webkit-appearance: none !important; appearance: none !important; width: 100% !important; height: 4px !important; border-radius: 999px !important; background: rgba(255,255,255,0.25) !important; outline: none !important; cursor: pointer !important; }
-        .elb-ctrl-volume-slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none !important; appearance: none !important; width: 12px !important; height: 12px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
-        .elb-ctrl-volume-slider input[type=range]::-moz-range-thumb { width: 12px !important; height: 12px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
 
         .elb-ctrl-quality-btn { display: inline-flex !important; align-items: center !important; gap: 3px !important; height: 32px !important; padding: 0 8px !important; border-radius: 10px !important; border: none !important; background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.92) !important; font-size: 11px !important; font-weight: 600 !important; cursor: pointer !important; transition: background 0.2s !important; -webkit-tap-highlight-color: transparent !important; }
         .elb-ctrl-quality-btn:hover, .elb-ctrl-quality-btn:active { background: rgba(255,255,255,0.14) !important; }
@@ -729,9 +682,6 @@ export function PlyrVideoPlayer({
           .elb-ctrl-btn { width: 32px !important; height: 32px !important; min-width: 32px !important; border-radius: 9px !important; }
           .elb-ctrl-btn svg { width: 16px !important; height: 16px !important; }
           .elb-ctrl-seek { height: 26px !important; }
-          .elb-ctrl-volume .elb-ctrl-btn { width: 26px !important; height: 26px !important; min-width: 26px !important; }
-          .elb-ctrl-volume .elb-ctrl-btn svg { width: 14px !important; height: 14px !important; }
-          .elb-ctrl-volume-slider { width: 44px !important; }
           .elb-ctrl-quality-btn { height: 28px !important; padding: 0 6px !important; font-size: 10px !important; }
           .elb-ctrl-quality-btn svg { width: 13px !important; height: 13px !important; }
           .elb-ctrl-time { font-size: 10px !important; }
@@ -760,9 +710,12 @@ export function PlyrVideoPlayer({
         /* ── Fullscreen (mobile + desktop) ─────────────────────────────── */
         /* We enter fullscreen on the FULL container (.elb-video-root) so the
            custom control bar stays visible above the video. The container
-           fills the viewport edge-to-edge; the embed iframe also fills the
-           fullscreen stage with object-fit:contain so the video is centered
-           with correct aspect ratio and NO leftover gaps on the sides. */
+           fills the viewport edge-to-edge with a black background and the
+           16:9 embed stage is centered inside it (contain) — the video always
+           keeps its correct aspect ratio and never overflows the screen.
+           The iframe uses Plyr's standard top:-50%; height:200% cropping so
+           only the actual video is visible and no YouTube chrome (logo,
+           buttons, metadata) appears. */
         .elb-video-root:fullscreen,
         .elb-video-root:-webkit-full-screen {
           width: 100vw !important;
@@ -780,33 +733,29 @@ export function PlyrVideoPlayer({
           align-items: center !important;
           justify-content: center !important;
         }
-        /* The embed stage also fills the whole screen, edge-to-edge. */
+        /* The 16:9 stage is centered and sized to fit the screen (contain). */
         .elb-video-root:fullscreen .plyr__video-embed,
         .elb-video-root:-webkit-full-screen .plyr__video-embed {
-          width: 100vw !important;
-          height: 100vh !important;
+          width: min(100vw, calc(100vh * 16 / 9)) !important;
+          height: min(100vh, calc(100vw * 9 / 16)) !important;
           max-width: none !important;
           max-height: none !important;
-          aspect-ratio: auto !important;
+          aspect-ratio: 16 / 9 !important;
           overflow: hidden !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
+          position: relative !important;
+          flex: none !important;
+          background: #000 !important;
         }
-        /* The iframe fills the fullscreen stage and the video is letterboxed
-           inside it (contain) so nothing is cropped and there is no unused
-           space around it. */
+        /* Crop the YouTube embed to the video only (Plyr's approach). */
         .elb-video-root:fullscreen .plyr__video-embed iframe,
         .elb-video-root:-webkit-full-screen .plyr__video-embed iframe {
-          position: relative !important;
-          top: auto !important;
-          left: auto !important;
-          width: 100vw !important;
-          height: 100vh !important;
+          position: absolute !important;
+          top: -50% !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 200% !important;
           max-width: none !important;
           max-height: none !important;
-          object-fit: contain !important;
-          flex: none !important;
           border: 0 !important;
         }
         /* The custom control bar sits on top inside fullscreen. */
@@ -829,13 +778,15 @@ export function PlyrVideoPlayer({
         .plyr:-webkit-full-screen .plyr__video-embed {
           width: 100% !important;
           height: 100% !important;
+          overflow: hidden !important;
         }
         .plyr:fullscreen .plyr__video-embed iframe,
         .plyr--fullscreen-fallback .plyr__video-embed iframe,
         .plyr:-webkit-full-screen .plyr__video-embed iframe {
+          top: -50% !important;
+          left: 0 !important;
           width: 100% !important;
-          height: 100% !important;
-          object-fit: contain !important;
+          height: 200% !important;
         }
       `}</style>
 
@@ -925,12 +876,11 @@ export function PlyrVideoPlayer({
               </div>
             )}
 
-            {/* Custom two-row control bar */}
+            {/* Custom single-layer control bar (full width) */}
             <div
               className={`elb-ctrl ${controlsVisible ? "" : "elb-ctrl-hidden"}`}
               onClick={(e): void => { e.stopPropagation(); }}
             >
-              {/* Row 1: play/pause + seek (no time) */}
               <div className="elb-ctrl-row">
                 <button
                   type="button"
@@ -958,57 +908,10 @@ export function PlyrVideoPlayer({
                     aria-label="شريط التقدم"
                   />
                 </div>
-              </div>
-
-              {/* Row 2: volume controls + time + quality + fullscreen */}
-              <div className="elb-ctrl-row">
-                <div className="elb-ctrl-volume">
-                  <button
-                    type="button"
-                    className="elb-ctrl-btn"
-                    aria-label={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
-                    onClick={(): void => { toggleMute(); }}
-                  >
-                    {isMuted || volume === 0 ? (
-                      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" /></svg>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="elb-ctrl-btn"
-                    aria-label="خفض الصوت"
-                    onClick={(): void => { volumeDown(); }}
-                  >
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 9v6h4l5 5V4L9 9H5z" /></svg>
-                  </button>
-                  <div className="elb-ctrl-volume-slider">
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={volume}
-                      onChange={(e): void => { setVideoVolume(Number(e.target.value)); }}
-                      aria-label="مستوى الصوت"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="elb-ctrl-btn"
-                    aria-label="رفع الصوت"
-                    onClick={(): void => { volumeUp(); }}
-                  >
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" /></svg>
-                  </button>
-                </div>
 
                 <span className="elb-ctrl-time" dir="ltr">
                   {formatTime(Math.floor(isScrubbing ? scrubValue : customTime))} / {formatTime(Math.floor(customDuration))}
                 </span>
-
-                <div className="elb-ctrl-spacer" />
 
                 <button
                   type="button"
