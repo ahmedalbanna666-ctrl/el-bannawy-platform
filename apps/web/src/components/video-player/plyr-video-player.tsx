@@ -27,6 +27,25 @@ function isMobileViewport(): boolean {
   );
 }
 
+/** Request fullscreen on a specific element (with WebKit fallback). */
+function requestFullscreenOn(el: HTMLElement): Promise<void> {
+  try {
+    return el.requestFullscreen().catch(() => undefined);
+  } catch {
+    // fall through to WebKit variant
+  }
+  try {
+    const webkit = (el as HTMLElement & { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen;
+    if (webkit) {
+      webkit.call(el);
+      return Promise.resolve();
+    }
+  } catch {
+    // ignore
+  }
+  return Promise.resolve();
+}
+
 interface ScreenOrientationLike {
   lock?: (orientation: string) => Promise<void>;
   unlock?: () => void;
@@ -229,8 +248,19 @@ export function PlyrVideoPlayer({
   }, [playerId, showControlsTemporarily]);
 
   const toggleFullscreen = useCallback((): void => {
-    const plyr = plyrRef.current as { fullscreen?: { toggle: () => void } } | null;
-    if (plyr?.fullscreen) plyr.fullscreen.toggle();
+    const root = rootRef.current;
+    if (!root) return;
+    if (isDocumentFullscreen()) {
+      void document.exitFullscreen().catch(() => undefined);
+      unlockOrientation();
+    } else {
+      // Enter fullscreen on the FULL container (which contains the custom
+      // control bar), not on Plyr's internal embed container — otherwise the
+      // controls stay behind and the video is letterboxed inside the screen.
+      void requestFullscreenOn(root).finally((): void => {
+        window.setTimeout(lockLandscape, 120);
+      });
+    }
     showControlsTemporarily();
   }, [showControlsTemporarily]);
 
@@ -368,8 +398,13 @@ export function PlyrVideoPlayer({
 
   useEffect(() => {
     const onFullscreenChange = (): void => {
-      // Release the orientation lock whenever fullscreen is exited.
-      if (!isDocumentFullscreen()) {
+      // Lock landscape on entry (native fullscreen on the root wrapper),
+      // release the orientation lock whenever fullscreen is exited.
+      if (isDocumentFullscreen()) {
+        if (isMobileViewport()) {
+          window.setTimeout(lockLandscape, 120);
+        }
+      } else {
         unlockOrientation();
       }
       // If a question is active, never let the video stay in fullscreen behind
@@ -661,31 +696,46 @@ export function PlyrVideoPlayer({
         .plyr__controls { display: none !important; }
 
         /* ── Custom two-row control bar (AL-RAYAN identity) ─────────────── */
-        .elb-ctrl { position: absolute !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 6; display: flex !important; flex-direction: column !important; gap: 8px !important; padding: 10px 10px 8px !important; border-radius: 0 0 16px 16px !important; background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.22) 55%, rgba(0,0,0,0.32) 100%) !important; backdrop-filter: blur(8px) !important; -webkit-backdrop-filter: blur(8px) !important; border-top: 1px solid rgba(255,255,255,0.06) !important; transition: opacity 0.3s ease, transform 0.3s ease !important; }
+        .elb-ctrl { position: absolute !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 6; display: flex !important; flex-direction: column !important; gap: 6px !important; padding: 8px 8px 6px !important; border-radius: 0 0 16px 16px !important; background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.22) 55%, rgba(0,0,0,0.32) 100%) !important; backdrop-filter: blur(8px) !important; -webkit-backdrop-filter: blur(8px) !important; border-top: 1px solid rgba(255,255,255,0.06) !important; transition: opacity 0.3s ease, transform 0.3s ease !important; }
         .elb-ctrl.elb-ctrl-hidden { opacity: 0 !important; transform: translateY(10px) !important; pointer-events: none !important; }
-        .elb-ctrl-row { display: flex !important; align-items: center !important; gap: 6px !important; min-width: 0 !important; }
-        .elb-ctrl-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 44px !important; height: 44px !important; min-width: 44px !important; border-radius: 12px !important; border: none !important; background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.92) !important; cursor: pointer !important; transition: background 0.2s, transform 0.1s !important; -webkit-tap-highlight-color: transparent !important; }
+        .elb-ctrl-row { display: flex !important; align-items: center !important; gap: 4px !important; min-width: 0 !important; }
+        .elb-ctrl-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 36px !important; height: 36px !important; min-width: 36px !important; border-radius: 10px !important; border: none !important; background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.92) !important; cursor: pointer !important; transition: background 0.2s, transform 0.1s !important; -webkit-tap-highlight-color: transparent !important; }
         .elb-ctrl-btn:hover, .elb-ctrl-btn:active { background: rgba(255,255,255,0.14) !important; }
-        .elb-ctrl-btn svg { width: 22px !important; height: 22px !important; }
-        .elb-ctrl-seek { position: relative !important; flex: 1 !important; min-width: 0 !important; height: 40px !important; display: flex !important; align-items: center !important; touch-action: none !important; cursor: pointer !important; }
-        .elb-ctrl-seek input[type=range] { -webkit-appearance: none !important; appearance: none !important; width: 100% !important; height: 6px !important; border-radius: 999px !important; background: rgba(255,255,255,0.22) !important; outline: none !important; margin: 0 !important; cursor: pointer !important; }
-        .elb-ctrl-seek input[type=range]::-webkit-slider-thumb { -webkit-appearance: none !important; appearance: none !important; width: 18px !important; height: 18px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important; cursor: pointer !important; }
-        .elb-ctrl-seek input[type=range]::-moz-range-thumb { width: 18px !important; height: 18px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
-        .elb-ctrl-time { font-size: 12px !important; font-variant-numeric: tabular-nums !important; color: rgba(255,255,255,0.9) !important; white-space: nowrap !important; letter-spacing: 0.3px !important; }
+        .elb-ctrl-btn svg { width: 18px !important; height: 18px !important; }
+        .elb-ctrl-seek { position: relative !important; flex: 1 !important; min-width: 0 !important; height: 30px !important; display: flex !important; align-items: center !important; touch-action: none !important; cursor: pointer !important; }
+        .elb-ctrl-seek input[type=range] { -webkit-appearance: none !important; appearance: none !important; width: 100% !important; height: 5px !important; border-radius: 999px !important; background: rgba(255,255,255,0.22) !important; outline: none !important; margin: 0 !important; cursor: pointer !important; }
+        .elb-ctrl-seek input[type=range]::-webkit-slider-thumb { -webkit-appearance: none !important; appearance: none !important; width: 15px !important; height: 15px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important; cursor: pointer !important; }
+        .elb-ctrl-seek input[type=range]::-moz-range-thumb { width: 15px !important; height: 15px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
+        .elb-ctrl-time { font-size: 11px !important; font-variant-numeric: tabular-nums !important; color: rgba(255,255,255,0.9) !important; white-space: nowrap !important; letter-spacing: 0.3px !important; }
         .elb-ctrl-spacer { flex: 1 !important; }
 
         /* Volume controls: mute toggle + up/down steppers + thin slider */
-        .elb-ctrl-volume { display: inline-flex !important; align-items: center !important; gap: 2px !important; padding: 0 4px !important; }
-        .elb-ctrl-volume .elb-ctrl-btn { width: 36px !important; height: 36px !important; min-width: 36px !important; border-radius: 10px !important; }
-        .elb-ctrl-volume .elb-ctrl-btn svg { width: 18px !important; height: 18px !important; }
-        .elb-ctrl-volume-slider { width: 64px !important; display: flex !important; align-items: center !important; }
+        .elb-ctrl-volume { display: inline-flex !important; align-items: center !important; gap: 2px !important; padding: 0 2px !important; }
+        .elb-ctrl-volume .elb-ctrl-btn { width: 30px !important; height: 30px !important; min-width: 30px !important; border-radius: 8px !important; }
+        .elb-ctrl-volume .elb-ctrl-btn svg { width: 15px !important; height: 15px !important; }
+        .elb-ctrl-volume-slider { width: 52px !important; display: flex !important; align-items: center !important; }
         .elb-ctrl-volume-slider input[type=range] { -webkit-appearance: none !important; appearance: none !important; width: 100% !important; height: 4px !important; border-radius: 999px !important; background: rgba(255,255,255,0.25) !important; outline: none !important; cursor: pointer !important; }
-        .elb-ctrl-volume-slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none !important; appearance: none !important; width: 14px !important; height: 14px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
-        .elb-ctrl-volume-slider input[type=range]::-moz-range-thumb { width: 14px !important; height: 14px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
+        .elb-ctrl-volume-slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none !important; appearance: none !important; width: 12px !important; height: 12px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
+        .elb-ctrl-volume-slider input[type=range]::-moz-range-thumb { width: 12px !important; height: 12px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
 
-        .elb-ctrl-quality-btn { display: inline-flex !important; align-items: center !important; gap: 4px !important; height: 40px !important; padding: 0 12px !important; border-radius: 12px !important; border: none !important; background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.92) !important; font-size: 12px !important; font-weight: 600 !important; cursor: pointer !important; transition: background 0.2s !important; -webkit-tap-highlight-color: transparent !important; }
+        .elb-ctrl-quality-btn { display: inline-flex !important; align-items: center !important; gap: 3px !important; height: 32px !important; padding: 0 8px !important; border-radius: 10px !important; border: none !important; background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.92) !important; font-size: 11px !important; font-weight: 600 !important; cursor: pointer !important; transition: background 0.2s !important; -webkit-tap-highlight-color: transparent !important; }
         .elb-ctrl-quality-btn:hover, .elb-ctrl-quality-btn:active { background: rgba(255,255,255,0.14) !important; }
-        .elb-ctrl-quality-btn svg { width: 18px !important; height: 18px !important; }
+        .elb-ctrl-quality-btn svg { width: 15px !important; height: 15px !important; }
+
+        /* Smaller, denser controls on phones. */
+        @media (max-width: 768px) {
+          .elb-ctrl { gap: 5px !important; padding: 6px 6px 4px !important; }
+          .elb-ctrl-row { gap: 3px !important; }
+          .elb-ctrl-btn { width: 32px !important; height: 32px !important; min-width: 32px !important; border-radius: 9px !important; }
+          .elb-ctrl-btn svg { width: 16px !important; height: 16px !important; }
+          .elb-ctrl-seek { height: 26px !important; }
+          .elb-ctrl-volume .elb-ctrl-btn { width: 26px !important; height: 26px !important; min-width: 26px !important; }
+          .elb-ctrl-volume .elb-ctrl-btn svg { width: 14px !important; height: 14px !important; }
+          .elb-ctrl-volume-slider { width: 44px !important; }
+          .elb-ctrl-quality-btn { height: 28px !important; padding: 0 6px !important; font-size: 10px !important; }
+          .elb-ctrl-quality-btn svg { width: 13px !important; height: 13px !important; }
+          .elb-ctrl-time { font-size: 10px !important; }
+        }
 
         /* ── Quality bottom sheet ───────────────────────────────────────── */
         .elb-quality-overlay { position: absolute !important; inset: 0 !important; z-index: 20; display: flex !important; align-items: flex-end !important; background: rgba(0,0,0,0.4) !important; }
@@ -708,13 +758,13 @@ export function PlyrVideoPlayer({
         .elb-weak-toast-btn-keep:hover { background: rgba(255,255,255,0.16) !important; }
 
         /* ── Fullscreen (mobile + desktop) ─────────────────────────────── */
-        /* Plyr requests fullscreen on its own container (#playerId = .plyr),
-           so the crop must be fixed on .plyr:fullscreen, not the wrapper.
-           The fullscreen layer fills the screen with a black background and
-           letterboxes a 16:9 stage so the visible frame is IDENTICAL to
-           normal mode — never cropped, never zoomed. */
-        .plyr:fullscreen,
-        .plyr--fullscreen-fallback {
+        /* We enter fullscreen on the FULL container (.elb-video-root) so the
+           custom control bar stays visible above the video. The container
+           fills the viewport edge-to-edge; the embed iframe also fills the
+           fullscreen stage with object-fit:contain so the video is centered
+           with correct aspect ratio and NO leftover gaps on the sides. */
+        .elb-video-root:fullscreen,
+        .elb-video-root:-webkit-full-screen {
           width: 100vw !important;
           height: 100vh !important;
           max-width: none !important;
@@ -730,56 +780,63 @@ export function PlyrVideoPlayer({
           align-items: center !important;
           justify-content: center !important;
         }
-        /* The embedded iframe becomes the 16:9 letterboxed stage. */
-        .plyr:fullscreen iframe,
-        .plyr--fullscreen-fallback iframe {
-          position: relative !important;
-          top: auto !important;
-          left: auto !important;
-          width: min(100vw, calc(100vh * 16 / 9)) !important;
-          height: min(100vh, calc(100vw * 9 / 16)) !important;
-          aspect-ratio: 16 / 9 !important;
-          max-width: none !important;
-          max-height: none !important;
-          flex: none !important;
-          border: 0 !important;
-        }
-        /* WebKit fullscreen (iOS Safari) — same letterboxing rules. */
-        .plyr:-webkit-full-screen {
+        /* The embed stage also fills the whole screen, edge-to-edge. */
+        .elb-video-root:fullscreen .plyr__video-embed,
+        .elb-video-root:-webkit-full-screen .plyr__video-embed {
           width: 100vw !important;
           height: 100vh !important;
           max-width: none !important;
           max-height: none !important;
           aspect-ratio: auto !important;
-          border-radius: 0 !important;
           overflow: hidden !important;
-          background: #000 !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
         }
-        .plyr:-webkit-full-screen iframe {
+        /* The iframe fills the fullscreen stage and the video is letterboxed
+           inside it (contain) so nothing is cropped and there is no unused
+           space around it. */
+        .elb-video-root:fullscreen .plyr__video-embed iframe,
+        .elb-video-root:-webkit-full-screen .plyr__video-embed iframe {
           position: relative !important;
           top: auto !important;
           left: auto !important;
-          width: min(100vw, calc(100vh * 16 / 9)) !important;
-          height: min(100vh, calc(100vw * 9 / 16)) !important;
-          aspect-ratio: 16 / 9 !important;
+          width: 100vw !important;
+          height: 100vh !important;
           max-width: none !important;
           max-height: none !important;
+          object-fit: contain !important;
           flex: none !important;
           border: 0 !important;
         }
-        .plyr:fullscreen .plyr__controls,
-        .plyr--fullscreen-fallback .plyr__controls,
-        .plyr:-webkit-full-screen .plyr__controls {
+        /* The custom control bar sits on top inside fullscreen. */
+        .elb-video-root:fullscreen .elb-ctrl,
+        .elb-video-root:-webkit-full-screen .elb-ctrl {
+          position: absolute !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          border-radius: 0 !important;
           padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
         }
         /* Keep overlays hidden while fullscreen is active so only the video
            + controls are visible (YouTube-style). */
-        .plyr:fullscreen .elb-video-overlay,
-        .plyr--fullscreen-fallback .elb-video-overlay,
-        .plyr:-webkit-full-screen .elb-video-overlay { display: none !important; }
+        .elb-video-root:fullscreen .elb-video-overlay,
+        .elb-video-root:-webkit-full-screen .elb-video-overlay { display: none !important; }
+        /* Neutralize any Plyr fullscreen rules that might conflict. */
+        .plyr:fullscreen .plyr__video-embed,
+        .plyr--fullscreen-fallback .plyr__video-embed,
+        .plyr:-webkit-full-screen .plyr__video-embed {
+          width: 100% !important;
+          height: 100% !important;
+        }
+        .plyr:fullscreen .plyr__video-embed iframe,
+        .plyr--fullscreen-fallback .plyr__video-embed iframe,
+        .plyr:-webkit-full-screen .plyr__video-embed iframe {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain !important;
+        }
       `}</style>
 
       <div
