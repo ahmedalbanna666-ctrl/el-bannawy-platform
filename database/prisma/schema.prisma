@@ -483,16 +483,18 @@ model UserAchievement {
 }
 
 model UnitCertificate {
-  id       String   @id @default(uuid()) @db.Uuid
-  userId   String   @db.Uuid
-  unitId   String   @db.Uuid
-  fileName String
-  fileUrl  String
-  fileSize Int      @default(0)
-  mimeType String   @default("application/pdf")
-  earnedAt DateTime @default(now())
-  unit     Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  unitId           String   @db.Uuid
+  fileName         String
+  fileUrl          String
+  fileSize         Int      @default(0)
+  mimeType         String   @default("application/pdf")
+  /// Public code used for online verification (QR), e.g. "EB-XXXX-XXXX".
+  verificationCode String?  @unique @db.VarChar(32)
+  earnedAt         DateTime @default(now())
+  unit             Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, unitId])
   @@index([userId])

@@ -68,6 +68,12 @@ export class DeviceConfirmationError extends Error {
   }
 }
 
+const PUBLIC_PATHS = ["/certificates/verify"];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
@@ -82,7 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     const onSessionExpired = (): void => {
       clearStore();
       queryClient.clear();
-      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+      if (typeof window !== "undefined" && pathname !== "/login" && !isPublicPath(pathname)) {
         window.location.assign("/login");
       }
     };
@@ -137,7 +144,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         } catch {
           // ignore
         }
-        if (window.location.pathname !== "/login") {
+        const pathname = window.location.pathname;
+        if (pathname !== "/login" && !isPublicPath(pathname)) {
           window.location.assign("/login");
         }
       }

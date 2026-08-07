@@ -8,9 +8,10 @@ import {
   ParseUUIDPipe,
   Res,
 } from "@nestjs/common";
-import { IsString, IsOptional, IsMimeType } from "class-validator";
+import { IsString, IsOptional, IsMimeType, MaxLength } from "class-validator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
+import { SkipAuth } from "../common/decorators/skip-auth.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
 import { CertificatesService, type IssueCertificateInput } from "./certificates.service";
 import type { Response } from "express";
@@ -25,6 +26,11 @@ class IssueCertificateDto implements IssueCertificateInput {
 
   @IsString()
   data!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  verificationCode?: string;
 }
 
 @Controller("certificates")
@@ -35,6 +41,15 @@ export class CertificatesController {
   @Get("config")
   async getConfig(@CurrentUser() _userId: string): Promise<ISuccessResponse<unknown>> {
     return successResponse(await this.service.getConfig(), "Certificate config retrieved");
+  }
+
+  @SkipAuth()
+  @Get("verify/:code")
+  async verifyByCode(
+    @Param("code") code: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.service.verifyByCode(code);
+    return successResponse(data, "Certificate verified");
   }
 
   @Get("eligible")

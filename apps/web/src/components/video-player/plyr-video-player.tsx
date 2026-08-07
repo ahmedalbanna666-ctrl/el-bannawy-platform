@@ -376,22 +376,47 @@ export function PlyrVideoPlayer({
       // the root wrapper so the whole page is hidden and the orientation can be
       // locked to landscape. Plyr's own YouTube fullscreen can leave the page
       // visible behind the player and never fires screen.orientation.lock.
-      player.on("enterfullscreen", (): void => {
-        if (!isMobileViewport()) return;
-        const root = rootRef.current;
+      //
+      // IMPORTANT: Plyr enters fullscreen on its INTERNAL container first, so
+      // by the time `enterfullscreen` fires, `document.fullscreenElement` is
+      // already set and our `requestFullscreenOn(root)` is skipped — which is
+      // why the video was stretched to the screen ratio and cropped. We
+      // intercept the fullscreen button click (capture phase) so Plyr never
+      // enters fullscreen itself, and we drive it on `root` where our
+      // letterboxing CSS applies.
+      if (isMobile) {
+        const toggleMobileFullscreen = (): void => {
+          const root = rootRef.current;
+          if (!root) return;
+          if (isDocumentFullscreen()) {
+            void document.exitFullscreen().catch(() => undefined);
+            unlockOrientation();
+          } else {
+            void requestFullscreenOn(root).finally((): void => {
+              // Give the browser a moment to promote the element to fullscreen
+              // before requesting the orientation lock, otherwise it is rejected.
+              window.setTimeout(lockLandscape, 120);
+            });
+          }
+        };
 
-        // 1) Make sure the native Fullscreen API is actually engaged on the
-        //    player wrapper (not just Plyr's internal fullscreen class).
-        if (!isDocumentFullscreen() && root) {
-          void requestFullscreenOn(root).finally((): void => {
-            // Give the browser a moment to promote the element to fullscreen
-            // before requesting the orientation lock, otherwise it is rejected.
-            window.setTimeout(lockLandscape, 120);
-          });
-        } else {
-          window.setTimeout(lockLandscape, 120);
-        }
-      });
+        // Capture-phase click handler on the container catches the Plyr
+        // fullscreen control (including when it is rendered asynchronously)
+        // and stops Plyr from handling it.
+        container.addEventListener(
+          "click",
+          (e: Event): void => {
+            const target = e.target as HTMLElement | null;
+            if (target?.closest('[data-plyr="fullscreen"]')) {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleMobileFullscreen();
+            }
+          },
+          true,
+        );
+      }
+
       player.on("exitfullscreen", (): void => {
         unlockOrientation();
         // Also exit native fullscreen if it was left active.

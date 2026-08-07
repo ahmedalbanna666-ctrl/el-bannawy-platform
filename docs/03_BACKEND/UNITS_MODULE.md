@@ -258,7 +258,7 @@ Coins are never awarded automatically unless documented.
 
 # Certificates
 
-A student receives an automatic Certificate of Appreciation (شهادة تقدير) when a unit's progress reaches the percentage threshold configured by the administrator.
+A student receives an automatic Certificate of Achievement (شهادة تقدير) when a unit's progress reaches the percentage threshold configured by the administrator.
 
 Rules:
 
@@ -267,19 +267,32 @@ Rules:
 - Certificates are stored in `unit_certificates` (one per student + unit, idempotent).
 - The certificate appears on the completed unit card in the units map (شهادة button).
 - Certificates are listed on the Achievements page (الإنجازات) with view + PDF download.
+- The uploaded PDF must not exceed `MAX_FILE_SIZE` (5 MB); the frontend embeds a JPEG (quality 0.92) at scale 3 to keep the file well under the limit.
 
-Certificate design:
+Certificate design (v2):
 
-- English language (CERTIFICATE OF ACHIEVEMENT).
+- English language (CERTIFICATE OF ACHIEVEMENT), premium editorial layout on an ivory paper texture with gold double frame and corner ornaments, watermark "EL-BANNAWY", decorative top/bottom waves, and the platform logo.
+- Fonts: Cinzel (title), Playfair Display (student name / serif accents), Inter (supporting text). Loaded from Google Fonts.
 - Student name: uses the student's English name (`englishName`) from the profile; falls back to the Arabic name (`fullName`) when no English name is set.
-- Shows: unit number + title, completion percentage, and issue date.
-- Includes the platform logo and an official stamp bearing "MR. AHMED ELBANNA — FOUNDER".
+- Shows: unit number + title, completion percentage, derived grade label, stage, grade, course, academic year, and issue date.
+- Grade label is derived from the completion percentage: `Excellent` ≥ 90, `Very Good` ≥ 80, `Good` ≥ 70, `Pass` ≥ 60, otherwise `Needs Improvement`.
+- Includes the signature block (Mr. Ahmed Elbanna — Founder & CEO), a verified badge, the certificate ID (verification code), and a QR code linking to the public verification page.
+- The official stamp bearing "MR. AHMED ELBANNA — FOUNDER" was replaced by the signature block + verified badge in v2.
+
+Verification:
+
+- Every issued certificate receives a unique verification code (`EB-XXXX-XXXX`, e.g. `EB-8KF2-MXQ4`) stored in `unit_certificates.verificationCode` (`@unique`, `VARCHAR(32)`).
+- The QR code encodes the public URL `<site>/certificates/verify/<code>`.
+- Public endpoint (no authentication): `GET /certificates/verify/:code` → returns the certificate details when valid, otherwise a `verified: false` payload. No student personal data is exposed beyond the display name.
+- Public web page `apps/web/src/app/certificates/verify/[code]/page.tsx` renders the verification result.
+- The backend list/eligible endpoints enrich the payload with `gradeLabel`, `stageName`, `gradeName`, `termName`, `academicYearName`, and `courseName` used by the certificate template.
 
 Display:
 
 - Unit Card badge
 - Certificate modal
 - Achievements page section
+- Public verification page (QR)
 
 ---
 

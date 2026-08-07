@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   generateCertificatePdf,
   issueCertificate,
+  generateCertificateCode,
+  certificateVerifyUrl,
   type EligibleUnit,
 } from "@/lib/certificates";
 import { api } from "@/lib/api-client";
@@ -59,16 +61,26 @@ export function useAutoIssueCertificates(enabled = true): {
 
       for (const unit of eligible) {
         try {
+          const verificationCode = generateCertificateCode();
           const data = await generateCertificatePdf({
             studentName,
             unitNumber: unit.displayOrder,
             unitTitle: unit.title,
             percentage: unit.progress,
+            gradeLabel: unit.gradeLabel,
+            stageName: unit.stageName,
+            gradeName: unit.gradeName,
+            termName: unit.termName,
+            academicYearName: unit.academicYearName,
+            courseName: unit.courseName,
+            verificationCode,
+            verifyUrl: certificateVerifyUrl(verificationCode),
           });
           await issueCertificate(
             unit.unitId,
             `certificate-unit-${String(unit.displayOrder)}.pdf`,
             data,
+            verificationCode,
           );
         } catch {
           // Per-unit failure is retried on the next screen visit.
