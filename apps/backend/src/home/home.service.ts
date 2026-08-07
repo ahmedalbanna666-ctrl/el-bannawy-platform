@@ -356,13 +356,16 @@ export class HomeService {
       termId: string | null;
       educationalSystem: string | null;
     } | null,
-    currentProgress: { lessonId: string } | null,
+    currentProgress: { lessonId: string; progress: number } | null,
   ): Promise<DashboardData["nextAction"]> {
-    // 1) The student has an unfinished lesson → resume it.
+    // 1) The student has an unfinished lesson → resume it (only if they've
+    //    actually started it, i.e. made some progress). A record with
+    //    progress 0 means the lesson was merely opened → show "start".
     if (currentProgress) {
+      const started = currentProgress.progress > 0;
       return {
         type: "continue",
-        label: "استكمل الدرس",
+        label: started ? "استكمل الدرس" : "ابدأ الدرس",
         href: `/dashboard/lessons/detail/${currentProgress.lessonId}`,
       };
     }
@@ -416,7 +419,7 @@ export class HomeService {
 
     // 5) Nothing completed yet → start with the first available lesson.
     if (completedIds.size === 0) {
-      return { type: "start", label: "ابدأ الآن", href: `/dashboard/lessons/detail/${next.lessonId}` };
+      return { type: "start", label: "ابدأ الدرس", href: `/dashboard/lessons/detail/${next.lessonId}` };
     }
 
     // 6) Next lesson is in the same unit as the most recently completed one.
