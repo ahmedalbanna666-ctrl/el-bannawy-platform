@@ -404,9 +404,7 @@ function RoleRouter(): ReactNode {
   const role = user?.role;
 
   useEffect(() => {
-    if (role === "ADMINISTRATOR") {
-      router.replace("/dashboard/live/admin");
-    } else if (role === "TEACHER") {
+    if (role === "ADMINISTRATOR" || role === "TEACHER") {
       router.replace("/dashboard/live/studio");
     }
   }, [role, router]);

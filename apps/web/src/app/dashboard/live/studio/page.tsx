@@ -20,6 +20,7 @@ import {
   RefreshCw,
   CalendarOff,
   BarChart3,
+  ServerCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -268,6 +269,16 @@ export default function TeacherLiveStudioPage(): ReactNode {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(): void => { router.push("/dashboard/live/admin"); }}
+              leftIcon={<ServerCog className="h-4 w-4" />}
+            >
+              البنية التحتية
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
