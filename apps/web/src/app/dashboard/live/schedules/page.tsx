@@ -143,8 +143,13 @@ function ScheduleForm({
           endTime: r.endTime,
         })),
       });
-    } catch {
-      setError("تعذر حفظ الجدول — تأكد من عدم تعارض المواعيد");
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? err.message : "";
+      setError(
+        detail
+          ? `تعذر حفظ الجدول — ${detail}`
+          : "تعذر حفظ الجدول — تأكد من عدم تعارض المواعيد",
+      );
     }
   };
 

@@ -1,4 +1,6 @@
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -10,9 +12,11 @@ import {
   Min,
   registerDecorator,
   type ValidationOptions,
+  ValidateNested,
   ValidatorConstraint,
   type ValidatorConstraintInterface,
 } from "class-validator";
+import { Type } from "class-transformer";
 import {
   LiveSessionStatusEnum,
   LiveSessionTypeEnum,
@@ -533,6 +537,27 @@ export class RescheduleDecisionDto {
   decision!: LiveBookingRescheduleStatusEnum;
 }
 
+/** A single day-of-week slot with its own start/end times. */
+export class DayScheduleDto {
+  /** Day of week (0=Sunday .. 6=Saturday). */
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  dayOfWeek!: number;
+
+  @IsAvailabilityTime()
+  startTime!: string;
+
+  @IsAvailabilityTime()
+  endTime!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  maxStudents?: number;
+}
+
 export class CreateStudyScheduleDto {
   @IsString()
   name!: string;
@@ -540,17 +565,12 @@ export class CreateStudyScheduleDto {
   @IsEnum(LiveSessionTypeEnum)
   type!: LiveSessionTypeEnum;
 
-  /** Days of week (0=Sunday .. 6=Saturday). */
-  @IsInt({ each: true })
-  @Min(0, { each: true })
-  @Max(6, { each: true })
-  days!: number[];
-
-  @IsAvailabilityTime()
-  startTime!: string;
-
-  @IsAvailabilityTime()
-  endTime!: string;
+  /** Day-of-week slots, each with its own start/end times. */
+  @IsArray()
+  @ArrayNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => DayScheduleDto)
+  days!: DayScheduleDto[];
 
   @IsOptional()
   @IsUUID()
@@ -581,18 +601,10 @@ export class UpdateStudyScheduleDto {
   type?: LiveSessionTypeEnum;
 
   @IsOptional()
-  @IsInt({ each: true })
-  @Min(0, { each: true })
-  @Max(6, { each: true })
-  days?: number[];
-
-  @IsOptional()
-  @IsAvailabilityTime()
-  startTime?: string;
-
-  @IsOptional()
-  @IsAvailabilityTime()
-  endTime?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DayScheduleDto)
+  days?: DayScheduleDto[];
 
   @IsOptional()
   @IsUUID()

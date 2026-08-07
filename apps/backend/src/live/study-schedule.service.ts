@@ -99,9 +99,12 @@ export class StudyScheduleService {
     dto: {
       name: string;
       type: LiveSessionTypeEnum;
-      days: number[];
-      startTime: string;
-      endTime: string;
+      days: {
+        dayOfWeek: number;
+        startTime: string;
+        endTime: string;
+        maxStudents?: number;
+      }[];
       gradeId?: string;
       maxStudents?: number;
       effectiveFrom?: string;
@@ -114,18 +117,27 @@ export class StudyScheduleService {
     if (dto.days.length === 0) {
       throw new BadRequestException("At least one day is required");
     }
-    const uniqueDays = [...new Set(dto.days)];
-    const start = toAvailabilityDate(dto.startTime);
-    const end = toAvailabilityDate(dto.endTime);
-    if (end <= start) {
-      throw new BadRequestException("End time must be after start time");
-    }
-    const maxStudents = dto.maxStudents ?? 1;
-    if (dto.type === LiveSessionTypeEnum.PRIVATE && maxStudents !== 1) {
+    const slots = dto.days.map((day) => {
+      const start = toAvailabilityDate(day.startTime);
+      const end = toAvailabilityDate(day.endTime);
+      if (end <= start) {
+        throw new BadRequestException(
+          `End time must be after start time on day ${DAY_NAMES[day.dayOfWeek]}`,
+        );
+      }
+      return {
+        dayOfWeek: day.dayOfWeek,
+        startTime: start,
+        endTime: end,
+        maxStudents: day.maxStudents ?? dto.maxStudents ?? 1,
+      };
+    });
+    const defaultMaxStudents = dto.maxStudents ?? 1;
+    if (dto.type === LiveSessionTypeEnum.PRIVATE && defaultMaxStudents !== 1) {
       throw new BadRequestException("Private schedules hold one student per slot");
     }
 
-    await this.assertNoOverlap(actorId, uniqueDays, start, end, null);
+    await this.assertNoOverlap(actorId, slots, null);
 
     const scheduleId = await this.prisma.$transaction(async (tx) => {
       const schedule = await tx.studySchedule.create({
@@ -133,18 +145,18 @@ export class StudyScheduleService {
           teacherId: actorId,
           name: dto.name,
           type: dto.type,
-          maxStudents,
+          maxStudents: defaultMaxStudents,
         },
       });
       await tx.teacherAvailability.createMany({
-        data: uniqueDays.map((dayOfWeek) => ({
+        data: slots.map((slot) => ({
           teacherId: actorId,
           scheduleId: schedule.id,
-          dayOfWeek,
-          startTime: start,
-          endTime: end,
+          dayOfWeek: slot.dayOfWeek,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
           gradeId: dto.gradeId ?? null,
-          maxStudents,
+          maxStudents: slot.maxStudents,
           type: dto.type,
           isRecurring: true,
           effectiveFrom: dto.effectiveFrom ? new Date(dto.effectiveFrom) : null,
@@ -208,18 +220,31 @@ export class StudyScheduleService {
       typeof dto.effectiveFrom === "string" ? new Date(dto.effectiveFrom) : undefined;
     const effectiveTo =
       typeof dto.effectiveTo === "string" ? new Date(dto.effectiveTo) : undefined;
-    const days = Array.isArray(dto.days)
-      ? [...new Set((dto.days as unknown[]).map(Number))]
+    const daySlots = Array.isArray(dto.days)
+      ? (dto.days as {
+          dayOfWeek: number;
+          startTime: string;
+          endTime: string;
+          maxStudents?: number;
+        }[]).map((day) => {
+          const start = toAvailabilityDate(day.startTime);
+          const end = toAvailabilityDate(day.endTime);
+          if (end <= start) {
+            throw new BadRequestException(
+              `End time must be after start time on day ${DAY_NAMES[day.dayOfWeek]}`,
+            );
+          }
+          return {
+            dayOfWeek: day.dayOfWeek,
+            startTime: start,
+            endTime: end,
+            maxStudents: day.maxStudents ?? maxStudents ?? 1,
+          };
+        })
       : undefined;
-    const startTime = typeof dto.startTime === "string" ? dto.startTime : undefined;
-    const endTime = typeof dto.endTime === "string" ? dto.endTime : undefined;
 
-    if (startTime && endTime) {
-      const start = toAvailabilityDate(startTime);
-      const end = toAvailabilityDate(endTime);
-      if (end <= start) {
-        throw new BadRequestException("End time must be after start time");
-      }
+    if (daySlots && daySlots.length > 0) {
+      await this.assertNoOverlap(schedule.teacherId, daySlots, id);
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -235,20 +260,20 @@ export class StudyScheduleService {
         },
       });
 
-      if (days) {
+      if (daySlots) {
         const existing = await tx.teacherAvailability.findMany({
           where: { scheduleId: id, deletedAt: null },
           select: { id: true, dayOfWeek: true },
         });
         const existingMap = new Map(existing.map((e) => [e.dayOfWeek, e]));
-        for (const day of days) {
-          const row = existingMap.get(day);
+        for (const slot of daySlots) {
+          const row = existingMap.get(slot.dayOfWeek);
           if (row) {
             await tx.teacherAvailability.update({
               where: { id: row.id },
               data: {
-                ...(startTime !== undefined ? { startTime: toAvailabilityDate(startTime) } : {}),
-                ...(endTime !== undefined ? { endTime: toAvailabilityDate(endTime) } : {}),
+                startTime: slot.startTime,
+                endTime: slot.endTime,
                 ...(type !== undefined ? { type } : {}),
                 ...(maxStudents !== undefined ? { maxStudents } : {}),
                 ...(effectiveFrom !== undefined ? { effectiveFrom } : {}),
@@ -258,19 +283,17 @@ export class StudyScheduleService {
           } else {
             const base = await tx.teacherAvailability.findFirst({
               where: { scheduleId: id, deletedAt: null },
-              select: { startTime: true, endTime: true, gradeId: true, maxStudents: true, type: true },
+              select: { gradeId: true, maxStudents: true, type: true },
             });
-            const dayStart = startTime ? toAvailabilityDate(startTime) : (base?.startTime ?? toAvailabilityDate("00:00"));
-            const dayEnd = endTime ? toAvailabilityDate(endTime) : (base?.endTime ?? dayStart);
             await tx.teacherAvailability.create({
               data: {
                 teacherId: schedule.teacherId,
                 scheduleId: id,
-                dayOfWeek: day,
-                startTime: dayStart,
-                endTime: dayEnd,
+                dayOfWeek: slot.dayOfWeek,
+                startTime: slot.startTime,
+                endTime: slot.endTime,
                 gradeId: base?.gradeId ?? null,
-                maxStudents: maxStudents ?? base?.maxStudents ?? 1,
+                maxStudents: slot.maxStudents,
                 type: type ?? base?.type ?? LiveSessionTypeEnum.PRIVATE,
                 isRecurring: true,
               },
@@ -278,7 +301,7 @@ export class StudyScheduleService {
           }
         }
         for (const existingRow of existing) {
-          if (!days.includes(existingRow.dayOfWeek)) {
+          if (!daySlots.some((s) => s.dayOfWeek === existingRow.dayOfWeek)) {
             await tx.teacherAvailability.update({
               where: { id: existingRow.id },
               data: { deletedAt: new Date() },
@@ -312,11 +335,14 @@ export class StudyScheduleService {
 
   private async assertNoOverlap(
     teacherId: string,
-    days: number[],
-    start: Date,
-    end: Date,
+    slots: {
+      dayOfWeek: number;
+      startTime: Date;
+      endTime: Date;
+    }[],
     excludeScheduleId: string | null,
   ): Promise<void> {
+    const days = [...new Set(slots.map((s) => s.dayOfWeek))];
     const existing = await this.prisma.teacherAvailability.findMany({
       where: {
         teacherId,
@@ -326,11 +352,18 @@ export class StudyScheduleService {
       },
       select: { dayOfWeek: true, startTime: true, endTime: true },
     });
-    const overlapping = existing.find((a) => start < a.endTime && end > a.startTime);
-    if (overlapping) {
-      throw new BadRequestException(
-        `Schedule overlaps an existing window on ${DAY_NAMES[overlapping.dayOfWeek]} (${toTimeOfDay(overlapping.startTime)}–${toTimeOfDay(overlapping.endTime)})`,
+    for (const slot of slots) {
+      const overlapping = existing.find(
+        (a) =>
+          a.dayOfWeek === slot.dayOfWeek &&
+          slot.startTime < a.endTime &&
+          slot.endTime > a.startTime,
       );
+      if (overlapping) {
+        throw new BadRequestException(
+          `Schedule overlaps an existing window on ${DAY_NAMES[overlapping.dayOfWeek]} (${toTimeOfDay(overlapping.startTime)}-${toTimeOfDay(overlapping.endTime)})`,
+        );
+      }
     }
   }
 }
