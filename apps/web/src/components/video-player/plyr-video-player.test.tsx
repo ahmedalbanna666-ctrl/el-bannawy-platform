@@ -150,14 +150,15 @@ afterEach(() => {
 });
 
 describe("PlyrVideoPlayer", () => {
-  it("initializes Plyr with the progress control", async () => {
+  it("initializes Plyr with native controls disabled and renders the custom control bar", async () => {
     render(<PlyrVideoPlayer providerVideoId="xyz123" videoId="vid-1" />);
     await waitFor(() => { expect(MockPlyr.last).toBeTruthy(); });
 
     const player = getPlayer();
-    expect(player.options.controls).toEqual(
-      expect.arrayContaining(["play", "progress", "current-time", "duration", "fullscreen"]),
-    );
+    // Native Plyr controls are disabled — we render our own two-row bar.
+    expect(player.options.controls).toEqual([]);
+    // The custom control bar is rendered.
+    await waitFor(() => { expect(document.querySelector(".elb-ctrl")).toBeTruthy(); });
     // The player must load the video events and render question markers.
     await waitFor(() => { expect(apiMock.get).toHaveBeenCalledWith("/video-events?videoId=vid-1"); });
   });

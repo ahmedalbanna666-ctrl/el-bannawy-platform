@@ -64,6 +64,17 @@ function isDocumentFullscreen(): boolean {
   return typeof document !== "undefined" && Boolean(document.fullscreenElement);
 }
 
+/** Format seconds as MM:SS (or H:MM:SS for durations >= 1h). */
+function formatTime(totalSeconds: number): string {
+  const secs = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${String(h)}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
 export function PlyrVideoPlayer({
   providerVideoId,
   videoId,
@@ -96,6 +107,32 @@ export function PlyrVideoPlayer({
   const [activeQuestion, setActiveQuestion] = useState<{ event: VideoEvent; question: QuestionData } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  // ── Custom control bar state ──────────────────────────────────────────
+  const [customTime, setCustomTime] = useState(0);
+  const [customDuration, setCustomDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubValue, setScrubValue] = useState(0);
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const [weakToastVisible, setWeakToastVisible] = useState(false);
+  const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const weakToastShownRef = useRef(false);
+
+  const QUALITY_OPTIONS: readonly { label: string; value: string }[] = [
+    { label: "Auto (Recommended)", value: "auto" },
+    { label: "1080p", value: "1080" },
+    { label: "720p", value: "720" },
+    { label: "480p", value: "480" },
+    { label: "360p", value: "360" },
+    { label: "240p", value: "240" },
+  ];
+  const QUALITY_STORAGE_KEY = "alrayan_video_quality";
+  const [quality, setQuality] = useState<string>(() => {
+    if (typeof window === "undefined") return "auto";
+    try { return window.localStorage.getItem(QUALITY_STORAGE_KEY) ?? "auto"; } catch { return "auto"; }
+  });
+
   const saveProgress = useCallback((): void => {
     if (!videoId) return;
     api.patch(`/videos/${videoId}/progress`, {
@@ -108,6 +145,92 @@ export function PlyrVideoPlayer({
     if (!videoId) return;
     api.post(`/videos/${videoId}/complete`).then((): void => { setCompleted(true); }).catch((): void => undefined);
   }, [videoId]);
+
+  // ── Custom control bar helpers ────────────────────────────────────────
+  const showControlsTemporarily = useCallback((): void => {
+    setControlsVisible(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    controlsTimerRef.current = setTimeout((): void => {
+      setControlsVisible(false);
+      setQualityOpen(false);
+    }, 4000);
+  }, []);
+
+  const bumpControls = useCallback((): void => {
+    // Keep controls visible while scrubbing; otherwise auto-hide after 4s.
+    if (isScrubbing) return;
+    showControlsTemporarily();
+  }, [isScrubbing, showControlsTemporarily]);
+
+  const togglePlay = useCallback((): void => {
+    const plyr = plyrRef.current as { play?: () => void; pause?: () => void } | null;
+    if (!plyr) return;
+    if (isPlayingRef.current) plyr.pause?.();
+    else plyr.play?.();
+    showControlsTemporarily();
+  }, [showControlsTemporarily]);
+
+  const onSeekInput = useCallback((value: number): void => {
+    setScrubValue(value);
+    setCustomTime(value);
+  }, []);
+
+  const onSeekCommit = useCallback((value: number): void => {
+    const plyr = plyrRef.current as { currentTime: number } | null;
+    if (plyr) plyr.currentTime = value;
+    setIsScrubbing(false);
+    setCustomTime(value);
+    showControlsTemporarily();
+  }, [showControlsTemporarily]);
+
+  const toggleMute = useCallback((): void => {
+    const plyr = plyrRef.current as { muted: boolean } | null;
+    if (!plyr) return;
+    plyr.muted = !plyr.muted;
+    setIsMuted(plyr.muted);
+    showControlsTemporarily();
+  }, [showControlsTemporarily]);
+
+  const applyQuality = useCallback((value: string): void => {
+    setQuality(value);
+    try { window.localStorage.setItem(QUALITY_STORAGE_KEY, value); } catch { /* ignore */ }
+    setQualityOpen(false);
+    // Try to push the desired quality to the YouTube player via postMessage.
+    if (value !== "auto") {
+      const iframe = document.querySelector<HTMLIFrameElement>(`#${playerId} iframe`);
+      iframe?.contentWindow?.postMessage(
+        JSON.stringify({ event: "command", func: "setPlaybackQuality", args: [value] }),
+        "*",
+      );
+    }
+    showControlsTemporarily();
+  }, [playerId, showControlsTemporarily]);
+
+  const toggleFullscreen = useCallback((): void => {
+    const plyr = plyrRef.current as { fullscreen?: { toggle: () => void } } | null;
+    if (plyr?.fullscreen) plyr.fullscreen.toggle();
+    showControlsTemporarily();
+  }, [showControlsTemporarily]);
+
+  useEffect(() => {
+    return (): void => {
+      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    };
+  }, []);
+
+  // Show the controls on start, then auto-hide after a few seconds unless
+  // the user is scrubbing.
+  useEffect(() => {
+    setControlsVisible(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    controlsTimerRef.current = setTimeout((): void => {
+      setControlsVisible(false);
+      setQualityOpen(false);
+    }, 4000);
+    return (): void => {
+      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    };
+  }, [isPlaying]);
 
   const fireQuestion = useCallback(async (event: VideoEvent): Promise<void> => {
     if (triggeredRef.current.has(event.id)) return;
@@ -330,10 +453,9 @@ export function PlyrVideoPlayer({
         return;
       }
 
-      const isMobile = isMobileViewport();
-      const controls = isMobile
-        ? ["play-large", "play", "progress", "current-time", "duration", "mute", "fullscreen"]
-        : ["play-large", "play", "progress", "current-time", "duration", "mute", "volume", "fullscreen"];
+      // We build our own two-row control bar (see the custom controls JSX +
+      // CSS below). Plyr's native controls are disabled entirely.
+      const controls: string[] = [];
       const player = new Plyr(container, {
         controls,
         youtube: {
@@ -393,8 +515,23 @@ export function PlyrVideoPlayer({
         currentTimeRef.current = player.currentTime;
         const prevDuration = durationRef.current;
         durationRef.current = player.duration;
+        if (!isScrubbing) setCustomTime(player.currentTime);
+        if (player.duration > 0 && prevDuration <= 0) setCustomDuration(player.duration);
         if (prevDuration <= 0 && player.duration > 0) {
           renderQuestionMarkers();
+        }
+      });
+
+      player.on("volumechange", (): void => {
+        setIsMuted(player.muted);
+      });
+
+      player.on("qualitychange", (level: unknown): void => {
+        // Show the weak-network toast once when quality drops to 360p or below.
+        const num = Number(level);
+        if (Number.isFinite(num) && num > 0 && num <= 360 && !weakToastShownRef.current) {
+          weakToastShownRef.current = true;
+          setWeakToastVisible(true);
         }
       });
 
@@ -496,23 +633,45 @@ export function PlyrVideoPlayer({
         .plyr__poster { background-size: cover !important; background-position: center center !important; z-index: 4 !important; transition: opacity 0.2s ease; }
         .plyr--paused .plyr__poster { display: block !important; opacity: 1 !important; visibility: visible !important; }
         .plyr--paused .plyr__video-embed { opacity: 0.99; }
-        .plyr__controls { position: absolute !important; bottom: 0 !important; left: 0 !important; right: 0 !important; background: linear-gradient(transparent, rgba(0,0,0,0.45)) !important; padding: 24px 8px 4px !important; display: flex !important; flex-wrap: wrap !important; align-items: center !important; gap: 0 !important; }
-        .plyr__controls .plyr__progress { order: -1 !important; width: 100% !important; flex: 0 0 100% !important; margin-bottom: 4px !important; padding: 0 4px !important; }
-        .plyr__controls .plyr__progress input[type=range] { height: 3px !important; cursor: pointer !important; }
-        .plyr__controls .plyr__progress input[type=range]::-webkit-slider-thumb { width: 14px !important; height: 14px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; transform: scale(0); transition: transform 0.15s; }
-        .plyr__controls .plyr__progress:hover input[type=range]::-webkit-slider-thumb { transform: scale(1); }
-        .plyr__controls .plyr__time { font-size: 12px !important; color: rgba(255,255,255,0.8) !important; font-variant-numeric: tabular-nums !important; }
-        .plyr__controls .plyr__time + .plyr__time::before { content: "/"; margin: 0 4px; }
-        .plyr__controls .plyr__time + .plyr__time { margin-left: 0 !important; }
-        .plyr__controls button { color: rgba(255,255,255,0.85) !important; opacity: 0.9 !important; transition: opacity 0.2s !important; }
-        .plyr__controls button:hover { opacity: 1 !important; color: #f59e0b !important; }
-        .plyr__controls .plyr__control--pressed { color: #f59e0b !important; }
-        .plyr__controls [data-plyr="mute"] { margin-left: auto !important; }
-        .plyr__controls [data-plyr="volume"] { width: 70px !important; }
-        .plyr--youtube .plyr__controls { z-index: 5; }
-        .plyr--video .plyr__controls { pointer-events: auto !important; }
-        .plyr.plyr--hide-controls .plyr__controls { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
-        .plyr:not(.plyr--hide-controls) .plyr__controls { opacity: 1; }
+        /* Hide Plyr's native control bar (we render our own below). */
+        .plyr__controls { display: none !important; }
+
+        /* ── Custom two-row control bar (AL-RAYAN identity) ─────────────── */
+        .elb-ctrl { position: absolute !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 6; display: flex !important; flex-direction: column !important; gap: 8px !important; padding: 10px 10px 8px !important; border-radius: 0 0 16px 16px !important; background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(10,14,26,0.72) 45%, rgba(10,14,26,0.88) 100%) !important; backdrop-filter: blur(14px) !important; -webkit-backdrop-filter: blur(14px) !important; border-top: 1px solid rgba(255,255,255,0.08) !important; transition: opacity 0.3s ease, transform 0.3s ease !important; }
+        .elb-ctrl.elb-ctrl-hidden { opacity: 0 !important; transform: translateY(10px) !important; pointer-events: none !important; }
+        .elb-ctrl-row { display: flex !important; align-items: center !important; gap: 6px !important; min-width: 0 !important; }
+        .elb-ctrl-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 44px !important; height: 44px !important; min-width: 44px !important; border-radius: 12px !important; border: none !important; background: rgba(255,255,255,0.08) !important; color: rgba(255,255,255,0.92) !important; cursor: pointer !important; transition: background 0.2s, transform 0.1s !important; -webkit-tap-highlight-color: transparent !important; }
+        .elb-ctrl-btn:hover, .elb-ctrl-btn:active { background: rgba(255,255,255,0.16) !important; }
+        .elb-ctrl-btn svg { width: 22px !important; height: 22px !important; }
+        .elb-ctrl-seek { position: relative !important; flex: 1 !important; min-width: 0 !important; height: 40px !important; display: flex !important; align-items: center !important; touch-action: none !important; cursor: pointer !important; }
+        .elb-ctrl-seek input[type=range] { -webkit-appearance: none !important; appearance: none !important; width: 100% !important; height: 6px !important; border-radius: 999px !important; background: rgba(255,255,255,0.2) !important; outline: none !important; margin: 0 !important; cursor: pointer !important; }
+        .elb-ctrl-seek input[type=range]::-webkit-slider-thumb { -webkit-appearance: none !important; appearance: none !important; width: 18px !important; height: 18px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important; cursor: pointer !important; }
+        .elb-ctrl-seek input[type=range]::-moz-range-thumb { width: 18px !important; height: 18px !important; border-radius: 50% !important; background: #f59e0b !important; border: 2px solid #fff !important; cursor: pointer !important; }
+        .elb-ctrl-time { font-size: 12px !important; font-variant-numeric: tabular-nums !important; color: rgba(255,255,255,0.85) !important; white-space: nowrap !important; letter-spacing: 0.3px !important; }
+        .elb-ctrl-spacer { flex: 1 !important; }
+        .elb-ctrl-quality-btn { display: inline-flex !important; align-items: center !important; gap: 4px !important; height: 40px !important; padding: 0 12px !important; border-radius: 12px !important; border: none !important; background: rgba(255,255,255,0.08) !important; color: rgba(255,255,255,0.92) !important; font-size: 12px !important; font-weight: 600 !important; cursor: pointer !important; transition: background 0.2s !important; -webkit-tap-highlight-color: transparent !important; }
+        .elb-ctrl-quality-btn:hover, .elb-ctrl-quality-btn:active { background: rgba(255,255,255,0.16) !important; }
+        .elb-ctrl-quality-btn svg { width: 18px !important; height: 18px !important; }
+
+        /* ── Quality bottom sheet ───────────────────────────────────────── */
+        .elb-quality-overlay { position: absolute !important; inset: 0 !important; z-index: 20; display: flex !important; align-items: flex-end !important; background: rgba(0,0,0,0.4) !important; }
+        .elb-quality-sheet { width: 100% !important; max-height: 55% !important; overflow-y: auto !important; border-radius: 18px 18px 0 0 !important; background: rgba(16,22,38,0.96) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; border-top: 1px solid rgba(255,255,255,0.1) !important; padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + 12px) !important; }
+        .elb-quality-sheet-title { font-size: 13px !important; font-weight: 700 !important; color: rgba(255,255,255,0.95) !important; text-align: center !important; margin-bottom: 8px !important; }
+        .elb-quality-option { display: flex !important; align-items: center !important; justify-content: space-between !important; width: 100% !important; padding: 14px 14px !important; margin-bottom: 6px !important; border-radius: 12px !important; border: none !important; background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.9) !important; font-size: 14px !important; font-weight: 600 !important; text-align: right !important; cursor: pointer !important; transition: background 0.2s !important; -webkit-tap-highlight-color: transparent !important; }
+        .elb-quality-option:hover, .elb-quality-option:active { background: rgba(255,255,255,0.12) !important; }
+        .elb-quality-option.elb-quality-active { background: rgba(245,158,11,0.18) !important; color: #fbbf24 !important; }
+        .elb-quality-option .elb-quality-check { color: #f59e0b !important; }
+
+        /* ── Weak-network toast ─────────────────────────────────────────── */
+        .elb-weak-toast { position: absolute !important; left: 50% !important; bottom: 96px !important; transform: translateX(-50%) !important; z-index: 25; width: min(92%, 360px) !important; border-radius: 16px !important; background: rgba(16,22,38,0.94) !important; backdrop-filter: blur(16px) !important; -webkit-backdrop-filter: blur(16px) !important; border: 1px solid rgba(255,255,255,0.12) !important; box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important; padding: 14px 16px !important; }
+        .elb-weak-toast-title { font-size: 13px !important; font-weight: 700 !important; color: #fbbf24 !important; margin-bottom: 4px !important; }
+        .elb-weak-toast-text { font-size: 12px !important; color: rgba(255,255,255,0.85) !important; line-height: 1.5 !important; margin-bottom: 10px !important; }
+        .elb-weak-toast-actions { display: flex !important; gap: 8px !important; }
+        .elb-weak-toast-btn { flex: 1 !important; padding: 10px !important; border-radius: 10px !important; border: none !important; font-size: 13px !important; font-weight: 700 !important; cursor: pointer !important; }
+        .elb-weak-toast-btn-raise { background: #f59e0b !important; color: #0a0e1a !important; }
+        .elb-weak-toast-btn-raise:hover { background: #fbbf24 !important; }
+        .elb-weak-toast-btn-keep { background: rgba(255,255,255,0.1) !important; color: #fff !important; }
+        .elb-weak-toast-btn-keep:hover { background: rgba(255,255,255,0.16) !important; }
 
         /* ── Fullscreen (mobile + desktop) ─────────────────────────────── */
         /* Plyr requests fullscreen on its own container (#playerId = .plyr),
@@ -592,6 +751,8 @@ export function PlyrVideoPlayer({
       <div
         ref={rootRef}
         className="elb-video-root relative aspect-video w-full overflow-hidden rounded-2xl bg-black"
+        onPointerDown={(): void => { bumpControls(); }}
+        onTouchStart={(): void => { bumpControls(); }}
       >
         <div id={playerId} className="plyr__video-embed h-full w-full">
           <iframe
@@ -643,6 +804,137 @@ export function PlyrVideoPlayer({
               )}
             </div>
           </div>
+        )}
+
+        {!activeQuestion && (
+          <>
+            {/* Weak-network toast — shown once per video watch. */}
+            {weakToastVisible && (
+              <div className="elb-weak-toast">
+                <div className="elb-weak-toast-title">سرعة الإنترنت منخفضة</div>
+                <div className="elb-weak-toast-text">
+                  تم تشغيل الفيديو بجودة 360p لتناسب سرعة الإنترنت.
+                </div>
+                <div className="elb-weak-toast-actions">
+                  <button
+                    type="button"
+                    className="elb-weak-toast-btn elb-weak-toast-btn-raise"
+                    onClick={(): void => { applyQuality("1080"); setWeakToastVisible(false); }}
+                  >
+                    رفع الجودة
+                  </button>
+                  <button
+                    type="button"
+                    className="elb-weak-toast-btn elb-weak-toast-btn-keep"
+                    onClick={(): void => { setWeakToastVisible(false); }}
+                  >
+                    الاستمرار
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Custom two-row control bar */}
+            <div
+              className={`elb-ctrl ${controlsVisible ? "" : "elb-ctrl-hidden"}`}
+              onClick={(e): void => { e.stopPropagation(); }}
+            >
+              {/* Row 1: play/pause + seek (no time) */}
+              <div className="elb-ctrl-row">
+                <button
+                  type="button"
+                  className="elb-ctrl-btn"
+                  aria-label={isPlaying ? "إيقاف" : "تشغيل"}
+                  onClick={(): void => { togglePlay(); }}
+                >
+                  {isPlaying ? (
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                  )}
+                </button>
+                <div className="elb-ctrl-seek">
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(customDuration, 1)}
+                    step={0.1}
+                    value={Math.min(isScrubbing ? scrubValue : customTime, Math.max(customDuration, 1))}
+                    onPointerDown={(): void => { setIsScrubbing(true); setControlsVisible(true); }}
+                    onPointerUp={(e): void => { onSeekCommit(Number((e.target as HTMLInputElement).value)); }}
+                    onKeyDown={(e): void => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") showControlsTemporarily(); }}
+                    onChange={(e): void => { onSeekInput(Number(e.target.value)); }}
+                    aria-label="شريط التقدم"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: mute + time + quality + fullscreen */}
+              <div className="elb-ctrl-row">
+                <button
+                  type="button"
+                  className="elb-ctrl-btn"
+                  aria-label={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
+                  onClick={(): void => { toggleMute(); }}
+                >
+                  {isMuted ? (
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" /></svg>
+                  )}
+                </button>
+
+                <span className="elb-ctrl-time" dir="ltr">
+                  {formatTime(Math.floor(isScrubbing ? scrubValue : customTime))} / {formatTime(Math.floor(customDuration))}
+                </span>
+
+                <div className="elb-ctrl-spacer" />
+
+                <button
+                  type="button"
+                  className="elb-ctrl-quality-btn"
+                  onClick={(): void => { setQualityOpen((v) => !v); showControlsTemporarily(); }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                  جودة
+                </button>
+
+                <button
+                  type="button"
+                  className="elb-ctrl-btn"
+                  aria-label="ملء الشاشة"
+                  onClick={(): void => { toggleFullscreen(); }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" /></svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Quality bottom sheet */}
+            {qualityOpen && (
+              <div className="elb-quality-overlay" onClick={(): void => { setQualityOpen(false); }}>
+                <div className="elb-quality-sheet" onClick={(e): void => { e.stopPropagation(); }}>
+                  <div className="elb-quality-sheet-title">جودة الفيديو</div>
+                  {QUALITY_OPTIONS.map((opt) => {
+                    const active = quality === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={`elb-quality-option ${active ? "elb-quality-active" : ""}`}
+                        onClick={(): void => { applyQuality(opt.value); }}
+                      >
+                        <span>{opt.label}</span>
+                        {active && (
+                          <svg className="elb-quality-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

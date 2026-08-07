@@ -13,6 +13,7 @@ declare class Plyr {
   constructor(selector: string | HTMLElement, options?: PlyrOptions);
   currentTime: number;
   readonly duration: number;
+  muted: boolean;
   play(): void;
   pause(): void;
   restart(): void;
