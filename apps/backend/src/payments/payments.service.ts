@@ -204,41 +204,49 @@ export class PaymentsService {
 
     const status = (signatureValid || !this.isProduction) && gatewayFormatValid ? "SUCCESSFUL" : "FAILED";
 
-    await this.prisma.$transaction(async (tx) => {
-      const current = await tx.payment.findUnique({ where: { id: checkoutId }, select: { status: true } });
-      if (!current?.status || current.status !== "PENDING") {
-        throw new ForbiddenException("Payment already processed");
-      }
+    if (status === "SUCCESSFUL") {
+      // Same rationale as reviewPayment: activation is slow and uses the
+      // global client, so it runs outside the interactive transaction. It is
+      // idempotent via `gatewayResponse: "activated"`.
+      await this.activateContent(payment.userId, payment.productType, payment.productId, payment.amount, checkoutId);
+    }
 
-      const updated = await tx.payment.update({
-        where: { id: checkoutId },
-        data: {
-          status,
-          gatewayRef: dto.gatewayRef,
-          gatewayResponse: JSON.stringify({ verified: signatureValid, signature: providedSig }),
-          completedAt: new Date(),
-        },
-      });
+    await this.prisma.$transaction(
+      async (tx) => {
+        const current = await tx.payment.findUnique({ where: { id: checkoutId }, select: { status: true } });
+        if (!current?.status || current.status !== "PENDING") {
+          throw new ForbiddenException("Payment already processed");
+        }
 
-      if (status === "SUCCESSFUL") {
-        await this.activateContent(updated.userId, updated.productType, updated.productId, updated.amount, updated.id);
-
-        const invoiceNumber = `INV-${String(Date.now())}-${String(Math.floor(Math.random() * 10000))}`;
-        await tx.invoice.create({
+        const updated = await tx.payment.update({
+          where: { id: checkoutId },
           data: {
-            paymentId: updated.id,
-            number: invoiceNumber,
+            status,
+            gatewayRef: dto.gatewayRef,
+            gatewayResponse: JSON.stringify({ verified: signatureValid, signature: providedSig }),
+            completedAt: new Date(),
           },
         });
 
-        if (updated.couponId) {
-          await tx.coupon.update({
-            where: { id: updated.couponId },
-            data: { usedCount: { increment: 1 } },
+        if (status === "SUCCESSFUL") {
+          const invoiceNumber = `INV-${String(Date.now())}-${String(Math.floor(Math.random() * 10000))}`;
+          await tx.invoice.create({
+            data: {
+              paymentId: updated.id,
+              number: invoiceNumber,
+            },
           });
+
+          if (updated.couponId) {
+            await tx.coupon.update({
+              where: { id: updated.couponId },
+              data: { usedCount: { increment: 1 } },
+            });
+          }
         }
-      }
-    });
+      },
+      { timeout: 60000, maxWait: 20000 },
+    );
 
     return {
       verified: status === "SUCCESSFUL",
@@ -361,32 +369,43 @@ export class PaymentsService {
     }
 
     const approved = dto.decision === "APPROVED";
-    const result = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.payment.update({
-        where: { id: paymentId },
-        data: {
-          status: approved ? "SUCCESSFUL" : "REJECTED",
-          adminNote: dto.adminNote ?? null,
-          reviewedById: reviewerId,
-          reviewedAt: new Date(),
-          completedAt: approved ? new Date() : null,
-        },
-      });
 
-      if (approved) {
-        await this.activateContent(updated.userId, updated.productType, updated.productId, updated.amount, paymentId);
+    // Activation is slow (builds the subscription + a month of sessions) and
+    // uses the global Prisma client, so it must run OUTSIDE the interactive
+    // transaction. It is idempotent via `gatewayResponse: "activated"`, so a
+    // retry after a partial failure never double-grants. If it throws, the
+    // payment stays AWAITING_APPROVAL.
+    if (approved) {
+      await this.activateContent(payment.userId, payment.productType, payment.productId, payment.amount, paymentId);
+    }
 
-        const existingInvoice = await tx.invoice.findUnique({ where: { paymentId } });
-        if (!existingInvoice) {
-          const invoiceNumber = `INV-${String(Date.now())}-${String(Math.floor(Math.random() * 10000))}`;
-          await tx.invoice.create({
-            data: { paymentId, number: invoiceNumber },
-          });
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const updated = await tx.payment.update({
+          where: { id: paymentId },
+          data: {
+            status: approved ? "SUCCESSFUL" : "REJECTED",
+            adminNote: dto.adminNote ?? null,
+            reviewedById: reviewerId,
+            reviewedAt: new Date(),
+            completedAt: approved ? new Date() : null,
+          },
+        });
+
+        if (approved) {
+          const existingInvoice = await tx.invoice.findUnique({ where: { paymentId } });
+          if (!existingInvoice) {
+            const invoiceNumber = `INV-${String(Date.now())}-${String(Math.floor(Math.random() * 10000))}`;
+            await tx.invoice.create({
+              data: { paymentId, number: invoiceNumber },
+            });
+          }
         }
-      }
 
-      return updated;
-    });
+        return updated;
+      },
+      { timeout: 60000, maxWait: 20000 },
+    );
 
     void this.notifyStudentReview(reviewerId, payment, approved, dto.adminNote).catch((err: unknown) => {
       Logger.error(
