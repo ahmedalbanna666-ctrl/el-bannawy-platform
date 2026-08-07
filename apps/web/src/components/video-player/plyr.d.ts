@@ -1,5 +1,6 @@
 interface PlyrOptions {
   controls?: string[];
+  fullscreen?: { enabled?: boolean };
   youtube?: Record<string, unknown>;
   poster?: string;
   ratio?: string;

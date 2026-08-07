@@ -489,10 +489,14 @@ export function PlyrVideoPlayer({
       }
 
       // We build our own two-row control bar (see the custom controls JSX +
-      // CSS below). Plyr's native controls are disabled entirely.
+      // CSS below). Plyr's native controls are disabled entirely, and we
+      // disable Plyr's own fullscreen management so it never fights our
+      // native fullscreen on the outer container (otherwise entering
+      // fullscreen opens and immediately closes).
       const controls: string[] = [];
       const player = new Plyr(container, {
         controls,
+        fullscreen: { enabled: false },
         youtube: {
           noCookie: true,
           rel: 0,
@@ -510,24 +514,10 @@ export function PlyrVideoPlayer({
         tooltips: { controls: true, seek: true },
       });
 
-      // On phones, fullscreen is handled by Plyr on its internal container.
-      // We fix the crop purely in CSS (see `.plyr:fullscreen` rules below) by
-      // letterboxing the 16:9 stage, so the visible frame matches normal mode.
-      // We do NOT intercept the fullscreen button — Plyr must keep working.
-      player.on("enterfullscreen", (): void => {
-        if (isMobileViewport()) {
-          // Give the browser a moment to promote the element to fullscreen
-          // before requesting the orientation lock, otherwise it is rejected.
-          window.setTimeout(lockLandscape, 120);
-        }
-      });
-      player.on("exitfullscreen", (): void => {
-        unlockOrientation();
-        // Also exit native fullscreen if it was left active.
-        if (isDocumentFullscreen()) {
-          void document.exitFullscreen().catch(() => undefined);
-        }
-      });
+      // Fullscreen is managed entirely by our own native implementation on
+      // `.elb-video-root` (see `toggleFullscreen` + the `fullscreenchange`
+      // listener). Plyr's own fullscreen is disabled (fullscreen.enabled:
+      // false) so it cannot open-and-close fullscreen right after entering.
 
       plyrRef.current = player;
       const posterEl = container.querySelector<HTMLElement>(".plyr__poster");
