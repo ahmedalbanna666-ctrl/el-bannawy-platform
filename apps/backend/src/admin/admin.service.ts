@@ -947,6 +947,7 @@ export class AdminService {
         where: { OR: [{ userId: id }, { grantedByUserId: id }] },
       });
       await tx.auditLog.deleteMany({ where: { actorId: id } });
+      await tx.aiModerationLog.deleteMany({ where: { userId: id } });
       if (codeIds.length > 0) {
         await tx.codeRedemption.deleteMany({ where: { codeId: { in: codeIds } } });
       }

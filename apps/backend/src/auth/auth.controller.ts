@@ -64,6 +64,19 @@ export class AuthController {
     return successResponse({ userId: tokens.userId }, "Login successful");
   }
 
+  @Get("account-status")
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  async accountStatus(
+    @Query("identifier") identifier?: string,
+  ): Promise<ISuccessResponse<{ status: string; whatsapp: string | null; message: string | null }>> {
+    const value = (identifier ?? "").trim();
+    if (!value) {
+      return successResponse({ status: "ACTIVE", whatsapp: null, message: null }, "Account status retrieved");
+    }
+    const data = await this.authService.getAccountStatus(value);
+    return successResponse(data, "Account status retrieved");
+  }
+
   @Get("google")
   @UseGuards(GoogleAuthGuard)
   googleAuth(): void {}

@@ -287,6 +287,15 @@ export class AuthService {
       if (user.status === "PENDING_VERIFICATION" && user.email) {
         throw new UnauthorizedException("Please verify your email before logging in");
       }
+      if (user.status === "SUSPENDED") {
+        throw new UnauthorizedException("حسابك موقوف مؤقتاً. يرجى التواصل مع الدعم الفني.");
+      }
+      if (user.status === "BANNED") {
+        throw new UnauthorizedException("تم حظر حسابك. يرجى التواصل مع الدعم الفني.");
+      }
+      if (user.status === "DELETED") {
+        throw new UnauthorizedException("تم حذف هذا الحساب.");
+      }
       throw new UnauthorizedException("Account is not active");
     }
 
@@ -545,6 +554,50 @@ export class AuthService {
   cancelNewDevice(confirmToken: string): Promise<void> {
     this.pendingLogins.delete(confirmToken);
     return Promise.resolve();
+  }
+
+  /**
+   * Public status check used by the login screen to show a dedicated
+   * "suspended / banned" message together with the grade's support WhatsApp.
+   * Only returns contact data for non-ACTIVE accounts.
+   */
+  async getAccountStatus(
+    identifier: string,
+  ): Promise<{ status: string; whatsapp: string | null; message: string | null }> {
+    const isEmail = identifier.includes("@");
+    const normalizedMobile = isEmail ? null : normalizeEgyptMobile(identifier);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: isEmail ? identifier.toLowerCase() : identifier },
+          ...(normalizedMobile ? [{ mobileNumber: normalizedMobile }] : []),
+        ],
+      },
+      select: { status: true, gradeId: true, deletedAt: true },
+    });
+
+    if (!user) return { status: "ACTIVE", whatsapp: null, message: null };
+
+    const status = user.deletedAt ? "DELETED" : user.status;
+    if (status === "ACTIVE" || status === "PENDING_VERIFICATION") {
+      return { status, whatsapp: null, message: null };
+    }
+
+    let whatsapp: string | null = null;
+    if (user.gradeId) {
+      const grade = await this.prisma.grade.findUnique({
+        where: { id: user.gradeId },
+        select: { supportWhatsapp: true },
+      });
+      whatsapp = grade?.supportWhatsapp ?? null;
+    }
+
+    let message: string | null = null;
+    if (status === "SUSPENDED") message = "حسابك موقوف مؤقتاً. يرجى التواصل مع الدعم الفني.";
+    else if (status === "BANNED") message = "تم حظر حسابك. يرجى التواصل مع الدعم الفني.";
+    else message = "تم حذف هذا الحساب.";
+
+    return { status, whatsapp, message };
   }
 
   cleanupExpiredPendingLogins(): Promise<void> {

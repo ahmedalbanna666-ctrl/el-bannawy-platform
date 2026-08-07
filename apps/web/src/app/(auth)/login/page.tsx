@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
+import { api } from "@/lib/api-client";
+import { AccountStatusScreen, type AccountStatusData } from "@/components/auth/account-status-screen";
 import { School, Mail, Lock, LogIn, Eye, EyeOff, MonitorSmartphone } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
@@ -34,6 +36,7 @@ function LoginForm(): ReactNode {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmToken, setConfirmToken] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [accountStatus, setAccountStatus] = useState<AccountStatusData | null>(null);
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -55,6 +58,22 @@ function LoginForm(): ReactNode {
         setConfirmToken(err.confirmToken);
         setShowConfirmDialog(true);
       } else {
+        // If the account is suspended/banned/deleted, show the dedicated
+        // screen with the grade's support WhatsApp instead of a plain error.
+        try {
+          const identifier = mobile.trim();
+          const res = await api.get<AccountStatusData>(
+            `/auth/account-status?identifier=${encodeURIComponent(identifier)}`,
+          );
+          const status = res.data?.status;
+          if (status && status !== "ACTIVE" && status !== "PENDING_VERIFICATION") {
+            setAccountStatus(res.data ?? { status, whatsapp: null, message: null });
+            setError(null);
+            return;
+          }
+        } catch {
+          // ignore — fall through to the generic error
+        }
         setError(err instanceof Error ? err.message : "Login failed");
       }
     } finally {
@@ -89,6 +108,20 @@ function LoginForm(): ReactNode {
     setShowConfirmDialog(false);
     setConfirmToken(null);
   };
+
+  if (accountStatus) {
+    return (
+      <Card variant="elevated" padding="lg">
+        <CardContent>
+          <AccountStatusScreen
+            status={accountStatus.status}
+            whatsapp={accountStatus.whatsapp}
+            message={accountStatus.message}
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card variant="elevated" padding="lg">
