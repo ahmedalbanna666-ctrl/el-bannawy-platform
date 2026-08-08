@@ -228,7 +228,8 @@ export function PlyrVideoPlayer({
   }, [showControlsTemporarily]);
 
   // While fullscreen is active, keep the device locked to landscape
-  // (left/right); release the lock as soon as fullscreen is exited.
+  // (left/right). The lock must NEVER leak outside fullscreen: it is released
+  // on exit, on unmount and on page hide (in case the user navigates away).
   useEffect(() => {
     const onFullscreenChange = (): void => {
       if (isDocumentFullscreen()) {
@@ -237,8 +238,16 @@ export function PlyrVideoPlayer({
         unlockOrientation();
       }
     };
+    const releaseLock = (): void => { unlockOrientation(); };
     document.addEventListener("fullscreenchange", onFullscreenChange);
-    return (): void => { document.removeEventListener("fullscreenchange", onFullscreenChange); };
+    window.addEventListener("pagehide", releaseLock);
+    window.addEventListener("blur", releaseLock);
+    return (): void => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      window.removeEventListener("pagehide", releaseLock);
+      window.removeEventListener("blur", releaseLock);
+      unlockOrientation();
+    };
   }, []);
 
   useEffect(() => {
@@ -723,20 +732,15 @@ export function PlyrVideoPlayer({
           align-items: center !important;
           justify-content: center !important;
         }
-        /* The 16:9 stage is centered and COVERS the whole screen (fill).
-           The iframe crop below keeps the actual video edge-to-edge with no
-           empty bars on the sides. */
+        /* The 16:9 stage is centered inside the fullscreen container (contain).
+           This is the proven-compatible layout — cover/absolute sizing made
+           the YouTube iframe render black on phones. Combined with the
+           landscape lock below, the video stays fully visible in fullscreen. */
         .elb-video-root:fullscreen .plyr__video-embed,
         .elb-video-root:-webkit-full-screen .plyr__video-embed {
-          position: absolute !important;
-          inset: 0 !important;
-          margin: auto !important;
-          /* Fallback for browsers without min()/max(): fill the screen. */
-          width: 100vw !important;
-          height: 100vh !important;
-          /* When supported, cover the screen edge-to-edge (no side bars). */
-          width: max(100vw, calc(100vh * 16 / 9)) !important;
-          height: max(100vh, calc(100vw * 9 / 16)) !important;
+          position: relative !important;
+          width: min(100vw, calc(100vh * 16 / 9)) !important;
+          height: min(100vh, calc(100vw * 9 / 16)) !important;
           max-width: none !important;
           max-height: none !important;
           aspect-ratio: 16 / 9 !important;
