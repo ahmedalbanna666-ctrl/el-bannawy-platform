@@ -18,48 +18,6 @@ interface PlyrVideoPlayerProps {
 const SAVE_INTERVAL_MS = 90_000;
 const EVENT_CHECK_INTERVAL_MS = 500;
 
-/** Mobile detection used to trim controls and auto-rotate on fullscreen. */
-function isMobileViewport(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(max-width: 768px)").matches
-  );
-}
-
-interface ScreenOrientationLike {
-  lock?: (orientation: string) => Promise<void>;
-  unlock?: () => void;
-}
-
-function getScreenOrientation(): ScreenOrientationLike | null {
-  if (typeof screen === "undefined") return null;
-  const ori = (screen as unknown as { orientation?: ScreenOrientationLike }).orientation;
-  return ori ?? null;
-}
-
-/** Best-effort rotate the device to landscape while in fullscreen. */
-function lockLandscape(): void {
-  try {
-    const ori = getScreenOrientation();
-    if (!ori?.lock) return;
-    void ori.lock("landscape").catch((): void => undefined);
-  } catch {
-    // Unsupported (e.g. iOS Safari) — user rotates manually.
-  }
-}
-
-/** Release the orientation lock when fullscreen is exited. */
-function unlockOrientation(): void {
-  try {
-    const ori = getScreenOrientation();
-    if (!ori?.unlock) return;
-    ori.unlock();
-  } catch {
-    // ignore
-  }
-}
-
 function isDocumentFullscreen(): boolean {
   if (typeof document === "undefined") return false;
   const doc = document as Document & {
@@ -230,14 +188,11 @@ export function PlyrVideoPlayer({
     if (!root) return;
     if (isDocumentFullscreen()) {
       void document.exitFullscreen().catch(() => undefined);
-      unlockOrientation();
     } else {
       // Enter fullscreen on the FULL container (which contains the custom
       // control bar), not on Plyr's internal embed container — otherwise the
       // controls stay behind and the video is letterboxed inside the screen.
-      void requestFullscreenOn(root).finally((): void => {
-        window.setTimeout(lockLandscape, 120);
-      });
+      void requestFullscreenOn(root);
     }
     showControlsTemporarily();
   }, [showControlsTemporarily]);
@@ -294,10 +249,8 @@ export function PlyrVideoPlayer({
     const questionState = { event, question };
     activeQuestionRef.current = questionState;
     setActiveQuestion(questionState);
-    // If the player is in fullscreen, exit so the question modal is visible.
-    if (document.fullscreenElement) {
-      void document.exitFullscreen();
-    }
+    // The question modal is rendered INSIDE `.elb-video-root`, so it stays
+    // visible on top of the fullscreen video — do not exit fullscreen here.
   }, []);
 
   const checkTimelineEvents = useCallback(async (): Promise<void> => {
@@ -373,27 +326,6 @@ export function PlyrVideoPlayer({
     eventCheckIntervalRef.current = setInterval((): void => { void checkTimelineEvents(); }, EVENT_CHECK_INTERVAL_MS);
     return function cleanup(): void { if (eventCheckIntervalRef.current) clearInterval(eventCheckIntervalRef.current); };
   }, [checkTimelineEvents, isPlaying]);
-
-  useEffect(() => {
-    const onFullscreenChange = (): void => {
-      // Lock landscape on entry (native fullscreen on the root wrapper),
-      // release the orientation lock whenever fullscreen is exited.
-      if (isDocumentFullscreen()) {
-        if (isMobileViewport()) {
-          window.setTimeout(lockLandscape, 120);
-        }
-      } else {
-        unlockOrientation();
-      }
-      // If a question is active, never let the video stay in fullscreen behind
-      // the question modal.
-      if (document.fullscreenElement && activeQuestionRef.current) {
-        void document.exitFullscreen();
-      }
-    };
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    return (): void => { document.removeEventListener("fullscreenchange", onFullscreenChange); };
-  }, []);
 
   const renderQuestionMarkers = useCallback((): void => {
     markersRef.current.forEach((el) => { el.remove(); });
@@ -515,9 +447,9 @@ export function PlyrVideoPlayer({
       });
 
       // Fullscreen is managed entirely by our own native implementation on
-      // `.elb-video-root` (see `toggleFullscreen` + the `fullscreenchange`
-      // listener). Plyr's own fullscreen is disabled (fullscreen.enabled:
-      // false) so it cannot open-and-close fullscreen right after entering.
+      // `.elb-video-root` (see `toggleFullscreen`). Plyr's own fullscreen is
+      // disabled (fullscreen.enabled: false) so it cannot open-and-close
+      // fullscreen right after entering.
 
       plyrRef.current = player;
       const posterEl = container.querySelector<HTMLElement>(".plyr__poster");
@@ -747,16 +679,21 @@ export function PlyrVideoPlayer({
           align-items: center !important;
           justify-content: center !important;
         }
-        /* The 16:9 stage is centered and sized to fit the screen (contain). */
+        /* The 16:9 stage is centered and COVERS the whole screen (fill).
+           The iframe crop below keeps the actual video edge-to-edge with no
+           empty bars on the sides. */
         .elb-video-root:fullscreen .plyr__video-embed,
         .elb-video-root:-webkit-full-screen .plyr__video-embed {
-          width: min(100vw, calc(100vh * 16 / 9)) !important;
-          height: min(100vh, calc(100vw * 9 / 16)) !important;
+          position: absolute !important;
+          top: 50% !important;
+          left: 50% !important;
+          transform: translate(-50%, -50%) !important;
+          width: max(100vw, calc(100vh * 16 / 9)) !important;
+          height: max(100vh, calc(100vw * 9 / 16)) !important;
           max-width: none !important;
           max-height: none !important;
           aspect-ratio: 16 / 9 !important;
           overflow: hidden !important;
-          position: relative !important;
           flex: none !important;
           background: #000 !important;
         }
@@ -782,10 +719,11 @@ export function PlyrVideoPlayer({
           border-radius: 0 !important;
           padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
         }
-        /* Keep overlays hidden while fullscreen is active so only the video
-           + controls are visible (YouTube-style). */
-        .elb-video-root:fullscreen .elb-video-overlay,
-        .elb-video-root:-webkit-full-screen .elb-video-overlay { display: none !important; }
+        /* Keep non-question overlays hidden while fullscreen is active so only
+           the video + controls are visible (YouTube-style). The question
+           overlay must stay visible — questions pop mid-fullscreen. */
+        .elb-video-root:fullscreen .elb-video-overlay:not(.elb-question-overlay),
+        .elb-video-root:-webkit-full-screen .elb-video-overlay:not(.elb-question-overlay) { display: none !important; }
         /* Neutralize any Plyr fullscreen rules that might conflict. */
         .plyr:fullscreen .plyr__video-embed,
         .plyr--fullscreen-fallback .plyr__video-embed,
@@ -840,7 +778,7 @@ export function PlyrVideoPlayer({
         )}
 
         {activeQuestion && (
-          <div className="elb-video-overlay absolute inset-0 z-[60]">
+          <div className="elb-video-overlay elb-question-overlay absolute inset-0 z-[60]">
             <VideoQuestionModal
               event={activeQuestion.event}
               question={activeQuestion.question}
