@@ -679,18 +679,19 @@ export function PlyrVideoPlayer({
           align-items: center !important;
           justify-content: center !important;
         }
-        /* The 16:9 stage is centered inside the fullscreen container (contain).
-           This is the proven-compatible layout — cover/absolute sizing made
-           the YouTube iframe render black on phones. Rotation is never locked:
-           the phone itself controls orientation, even in fullscreen. */
+        /* The video fills the FULL screen width (100vw) — no leftover gaps on
+           the sides — while keeping its 16:9 aspect ratio in height. The
+           stage is centered vertically by the parent flex container. On
+           screens wider than 16:9 the tiny vertical overflow is clipped by
+           the parent (overflow:hidden) instead of leaving side gaps. */
         .elb-video-root:fullscreen .plyr__video-embed,
         .elb-video-root:-webkit-full-screen .plyr__video-embed {
           position: relative !important;
-          width: min(100vw, calc(100vh * 16 / 9)) !important;
-          height: min(100vh, calc(100vw * 9 / 16)) !important;
+          width: 100vw !important;
+          height: calc(100vw * 9 / 16) !important;
           max-width: none !important;
           max-height: none !important;
-          aspect-ratio: 16 / 9 !important;
+          aspect-ratio: auto !important;
           overflow: hidden !important;
           flex: none !important;
           background: #000 !important;
