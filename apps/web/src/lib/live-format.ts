@@ -45,6 +45,31 @@ export function formatAmPm(time: string): string {
   return `${String(hour12)}:${minutes} ${suffix}`;
 }
 
+/** Minutes since midnight for an "HH:mm" string. */
+function toMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** True when a recurring window has a positive duration; an end before start crosses midnight. */
+export function isValidTimeWindow(start: string, end: string): boolean {
+  return toMinutes(end) !== toMinutes(start);
+}
+
+/**
+ * Half-hour time-of-day slots covering the operating day from 06:00 through
+ * 02:00 (next day), rendered as canonical "HH:mm" strings. Values 00:00-02:00
+ * belong to the following day and cross-midnight end times.
+ */
+export const TIME_SLOTS: string[] = ((): string[] => {
+  const slots: string[] = [];
+  for (let h = 6; h <= 26; h++) {
+    slots.push(`${String(h % 24).padStart(2, "0")}:00`);
+    if (h < 26) slots.push(`${String(h % 24).padStart(2, "0")}:30`);
+  }
+  return slots;
+})();
+
 export function formatDate(iso: string | Date): string {
   return dateFmt.format(new Date(iso));
 }

@@ -17,7 +17,7 @@ import {
   useDeleteStudySchedule,
   type StudyScheduleItem,
 } from "@/lib/live-shop-api";
-import { formatAmPm } from "@/lib/live-format";
+import { formatAmPm, isValidTimeWindow, TIME_SLOTS } from "@/lib/live-format";
 import { LiveSessionTypeEnum } from "@el-bannawy/shared";
 
 const DAY_NAMES = [
@@ -31,15 +31,6 @@ const DAY_NAMES = [
 ];
 
 const DAY_VALUES = [6, 0, 1, 2, 3, 4, 5];
-
-const TIME_SLOTS: string[] = ((): string[] => {
-  const slots: string[] = [];
-  for (let h = 6; h <= 22; h++) {
-    slots.push(`${String(h).padStart(2, "0")}:00`);
-    slots.push(`${String(h).padStart(2, "0")}:30`);
-  }
-  return slots;
-})();
 
 interface DayFormRow {
   key: string;
@@ -127,8 +118,8 @@ function ScheduleForm({
       return;
     }
     for (const row of form.rows) {
-      if (row.endTime <= row.startTime) {
-        setError("وقت النهاية يجب أن يكون بعد وقت البداية");
+      if (!isValidTimeWindow(row.startTime, row.endTime)) {
+        setError("وقت النهاية يجب أن يختلف عن وقت البداية");
         return;
       }
     }

@@ -53,15 +53,19 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
   });
 
   describe("createAvailability conflict detection", () => {
-    it("rejects an end time before the start time", async () => {
-      await expect(
-        service.createAvailability({
-          teacherId: "t1",
-          dayOfWeek: 1,
-          startTime: "2026-01-05T10:00:00.000Z",
-          endTime: "2026-01-05T09:00:00.000Z",
-        }),
-      ).rejects.toThrow(BadRequestException);
+    it("accepts an end time before the start time as a cross-midnight window", async () => {
+      prisma.teacherAvailability.findMany.mockResolvedValue([]);
+      prisma.teacherAvailability.create.mockResolvedValue({ id: "a0" });
+
+      const result = await service.createAvailability({
+        teacherId: "t1",
+        dayOfWeek: 1,
+        startTime: "23:00",
+        endTime: "01:00",
+      });
+
+      expect(result).toEqual({ id: "a0" });
+      expect(prisma.teacherAvailability.create).toHaveBeenCalled();
     });
 
     it("rejects overlapping recurring windows for the same teacher/day", async () => {
@@ -103,6 +107,26 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
 
       expect(result).toEqual({ id: "a2" });
       expect(prisma.teacherAvailability.create).toHaveBeenCalled();
+    });
+
+    it("rejects a cross-midnight window overlapping another cross-midnight window", async () => {
+      prisma.teacherAvailability.findMany.mockResolvedValue([
+        {
+          id: "a1",
+          startTime: new Date("1970-01-01T23:00:00.000Z"),
+          endTime: new Date("1970-01-01T01:00:00.000Z"),
+        },
+      ]);
+
+      await expect(
+        service.createAvailability({
+          teacherId: "t1",
+          dayOfWeek: 1,
+          startTime: "00:30",
+          endTime: "01:30",
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.teacherAvailability.create).not.toHaveBeenCalled();
     });
 
     it("accepts HH:mm times and stores them as valid UTC time-of-day dates", async () => {
@@ -291,6 +315,33 @@ describe("LiveAvailabilityService (scheduling engine)", () => {
 
       expect(result).toEqual({ id: "s1", teacherId: "t1", type: "PRIVATE" });
       expect(prisma.liveSession.create).not.toHaveBeenCalled();
+    });
+
+    it("rolls a cross-midnight window end time to the next day", async () => {
+      prisma.teacherAvailability.findFirst.mockResolvedValue({
+        id: "avail1",
+        teacherId: "t1",
+        gradeId: "g1",
+        startTime: new Date("1970-01-01T23:00:00.000Z"),
+        endTime: new Date("1970-01-01T01:00:00.000Z"),
+        maxStudents: 4,
+        type: "PRIVATE",
+      });
+      prisma.liveSession.findFirst.mockResolvedValue(null);
+      prisma.liveSession.create.mockResolvedValue({ id: "s1", teacherId: "t1", type: "PRIVATE" });
+
+      const result = await service.materializeSessionFromSlot("avail1", "2026-08-01");
+
+      expect(prisma.liveSession.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            date: new Date("2026-08-01T00:00:00.000Z"),
+            startTime: new Date("2026-08-01T23:00:00.000Z"),
+            endTime: new Date("2026-08-02T01:00:00.000Z"),
+          }),
+        }),
+      );
+      expect(result).toEqual({ id: "s1", teacherId: "t1", type: "PRIVATE" });
     });
 
     it("heals a session materialized with the 1970 base date", async () => {

@@ -8,21 +8,12 @@ import { PrismaService } from "../prisma/prisma.service";
 import { LiveAccessService } from "./live-access.service";
 import { LiveSessionTypeEnum } from "@el-bannawy/shared";
 import type { $Enums, Prisma } from "@prisma/client";
-
-const AVAILABILITY_TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
-
-function toAvailabilityDate(value: string): Date {
-  const match = AVAILABILITY_TIME_RE.exec(value);
-  if (match) {
-    const [, hh, mm] = match;
-    return new Date(`1970-01-01T${hh}:${mm}:00.000Z`);
-  }
-  return new Date(value);
-}
-
-function toTimeOfDay(date: Date): string {
-  return date.toISOString().slice(11, 16);
-}
+import {
+  circularWindowsOverlap,
+  isValidWindow,
+  toAvailabilityDate,
+  toTimeOfDay,
+} from "./live-time.util";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -120,7 +111,7 @@ export class StudyScheduleService {
     const slots = dto.days.map((day) => {
       const start = toAvailabilityDate(day.startTime);
       const end = toAvailabilityDate(day.endTime);
-      if (end <= start) {
+      if (!isValidWindow(start, end)) {
         throw new BadRequestException(
           `End time must be after start time on day ${DAY_NAMES[day.dayOfWeek]}`,
         );
@@ -229,7 +220,7 @@ export class StudyScheduleService {
         }[]).map((day) => {
           const start = toAvailabilityDate(day.startTime);
           const end = toAvailabilityDate(day.endTime);
-          if (end <= start) {
+          if (!isValidWindow(start, end)) {
             throw new BadRequestException(
               `End time must be after start time on day ${DAY_NAMES[day.dayOfWeek]}`,
             );
@@ -356,8 +347,7 @@ export class StudyScheduleService {
       const overlapping = existing.find(
         (a) =>
           a.dayOfWeek === slot.dayOfWeek &&
-          slot.startTime < a.endTime &&
-          slot.endTime > a.startTime,
+          circularWindowsOverlap(slot.startTime, slot.endTime, a.startTime, a.endTime),
       );
       if (overlapping) {
         throw new BadRequestException(

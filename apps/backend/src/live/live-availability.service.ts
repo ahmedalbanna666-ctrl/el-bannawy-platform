@@ -3,30 +3,15 @@ import { PrismaService } from "../prisma/prisma.service";
 import { LiveAccessService } from "./live-access.service";
 import { LiveSessionStatusEnum, LiveSessionTypeEnum } from "@el-bannawy/shared";
 import type { $Enums } from "@prisma/client";
+import {
+  circularWindowsOverlap,
+  isValidWindow,
+  sessionTimesForDate,
+  toAvailabilityDate,
+  toTimeOfDay,
+} from "./live-time.util";
 
 const TERMINAL_SESSION_STATUSES = ["CANCELLED", "COMPLETED", "ARCHIVED"];
-
-const AVAILABILITY_TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
-
-/** Parse an availability time input ("HH:mm" or a full ISO string) into a Date. "HH:mm" is stored on a fixed UTC base date. */
-function toAvailabilityDate(value: string): Date {
-  const match = AVAILABILITY_TIME_RE.exec(value);
-  if (match) {
-    const [, hh, mm] = match;
-    return new Date(`1970-01-01T${hh}:${mm}:00.000Z`);
-  }
-  return new Date(value);
-}
-
-/** Render a stored availability Date as the canonical UTC time-of-day "HH:mm". */
-function toTimeOfDay(date: Date): string {
-  return date.toISOString().slice(11, 16);
-}
-
-/** Combine a target date ("YYYY-MM-DD") with an availability time-of-day into a concrete UTC Date. */
-function sessionTimeForDate(dateStr: string, availabilityDate: Date): Date {
-  return new Date(`${dateStr}T${toTimeOfDay(availabilityDate)}:00.000Z`);
-}
 
 /**
  * LiveAvailabilityService — the scheduling engine for live sessions.
@@ -74,7 +59,7 @@ export class LiveAvailabilityService {
   ): Promise<unknown> {
     const start = toAvailabilityDate(dto.startTime);
     const end = toAvailabilityDate(dto.endTime);
-    if (end <= start) {
+    if (!isValidWindow(start, end)) {
       throw new BadRequestException("Availability end time must be after start time");
     }
     await this.assertNoOverlap(dto.teacherId, dto.dayOfWeek, start, end, null);
@@ -121,7 +106,7 @@ export class LiveAvailabilityService {
         dto.startTime !== undefined ? toAvailabilityDate(dto.startTime as string) : avail.startTime;
       const end =
         dto.endTime !== undefined ? toAvailabilityDate(dto.endTime as string) : avail.endTime;
-      if (end <= start) {
+      if (!isValidWindow(start, end)) {
         throw new BadRequestException("Availability end time must be after start time");
       }
       await this.assertNoOverlap(avail.teacherId, dayOfWeek, start, end, id);
@@ -146,10 +131,12 @@ export class LiveAvailabilityService {
       },
       select: { id: true, startTime: true, endTime: true },
     });
-    const overlapping = existing.find((a) => start < a.endTime && end > a.startTime);
+    const overlapping = existing.find((a) =>
+      circularWindowsOverlap(start, end, a.startTime, a.endTime),
+    );
     if (overlapping) {
       throw new BadRequestException(
-        `Availability overlaps an existing window (${overlapping.startTime.toISOString()}–${overlapping.endTime.toISOString()})`,
+        `Availability overlaps an existing window (${toTimeOfDay(overlapping.startTime)}–${toTimeOfDay(overlapping.endTime)})`,
       );
     }
   }
@@ -295,8 +282,7 @@ export class LiveAvailabilityService {
     if (!avail) throw new NotFoundException("Slot not found");
 
     const sessionDate = new Date(dateStr);
-    const startTime = sessionTimeForDate(dateStr, avail.startTime);
-    const endTime = sessionTimeForDate(dateStr, avail.endTime);
+    const { startTime, endTime } = sessionTimesForDate(dateStr, avail.startTime, avail.endTime);
 
     const existing = await this.prisma.liveSession.findFirst({
       where: { availabilitySlotId: avail.id, date: sessionDate, deletedAt: null },
