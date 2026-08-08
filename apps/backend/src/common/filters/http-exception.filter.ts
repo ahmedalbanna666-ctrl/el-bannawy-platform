@@ -25,7 +25,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const httpStatus = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     const isHttpException = exception instanceof HttpException;
-    const message = isHttpException ? exception.message : "Internal server error";
+    // Nest v11 `exception.message` collapses array-shaped error payloads
+    // (e.g. ValidationPipe errors) into the generic class name, so read the
+    // real details from getResponse() when present.
+    const rawResponse = isHttpException ? (exception as HttpException).getResponse() : null;
+    const rawMessage =
+      rawResponse && typeof rawResponse === "object" && "message" in rawResponse
+        ? (rawResponse as { message?: unknown }).message
+        : isHttpException
+          ? (exception as HttpException).message
+          : "Internal server error";
+    const message = Array.isArray(rawMessage)
+      ? rawMessage.join("; ")
+      : typeof rawMessage === "string"
+        ? rawMessage
+        : "Internal server error";
     const isInternalServerError = httpStatus === 500;
 
     // An expired / superseded session must drop its auth cookies, otherwise the
@@ -42,7 +56,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: httpStatus,
       success: false,
       message,
-      error: isHttpException && !isInternalServerError ? exception.message : null,
+      error: isHttpException && !isInternalServerError ? message : null,
       timestamp: new Date().toISOString(),
       path,
       correlationId,

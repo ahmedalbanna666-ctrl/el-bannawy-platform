@@ -490,7 +490,6 @@ export class CreateSubscriptionDto {
 
 export class CreateLivePricingPlanDto {
   @IsString()
-  @Min(1)
   @Matches(/^[A-Z][A-Z0-9_]*$/)
   code!: string;
 
