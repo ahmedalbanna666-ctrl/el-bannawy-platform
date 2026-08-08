@@ -258,6 +258,27 @@ describe("PlyrVideoPlayer", () => {
     expect(apiMock.get).toHaveBeenCalledTimes(2); // events list + first question fetch
   });
 
+  it("pulls back to the EARLIEST unanswered question when seeking past several", async () => {
+    // Two mandatory questions: one at 30s, one at 60s.
+    mockApi([requiredQuestion, { ...optionalQuestion, id: "evt-3", required: true, timestamp: 60 }]);
+    render(<PlyrVideoPlayer providerVideoId="xyz123" videoId="vid-1" />);
+    await waitFor(() => { expect(MockPlyr.last).toBeTruthy(); });
+
+    const player = getPlayer();
+    player.fire("play");
+    // Student scrubs straight to 90s, past BOTH unanswered questions.
+    player.currentTime = 90;
+    player.fire("timeupdate");
+    player.fire("seeked");
+    await new Promise((r) => setTimeout(r, 300));
+
+    // The earliest unanswered question (30s) must be fired, not the latest.
+    expect(apiMock.get).toHaveBeenCalledWith(
+      expect.stringContaining("/video-questions/by-video-event/evt-1"),
+    );
+    expect(screen.getByTestId("question-modal")).toBeInTheDocument();
+  });
+
   it("marks the video complete on end when enabled", async () => {
     render(
       <PlyrVideoPlayer

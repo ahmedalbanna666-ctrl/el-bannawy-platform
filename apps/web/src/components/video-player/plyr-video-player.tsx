@@ -262,14 +262,17 @@ export function PlyrVideoPlayer({
     if (events.length === 0 || isPausedForQuestionRef.current || !isPlayingRef.current) return;
     if (!Number.isFinite(currentTime) || currentTime <= 0) return;
 
-    for (const event of events) {
-      if (!event.enabled) continue;
+    // Find the EARLIEST (chronologically first) enabled question that the
+    // student has already reached but not yet answered. This guarantees the
+    // student answers surprise questions in order, never skipping ahead.
+    const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
+    for (const event of sorted) {
+      if (!event.enabled || event.type !== "QUESTION") continue;
       if (triggeredRef.current.has(event.id)) continue;
+      if (answeredEventsRef.current.has(event.id)) continue;
       if (currentTime < event.timestamp) continue;
-      if (event.type === "QUESTION") {
-        await fireQuestion(event);
-        return;
-      }
+      await fireQuestion(event);
+      return;
     }
   }, [fireQuestion]);
 
@@ -371,7 +374,9 @@ export function PlyrVideoPlayer({
       api.get<readonly VideoEvent[]>(`/video-events?videoId=${videoId}`)
         .then((res): void => {
           if (!cancelled && res.data) {
-            eventsRef.current = res.data;
+            // Sort chronologically so the "first unanswered question" logic is
+            // deterministic regardless of the API order.
+            eventsRef.current = [...res.data].sort((a, b) => a.timestamp - b.timestamp);
             renderQuestionMarkers();
             // Fire any question the student has already reached (e.g. events
             // that finished loading after the timestamp passed).
@@ -536,9 +541,10 @@ export function PlyrVideoPlayer({
             return;
           }
         }
-        // Anti-skip: pull the student back to the earliest unanswered REQUIRED
-        // question they have jumped past, so mandatory questions can never be
-        // skipped.
+        // Anti-skip: pull the student back to the EARLIEST unanswered REQUIRED
+        // question they have jumped past, so mandatory questions are answered
+        // strictly in chronological order — never skipped, never jumping to a
+        // later question.
         const events = eventsRef.current;
         let target: number | null = null;
         for (const e of events) {
@@ -550,9 +556,10 @@ export function PlyrVideoPlayer({
         if (target !== null) {
           // Fire the mandatory question immediately and pause the video so the
           // student cannot fast-forward past it without answering.
-          const targetEvent = events.find(
+          // events is sorted ascending, so the first match is the earliest.
+          const targetEvent: VideoEvent | undefined = events.find(
             (e) => e.type === "QUESTION" && e.enabled && e.timestamp === target
-              && !triggeredRef.current.has(e.id) && !answeredEventsRef.current.has(e.id),
+              && !answeredEventsRef.current.has(e.id),
           );
           if (targetEvent) {
             void fireQuestion(targetEvent);
