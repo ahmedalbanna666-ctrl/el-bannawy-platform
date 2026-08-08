@@ -50,31 +50,6 @@ function requestFullscreenOn(el: HTMLElement): Promise<void> {
   return Promise.resolve();
 }
 
-/**
- * Lock the screen to LANDSCAPE while fullscreen is active. `lock("landscape")`
- * keeps the device rotating between left/right landscape only and blocks
- * portrait — released again as soon as fullscreen is exited (Android only;
- * iOS does not expose orientation.lock, so the user rotates manually there).
- */
-function lockLandscape(): void {
-  try {
-    const ori = (screen as unknown as { orientation?: { lock?: (o: string) => Promise<void> } }).orientation;
-    void ori?.lock?.("landscape").catch((): void => undefined);
-  } catch {
-    // unsupported — ignore
-  }
-}
-
-/** Release the landscape lock when fullscreen is exited. */
-function unlockOrientation(): void {
-  try {
-    const ori = (screen as unknown as { orientation?: { unlock?: () => void } }).orientation;
-    ori?.unlock?.();
-  } catch {
-    // ignore
-  }
-}
-
 /** Format seconds as MM:SS (or H:MM:SS for durations >= 1h). */
 function formatTime(totalSeconds: number): string {
   const secs = Math.max(0, Math.floor(totalSeconds));
@@ -213,42 +188,14 @@ export function PlyrVideoPlayer({
     if (!root) return;
     if (isDocumentFullscreen()) {
       void document.exitFullscreen().catch(() => undefined);
-      unlockOrientation();
     } else {
       // Enter fullscreen on the FULL container (which contains the custom
       // control bar), not on Plyr's internal embed container — otherwise the
       // controls stay behind and the video is letterboxed inside the screen.
-      void requestFullscreenOn(root).finally((): void => {
-        // Give the browser a moment to promote the element before locking,
-        // otherwise the orientation lock is rejected.
-        window.setTimeout(lockLandscape, 120);
-      });
+      void requestFullscreenOn(root);
     }
     showControlsTemporarily();
   }, [showControlsTemporarily]);
-
-  // While fullscreen is active, keep the device locked to landscape
-  // (left/right). The lock must NEVER leak outside fullscreen: it is released
-  // on exit, on unmount and on page hide (in case the user navigates away).
-  useEffect(() => {
-    const onFullscreenChange = (): void => {
-      if (isDocumentFullscreen()) {
-        window.setTimeout(lockLandscape, 120);
-      } else {
-        unlockOrientation();
-      }
-    };
-    const releaseLock = (): void => { unlockOrientation(); };
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    window.addEventListener("pagehide", releaseLock);
-    window.addEventListener("blur", releaseLock);
-    return (): void => {
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
-      window.removeEventListener("pagehide", releaseLock);
-      window.removeEventListener("blur", releaseLock);
-      unlockOrientation();
-    };
-  }, []);
 
   useEffect(() => {
     return (): void => {
@@ -734,8 +681,8 @@ export function PlyrVideoPlayer({
         }
         /* The 16:9 stage is centered inside the fullscreen container (contain).
            This is the proven-compatible layout — cover/absolute sizing made
-           the YouTube iframe render black on phones. Combined with the
-           landscape lock below, the video stays fully visible in fullscreen. */
+           the YouTube iframe render black on phones. Rotation is never locked:
+           the phone itself controls orientation, even in fullscreen. */
         .elb-video-root:fullscreen .plyr__video-embed,
         .elb-video-root:-webkit-full-screen .plyr__video-embed {
           position: relative !important;
