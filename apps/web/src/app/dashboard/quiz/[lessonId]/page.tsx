@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { useAllowRotation } from "@/hooks/use-screen-orientation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
@@ -114,6 +115,8 @@ function translatePrereqReason(reason: string | null): string | null {
 export default function QuizPage(): ReactNode {
   const params = useParams();
   const lessonId = params.lessonId as string;
+  // The exam screen lets the phone rotate freely.
+  useAllowRotation();
 
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);

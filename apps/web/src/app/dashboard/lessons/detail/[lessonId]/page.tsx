@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
+import { useAllowRotation } from "@/hooks/use-screen-orientation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -650,6 +651,8 @@ export default function LessonDetailPage(): ReactNode {
   const params = useParams();
   const router = useRouter();
   const lessonId = params.lessonId as string;
+  // Video lessons let the phone rotate freely (landscape for the video).
+  useAllowRotation();
 
   const {
     data: lesson,

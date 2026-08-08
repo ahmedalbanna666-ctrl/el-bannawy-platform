@@ -3,6 +3,7 @@
 import { type ReactNode, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { useAllowRotation } from "@/hooks/use-screen-orientation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,6 +31,8 @@ function formatFileSize(bytes: number): string {
 
 export default function SavedPdfsPage(): ReactNode {
   const queryClient = useQueryClient();
+  // The saved PDFs screen lets the phone rotate freely (landscape for reading).
+  useAllowRotation();
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({

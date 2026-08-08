@@ -4,6 +4,7 @@ import { type ReactNode, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { useAllowRotation } from "@/hooks/use-screen-orientation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
@@ -44,6 +45,8 @@ export default function LessonPdfPage(): ReactNode {
   const params = useParams<{ lessonId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  // The PDF viewer lets the phone rotate freely (landscape for reading).
+  useAllowRotation();
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const lessonId = params.lessonId;

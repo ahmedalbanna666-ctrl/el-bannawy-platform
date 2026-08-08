@@ -3,6 +3,7 @@ import { Inter, Cairo } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { SplashProvider } from "../components/splash/splash-provider";
+import { PlatformOrientation } from "../components/screen-orientation";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -73,6 +74,7 @@ export default function RootLayout({
         <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="32x32" />
       </head>
       <body>
+        <PlatformOrientation />
         <SplashProvider>
           <Providers>{children}</Providers>
         </SplashProvider>
