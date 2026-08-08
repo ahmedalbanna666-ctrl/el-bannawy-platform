@@ -48,13 +48,25 @@ export enum LiveSubscriptionTypeEnum {
   PRIVATE_PLAN_B = "PRIVATE_PLAN_B",
   GROUP_PLAN_A = "GROUP_PLAN_A",
   GROUP_PLAN_B = "GROUP_PLAN_B",
+  CUSTOM_PRIVATE = "CUSTOM_PRIVATE",
+  CUSTOM_GROUP = "CUSTOM_GROUP",
+  CUSTOM_ONE_TIME = "CUSTOM_ONE_TIME",
+}
+
+/** Structural class of a sellable live plan (see ILivePricingPlan.type). */
+export enum LivePricingPlanTypeEnum {
+  PRIVATE = "PRIVATE",
+  GROUP = "GROUP",
+  ONE_TIME = "ONE_TIME",
+  FREE = "FREE",
 }
 
 /**
- * The six bookable live products exposed to students.
+ * The six bookable live products seeded into the LivePricingPlan table.
  * Plan A = one session per week, Plan B = two sessions per week (both monthly).
- * ONE_TIME and FREE are standalone. Prices are stored in SystemSetting
- * (`live_product_prices`), not in code.
+ * ONE_TIME and FREE are standalone. The source of truth for plans is the
+ * LivePricingPlan table (admin-managed); this list seeds the initial plans and
+ * stays as the backward-compatible reference set.
  */
 export const LIVE_PRODUCTS = [
   "PRIVATE_PLAN_A",
@@ -65,11 +77,27 @@ export const LIVE_PRODUCTS = [
   "FREE",
 ] as const;
 
-export type LiveProductCode = (typeof LIVE_PRODUCTS)[number];
+/** A live plan code (legacy seeded codes or admin-created custom codes). */
+export type LiveProductCode = string;
 
 /** Payment.productType values for live products (prefix used by PaymentsService). */
 export function liveProductType(code: LiveProductCode): string {
-  return code === "FREE" ? "LIVE_FREE" : `LIVE_${code}`;
+  return `LIVE_${code}`;
+}
+
+/** Admin-managed sellable live plan (mirrors the LivePricingPlan table). */
+export interface ILivePricingPlan {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly short: string;
+  readonly description: string;
+  readonly type: LivePricingPlanTypeEnum;
+  readonly price: number;
+  readonly sessionCount: number;
+  readonly benefits: readonly string[];
+  readonly isActive: boolean;
+  readonly sortOrder: number;
 }
 
 export enum LiveSubscriptionStatusEnum {

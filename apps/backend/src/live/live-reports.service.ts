@@ -163,10 +163,16 @@ export class LiveReportsService {
     if (sessionType === LiveSessionTypeEnum.GROUP) {
       return LiveSessionKindEnum.GROUP;
     }
-    if (subscriptionType === LiveSubscriptionTypeEnum.PRIVATE_MONTHLY) {
+    if (
+      subscriptionType === LiveSubscriptionTypeEnum.PRIVATE_MONTHLY ||
+      subscriptionType === LiveSubscriptionTypeEnum.CUSTOM_PRIVATE
+    ) {
       return LiveSessionKindEnum.PRIVATE_MONTHLY;
     }
-    if (subscriptionType === LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE) {
+    if (
+      subscriptionType === LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE ||
+      subscriptionType === LiveSubscriptionTypeEnum.CUSTOM_ONE_TIME
+    ) {
       return LiveSessionKindEnum.ONE_TIME;
     }
     return LiveSessionKindEnum.FREE;

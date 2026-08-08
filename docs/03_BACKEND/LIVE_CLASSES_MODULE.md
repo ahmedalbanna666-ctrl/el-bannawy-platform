@@ -9,7 +9,16 @@ Manages teacher availability, date blocks, live-session lifecycle, subscriptions
 
 ## Persisted Model
 
-`LiveSession`, `TeacherAvailability`, `TeacherDateBlock`, `TeacherLiveSettings`, `LiveSubscription`, `LiveBooking`, `LiveWaitingList`, `LiveAttendance`, `LiveAnnouncement`, and `LiveSessionControlLog`.
+`LiveSession`, `TeacherAvailability`, `TeacherDateBlock`, `TeacherLiveSettings`, `LiveSubscription`, `LiveBooking`, `LiveWaitingList`, `LiveAttendance`, `LiveAnnouncement`, `LiveSessionControlLog`, and `LivePricingPlan`.
+
+## Sellable Plans (`LivePricingPlan`)
+
+The `LivePricingPlan` table is the runtime source of truth for sellable live products (prices, session counts, descriptions, activation state). It replaces the legacy `live_product_prices` `SystemSetting` map. The six legacy products are seeded as default rows and remain fully supported; administrators can add/update/delete/toggle plans at runtime.
+
+- `LiveSubscription.planCode` (nullable) links a subscription to the plan it was purchased from (indexed); plans referenced by `ACTIVE` subscriptions cannot be deleted (`409 ConflictException`).
+- Newer subscriptions may use generic types `CUSTOM_PRIVATE`, `CUSTOM_GROUP`, or `CUSTOM_ONE_TIME` instead of the fixed legacy enum values. All activation, booking-validation, session-kind, and reporting logic accepts the custom types alongside the legacy ones.
+- Plan `type` drives the student purchase flow: `PRIVATE` → private monthly wizard, `GROUP` → group wizard, `ONE_TIME` → single-slot booking, `FREE` → free events.
+- Seed defaults (idempotent, applied only when the table is empty): `PRIVATE_PLAN_A` 500 EGP/4, `PRIVATE_PLAN_B` 800/8, `GROUP_PLAN_A` 300/4, `GROUP_PLAN_B` 400/8, `ONE_TIME` 200/1, `FREE` 0/0.
 
 ## Scheduling Model
 

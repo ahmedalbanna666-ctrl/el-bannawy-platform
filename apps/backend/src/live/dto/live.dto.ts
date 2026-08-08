@@ -5,9 +5,11 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   Min,
   registerDecorator,
@@ -25,6 +27,7 @@ import {
   LiveSubscriptionTypeEnum,
   LiveSubscriptionStatusEnum,
   LiveBookingRescheduleStatusEnum,
+  LivePricingPlanTypeEnum,
   MeetingProviderEnum,
 } from "@el-bannawy/shared";
 
@@ -483,6 +486,93 @@ export class CreateSubscriptionDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+}
+
+export class CreateLivePricingPlanDto {
+  @IsString()
+  @Min(1)
+  @Matches(/^[A-Z][A-Z0-9_]*$/)
+  code!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  short!: string;
+
+  @IsString()
+  description!: string;
+
+  @IsEnum(LivePricingPlanTypeEnum)
+  type!: LivePricingPlanTypeEnum;
+
+  @IsInt()
+  @Min(0)
+  price!: number;
+
+  @IsInt()
+  @Min(0)
+  sessionCount!: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  benefits?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+}
+
+export class UpdateLivePricingPlanDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  short?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsEnum(LivePricingPlanTypeEnum)
+  type?: LivePricingPlanTypeEnum;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  price?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sessionCount?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  benefits?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
 }
 
 export class CreateAnnouncementDto {

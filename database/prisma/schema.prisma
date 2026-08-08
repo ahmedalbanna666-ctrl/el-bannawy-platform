@@ -2037,8 +2037,23 @@ enum LiveSubscriptionType {
   PRIVATE_PLAN_B
   GROUP_PLAN_A
   GROUP_PLAN_B
+  CUSTOM_PRIVATE
+  CUSTOM_GROUP
+  CUSTOM_ONE_TIME
 
   @@map("live_subscription_type")
+}
+
+/// Structural class of a sellable live plan. Determines the booking kind a
+/// subscription grants: PRIVATE -> private-monthly class, GROUP -> group class,
+/// ONE_TIME -> one-time class, FREE -> no subscription (always eligible).
+enum LivePricingPlanType {
+  PRIVATE
+  GROUP
+  ONE_TIME
+  FREE
+
+  @@map("live_pricing_plan_type")
 }
 
 enum LiveSubscriptionStatus {
@@ -2260,12 +2275,38 @@ model LiveBooking {
   @@map("live_bookings")
 }
 
+/// Sellable live-class plan. The dynamic replacement for the hardcoded product
+/// catalog: administrators add, edit, deactivate or delete plans at runtime.
+/// `type` drives the booking kind (see LivePricingPlanType).
+model LivePricingPlan {
+  id           String             @id @default(uuid()) @db.Uuid
+  code         String             @unique
+  name         String
+  short        String
+  description  String
+  type         LivePricingPlanType
+  price        Int
+  sessionCount Int                @default(1)
+  benefits     String[]           @default([])
+  isActive     Boolean            @default(true)
+  sortOrder    Int                @default(0)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([type, isActive])
+  @@map("live_pricing_plans")
+}
+
 model LiveSubscription {
   id                  String                 @id @default(uuid()) @db.Uuid
   userId              String                 @db.Uuid
   type                LiveSubscriptionType
   packageLabel        String                 @default("4")
   packageSessionCount Int                    @default(4)
+  /// Code of the LivePricingPlan that produced this subscription (null for
+  /// legacy/bootstrap rows). For custom plans it is the source of truth for
+  /// the exact plan identity beyond the generic `type`.
+  planCode            String?
   status              LiveSubscriptionStatus @default(ACTIVE)
   teacherId           String?                @db.Uuid
   scheduleId          String?                @db.Uuid
@@ -2293,6 +2334,7 @@ model LiveSubscription {
   @@index([userId, status])
   @@index([teacherId])
   @@index([scheduleId])
+  @@index([planCode])
   @@map("live_subscriptions")
 }
 

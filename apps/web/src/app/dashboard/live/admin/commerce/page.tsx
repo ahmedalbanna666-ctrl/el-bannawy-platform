@@ -5,18 +5,22 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  useLivePricing,
-  useUpdateLivePricing,
+  useLivePlans,
+  useCreateLivePlan,
+  useUpdateLivePlan,
+  useDeleteLivePlan,
   usePaymentApprovals,
   useReviewPayment,
-  PRODUCT_META,
-  LIVE_PRODUCT_SESSIONS,
   liveProductCode,
-  type LiveProductCode,
+  type LivePricingPlan,
+  type LivePricingPlanInput,
 } from "@/lib/live-shop-api";
 import {
   Banknote,
@@ -24,131 +28,403 @@ import {
   Coins,
   Eye,
   ImageOff,
-  Save,
+  Pencil,
+  Plus,
   ShieldCheck,
+  Trash2,
   Wallet,
   XCircle,
 } from "lucide-react";
 
-const PRICING_ROWS: { code: LiveProductCode; tone: string }[] = [
-  { code: "PRIVATE_PLAN_A", tone: "text-cyan-500" },
-  { code: "PRIVATE_PLAN_B", tone: "text-cyan-500" },
-  { code: "GROUP_PLAN_A", tone: "text-purple-500" },
-  { code: "GROUP_PLAN_B", tone: "text-purple-500" },
-  { code: "ONE_TIME", tone: "text-amber-500" },
-  { code: "FREE", tone: "text-emerald-500" },
+const TYPE_META: Record<LivePricingPlan["type"], { label: string; tone: string; icon: typeof Wallet }> = {
+  PRIVATE: { label: "فردي", tone: "text-cyan-500", icon: Wallet },
+  GROUP: { label: "مجموعة", tone: "text-purple-500", icon: Banknote },
+  ONE_TIME: { label: "منفردة", tone: "text-amber-500", icon: Coins },
+  FREE: { label: "مجانية", tone: "text-emerald-500", icon: ShieldCheck },
+};
+
+const TYPE_OPTIONS: { value: LivePricingPlan["type"]; label: string }[] = [
+  { value: "PRIVATE", label: "فردي (شهري)" },
+  { value: "GROUP", label: "مجموعة (شهري)" },
+  { value: "ONE_TIME", label: "حصة منفردة" },
+  { value: "FREE", label: "فعالية مجانية" },
 ];
 
-function PricingTab(): ReactNode {
-  const { data: prices, isLoading } = useLivePricing();
-  const { mutateAsync: save, isPending } = useUpdateLivePricing();
-  const [draft, setDraft] = useState<Record<string, string>>({});
+interface PlanFormState {
+  code: string;
+  name: string;
+  short: string;
+  description: string;
+  type: LivePricingPlan["type"];
+  price: string;
+  sessionCount: string;
+  benefits: string;
+  isActive: boolean;
+  sortOrder: string;
+}
 
-  const draftValue = (code: LiveProductCode): string =>
-    draft[code] ?? (prices ? String(prices[code]) : "");
+function emptyForm(): PlanFormState {
+  return {
+    code: "",
+    name: "",
+    short: "",
+    description: "",
+    type: "PRIVATE",
+    price: "",
+    sessionCount: "4",
+    benefits: "",
+    isActive: true,
+    sortOrder: "0",
+  };
+}
 
-  const handleSave = async (): Promise<void> => {
-    const payload: Record<string, number> = {};
-    for (const { code } of PRICING_ROWS) {
-      const raw = draftValue(code).trim();
-      const num = Number(raw);
-      if (!raw || !Number.isFinite(num) || num < 0) {
-        toast.error(`سعر غير صالح: ${PRODUCT_META[code].label}`);
-        return;
-      }
-      payload[code] = num;
+function formFromPlan(plan: LivePricingPlan): PlanFormState {
+  return {
+    code: plan.code,
+    name: plan.name,
+    short: plan.short,
+    description: plan.description,
+    type: plan.type,
+    price: String(plan.price),
+    sessionCount: String(plan.sessionCount),
+    benefits: plan.benefits.join("\n"),
+    isActive: plan.isActive,
+    sortOrder: String(plan.sortOrder),
+  };
+}
+
+function planFormDialogContent(
+  form: PlanFormState,
+  setForm: React.Dispatch<React.SetStateAction<PlanFormState>>,
+  isEditing: boolean,
+): ReactNode {
+  return (
+    <div className="flex flex-col gap-3">
+      <Input
+        label="كود الباقة"
+        placeholder="PRIVATE_INTENSIVE"
+        dir="ltr"
+        disabled={isEditing}
+        value={form.code}
+        onChange={(e) => { setForm((f) => ({ ...f, code: e.target.value })); }}
+        helperText={isEditing ? "لا يمكن تغيير الكود بعد الإنشاء." : "أحرف إنجليزية كبيرة وأرقام وشرطة سفلية."}
+      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input
+          label="اسم الباقة"
+          placeholder="خطة مكثفة"
+          value={form.name}
+          onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); }}
+        />
+        <Input
+          label="وصف مختصر"
+          placeholder="حصتان شهرياً"
+          value={form.short}
+          onChange={(e) => { setForm((f) => ({ ...f, short: e.target.value })); }}
+        />
+      </div>
+      <Textarea
+        label="الوصف الكامل"
+        placeholder="وصف يظهر للطلاب..."
+        rows={2}
+        value={form.description}
+        onChange={(e) => { setForm((f) => ({ ...f, description: e.target.value })); }}
+      />
+      <Select
+        label="نوع الباقة"
+        options={TYPE_OPTIONS}
+        value={form.type}
+        onChange={(e) => { setForm((f) => ({ ...f, type: e.target.value as LivePricingPlan["type"] })); }}
+      />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Input
+          label="السعر (EGP)"
+          type="number"
+          min={0}
+          dir="ltr"
+          value={form.price}
+          onChange={(e) => { setForm((f) => ({ ...f, price: e.target.value })); }}
+        />
+        <Input
+          label="عدد الحصص"
+          type="number"
+          min={0}
+          dir="ltr"
+          value={form.sessionCount}
+          onChange={(e) => { setForm((f) => ({ ...f, sessionCount: e.target.value })); }}
+        />
+        <Input
+          label="الترتيب"
+          type="number"
+          min={0}
+          dir="ltr"
+          value={form.sortOrder}
+          onChange={(e) => { setForm((f) => ({ ...f, sortOrder: e.target.value })); }}
+        />
+      </div>
+      <Textarea
+        label="مزايا الباقة (سطر لكل ميزة)"
+        placeholder={"حصة أسبوعية ثابتة\nتقرير تقدم شهري"}
+        rows={3}
+        value={form.benefits}
+        onChange={(e) => { setForm((f) => ({ ...f, benefits: e.target.value })); }}
+      />
+      <Switch
+        label="الباقة مفعّلة"
+        checked={form.isActive}
+        onChange={(e) => { setForm((f) => ({ ...f, isActive: e.target.checked })); }}
+      />
+    </div>
+  );
+}
+
+function PlanManagerTab(): ReactNode {
+  const { data: plans, isLoading } = useLivePlans();
+  const { mutateAsync: create } = useCreateLivePlan();
+  const { mutateAsync: update } = useUpdateLivePlan();
+  const { mutateAsync: remove } = useDeleteLivePlan();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<LivePricingPlan | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<PlanFormState>(emptyForm());
+  const [formError, setFormError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<LivePricingPlan | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const openCreate = (): void => {
+    setEditing(null);
+    setForm(emptyForm());
+    setFormError(null);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (plan: LivePricingPlan): void => {
+    setEditing(plan);
+    setForm(formFromPlan(plan));
+    setFormError(null);
+    setDialogOpen(true);
+  };
+
+  const validateForm = (): LivePricingPlanInput | null => {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(form.code)) {
+      setFormError("كود غير صالح — استخدم أحرف إنجليزية كبيرة فقط.");
+      return null;
     }
+    if (!form.name.trim() || !form.short.trim()) {
+      setFormError("اسم الباقة والوصف المختصر مطلوبان.");
+      return null;
+    }
+    const price = Number(form.price);
+    const sessionCount = Number(form.sessionCount);
+    const sortOrder = Number(form.sortOrder);
+    if (!Number.isFinite(price) || price < 0 || !Number.isInteger(price)) {
+      setFormError("سعر غير صالح.");
+      return null;
+    }
+    if (!Number.isFinite(sessionCount) || sessionCount < 0 || !Number.isInteger(sessionCount)) {
+      setFormError("عدد حصص غير صالح.");
+      return null;
+    }
+    setFormError(null);
+    return {
+      code: form.code,
+      name: form.name.trim(),
+      short: form.short.trim(),
+      description: form.description.trim(),
+      type: form.type,
+      price,
+      sessionCount,
+      benefits: form.benefits.split("\n").map((b) => b.trim()).filter(Boolean),
+      isActive: form.isActive,
+      sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+    };
+  };
+
+  const handleSubmit = async (): Promise<void> => {
+    const dto = validateForm();
+    if (!dto) return;
+    setSaving(true);
     try {
-      await save(payload);
-      setDraft({});
-      toast.success("تم حفظ أسعار الباقات");
+      if (editing) {
+        const { code: _code, ...patch } = dto;
+        void _code;
+        await update({ code: editing.code, dto: patch });
+        toast.success("تم تحديث الباقة");
+      } else {
+        await create(dto);
+        toast.success("تم إنشاء الباقة");
+      }
+      setDialogOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "تعذر حفظ الأسعار");
+      toast.error(err instanceof Error ? err.message : "تعذر حفظ الباقة");
+    } finally {
+      setSaving(false);
     }
   };
+
+  const handleToggle = async (plan: LivePricingPlan): Promise<void> => {
+    try {
+      await update({ code: plan.code, dto: { isActive: !plan.isActive } });
+      toast.success(plan.isActive ? "تم إيقاف الباقة" : "تم تفعيل الباقة");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذر تعديل الباقة");
+    }
+  };
+
+  const handleDelete = async (): Promise<void> => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await remove(confirmDelete.code);
+      toast.success("تم حذف الباقة");
+      setConfirmDelete(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذر حذف الباقة");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const sorted = [...(plans ?? [])].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "ar"));
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-neutral-500">
-          تحكم في أسعار باقات الحصص المباشرة — تُطبّق فور الحفظ.
+          أنشئ باقات الحصص المباشرة أو عدّلها أو أوقفها — تُطبّق فوراً على المتجر.
         </p>
         <Button
           variant="primary"
           size="sm"
-          loading={isPending}
-          onClick={() => { void handleSave(); }}
-          leftIcon={<Save className="h-4 w-4" />}
+          onClick={openCreate}
+          leftIcon={<Plus className="h-4 w-4" />}
         >
-          حفظ الأسعار
+          إضافة باقة
         </Button>
       </div>
 
       {isLoading ? (
         <div className="grid gap-3 md:grid-cols-2">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-24 rounded-2xl" />
+            <Skeleton key={i} className="h-28 rounded-2xl" />
           ))}
         </div>
-      ) : prices ? (
+      ) : sorted.length > 0 ? (
         <div className="grid gap-3 md:grid-cols-2">
-          {PRICING_ROWS.map(({ code, tone }) => {
-            const meta = PRODUCT_META[code];
+          {sorted.map((plan) => {
+            const meta = TYPE_META[plan.type];
+            const Icon = meta.icon;
             return (
               <div
-                key={code}
-                className="flex items-center gap-4 rounded-2xl border border-neutral-200/70 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.03]"
+                key={plan.code}
+                className="flex flex-col gap-3 rounded-2xl border border-neutral-200/70 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.03]"
               >
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 dark:bg-white/5 ${tone}`}>
-                  {code.startsWith("PRIVATE") ? (
-                    <Wallet className="h-6 w-6" />
-                  ) : code.startsWith("GROUP") ? (
-                    <Banknote className="h-6 w-6" />
-                  ) : code === "ONE_TIME" ? (
-                    <Coins className="h-6 w-6" />
-                  ) : (
-                    <ShieldCheck className="h-6 w-6" />
-                  )}
+                <div className="flex items-start gap-3">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 dark:bg-white/5 ${meta.tone}`}>
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                        {plan.name}
+                      </p>
+                      <Badge variant={plan.isActive ? "success" : "secondary"}>{plan.isActive ? "نشطة" : "موقوفة"}</Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-neutral-500">
+                      {plan.sessionCount} حصص · {plan.short}
+                    </p>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-400">
+                      <Badge variant="secondary">{meta.label}</Badge>
+                      <span dir="ltr" className="font-mono">{plan.code}</span>
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-left">
+                    <p className="text-base font-bold tabular-nums text-neutral-900 dark:text-neutral-100">
+                      {plan.price} <span className="text-xs font-medium text-neutral-400">EGP</span>
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                    {meta.label}
-                  </p>
-                  <p className="text-xs text-neutral-500">
-                    {LIVE_PRODUCT_SESSIONS[code]} حصص · {meta.short}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    dir="ltr"
-                    value={draftValue(code)}
-                    onChange={(e) => { setDraft((d) => ({ ...d, [code]: e.target.value })); }}
-                    className="w-24 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm tabular-nums focus:border-primary-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  />
-                  <span className="text-xs font-medium text-neutral-400">EGP</span>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200/60 pt-3 dark:border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={plan.isActive}
+                      onChange={() => { void handleToggle(plan); }}
+                      aria-label={`${plan.isActive ? "إيقاف" : "تفعيل"} ${plan.name}`}
+                    />
+                    <span className="text-xs text-neutral-500">مفعلة</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => { openEdit(plan); }} leftIcon={<Pencil className="h-4 w-4" />}>
+                      تعديل
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => { setConfirmDelete(plan); }} leftIcon={<Trash2 className="h-4 w-4" />}>
+                      حذف
+                    </Button>
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <EmptyState icon={<Coins className="h-16 w-16" />} title="تعذر تحميل الأسعار" />
+        <EmptyState icon={<Coins className="h-16 w-16" />} title="لا توجد باقات بعد" description="أنشئ أول باقة حصص مباشرة من زر إضافة باقة." />
       )}
+
+      <Dialog
+        open={dialogOpen}
+        onClose={() => { if (!saving) setDialogOpen(false); }}
+        title={editing ? "تعديل الباقة" : "إضافة باقة جديدة"}
+      >
+        <DialogContent>
+          {planFormDialogContent(form, setForm, editing !== null)}
+          {formError && <p className="text-sm text-danger-500">{formError}</p>}
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => { setDialogOpen(false); }} disabled={saving}>
+            إلغاء
+          </Button>
+          <Button variant="primary" size="sm" loading={saving} onClick={() => { void handleSubmit(); }}>
+            {editing ? "حفظ التعديلات" : "إنشاء الباقة"}
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      <Dialog
+        open={confirmDelete !== null}
+        onClose={() => { if (!deleting) setConfirmDelete(null); }}
+        title="حذف الباقة"
+      >
+        <DialogContent>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            هل أنت متأكد من حذف باقة «{confirmDelete?.name}»؟ لن يمكن حذف باقة مرتبطة باشتراكات نشطة — أوقفها بدلاً من ذلك.
+          </p>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => { setConfirmDelete(null); }} disabled={deleting}>
+            إلغاء
+          </Button>
+          <Button variant="danger" size="sm" loading={deleting} onClick={() => { void handleDelete(); }}>
+            حذف نهائي
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 }
 
 function ApprovalCard({ item }: { item: NonNullable<ReturnType<typeof usePaymentApprovals>["data"]>[number] }): ReactNode {
   const { mutateAsync: review, isPending } = useReviewPayment();
+  const { data: plans } = useLivePlans();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [decision, setDecision] = useState<"APPROVED" | "REJECTED">("APPROVED");
 
   const code = liveProductCode(item.productType);
-  const meta = code ? PRODUCT_META[code] : null;
+  const plan = code ? plans?.find((p) => p.code === code) : null;
+  const productLabel = plan?.name ?? item.productType;
 
   const handleReview = async (): Promise<void> => {
     if (decision === "REJECTED" && !note.trim()) {
@@ -178,7 +454,7 @@ function ApprovalCard({ item }: { item: NonNullable<ReturnType<typeof usePayment
             <Badge variant="warning">قيد المراجعة</Badge>
           </div>
           <div className="mt-2 space-y-1 text-sm text-neutral-600 dark:text-neutral-400">
-            <p>المنتج: <span className="font-semibold text-neutral-900 dark:text-neutral-100">{meta?.label ?? item.productType}</span></p>
+            <p>المنتج: <span className="font-semibold text-neutral-900 dark:text-neutral-100">{productLabel}</span></p>
             <p>
               المبلغ: <span className="font-semibold text-neutral-900 dark:text-neutral-100">{item.amount} {item.currency}</span>
             </p>
@@ -239,7 +515,7 @@ function ApprovalCard({ item }: { item: NonNullable<ReturnType<typeof usePayment
             <Badge variant="warning">قيد المراجعة</Badge>
           </div>
           <div className="mt-1 space-y-1 text-sm text-neutral-600 dark:text-neutral-400">
-            <p>المنتج: {meta?.label ?? item.productType}</p>
+            <p>المنتج: {productLabel}</p>
             <p>المبلغ: <span className="font-semibold">{item.amount} {item.currency}</span></p>
             <p>
               رقم العملية: <span dir="ltr" className="font-mono">{item.proofGatewayRef ?? "—"}</span>
@@ -357,7 +633,7 @@ function ApprovalsTab(): ReactNode {
 }
 
 const TABS = [
-  { id: "pricing", label: "أسعار الباقات" },
+  { id: "pricing", label: "إدارة الباقات" },
   { id: "approvals", label: "مراجعة انستا باي" },
 ] as const;
 
@@ -373,7 +649,7 @@ export default function LiveAdminCommercePage(): ReactNode {
           متجر الحصص المباشرة
         </h1>
         <p className="text-sm text-neutral-500">
-          إدارة أسعار الباقات ومراجعة تحويلات انستا باي
+          إدارة باقات الحصص المباشرة ومراجعة تحويلات انستا باي
         </p>
       </div>
 
@@ -393,7 +669,7 @@ export default function LiveAdminCommercePage(): ReactNode {
         ))}
       </div>
 
-      {activeTab === "pricing" ? <PricingTab /> : <ApprovalsTab />}
+      {activeTab === "pricing" ? <PlanManagerTab /> : <ApprovalsTab />}
     </div>
   );
 }

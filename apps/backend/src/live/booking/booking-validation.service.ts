@@ -79,19 +79,22 @@ export class BookingValidationService {
     }
     if (
       context.kind === LiveSessionKindEnum.PRIVATE_MONTHLY &&
-      !context.activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.PRIVATE_MONTHLY)
+      !context.activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.PRIVATE_MONTHLY) &&
+      !context.activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.CUSTOM_PRIVATE)
     ) {
       return fail("No active private-monthly subscription");
     }
     if (
       context.kind === LiveSessionKindEnum.GROUP &&
-      !context.activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.GROUP_MONTHLY)
+      !context.activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.GROUP_MONTHLY) &&
+      !context.activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.CUSTOM_GROUP)
     ) {
       return fail("No active group subscription");
     }
     if (
       context.kind === LiveSessionKindEnum.ONE_TIME &&
-      !context.activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE)
+      !context.activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE) &&
+      !context.activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.CUSTOM_ONE_TIME)
     ) {
       return fail("No one-time session credit available");
     }

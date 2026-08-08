@@ -11,7 +11,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { useStudySchedules, useLivePricing } from "@/lib/live-shop-api";
+import { useStudySchedules, useLivePlans, liveProductType, type LivePricingPlan } from "@/lib/live-shop-api";
 import { StepIndicator } from "@/components/live/step-indicator";
 import { BottomCta } from "@/components/live/bottom-cta";
 import { SummaryCard, SummaryRow } from "@/components/live/summary-card";
@@ -32,38 +32,27 @@ const DAY_NAMES = [
 ];
 const DAY_VALUES = [6, 0, 1, 2, 3, 4, 5];
 
-interface PlanDef {
-  key: "GROUP_PLAN_A" | "GROUP_PLAN_B";
-  label: string;
-  sessions: number;
-  benefits: string[];
-}
-
-const PLANS: PlanDef[] = [
-  {
-    key: "GROUP_PLAN_A",
-    label: "خطة A — مرة أسبوعياً",
-    sessions: 4,
-    benefits: ["حصة مجموعة أسبوعية ثابتة", "متابعة جماعية منظمة", "سعر اقتصادي"],
-  },
-  {
-    key: "GROUP_PLAN_B",
-    label: "خطة B — مرتين أسبوعياً",
-    sessions: 8,
-    benefits: ["حصتان أسبوعياً مع المجموعة", "تغطية أسرع للمنهج", "توازن بين الحصة والتدريب"],
-  },
-];
+/** Session duration in minutes for group plans (display only). */
+const SESSION_DURATION = 60;
 
 export default function GroupPage(): ReactNode {
   const router = useRouter();
   const [step, setStep] = useState<StepIndex>(0);
-  const [plan, setPlan] = useState<PlanDef | null>(null);
+  const [plan, setPlan] = useState<LivePricingPlan | null>(null);
   const [scheduleId, setScheduleId] = useState<string>("");
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const { data: schedules, isLoading: scheduleLoading } = useStudySchedules();
-  const { data: pricing } = useLivePricing();
+  const { data: allPlans, isLoading: plansLoading } = useLivePlans();
+
+  const groupPlans = useMemo(
+    () =>
+      (allPlans ?? [])
+        .filter((p) => p.type === "GROUP" && p.isActive)
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [allPlans],
+  );
 
   const groupSchedules = useMemo(
     () => (schedules ?? []).filter((s) => s.type === "GROUP" && s.isActive),
@@ -80,15 +69,10 @@ export default function GroupPage(): ReactNode {
     [selectedSchedule],
   );
 
-  const productPrice = useMemo(() => {
-    if (!plan || !pricing) return null;
-    return pricing[plan.key];
-  }, [plan, pricing]);
+  const productPrice = plan?.price ?? null;
 
-  const priceForPlan = (key: "GROUP_PLAN_A" | "GROUP_PLAN_B"): string => {
-    if (!pricing) return "…";
-    return `${String(pricing[key])} EGP`;
-  };
+  const priceForPlan = (p: LivePricingPlan): string =>
+    `${String(p.price)} EGP`;
 
   const checkoutProps: LiveCheckoutDialogProps | null = useMemo(() => {
     if (!plan || !selectedSchedule || productPrice === null) return null;
@@ -98,10 +82,10 @@ export default function GroupPage(): ReactNode {
       open: showCheckout,
       onClose: (): void => { setShowCheckout(false); },
       onSuccess: (): void => { router.push("/dashboard/live"); },
-      productLabel: plan.label,
+      productLabel: plan.name,
       amount: productPrice,
       buildPayload: () => ({
-        productType: `LIVE_${plan.key}`,
+        productType: liveProductType(plan.code),
         productId: selectedSchedule.id,
         paymentMethod: "paymob",
         metadata: {
@@ -171,49 +155,65 @@ export default function GroupPage(): ReactNode {
           <p className="text-sm font-bold text-neutral-700 dark:text-neutral-300">
             اختر خطتك الأسبوعية
           </p>
-          <div className="grid gap-4 md:grid-cols-2">
-            {PLANS.map((p) => {
-              const selected = plan?.key === p.key;
-              return (
-                <button
-                  key={p.key}
-                  onClick={() => { setPlan(p); }}
-                  className={cn(
-                    "group relative flex flex-col gap-4 rounded-3xl border bg-white/80 p-6 text-start backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 dark:bg-[var(--ui-card-bg-dark)]",
-                    selected
-                      ? "border-purple-400/60 ring-2 ring-purple-400/50 shadow-[0_0_30px_rgba(168,85,247,0.25)]"
-                      : "border-neutral-200/70 dark:border-white/10",
-                  )}
-                >
-                  {selected && (
-                    <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-purple-500 text-white shadow-lg">
-                      <Check className="h-4 w-4" strokeWidth={3} />
+
+          {plansLoading ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {[1, 2].map((i) => (
+                <div key={i} className="h-48 animate-pulse rounded-3xl bg-neutral-200 dark:bg-white/5" />
+              ))}
+            </div>
+          ) : groupPlans.length === 0 ? (
+            <LiveEmpty
+              tone="violet"
+              icon={<Sparkles className="h-10 w-10" />}
+              title="لا توجد خطط مجموعات متاحة"
+              description="لم يضف المدير خطط مجموعات بعد."
+            />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {groupPlans.map((p) => {
+                const selected = plan?.code === p.code;
+                return (
+                  <button
+                    key={p.code}
+                    onClick={() => { setPlan(p); }}
+                    className={cn(
+                      "group relative flex flex-col gap-4 rounded-3xl border bg-white/80 p-6 text-start backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 dark:bg-[var(--ui-card-bg-dark)]",
+                      selected
+                        ? "border-purple-400/60 ring-2 ring-purple-400/50 shadow-[0_0_30px_rgba(168,85,247,0.25)]"
+                        : "border-neutral-200/70 dark:border-white/10",
+                    )}
+                  >
+                    {selected && (
+                      <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-purple-500 text-white shadow-lg">
+                        <Check className="h-4 w-4" strokeWidth={3} />
+                      </span>
+                    )}
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-400 to-purple-600 text-white shadow-lg">
+                      <Sparkles className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">{p.name}</h3>
+                      <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                        {p.sessionCount} حصص شهرياً · {SESSION_DURATION} دقيقة للحصة
+                      </p>
+                    </div>
+                    <ul className="flex flex-col gap-1.5">
+                      {p.benefits.map((b) => (
+                        <li key={b} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-purple-500" />
+                          {b}
+                        </li>
+                      ))}
+                    </ul>
+                    <span className="mt-auto inline-flex items-center gap-1 text-base font-bold text-purple-600 dark:text-purple-300">
+                      {priceForPlan(p)}
                     </span>
-                  )}
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-400 to-purple-600 text-white shadow-lg">
-                    <Sparkles className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">{p.label}</h3>
-                    <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                      {p.sessions} حصص شهرياً · 60 دقيقة للحصة
-                    </p>
-                  </div>
-                  <ul className="flex flex-col gap-1.5">
-                    {p.benefits.map((b) => (
-                      <li key={b} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-purple-500" />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                  <span className="mt-auto inline-flex items-center gap-1 text-base font-bold text-purple-600 dark:text-purple-300">
-                    {priceForPlan(p.key)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -276,7 +276,7 @@ export default function GroupPage(): ReactNode {
 
           {selectedSchedule && plan && sortedDays.length > 0 && (
             <p className="rounded-2xl bg-purple-500/10 px-4 py-3 text-xs font-medium text-purple-700 dark:text-purple-200">
-              ستحجز {plan.sessions} حصص شهرياً موزعة على{" "}
+              ستحجز {plan.sessionCount} حصص شهرياً موزعة على{" "}
               {sortedDays.map((d) => DAY_NAMES[DAY_VALUES.indexOf(d.dayOfWeek)] ?? "").join(" و ")}.
             </p>
           )}
@@ -289,8 +289,8 @@ export default function GroupPage(): ReactNode {
             <SummaryRow
               icon={<Sparkles className="h-5 w-5" />}
               label="الخطة"
-              value={plan.label}
-              sub={`${String(plan.sessions)} حصص شهرياً`}
+              value={plan.name}
+              sub={`${String(plan.sessionCount)} حصص شهرياً`}
             />
             <SummaryRow
               icon={<CalendarDays className="h-5 w-5" />}

@@ -134,14 +134,18 @@ Students read schedules through the shared `GET /schedules`; write operations ar
 
 ## Live Product Pricing
 
-| Method | Path                 | Roles         | Purpose                                             |
-| ------ | -------------------- | ------------- | --------------------------------------------------- |
-| GET    | `/products/pricing`  | Authenticated | Read the six live product prices (flat code → price map) |
-| PUT    | `/products/pricing`  | Administrator | Update one or more product prices                   |
+Plans are runtime entities managed through the `LivePricingPlan` table (source of truth). The six legacy seeded plans remain as default rows (`PRIVATE_PLAN_A` 500 EGP / 4 sessions, `PRIVATE_PLAN_B` 800 / 8, `GROUP_PLAN_A` 300 / 4, `GROUP_PLAN_B` 400 / 8, `ONE_TIME` 200 / 1, `FREE` 0 / 0). Administrators can add, update, delete, and toggle plans at runtime without a code change.
 
-Products (`LIVE_*` codes): `PRIVATE_PLAN_A` (4 sessions), `PRIVATE_PLAN_B` (8), `GROUP_PLAN_A` (4), `GROUP_PLAN_B` (8), `ONE_TIME` (1), `FREE` (0).
+| Method | Path                       | Roles         | Purpose                                                  |
+| ------ | -------------------------- | ------------- | -------------------------------------------------------- |
+| GET    | `/products/plans`          | Authenticated | Read all sellable live plans (active and inactive)        |
+| POST   | `/products/plans`          | Administrator | Create a live pricing plan                                |
+| PATCH  | `/products/plans/:code`    | Administrator | Update a live pricing plan (name, price, sessions, active, …) |
+| DELETE | `/products/plans/:code`    | Administrator | Delete a plan (blocked while referenced by active subscriptions) |
+| GET    | `/products/pricing`        | Authenticated | Backward-compatible flat code → price map (`{ PRIVATE_PLAN_A: 500, ... }`) |
+| PUT    | `/products/pricing`        | Administrator | Backward-compatible bulk price update                     |
 
-`GET /products/pricing` returns a flat map, e.g. `{ PRIVATE_PLAN_A: 500, ... }`. Persisted in `SystemSetting` under key `live_product_prices` with defaults applied when unset. `PUT /products/pricing` accepts the same flat map; invalid (negative / non-finite) prices are rejected.
+`GET /products/plans` returns the full plan list including inactive rows so admin management can surface them; student-facing UI filters `isActive` client-side. Each plan has: `id`, `code`, `name`, `short`, `description`, `type` (`PRIVATE` / `GROUP` / `ONE_TIME` / `FREE`), `price`, `sessionCount`, `benefits[]`, `isActive`, `sortOrder`. `POST/PATCH` bodies are validated by `CreateLivePricingPlanDto` / `UpdateLivePricingPlanDto` (type enum, non-negative price, unique non-empty code). Deletion is rejected with `409 ConflictException` when any `ACTIVE` subscription references the plan's `planCode`.
 
 ## Per-Product Reports
 

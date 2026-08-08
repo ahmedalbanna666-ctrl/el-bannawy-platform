@@ -1,8 +1,8 @@
-import { IsString, IsInt, IsOptional, IsBoolean, Min, IsEnum } from "class-validator";
+import { IsString, IsInt, IsOptional, IsBoolean, Min, IsEnum, Matches } from "class-validator";
 
 export class CheckoutDto {
   @IsString()
-  @IsEnum(["COINS", "LESSON", "UNIT", "LIVE_PRIVATE_PLAN_A", "LIVE_PRIVATE_PLAN_B", "LIVE_GROUP_PLAN_A", "LIVE_GROUP_PLAN_B", "LIVE_ONE_TIME", "LIVE_FREE"])
+  @Matches(/^(COINS|LESSON|UNIT|LIVE_[A-Z][A-Z0-9_]*)$/)
   productType!: string;
 
   @IsString()

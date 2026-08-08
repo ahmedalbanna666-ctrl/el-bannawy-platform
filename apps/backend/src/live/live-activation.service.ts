@@ -7,8 +7,8 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { LiveSubscriptionService } from "./live-subscription.service";
 import { LiveRecurringBookingService } from "./live-recurring-booking.service";
-import { LiveProductPricingService } from "./live-product-pricing.service";
-import type { LiveProductCode } from "@el-bannawy/shared";
+import { LiveProductPricingService, type LivePricingPlanRow } from "./live-product-pricing.service";
+import { LiveSubscriptionTypeEnum } from "@el-bannawy/shared";
 
 interface LiveCheckoutMetadata {
   scheduleId?: string;
@@ -19,24 +19,36 @@ interface LiveCheckoutMetadata {
   type?: "PRIVATE" | "GROUP";
 }
 
-function isGroupCode(code: LiveProductCode): boolean {
-  return code.startsWith("GROUP_");
-}
-
-function codeToSubscriptionType(code: LiveProductCode): string {
+/**
+ * Resolve the subscription `type` for a plan.
+ *
+ * Legacy seeded codes keep their exact enum value (backward compatibility).
+ * Admin-created custom plans map to the generic CUSTOM_* classes so the whole
+ * booking/validation/report pipeline treats them like their structural class.
+ */
+function codeToSubscriptionType(code: string, planType: string): LiveSubscriptionTypeEnum {
   switch (code) {
     case "PRIVATE_PLAN_A":
-      return "PRIVATE_PLAN_A";
+      return LiveSubscriptionTypeEnum.PRIVATE_PLAN_A;
     case "PRIVATE_PLAN_B":
-      return "PRIVATE_PLAN_B";
+      return LiveSubscriptionTypeEnum.PRIVATE_PLAN_B;
     case "GROUP_PLAN_A":
-      return "GROUP_PLAN_A";
+      return LiveSubscriptionTypeEnum.GROUP_PLAN_A;
     case "GROUP_PLAN_B":
-      return "GROUP_PLAN_B";
+      return LiveSubscriptionTypeEnum.GROUP_PLAN_B;
     case "ONE_TIME":
-      return "ONE_TIME_PRIVATE";
+      return LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE;
     default:
-      throw new BadRequestException(`Product ${code} has no subscription type`);
+      switch (planType) {
+        case "PRIVATE":
+          return LiveSubscriptionTypeEnum.CUSTOM_PRIVATE;
+        case "GROUP":
+          return LiveSubscriptionTypeEnum.CUSTOM_GROUP;
+        case "ONE_TIME":
+          return LiveSubscriptionTypeEnum.CUSTOM_ONE_TIME;
+        default:
+          throw new BadRequestException(`Product ${code} has no subscription type`);
+      }
   }
 }
 
@@ -44,9 +56,9 @@ function codeToSubscriptionType(code: LiveProductCode): string {
  * LiveActivationService — grants live products after payment succeeds.
  *
  * This is the single place that turns a successful LIVE_* payment into
- * domain state: it creates the subscription and generates the month's
- * bookable sessions (recurring series). It must be idempotent per payment so
- * webhook/verify/review retries never double-grant.
+ * domain state: it creates the subscription (from the LivePricingPlan) and
+ * generates the month's bookable sessions (recurring series). It must be
+ * idempotent per payment so webhook/verify/review retries never double-grant.
  */
 @Injectable()
 export class LiveActivationService {
@@ -71,12 +83,20 @@ export class LiveActivationService {
       return;
     }
     const code = LiveProductPricingService.codeFromProductType(productType);
-    if (code === "FREE") return;
+    const plan = await this.pricing.getPlanByCode(code);
 
-    if (code === "ONE_TIME") {
-      await this.activateOneTime(userId, code, payment);
+    if (plan.type === "FREE") {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { gatewayResponse: "activated" },
+      });
+      return;
+    }
+
+    if (plan.type === "ONE_TIME") {
+      await this.activateOneTime(userId, plan, payment);
     } else {
-      await this.activateSubscription(userId, code, payment);
+      await this.activateSubscription(userId, plan, payment);
     }
 
     await this.prisma.payment.update({
@@ -87,7 +107,7 @@ export class LiveActivationService {
 
   private async activateOneTime(
     userId: string,
-    code: LiveProductCode,
+    plan: LivePricingPlanRow,
     payment: { id: string; metadata: unknown; amount: number },
   ): Promise<void> {
     const metadata = (payment.metadata ?? {}) as LiveCheckoutMetadata;
@@ -102,11 +122,13 @@ export class LiveActivationService {
     });
     if (!slot) throw new NotFoundException("Slot not found");
 
-    const price = await this.pricing.getPrice(code);
     const sub = await this.subscriptions.createSubscription(userId, {
       teacherId: slot.teacherId,
-      type: codeToSubscriptionType(code),
-      price,
+      type: codeToSubscriptionType(plan.code, plan.type),
+      price: plan.price,
+      sessionCount: plan.sessionCount,
+      packageLabel: plan.name,
+      planCode: plan.code,
     });
 
     const dateFrom = metadata.dateFrom ?? new Date().toISOString().split("T")[0];
@@ -120,7 +142,7 @@ export class LiveActivationService {
 
   private async activateSubscription(
     userId: string,
-    code: LiveProductCode,
+    plan: LivePricingPlanRow,
     payment: { id: string; metadata: unknown; amount: number },
   ): Promise<void> {
     const metadata = (payment.metadata ?? {}) as LiveCheckoutMetadata;
@@ -135,7 +157,7 @@ export class LiveActivationService {
     });
     if (!schedule) throw new NotFoundException("Schedule not found");
 
-    const isGroup = isGroupCode(code);
+    const isGroup = plan.type === "GROUP";
     if (isGroup && schedule.type !== "GROUP") {
       throw new BadRequestException("Group plan requires a group schedule");
     }
@@ -143,13 +165,14 @@ export class LiveActivationService {
       throw new BadRequestException("Private plan requires a private schedule");
     }
 
-    const sessionCount = this.pricing.getSessionCount(code);
-    const price = await this.pricing.getPrice(code);
     const sub = await this.subscriptions.createSubscription(userId, {
       teacherId: schedule.teacherId,
-      type: codeToSubscriptionType(code),
+      type: codeToSubscriptionType(plan.code, plan.type),
       scheduleId,
-      price,
+      price: plan.price,
+      sessionCount: plan.sessionCount,
+      packageLabel: plan.name,
+      planCode: plan.code,
     });
     const subscriptionId = (sub as { id: string }).id;
 
@@ -162,7 +185,7 @@ export class LiveActivationService {
     }
 
     const dayRows = schedule.days;
-    const perDayCap = Math.max(1, Math.round(sessionCount / dayRows.length));
+    const perDayCap = Math.max(1, Math.round(plan.sessionCount / dayRows.length));
     for (const day of dayRows) {
       await this.recurringBookings.bookSeries(userId, `${day.id}:${from}`, {
         dateFrom: from,

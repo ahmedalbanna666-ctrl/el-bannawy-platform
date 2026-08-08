@@ -62,6 +62,12 @@ const DAY_NAMES = [
 ];
 const DAY_VALUES = [6, 0, 1, 2, 3, 4, 5];
 
+const STUDIO_TABS: { id: "today" | "schedule" | "sessions"; label: string; icon: ReactNode }[] = [
+  { id: "today", label: "اليوم", icon: <CalendarClock className="h-4 w-4" /> },
+  { id: "schedule", label: "الجدول الأسبوعي", icon: <CalendarDays className="h-4 w-4" /> },
+  { id: "sessions", label: "الحصص والطلاب", icon: <Users className="h-4 w-4" /> },
+];
+
 function statusMeta(session: LiveSessionItem): { label: string; variant: "success" | "warning" | "danger" | "info" | "primary" | "secondary" } {
   switch (session.status) {
     case "LIVE": return { label: "مباشر", variant: "danger" };
@@ -120,6 +126,7 @@ export default function TeacherLiveStudioPage(): ReactNode {
   const publishSession = usePublishSession();
   const unpublishSession = useUnpublishSession();
 
+  const [activeTab, setActiveTab] = useState<"today" | "schedule" | "sessions">("today");
   const [createOpen, setCreateOpen] = useState(false);
   const [editSession, setEditSession] = useState<LiveSessionItem | null>(null);
   const [detailSession, setDetailSession] = useState<LiveSessionItem | null>(null);
@@ -297,303 +304,392 @@ export default function TeacherLiveStudioPage(): ReactNode {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <MetricCard label="حصص اليوم" value={kpisLoading ? "…" : String(kpis?.todaySessions ?? todaySessions.length)} icon={<CalendarDays className="h-4 w-4" />} tone="cyan" />
-        <MetricCard label="القادمة" value={kpisLoading ? "…" : String(kpis?.upcomingSessions ?? 0)} icon={<CalendarClock className="h-4 w-4" />} tone="violet" />
-        <MetricCard label="مباشر الآن" value={kpisLoading ? "…" : String(kpis?.liveNow ?? 0)} icon={<Radio className="h-4 w-4" />} tone="rose" />
-        <MetricCard label="طلاب فريدون" value={kpisLoading ? "…" : String(kpis?.uniqueStudents ?? 0)} icon={<Users className="h-4 w-4" />} tone="emerald" />
-        <MetricCard label="الحجوزات" value={kpisLoading ? "…" : String(kpis?.totalBookings ?? 0)} icon={<User className="h-4 w-4" />} tone="amber" />
-        <MetricCard label="قائمة الانتظار" value={kpisLoading ? "…" : String(kpis?.waitlistEntries ?? 0)} icon={<Bell className="h-4 w-4" />} tone="primary" />
+      {/* Tabs */}
+      <div className="flex gap-2 overflow-x-auto border-b border-neutral-200 pb-px dark:border-white/10">
+        {STUDIO_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={(): void => { setActiveTab(tab.id); }}
+            className={cn(
+              "flex shrink-0 items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
+              activeTab === tab.id
+                ? "border-primary-500 text-primary-600 dark:text-primary-300"
+                : "border-transparent text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200",
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Today's timeline */}
-      <GlassSection tone="rose">
-        <SectionHeader
-          icon={<CalendarClock className="h-5 w-5" />}
-          title="حصص اليوم"
-          description="جدول حصص اليوم — ابدأها من هنا بضغطة واحدة"
-        />
-        {sessionsLoading ? (
-          <StudioSkeleton rows={2} />
-        ) : todaySessions.length === 0 ? (
-          <p className="rounded-xl bg-neutral-50 p-5 text-center text-sm text-neutral-500 dark:bg-white/[0.04]">
-            لا توجد حصص مجدولة اليوم. استمتع بيومك أو أنشئ محاضرة جديدة.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            {todaySessions.map((session, index) => {
-              const meta = statusMeta(session);
-              const isPast = new Date(session.endTime) < new Date();
-              return (
-                <div
-                  key={session.id}
-                  className={cn(
-                    "relative flex flex-col gap-3 rounded-2xl border border-neutral-200/80 bg-white/50 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]",
-                    session.status === "LIVE" && "ring-2 ring-rose-500/30 dark:ring-rose-400/20",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div
-                        className={cn(
-                          "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-2xl",
-                          session.status === "LIVE"
-                            ? "bg-rose-500/15 text-rose-600 dark:text-rose-300"
-                            : "bg-cyan-500/10 text-cyan-600 dark:text-cyan-300",
-                        )}
-                      >
-                        <span className="text-sm font-bold tabular-nums">
-                          {String(index + 1).padStart(2, "0")}
-                        </span>
-                        <Clock className="h-3 w-3" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-50">
-                          {session.title}
-                        </p>
-                        <p className="mt-0.5 text-xs text-neutral-500">
-                          {formatTime(session.startTime)} - {formatTime(session.endTime)}
-                          {" · "}
-                          {session.type === "GROUP" ? "مجموعة" : "فردي"}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant={meta.variant} className="shrink-0">
-                      {meta.label}
-                    </Badge>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      {!isPast && session.status !== "COMPLETED" && (
-                        <LiveCountdown targetDate={session.startTime} compact />
-                      )}
-                      <span className="text-[10px] text-neutral-400">
-                        {String(session._count.bookings)} / {String(session.maxStudents)} مقعد
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(): void => { setEditSession(session); }}
-                        disabled={session.status === "LIVE" || session.status === "COMPLETED"}
-                      >
-                        <Settings2 className="h-4 w-4" />
-                        تعديل
-                      </Button>
-                      {session.status === "DRAFT" && (
-                        <Button
-                          variant="success"
-                          size="sm"
-                          onClick={() => { publishSession.mutate(session.id); }}
-                        >
-                          نشر
-                        </Button>
-                      )}
-                      {session.status === "PUBLISHED" && (
-                        <Button
-                          variant="warning"
-                          size="sm"
-                          onClick={() => { unpublishSession.mutate(session.id); }}
-                        >
-                          إلغاء النشر
-                        </Button>
-                      )}
-                      {session.status === "LIVE" ? (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          loading={endSession.isPending}
-                          onClick={() => { void handleEnd(session); }}
-                          leftIcon={<Square className="h-4 w-4" />}
-                        >
-                          إنهاء
-                        </Button>
-                      ) : (
-                        !isPast && (
-                          <Button
-                            size="sm"
-                            loading={startSession.isPending}
-                            onClick={() => { void handleStart(session); }}
-                            leftIcon={<Play className="h-4 w-4" />}
-                          >
-                            بدء
-                          </Button>
-                        )
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => { handleOpenSession(session); }}
-                      >
-                        تفاصيل
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+      {activeTab === "today" && (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            <MetricCard label="حصص اليوم" value={kpisLoading ? "…" : String(kpis?.todaySessions ?? todaySessions.length)} icon={<CalendarDays className="h-4 w-4" />} tone="cyan" />
+            <MetricCard label="القادمة" value={kpisLoading ? "…" : String(kpis?.upcomingSessions ?? 0)} icon={<CalendarClock className="h-4 w-4" />} tone="violet" />
+            <MetricCard label="مباشر الآن" value={kpisLoading ? "…" : String(kpis?.liveNow ?? 0)} icon={<Radio className="h-4 w-4" />} tone="rose" />
+            <MetricCard label="طلاب فريدون" value={kpisLoading ? "…" : String(kpis?.uniqueStudents ?? 0)} icon={<Users className="h-4 w-4" />} tone="emerald" />
+            <MetricCard label="الحجوزات" value={kpisLoading ? "…" : String(kpis?.totalBookings ?? 0)} icon={<User className="h-4 w-4" />} tone="amber" />
+            <MetricCard label="قائمة الانتظار" value={kpisLoading ? "…" : String(kpis?.waitlistEntries ?? 0)} icon={<Bell className="h-4 w-4" />} tone="primary" />
           </div>
-        )}
-      </GlassSection>
 
-      {/* Next upcoming highlight */}
-      {showDraftCta && (
-        <div className="flex items-center gap-3 rounded-2xl border border-warning-500/30 bg-warning-500/10 p-4">
-          <Sparkles className="h-5 w-5 text-warning-600 dark:text-warning-400" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-              «{nextUpcoming.title}» ما زالت مسودة
-            </p>
-            <p className="text-xs text-neutral-500">
-              انشرها ليتمكن الطلاب من حجزها.
-            </p>
-          </div>
-          <Button
-            variant="warning"
-            size="sm"
-            onClick={() => {
-              publishSession.mutate(nextUpcoming.id);
-            }}
-          >
-            نشر
-          </Button>
-        </div>
-      )}
-
-      {/* Weekly availability */}
-      <GlassSection tone="cyan">
-        <SectionHeader
-          icon={<CalendarDays className="h-5 w-5" />}
-          title="الجدول الأسبوعي"
-          description="أوقاتك المتكررة المتاحة للحجز"
-          action={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(): void => { router.push("/dashboard/live/schedules"); }}
-            >
-              <Settings2 className="h-4 w-4" />
-              إدارة كاملة
-            </Button>
-          }
-        />
-        {availabilityLoading ? (
-          <StudioSkeleton rows={1} />
-        ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-            {DAY_VALUES.map((dayValue, index) => {
-              const slots = daySlotsMap.get(dayValue) ?? [];
-              return (
-                <div
-                  key={dayValue}
-                  className={cn(
-                    "flex min-h-28 flex-col gap-1.5 rounded-2xl border border-neutral-200/80 bg-white/50 p-3 dark:border-white/[0.06] dark:bg-white/[0.03]",
-                    slots.length === 0 && "opacity-50",
-                  )}
-                >
-                  <p className="text-xs font-bold text-neutral-700 dark:text-neutral-200">
-                    {DAY_NAMES[index] ?? "—"}
-                  </p>
-                  {slots.length === 0 ? (
-                    <p className="text-[10px] text-neutral-400">لا أوقات</p>
-                  ) : (
-                    <div className="flex flex-col gap-1">
-                      {slots.map((slot) => (
-                        <div
-                          key={slot.id}
-                          className="flex items-center justify-between rounded-lg bg-cyan-500/10 px-2 py-1"
-                        >
-                          <span className="text-[10px] font-semibold text-cyan-700 dark:text-cyan-300">
-                            {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
-                          </span>
-                          <Badge variant="primary" className="text-[8px]">
-                            {slot.type === "GROUP" ? "مجموعة" : "فردي"}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {(dateBlocks ?? []).length > 0 && (
-          <div className="flex flex-col gap-2">
-            <p className="flex items-center gap-1.5 text-xs font-medium text-neutral-500">
-              <CalendarOff className="h-4 w-4 text-rose-500" />
-              تواريخ محظورة
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {(dateBlocks ?? []).map((block) => (
-                <Badge key={block.id} variant="secondary" className="text-[10px]">
-                  {block.date}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-      </GlassSection>
-
-      {/* Groups + Private students */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <GlassSection tone="violet">
-          <SectionHeader
-            icon={<Users className="h-5 w-5" />}
-            title="حصص المجموعات"
-            description="مجموعاتك الثابتة ومعدلات الحجز"
-          />
-          {sessionsLoading ? (
-            <StudioSkeleton rows={2} />
-          ) : groupSessions.length === 0 ? (
-            <p className="rounded-xl bg-neutral-50 p-5 text-center text-sm text-neutral-500 dark:bg-white/[0.04]">
-              لا توجد حصص مجموعات بعد
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {groupSessions.map((session) => (
-                <GroupCard
-                  key={session.id}
-                  session={session}
-                  onClick={() => { handleOpenSession(session); }}
-                />
-              ))}
+          {/* Next upcoming highlight */}
+          {showDraftCta && (
+            <div className="flex items-center gap-3 rounded-2xl border border-warning-500/30 bg-warning-500/10 p-4">
+              <Sparkles className="h-5 w-5 text-warning-600 dark:text-warning-400" />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                  «{nextUpcoming.title}» ما زالت مسودة
+                </p>
+                <p className="text-xs text-neutral-500">
+                  انشرها ليتمكن الطلاب من حجزها.
+                </p>
+              </div>
+              <Button
+                variant="warning"
+                size="sm"
+                onClick={() => {
+                  publishSession.mutate(nextUpcoming.id);
+                }}
+              >
+                نشر
+              </Button>
             </div>
           )}
-        </GlassSection>
 
-        <GlassSection tone="emerald">
-          <SectionHeader
-            icon={<User className="h-5 w-5" />}
-            title="الطلاب الخاصون"
-            description="حصصك الفردية وعدد الطلاب"
-          />
-          {sessionsLoading ? (
-            <StudioSkeleton rows={2} />
-          ) : (
-            <>
-              <div className="flex items-center gap-3 rounded-2xl border border-neutral-200/80 bg-white/50 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                  <Users className="h-5 w-5" />
+          {/* Today's timeline */}
+          <GlassSection tone="rose">
+            <SectionHeader
+              icon={<CalendarClock className="h-5 w-5" />}
+              title="حصص اليوم"
+              description="جدول حصص اليوم — ابدأها من هنا بضغطة واحدة"
+            />
+            {sessionsLoading ? (
+              <StudioSkeleton rows={2} />
+            ) : todaySessions.length === 0 ? (
+              <p className="rounded-xl bg-neutral-50 p-5 text-center text-sm text-neutral-500 dark:bg-white/[0.04]">
+                لا توجد حصص مجدولة اليوم. استمتع بيومك أو أنشئ محاضرة جديدة.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {todaySessions.map((session, index) => {
+                  const meta = statusMeta(session);
+                  const isPast = new Date(session.endTime) < new Date();
+                  return (
+                    <div
+                      key={session.id}
+                      className={cn(
+                        "relative flex flex-col gap-3 rounded-2xl border border-neutral-200/80 bg-white/50 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]",
+                        session.status === "LIVE" && "ring-2 ring-rose-500/30 dark:ring-rose-400/20",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div
+                            className={cn(
+                              "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-2xl",
+                              session.status === "LIVE"
+                                ? "bg-rose-500/15 text-rose-600 dark:text-rose-300"
+                                : "bg-cyan-500/10 text-cyan-600 dark:text-cyan-300",
+                            )}
+                          >
+                            <span className="text-sm font-bold tabular-nums">
+                              {String(index + 1).padStart(2, "0")}
+                            </span>
+                            <Clock className="h-3 w-3" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-neutral-900 dark:text-neutral-50">
+                              {session.title}
+                            </p>
+                            <p className="mt-0.5 text-xs text-neutral-500">
+                              {formatTime(session.startTime)} - {formatTime(session.endTime)}
+                              {" · "}
+                              {session.type === "GROUP" ? "مجموعة" : "فردي"}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant={meta.variant} className="shrink-0">
+                          {meta.label}
+                        </Badge>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {!isPast && session.status !== "COMPLETED" && (
+                            <LiveCountdown targetDate={session.startTime} compact />
+                          )}
+                          <span className="text-[10px] text-neutral-400">
+                            {String(session._count.bookings)} / {String(session.maxStudents)} مقعد
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(): void => { setEditSession(session); }}
+                            disabled={session.status === "LIVE" || session.status === "COMPLETED"}
+                          >
+                            <Settings2 className="h-4 w-4" />
+                            تعديل
+                          </Button>
+                          {session.status === "DRAFT" && (
+                            <Button
+                              variant="success"
+                              size="sm"
+                              onClick={() => { publishSession.mutate(session.id); }}
+                            >
+                              نشر
+                            </Button>
+                          )}
+                          {session.status === "PUBLISHED" && (
+                            <Button
+                              variant="warning"
+                              size="sm"
+                              onClick={() => { unpublishSession.mutate(session.id); }}
+                            >
+                              إلغاء النشر
+                            </Button>
+                          )}
+                          {session.status === "LIVE" ? (
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              loading={endSession.isPending}
+                              onClick={() => { void handleEnd(session); }}
+                              leftIcon={<Square className="h-4 w-4" />}
+                            >
+                              إنهاء
+                            </Button>
+                          ) : (
+                            !isPast && (
+                              <Button
+                                size="sm"
+                                loading={startSession.isPending}
+                                onClick={() => { void handleStart(session); }}
+                                leftIcon={<Play className="h-4 w-4" />}
+                              >
+                                بدء
+                              </Button>
+                            )
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => { handleOpenSession(session); }}
+                          >
+                            تفاصيل
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </GlassSection>
+
+          {/* Notifications */}
+          <GlassSection tone="violet">
+            <SectionHeader
+              icon={<Bell className="h-5 w-5" />}
+              title="التنبيهات"
+              description="طلبات تنتظر قرارك وقوائم انتظار نشطة"
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/50 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                    <RefreshCw className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
+                      طلبات إعادة جدولة
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {String(kpis?.pendingRescheduleRequests ?? 0)} طلب بانتظار القرار
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold tabular-nums text-neutral-900 dark:text-neutral-50">
-                    {String(kpis?.uniqueStudents ?? 0)}
-                  </p>
-                  <p className="text-xs text-neutral-500">طالب فريد عبر حصصك</p>
+                <Button
+                  variant="warning"
+                  size="sm"
+                  disabled={!rescheduleReviewTarget}
+                  onClick={(): void => {
+                    if (rescheduleReviewTarget) {
+                      router.push(`/dashboard/live/sessions/${rescheduleReviewTarget.id}`);
+                    }
+                  }}
+                >
+                  مراجعة
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/50 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
+                    <Bell className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
+                      قائمة الانتظار
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {String(kpis?.waitlistEntries ?? 0)} طالب في الانتظار
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(): void => { router.push("/dashboard/notifications"); }}
+                >
+                  الإشعارات
+                </Button>
+              </div>
+            </div>
+          </GlassSection>
+        </>
+      )}
+
+      {activeTab === "schedule" && (
+        <>
+          {/* Weekly availability */}
+          <GlassSection tone="cyan">
+            <SectionHeader
+              icon={<CalendarDays className="h-5 w-5" />}
+              title="الجدول الأسبوعي"
+              description="أوقاتك المتكررة المتاحة للحجز"
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(): void => { router.push("/dashboard/live/schedules"); }}
+                >
+                  <Settings2 className="h-4 w-4" />
+                  إدارة كاملة
+                </Button>
+              }
+            />
+            {availabilityLoading ? (
+              <StudioSkeleton rows={1} />
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                {DAY_VALUES.map((dayValue, index) => {
+                  const slots = daySlotsMap.get(dayValue) ?? [];
+                  return (
+                    <div
+                      key={dayValue}
+                      className={cn(
+                        "flex min-h-28 flex-col gap-1.5 rounded-2xl border border-neutral-200/80 bg-white/50 p-3 dark:border-white/[0.06] dark:bg-white/[0.03]",
+                        slots.length === 0 && "opacity-50",
+                      )}
+                    >
+                      <p className="text-xs font-bold text-neutral-700 dark:text-neutral-200">
+                        {DAY_NAMES[index] ?? "—"}
+                      </p>
+                      {slots.length === 0 ? (
+                        <p className="text-[10px] text-neutral-400">لا أوقات</p>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {slots.map((slot) => (
+                            <div
+                              key={slot.id}
+                              className="flex items-center justify-between rounded-lg bg-cyan-500/10 px-2 py-1"
+                            >
+                              <span className="text-[10px] font-semibold text-cyan-700 dark:text-cyan-300">
+                                {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
+                              </span>
+                              <Badge variant="primary" className="text-[8px]">
+                                {slot.type === "GROUP" ? "مجموعة" : "فردي"}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {(dateBlocks ?? []).length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-neutral-500">
+                  <CalendarOff className="h-4 w-4 text-rose-500" />
+                  تواريخ محظورة
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(dateBlocks ?? []).map((block) => (
+                    <Badge key={block.id} variant="secondary" className="text-[10px]">
+                      {block.date}
+                    </Badge>
+                  ))}
                 </div>
               </div>
-              {privateSessions.length === 0 ? (
+            )}
+          </GlassSection>
+
+          {/* Recurring schedule */}
+          <GlassSection tone="amber">
+            <SectionHeader
+              icon={<RefreshCw className="h-5 w-5" />}
+              title="المواعيد المتكررة"
+              description="مواعيد أسبوعية ثابتة تُفتح تلقائياً"
+            />
+            {availabilityLoading ? (
+              <StudioSkeleton rows={2} />
+            ) : recurringSlots.length === 0 ? (
+              <p className="rounded-xl bg-neutral-50 p-5 text-center text-sm text-neutral-500 dark:bg-white/[0.04]">
+                لا توجد مواعيد متكررة — أضفها من إدارة الأوقات
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {recurringSlots.map((slot) => (
+                  <div
+                    key={slot.id}
+                    className="flex items-center justify-between gap-2 rounded-xl bg-neutral-50 px-3 py-2.5 dark:bg-white/[0.04]"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                        {DAY_NAMES[DAY_VALUES.indexOf(slot.dayOfWeek)] ?? "—"}
+                      </p>
+                      <p className="text-xs text-neutral-500">
+                        {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
+                      </p>
+                    </div>
+                    <Badge variant={slot.type === "GROUP" ? "warning" : "primary"} className="text-[10px]">
+                      {slot.type === "GROUP" ? "مجموعة" : "فردي"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassSection>
+        </>
+      )}
+
+      {activeTab === "sessions" && (
+        <>
+          {/* Groups + Private students */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <GlassSection tone="violet">
+              <SectionHeader
+                icon={<Users className="h-5 w-5" />}
+                title="حصص المجموعات"
+                description="مجموعاتك الثابتة ومعدلات الحجز"
+              />
+              {sessionsLoading ? (
+                <StudioSkeleton rows={2} />
+              ) : groupSessions.length === 0 ? (
                 <p className="rounded-xl bg-neutral-50 p-5 text-center text-sm text-neutral-500 dark:bg-white/[0.04]">
-                  لا توجد حصص فردية بعد
+                  لا توجد حصص مجموعات بعد
                 </p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {privateSessions.map((session) => (
+                  {groupSessions.map((session) => (
                     <GroupCard
                       key={session.id}
                       session={session}
@@ -602,123 +698,64 @@ export default function TeacherLiveStudioPage(): ReactNode {
                   ))}
                 </div>
               )}
-            </>
-          )}
-        </GlassSection>
-      </div>
+            </GlassSection>
 
-      {/* Recurring schedule + Statistics */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <GlassSection tone="amber">
-          <SectionHeader
-            icon={<RefreshCw className="h-5 w-5" />}
-            title="المواعيد المتكررة"
-            description="مواعيد أسبوعية ثابتة تُفتح تلقائياً"
-          />
-          {availabilityLoading ? (
-            <StudioSkeleton rows={2} />
-          ) : recurringSlots.length === 0 ? (
-            <p className="rounded-xl bg-neutral-50 p-5 text-center text-sm text-neutral-500 dark:bg-white/[0.04]">
-              لا توجد مواعيد متكررة — أضفها من إدارة الأوقات
-            </p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {recurringSlots.map((slot) => (
-                <div
-                  key={slot.id}
-                  className="flex items-center justify-between gap-2 rounded-xl bg-neutral-50 px-3 py-2.5 dark:bg-white/[0.04]"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-                      {DAY_NAMES[DAY_VALUES.indexOf(slot.dayOfWeek)] ?? "—"}
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
-                    </p>
+            <GlassSection tone="emerald">
+              <SectionHeader
+                icon={<User className="h-5 w-5" />}
+                title="الطلاب الخاصون"
+                description="حصصك الفردية وعدد الطلاب"
+              />
+              {sessionsLoading ? (
+                <StudioSkeleton rows={2} />
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 rounded-2xl border border-neutral-200/80 bg-white/50 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold tabular-nums text-neutral-900 dark:text-neutral-50">
+                        {String(kpis?.uniqueStudents ?? 0)}
+                      </p>
+                      <p className="text-xs text-neutral-500">طالب فريد عبر حصصك</p>
+                    </div>
                   </div>
-                  <Badge variant={slot.type === "GROUP" ? "warning" : "primary"} className="text-[10px]">
-                    {slot.type === "GROUP" ? "مجموعة" : "فردي"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </GlassSection>
-
-        <GlassSection tone="primary">
-          <SectionHeader
-            icon={<BarChart3 className="h-5 w-5" />}
-            title="إحصاءات الأسبوع"
-            description="عدد الحصص خلال آخر 7 أيام"
-          />
-          {sessionsLoading ? (
-            <StudioSkeleton rows={1} />
-          ) : (
-            <MiniBarChart data={weekChartData} className="px-1" />
-          )}
-        </GlassSection>
-      </div>
-
-      {/* Notifications */}
-      <GlassSection tone="violet">
-        <SectionHeader
-          icon={<Bell className="h-5 w-5" />}
-          title="التنبيهات"
-          description="طلبات تنتظر قرارك وقوائم انتظار نشطة"
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/50 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
-                <RefreshCw className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
-                  طلبات إعادة جدولة
-                </p>
-                <p className="text-xs text-neutral-500">
-                  {String(kpis?.pendingRescheduleRequests ?? 0)} طلب بانتظار القرار
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="warning"
-              size="sm"
-              disabled={!rescheduleReviewTarget}
-              onClick={(): void => {
-                if (rescheduleReviewTarget) {
-                  router.push(`/dashboard/live/sessions/${rescheduleReviewTarget.id}`);
-                }
-              }}
-            >
-              مراجعة
-            </Button>
+                  {privateSessions.length === 0 ? (
+                    <p className="rounded-xl bg-neutral-50 p-5 text-center text-sm text-neutral-500 dark:bg-white/[0.04]">
+                      لا توجد حصص فردية بعد
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {privateSessions.map((session) => (
+                        <GroupCard
+                          key={session.id}
+                          session={session}
+                          onClick={() => { handleOpenSession(session); }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </GlassSection>
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/50 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
-                <Bell className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-50">
-                  قائمة الانتظار
-                </p>
-                <p className="text-xs text-neutral-500">
-                  {String(kpis?.waitlistEntries ?? 0)} طالب في الانتظار
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(): void => { router.push("/dashboard/notifications"); }}
-            >
-              الإشعارات
-            </Button>
-          </div>
-        </div>
-      </GlassSection>
+          {/* Statistics */}
+          <GlassSection tone="primary">
+            <SectionHeader
+              icon={<BarChart3 className="h-5 w-5" />}
+              title="إحصاءات الأسبوع"
+              description="عدد الحصص خلال آخر 7 أيام"
+            />
+            {sessionsLoading ? (
+              <StudioSkeleton rows={1} />
+            ) : (
+              <MiniBarChart data={weekChartData} className="px-1" />
+            )}
+          </GlassSection>
+        </>
+      )}
 
       {/* Floating live control */}
       {liveSession && (

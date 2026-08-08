@@ -54,6 +54,8 @@ import {
   AnalyticsQueryDto,
   CreateStudyScheduleDto,
   UpdateStudyScheduleDto,
+  CreateLivePricingPlanDto,
+  UpdateLivePricingPlanDto,
 } from "./dto/live.dto";
 
 @Controller("live")
@@ -579,6 +581,46 @@ export class LiveController {
   }
 
   // ── Live product pricing ───────────────────────────────────────────────
+
+  @Get("products/plans")
+  async getProductPlans(): Promise<ISuccessResponse<unknown>> {
+    const data = await this.pricing.getPlans(false);
+    return successResponse(data);
+  }
+
+  @Post("products/plans")
+  @Roles("ADMINISTRATOR")
+  async createProductPlan(
+    @CurrentUser() userId: string,
+    @Body() dto: CreateLivePricingPlanDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const role = await this.access.resolveRole(userId);
+    const data = await this.pricing.createPlan(userId, role, dto);
+    return successResponse(data, "Live plan created");
+  }
+
+  @Patch("products/plans/:code")
+  @Roles("ADMINISTRATOR")
+  async updateProductPlan(
+    @Param("code") code: string,
+    @CurrentUser() userId: string,
+    @Body() dto: UpdateLivePricingPlanDto,
+  ): Promise<ISuccessResponse<unknown>> {
+    const role = await this.access.resolveRole(userId);
+    const data = await this.pricing.updatePlan(userId, role, code, dto);
+    return successResponse(data, "Live plan updated");
+  }
+
+  @Delete("products/plans/:code")
+  @Roles("ADMINISTRATOR")
+  async deleteProductPlan(
+    @Param("code") code: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<null>> {
+    const role = await this.access.resolveRole(userId);
+    await this.pricing.deletePlan(userId, role, code);
+    return successResponse(null, "Live plan deleted");
+  }
 
   @Get("products/pricing")
   async getProductPricing(): Promise<ISuccessResponse<unknown>> {

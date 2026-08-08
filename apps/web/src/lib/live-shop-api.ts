@@ -2,6 +2,7 @@ import { api, type ApiResponse } from "@/lib/api-client";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult, type UseMutationResult } from "@tanstack/react-query";
 import { LiveSessionTypeEnum } from "@el-bannawy/shared";
 
+/** Legacy seeded plan codes. The source of truth is the LivePricingPlan table. */
 export const LIVE_PRODUCTS = [
   "PRIVATE_PLAN_A",
   "PRIVATE_PLAN_B",
@@ -11,28 +12,47 @@ export const LIVE_PRODUCTS = [
   "FREE",
 ] as const;
 
-export type LiveProductCode = (typeof LIVE_PRODUCTS)[number];
+/** A live plan code (legacy seeded codes or admin-created custom codes). */
+export type LiveProductCode = string;
 
 export function liveProductType(code: LiveProductCode): string {
-  return code === "FREE" ? "LIVE_FREE" : `LIVE_${code}`;
+  return `LIVE_${code}`;
 }
 
-/** Reverse lookup: "LIVE_PRIVATE_PLAN_A" → "PRIVATE_PLAN_A", or null when unsupported. */
+/** Reverse lookup: "LIVE_PRIVATE_PLAN_A" → "PRIVATE_PLAN_A", or null for non-live types. */
 export function liveProductCode(productType: string): LiveProductCode | null {
   if (!productType.startsWith("LIVE_")) return null;
-  const code = productType.slice("LIVE_".length) as LiveProductCode;
-  return (LIVE_PRODUCTS as readonly string[]).includes(code) ? code : null;
+  const code = productType.slice("LIVE_".length);
+  return code.length > 0 ? code : null;
 }
 
-/** Sessions included per billing period (Plan A = 1/week, Plan B = 2/week). */
-export const LIVE_PRODUCT_SESSIONS: Record<LiveProductCode, number> = {
-  PRIVATE_PLAN_A: 4,
-  PRIVATE_PLAN_B: 8,
-  GROUP_PLAN_A: 4,
-  GROUP_PLAN_B: 8,
-  ONE_TIME: 1,
-  FREE: 0,
-};
+/** Admin-managed sellable live plan (mirrors the backend LivePricingPlan). */
+export interface LivePricingPlan {
+  id: string;
+  code: string;
+  name: string;
+  short: string;
+  description: string;
+  type: "PRIVATE" | "GROUP" | "ONE_TIME" | "FREE";
+  price: number;
+  sessionCount: number;
+  benefits: string[];
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface LivePricingPlanInput {
+  code: string;
+  name: string;
+  short: string;
+  description: string;
+  type: LivePricingPlan["type"];
+  price: number;
+  sessionCount: number;
+  benefits?: string[];
+  isActive?: boolean;
+  sortOrder?: number;
+}
 
 export type LivePricingData = Record<LiveProductCode, number>;
 
@@ -130,6 +150,7 @@ export const LIVE_SHOP_KEYS = {
   schedules: ["live", "schedules"] as const,
   schedule: (id: string) => ["live", "schedules", id] as const,
   pricing: ["live", "products", "pricing"] as const,
+  plans: ["live", "products", "plans"] as const,
   approvals: ["payments", "approvals"] as const,
 };
 
@@ -172,6 +193,53 @@ export function useDeleteStudySchedule(): UseMutationResult<unknown, Error, stri
     mutationFn: (id: string) => api.delete(`/live/schedules/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: LIVE_SHOP_KEYS.schedules });
+    },
+  });
+}
+
+/** Active sellable live plans (the shop's source of truth). */
+export function useLivePlans(): UseQueryResult<LivePricingPlan[]> {
+  return useQuery({
+    queryKey: LIVE_SHOP_KEYS.plans,
+    queryFn: async () => {
+      const res = await api.get<LivePricingPlan[]>("/live/products/plans");
+      return res.data ?? [];
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useCreateLivePlan(): UseMutationResult<ApiResponse<LivePricingPlan>, Error, LivePricingPlanInput> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: LivePricingPlanInput) => api.post<LivePricingPlan>("/live/products/plans", dto),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIVE_SHOP_KEYS.plans });
+    },
+  });
+}
+
+export function useUpdateLivePlan(): UseMutationResult<
+  ApiResponse<LivePricingPlan>,
+  Error,
+  { code: string; dto: Partial<LivePricingPlanInput> }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, dto }: { code: string; dto: Partial<LivePricingPlanInput> }) =>
+      api.patch<LivePricingPlan>(`/live/products/plans/${encodeURIComponent(code)}`, dto),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIVE_SHOP_KEYS.plans });
+    },
+  });
+}
+
+export function useDeleteLivePlan(): UseMutationResult<unknown, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) => api.delete(`/live/products/plans/${encodeURIComponent(code)}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LIVE_SHOP_KEYS.plans });
     },
   });
 }
@@ -241,45 +309,3 @@ export function useReviewPayment(): UseMutationResult<unknown, Error, { paymentI
     },
   });
 }
-
-export const PRODUCT_META: Record<
-  LiveProductCode,
-  { label: string; short: string; sessions: string; description: string }
-> = {
-  PRIVATE_PLAN_A: {
-    label: "خطة A فردية",
-    short: "حصتان شهرياً",
-    sessions: "4 حصص شهرياً · مرة أسبوعياً",
-    description: "جلسة خاصة ثابتة أسبوعياً مع معلمك الخاص.",
-  },
-  PRIVATE_PLAN_B: {
-    label: "خطة B فردية",
-    short: "4 حصص شهرياً",
-    sessions: "8 حصص شهرياً · مرتين أسبوعياً",
-    description: "جلسات خاصة مرتين أسبوعياً لمتابعة أسرع.",
-  },
-  GROUP_PLAN_A: {
-    label: "خطة A مجموعة",
-    short: "حصتان شهرياً",
-    sessions: "4 حصص شهرياً · مرة أسبوعياً",
-    description: "حصص مجموعة ثابتة أسبوعياً مع زملائك.",
-  },
-  GROUP_PLAN_B: {
-    label: "خطة B مجموعة",
-    short: "4 حصص شهرياً",
-    sessions: "8 حصص شهرياً · مرتين أسبوعياً",
-    description: "حصص مجموعة مرتين أسبوعياً لتعميق الاستيعاب.",
-  },
-  ONE_TIME: {
-    label: "حصة منفردة",
-    short: "حصة واحدة",
-    sessions: "حصة واحدة",
-    description: "حجز حصة خاصة حسب المواعيد المتاحة.",
-  },
-  FREE: {
-    label: "فعالية مجانية",
-    short: "مجانية",
-    sessions: "جلسة مجانية",
-    description: "انضم لجلسات مباشرة مجانية دورية.",
-  },
-};

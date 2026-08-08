@@ -26,11 +26,17 @@ export class SessionKindResolver {
       return LiveSessionKindEnum.GROUP;
     }
 
-    if (activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.PRIVATE_MONTHLY)) {
+    if (
+      activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.PRIVATE_MONTHLY) ||
+      activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.CUSTOM_PRIVATE)
+    ) {
       return LiveSessionKindEnum.PRIVATE_MONTHLY;
     }
 
-    if (activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE)) {
+    if (
+      activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE) ||
+      activeSubscriptionTypes.includes(LiveSubscriptionTypeEnum.CUSTOM_ONE_TIME)
+    ) {
       return LiveSessionKindEnum.ONE_TIME;
     }
 

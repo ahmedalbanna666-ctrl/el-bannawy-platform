@@ -19,6 +19,8 @@ const MONTHLY_TYPES: ReadonlySet<string> = new Set([
   LiveSubscriptionTypeEnum.PRIVATE_PLAN_B,
   LiveSubscriptionTypeEnum.GROUP_PLAN_A,
   LiveSubscriptionTypeEnum.GROUP_PLAN_B,
+  LiveSubscriptionTypeEnum.CUSTOM_PRIVATE,
+  LiveSubscriptionTypeEnum.CUSTOM_GROUP,
 ]);
 
 /**
@@ -57,7 +59,15 @@ export class LiveSubscriptionService {
 
   async createSubscription(
     userId: string,
-    dto: { teacherId: string; type: string; scheduleId?: string; price?: number },
+    dto: {
+      teacherId: string;
+      type: string;
+      scheduleId?: string;
+      price?: number;
+      sessionCount?: number;
+      packageLabel?: string;
+      planCode?: string;
+    },
   ): Promise<unknown> {
     const teacher = await this.prisma.user.findUnique({
       where: { id: dto.teacherId },
@@ -69,15 +79,16 @@ export class LiveSubscriptionService {
     end.setMonth(end.getMonth() + 1);
     const isGroup = dto.type.includes("GROUP");
     const isPlan = dto.type.includes("PLAN_");
-    const count = isGroup ? 8 : 4;
+    const count = dto.sessionCount ?? (isGroup ? 8 : 4);
     const created = await this.prisma.liveSubscription.create({
       data: {
         userId,
         teacherId: dto.teacherId,
         ...(dto.scheduleId ? { scheduleId: dto.scheduleId } : {}),
+        ...(dto.planCode ? { planCode: dto.planCode } : {}),
         type: dto.type as $Enums.LiveSubscriptionType,
         status: LiveSubscriptionStatusEnum.ACTIVE,
-        packageLabel: isGroup ? "GROUP" : isPlan ? "PRIVATE" : "PRIVATE",
+        packageLabel: dto.packageLabel ?? (isGroup ? "GROUP" : isPlan ? "PRIVATE" : "PRIVATE"),
         packageSessionCount: count,
         sessionsTotal: count,
         price: dto.price ?? 0,
@@ -490,15 +501,20 @@ export class LiveSubscriptionService {
           LiveSubscriptionTypeEnum.PRIVATE_MONTHLY,
           LiveSubscriptionTypeEnum.PRIVATE_PLAN_A,
           LiveSubscriptionTypeEnum.PRIVATE_PLAN_B,
+          LiveSubscriptionTypeEnum.CUSTOM_PRIVATE,
         ];
       case LiveSessionKindEnum.GROUP:
         return [
           LiveSubscriptionTypeEnum.GROUP_MONTHLY,
           LiveSubscriptionTypeEnum.GROUP_PLAN_A,
           LiveSubscriptionTypeEnum.GROUP_PLAN_B,
+          LiveSubscriptionTypeEnum.CUSTOM_GROUP,
         ];
       case LiveSessionKindEnum.ONE_TIME:
-        return [LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE];
+        return [
+          LiveSubscriptionTypeEnum.ONE_TIME_PRIVATE,
+          LiveSubscriptionTypeEnum.CUSTOM_ONE_TIME,
+        ];
       case LiveSessionKindEnum.FREE:
         throw new BadRequestException("FREE sessions have no subscription type");
     }

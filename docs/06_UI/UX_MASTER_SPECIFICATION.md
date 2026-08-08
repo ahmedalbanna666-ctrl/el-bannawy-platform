@@ -37,7 +37,7 @@ Before designing anything, the existing implementation was audited. The goal is 
 | Role-split pages | `dashboard/_components/{admin,teacher,staff,student}-dashboard.tsx` + `units/_components/*-view.tsx` pattern | ✅ KEEP |
 | Student dashboard | Progress card, daily goal/streak/XP, grade-not-set warning, Units/Stories/Final-Review cards, 4 quick-tool cards (AI/Live/Mistakes/Games), upcoming live bookings | ✅ KEEP |
 | AI chat | `dashboard/ai/page.tsx` — conversation sidebar, mobile drawer, credits pill, context banner, sources chips, typing indicator, empty state | ✅ KEEP (see gaps) |
-| Live classes | `dashboard/live/page.tsx` — subscription hero cards, 3 service cards, booking list, teacher view (availability/today/upcoming/create dialog) | ✅ KEEP |
+| Live classes | `dashboard/live/page.tsx` — tabbed student hub (الخدمات dynamic plans / اشتراكاتي / حجوزاتي), teacher studio (`dashboard/live/studio/page.tsx`) tabbed (اليوم / الجدول الأسبوعي / الحصص والطلاب) | ✅ KEEP |
 | Header | Greeting, theme toggle, history, notifications dropdown, student stat pills (streak/coins/level/XP/shop), academic context bar | ✅ KEEP |
 | Auth | `(auth)/` — login/register/forgot/reset with shared layout | ✅ KEEP |
 
@@ -589,12 +589,12 @@ Blur levels: `backdrop-blur-sm` (8px, subtle), `backdrop-blur-xl` (24px, header/
 
 ## 10.1 Student — Live Hub (`/dashboard/live`)
 
-- **Purpose:** manage subscription, services, and bookings.
+- **Purpose:** manage subscription, services, and bookings in a tabbed hub (less crowded, one focus at a time).
 - **Sections:**
-  1. اشتراكك الحالي — subscription hero cards (private/group), teacher name, remaining sessions `remaining/total`, progress bar, "احجز حصة" (wire it — F6).
-  2. الخدمات المتاحة — 3 service cards: اشتراك فردي شهري (featured, "الأكثر طلباً"), اشتراك مجموعة, احجز حصة فردية. Each: icon, title, description, benefits (checkmarks), CTA.
-  3. حصصك القادمة — booking cards with join action.
-  4. جلسات متاحة للحجز — available session cards (filtered: not booked, not draft/cancelled/completed/archived, seats left).
+  1. Header hero + "اشترك الآن" shortcut, then a tab bar: `الخدمات` (default) / `اشتراكاتي` / `حجوزاتي`.
+  2. الخدمات — dynamic plan grid from `useLivePlans` (active plans only), one `ProductCard` per `LivePricingPlan` row; type drives icon/link (PRIVATE → individual wizard, GROUP → group wizard, ONE_TIME → single booking, FREE → events).
+  3. اشتراكاتي — active subscription cards (private/group/one-time), teacher name, remaining sessions `remaining/total`, progress bar, "تجديد" routed by type.
+  4. حجوزاتي — `MyBookingsTabs` with join, reschedule-request, and cancel actions (dialogs at hub level).
 - **Booking flow (`/dashboard/live/book`):** plan/service selection → available slots (teacher availability) → confirm booking → success toast + calendar entry. On capacity full → "انضم لقائمة الانتظار" (PMS §7.3 new).
 - **Join flow:** session card → "انضم" opens meeting URL (new tab) or Zoom SDK room; pre-join lobby (title, teacher, countdown, camera/mic pre-check, join button).
 - **Waiting room:** queue view with position, auto-promote notification (future).

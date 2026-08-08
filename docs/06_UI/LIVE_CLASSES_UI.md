@@ -163,9 +163,7 @@ Steps
 
 Select Plan
 
-Plan A (1 day / week, 4 sessions) or Plan B (2 days / week, 8 sessions).
-
-Prices are loaded from `useLivePricing` and rendered per plan.
+Each sellable plan from the `LivePricingPlan` table (loaded via `useLivePlans`, filtered to `isActive`) is rendered as a selectable card. Prices and session counts come from the plan row, so admin-created plans appear automatically.
 
 Select Schedule
 
@@ -183,6 +181,32 @@ Success returns the student to the live classes landing page.
 
 ---
 
+# Student Live Hub
+
+Route
+
+`/dashboard/live`.
+
+Layout
+
+Tabbed hub with three focused tabs (reduces long-scroll crowding):
+
+`الخدمات` (default)
+
+Dynamic plan grid from `useLivePlans` (active, sorted by `sortOrder`), one `ProductCard` per plan. Plan `type` drives icon/tone/link: PRIVATE → individual monthly wizard (featured, "الأكثر طلباً"), GROUP → group wizard, ONE_TIME → single-slot booking, FREE → free events. Empty state when no active plans exist.
+
+`اشتراكاتي`
+
+Active subscriptions with remaining-session progress bars and a renewal CTA routed by subscription type (private / group / one-time).
+
+`حجوزاتي`
+
+`MyBookingsTabs` (upcoming / past / waiting list) with join, reschedule-request, and cancel actions.
+
+A slim header hero + "اشترك الآن" shortcut sits above the tabs. Cancel / reschedule / join dialogs live at the hub level so they work across tabs.
+
+---
+
 # Admin Commerce
 
 Route
@@ -191,9 +215,9 @@ Route
 
 Tabs
 
-Prices
+Plans
 
-Edit the six live product prices (PRIVATE/GROUP Plan A & B, ONE_TIME, FREE) via `PUT /live/products/pricing`.
+Admin CRUD over the `LivePricingPlan` table via `GET/POST /live/products/plans` and `PATCH/DELETE /live/products/plans/:code`: add a plan (code, name, short, description, type, price, sessionCount, benefits, active, sortOrder), edit any field, toggle active state, and delete. Inactive plans remain listed for management but are hidden from the student hub. Deleting a plan referenced by an active subscription is rejected.
 
 Instapay Approvals
 
@@ -204,6 +228,32 @@ Approve activates the subscription; reject requires an admin note.
 Roles
 
 ADMINISTRATOR.
+
+---
+
+# Teacher Studio
+
+Route
+
+`/dashboard/live/studio`.
+
+Layout
+
+Tabbed studio with three tabs (less crowded than the single long scroll):
+
+`اليوم` (default)
+
+KPI strip, today's session timeline with start/end/publish controls, next-upcoming draft publish CTA, and notifications (reschedule requests, waiting list).
+
+`الجدول الأسبوعي`
+
+Weekly availability grid, blocked dates, and recurring slots.
+
+`الحصص والطلاب`
+
+Group sessions, private/individual students, and the weekly sessions chart.
+
+A fixed live-control card floats when a session is `LIVE` (end / control). Create-edit and session-detail dialogs remain available in every tab.
 
 ---
 

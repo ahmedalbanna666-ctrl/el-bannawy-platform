@@ -25,8 +25,9 @@ import {
   type LiveSessionItem,
   type LiveBookingItem,
 } from "@/lib/live-api";
-import { useLivePricing } from "@/lib/live-shop-api";
+import { useLivePlans, type LivePricingPlan } from "@/lib/live-shop-api";
 import { useAuthStore } from "@/lib/auth-store";
+import { cn } from "@/lib/utils";
 import {
   Users,
   User,
@@ -92,10 +93,23 @@ function SubscriptionCard({
   return (
     <div className="flex flex-col gap-3">
       {active.map((sub) => {
-        const isPrivate = sub.type === "PRIVATE_MONTHLY";
+        const isPrivate = ["PRIVATE_MONTHLY", "PRIVATE_PLAN_A", "PRIVATE_PLAN_B", "CUSTOM_PRIVATE"].includes(
+          sub.type,
+        );
+        const isGroup = ["GROUP_MONTHLY", "GROUP_PLAN_A", "GROUP_PLAN_B", "CUSTOM_GROUP"].includes(sub.type);
         const remaining = sub.sessionsTotal - sub.sessionsUsed;
         const progressPct =
           sub.sessionsTotal > 0 ? Math.round((sub.sessionsUsed / sub.sessionsTotal) * 100) : 0;
+        const label = isPrivate
+          ? "اشتراك فردي"
+          : isGroup
+            ? "اشتراك مجموعة"
+            : "حصة منفردة";
+        const renewHref = isPrivate
+          ? "/dashboard/live/private-monthly"
+          : isGroup
+            ? "/dashboard/live/group"
+            : "/dashboard/live/book";
 
         return (
           <div
@@ -105,12 +119,10 @@ function SubscriptionCard({
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-500/15 text-primary-500 dark:text-primary-300">
-                  {isPrivate ? <User className="h-7 w-7" /> : <Users className="h-7 w-7" />}
+                  {isPrivate ? <User className="h-7 w-7" /> : isGroup ? <Users className="h-7 w-7" /> : <Zap className="h-7 w-7" />}
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-primary-600 dark:text-primary-300">
-                    {isPrivate ? "اشتراك فردي شهري" : "اشتراك مجموعة"}
-                  </p>
+                  <p className="text-xs font-medium text-primary-600 dark:text-primary-300">{label}</p>
                   <p className="text-base font-bold text-neutral-900 dark:text-neutral-50">
                     مع {sub.teacher.fullName}
                   </p>
@@ -136,9 +148,7 @@ function SubscriptionCard({
                   variant="outline"
                   size="sm"
                   className="shrink-0 rounded-xl border-primary-400/40 text-primary-600 dark:text-primary-300"
-                  onClick={(): void => {
-                    router.push(isPrivate ? "/dashboard/live/private-monthly" : "/dashboard/live/group");
-                  }}
+                  onClick={(): void => { router.push(renewHref); }}
                 >
                   <RefreshCw className="h-4 w-4" />
                   تجديد
@@ -152,12 +162,99 @@ function SubscriptionCard({
   );
 }
 
+const PLAN_CARD_META: Record<
+  LivePricingPlan["type"],
+  { icon: ReactNode; tone: "cyan" | "violet" | "amber" | "emerald"; href: string; cta: string }
+> = {
+  PRIVATE: {
+    icon: <User className="h-8 w-8" />,
+    tone: "cyan",
+    href: "/dashboard/live/private-monthly",
+    cta: "اختر خطتك",
+  },
+  GROUP: {
+    icon: <Users className="h-8 w-8" />,
+    tone: "violet",
+    href: "/dashboard/live/group",
+    cta: "تصفح المجموعات",
+  },
+  ONE_TIME: {
+    icon: <Zap className="h-8 w-8" />,
+    tone: "amber",
+    href: "/dashboard/live/book",
+    cta: "احجز الآن",
+  },
+  FREE: {
+    icon: <Gift className="h-8 w-8" />,
+    tone: "emerald",
+    href: "/dashboard/live/events",
+    cta: "استكشف الفعاليات",
+  },
+};
+
+function ServicesGrid(): ReactNode {
+  const { data: plans, isLoading } = useLivePlans();
+
+  const active = useMemo(
+    () =>
+      (plans ?? [])
+        .filter((plan) => plan.isActive)
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [plans],
+  );
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-56 rounded-3xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (active.length === 0) {
+    return (
+      <LiveEmpty
+        icon={<Sparkles className="h-10 w-10" />}
+        title="لا توجد خدمات متاحة حالياً"
+        description="ستظهر الخدمات والباقات هنا فور توفّرها"
+      />
+    );
+  }
+
+  const firstPrivateIndex = active.findIndex((plan) => plan.type === "PRIVATE");
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {active.map((plan, index) => {
+        const meta = PLAN_CARD_META[plan.type];
+        return (
+          <ProductCard
+            key={plan.id}
+            icon={meta.icon}
+            title={plan.name}
+            description={plan.description}
+            price={plan.price > 0 ? `${String(plan.price)} EGP` : "مجاناً"}
+            badge={index === firstPrivateIndex ? "الأكثر طلباً" : undefined}
+            href={meta.href}
+            cta={meta.cta}
+            tone={meta.tone}
+            featured={index === firstPrivateIndex}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function StudentView(): ReactNode {
+  const router = useRouter();
   const { data: subscriptions, isLoading: subsLoading } = useLiveSubscriptions();
   const { mutateAsync: cancelBooking, isPending: isCancelling } = useCancelBooking();
   const { mutateAsync: requestReschedule } = useRequestReschedule();
-  const { data: pricing } = useLivePricing();
 
+  const [activeTab, setActiveTab] = useState<"services" | "subscriptions" | "bookings">("services");
   const [cancelTarget, setCancelTarget] = useState<LiveBookingItem | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<LiveBookingItem | null>(null);
   const [rescheduleReason, setRescheduleReason] = useState("");
@@ -191,90 +288,88 @@ function StudentView(): ReactNode {
     }
   }, [rescheduleTarget, rescheduleReason, requestReschedule]);
 
+  const tabs: { id: "services" | "subscriptions" | "bookings"; label: string }[] = [
+    { id: "services", label: "الخدمات" },
+    { id: "subscriptions", label: "اشتراكاتي" },
+    { id: "bookings", label: "حجوزاتي" },
+  ];
+
   return (
-    <div className="flex flex-col gap-8 pb-4">
+    <div className="flex flex-col gap-6 pb-4">
       <section className="flex flex-col gap-4">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 text-white shadow-lg shadow-primary-500/30">
-            <Video className="h-7 w-7" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 text-white shadow-lg shadow-primary-500/30">
+              <Video className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">
+                ابدأ الحجز في أقل من دقيقة
+              </h2>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                اختر الخدمة الأنسب لك — سريع وبسيط وأنيق.
+              </p>
+            </div>
           </div>
-          <div>
+          <Button
+            size="sm"
+            className="rounded-xl"
+            onClick={(): void => { router.push("/dashboard/live/private-monthly"); }}
+          >
+            <Sparkles className="h-4 w-4" />
+            اشترك الآن
+          </Button>
+        </div>
+
+        <div className="flex gap-2 border-b border-neutral-200 dark:border-white/10">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={(): void => { setActiveTab(tab.id); }}
+              className={cn(
+                "flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors",
+                activeTab === tab.id
+                  ? "border-primary-500 text-primary-600 dark:text-primary-300"
+                  : "border-transparent text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {activeTab === "services" && (
+        <section className="flex flex-col gap-3">
+          <div className="mb-1 flex items-center gap-2">
+            <GraduationCap className="h-5 w-5 text-primary-500" />
             <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">
-              ابدأ الحجز في أقل من دقيقة
+              الخدمات المتاحة
             </h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              اختر الخدمة الأنسب لك — سريع وبسيط وأنيق.
-            </p>
           </div>
-        </div>
-        <SubscriptionCard
-          subscriptions={subscriptions ?? []}
-          isLoading={subsLoading}
-        />
-      </section>
+          <ServicesGrid />
+        </section>
+      )}
 
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <GraduationCap className="h-5 w-5 text-primary-500" />
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">
-            الخدمات المتاحة
-          </h2>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <ProductCard
-            icon={<User className="h-8 w-8" />}
-            title="اشتراك فردي شهري"
-            description="حصص خاصة أسبوعية متكررة مع معلمك."
-            price={pricing ? `من ${String(pricing.PRIVATE_PLAN_A)} EGP` : "اشتراك شهري"}
-            badge="الأكثر طلباً"
-            href="/dashboard/live/private-monthly"
-            cta="اختر خطتك"
-            tone="cyan"
-            featured
+      {activeTab === "subscriptions" && (
+        <section className="flex flex-col gap-3">
+          <SubscriptionCard
+            subscriptions={subscriptions ?? []}
+            isLoading={subsLoading}
           />
-          <ProductCard
-            icon={<Users className="h-8 w-8" />}
-            title="حصص المجموعة"
-            description="ادرس ضمن مجموعة ثابتة من زملائك."
-            price={pricing ? `من ${String(pricing.GROUP_PLAN_A)} EGP` : "اشتراك مجموعة"}
-            href="/dashboard/live/group"
-            cta="تصفح المجموعات"
-            tone="violet"
-          />
-          <ProductCard
-            icon={<Zap className="h-8 w-8" />}
-            title="حصة منفردة"
-            description="احجز حصة واحدة حسب المواعيد المتاحة."
-            price={pricing ? `${String(pricing.ONE_TIME)} EGP` : "حسب الجدول"}
-            href="/dashboard/live/book"
-            cta="احجز الآن"
-            tone="amber"
-          />
-          <ProductCard
-            icon={<Gift className="h-8 w-8" />}
-            title="فعاليات مجانية"
-            description="انضم إلى جلسات مباشرة مجانية أسبوعياً."
-            price="مجاناً"
-            href="/dashboard/live/events"
-            cta="استكشف الفعاليات"
-            tone="emerald"
-          />
-        </div>
-      </section>
+        </section>
+      )}
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">
-            حجوزاتي
-          </h2>
-        </div>
-        <MyBookingsTabs
-          onJoin={handleJoin}
-          onReschedule={setRescheduleTarget}
-          onCancel={setCancelTarget}
-          cancelling={isCancelling}
-        />
-      </section>
+      {activeTab === "bookings" && (
+        <section className="flex flex-col gap-3">
+          <MyBookingsTabs
+            onJoin={handleJoin}
+            onReschedule={setRescheduleTarget}
+            onCancel={setCancelTarget}
+            cancelling={isCancelling}
+          />
+        </section>
+      )}
 
       <Dialog open={Boolean(cancelTarget)} onClose={() => { setCancelTarget(null); }} title="إلغاء الحجز">
         <DialogContent>
