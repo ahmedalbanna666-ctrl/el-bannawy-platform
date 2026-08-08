@@ -220,6 +220,11 @@ export function PlyrVideoPlayer({
   const fireQuestion = useCallback(async (event: VideoEvent): Promise<void> => {
     if (triggeredRef.current.has(event.id)) return;
     triggeredRef.current.add(event.id);
+    // Pause the timeline checker IMMEDIATELY (before the async fetch) so a
+    // concurrent checkTimelineEvents tick cannot fire a LATER question while
+    // this one is still loading. This is what caused the player to jump to
+    // the last question instead of the earliest unanswered one.
+    isPausedForQuestionRef.current = true;
 
     // Fetch the question data FIRST so we never pause the video for a question
     // that has no loadable content (previously this paused the video every
@@ -235,10 +240,10 @@ export function PlyrVideoPlayer({
     if (!question) {
       // No question content available — do not pause; keep playing.
       triggeredRef.current.delete(event.id);
+      isPausedForQuestionRef.current = false;
       return;
     }
 
-    isPausedForQuestionRef.current = true;
     const plyr = plyrRef.current as { currentTime: number; pause?: () => void } | null;
     if (plyr) {
       isSeekingProgrammaticallyRef.current = true;
