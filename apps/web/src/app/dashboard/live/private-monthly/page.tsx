@@ -18,6 +18,7 @@ import { BottomCta } from "@/components/live/bottom-cta";
 import { SummaryCard, SummaryRow } from "@/components/live/summary-card";
 import { LiveEmpty } from "@/components/live/live-empty";
 import { cn } from "@/lib/utils";
+import { formatAmPm } from "@/lib/live-format";
 import { LiveCheckoutDialog, type LiveCheckoutDialogProps } from "@/components/live/live-checkout-dialog";
 
 const STEPS = [
@@ -284,7 +285,7 @@ export default function PrivateMonthlyPage(): ReactNode {
                         >
                           <Clock className="h-3 w-3 text-primary-500" />
                           {DAY_NAMES[DAY_VALUES.indexOf(day.dayOfWeek)] ?? day.dayOfWeek}
-                          <span className="text-neutral-400" dir="ltr">{day.startTime.slice(0, 5)}</span>
+                          <span className="text-neutral-400" dir="ltr">{formatAmPm(day.startTime)}</span>
                         </span>
                       ))}
                     </div>

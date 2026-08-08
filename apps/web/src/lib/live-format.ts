@@ -34,6 +34,17 @@ export function formatTime(iso: string | Date): string {
   return timeFmt.format(new Date(iso));
 }
 
+/** Convert a 24h "HH:mm" (or "HH:mm:ss") string to 12h AM/PM, e.g. "17:00" → "5:00 PM". */
+export function formatAmPm(time: string): string {
+  const match = /^(\d{1,2}):(\d{2})/.exec(time);
+  if (!match) return time;
+  const hours = Number(match[1]);
+  const minutes = match[2];
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${String(hour12)}:${minutes} ${suffix}`;
+}
+
 export function formatDate(iso: string | Date): string {
   return dateFmt.format(new Date(iso));
 }

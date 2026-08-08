@@ -17,6 +17,7 @@ import {
   useDeleteStudySchedule,
   type StudyScheduleItem,
 } from "@/lib/live-shop-api";
+import { formatAmPm } from "@/lib/live-format";
 import { LiveSessionTypeEnum } from "@el-bannawy/shared";
 
 const DAY_NAMES = [
@@ -235,7 +236,7 @@ function ScheduleForm({
               >
                 {TIME_SLOTS.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {formatAmPm(t)}
                   </option>
                 ))}
               </select>
@@ -246,7 +247,7 @@ function ScheduleForm({
               >
                 {TIME_SLOTS.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {formatAmPm(t)}
                   </option>
                 ))}
               </select>
@@ -357,7 +358,7 @@ function ScheduleCard({
                 <Clock className="h-3.5 w-3.5 text-primary-500" />
                 {DAY_NAMES[DAY_VALUES.indexOf(day.dayOfWeek)] ?? day.dayOfWeek}
                 <span className="text-neutral-400" dir="ltr">
-                  {day.startTime.slice(0, 5)} - {day.endTime.slice(0, 5)}
+                  {formatAmPm(day.startTime)} - {formatAmPm(day.endTime)}
                 </span>
               </span>
             ))}

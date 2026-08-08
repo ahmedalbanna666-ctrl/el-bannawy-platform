@@ -21,10 +21,13 @@ import {
   CalendarOff,
   BarChart3,
   ServerCog,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
+import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import {
   GlassSection,
   SectionHeader,
@@ -46,10 +49,12 @@ import {
   useEndSession,
   usePublishSession,
   useUnpublishSession,
+  useDeleteSession,
   type LiveSessionItem,
   type TeacherAvailabilityItem,
 } from "@/lib/live-api";
 import { cn } from "@/lib/utils";
+import { formatAmPm } from "@/lib/live-format";
 
 const DAY_NAMES = [
   "السبت",
@@ -81,10 +86,10 @@ function statusMeta(session: LiveSessionItem): { label: string; variant: "succes
 
 function formatTime(dateStr: string): string {
   try {
-    return new Date(dateStr).toLocaleTimeString("ar-EG", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const d = new Date(dateStr);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return formatAmPm(`${hh}:${mm}`);
   } catch {
     return dateStr;
   }
@@ -125,11 +130,13 @@ export default function TeacherLiveStudioPage(): ReactNode {
   const endSession = useEndSession();
   const publishSession = usePublishSession();
   const unpublishSession = useUnpublishSession();
+  const deleteSession = useDeleteSession();
 
   const [activeTab, setActiveTab] = useState<"today" | "schedule" | "sessions">("today");
   const [createOpen, setCreateOpen] = useState(false);
   const [editSession, setEditSession] = useState<LiveSessionItem | null>(null);
   const [detailSession, setDetailSession] = useState<LiveSessionItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<LiveSessionItem | null>(null);
 
   const mySessions = useMemo(
     () => (sessions ?? []).filter((s) => s.teacherId === user?.id),
@@ -229,6 +236,17 @@ export default function TeacherLiveStudioPage(): ReactNode {
       // handled by mutation
     }
   }, [endSession]);
+
+  const handleDelete = useCallback(async (): Promise<void> => {
+    if (!deleteTarget) return;
+    try {
+      await deleteSession.mutateAsync(deleteTarget.id);
+      toast.success(`تم حذف «${deleteTarget.title}»`);
+      setDeleteTarget(null);
+    } catch {
+      toast.error("تعذر حذف المحاضرة");
+    }
+  }, [deleteSession, deleteTarget]);
 
   if (!canControl) {
     return (
@@ -435,6 +453,16 @@ export default function TeacherLiveStudioPage(): ReactNode {
                             <Settings2 className="h-4 w-4" />
                             تعديل
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="حذف المحاضرة"
+                            disabled={session.status === "LIVE"}
+                            className="text-danger-500 hover:bg-danger-500/10"
+                            onClick={(): void => { setDeleteTarget(session); }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                           {session.status === "DRAFT" && (
                             <Button
                               variant="success"
@@ -600,7 +628,7 @@ export default function TeacherLiveStudioPage(): ReactNode {
                               className="flex items-center justify-between rounded-lg bg-cyan-500/10 px-2 py-1"
                             >
                               <span className="text-[10px] font-semibold text-cyan-700 dark:text-cyan-300">
-                                {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
+                                {formatAmPm(slot.startTime)} - {formatAmPm(slot.endTime)}
                               </span>
                               <Badge variant="primary" className="text-[8px]">
                                 {slot.type === "GROUP" ? "مجموعة" : "فردي"}
@@ -657,7 +685,7 @@ export default function TeacherLiveStudioPage(): ReactNode {
                         {DAY_NAMES[DAY_VALUES.indexOf(slot.dayOfWeek)] ?? "—"}
                       </p>
                       <p className="text-xs text-neutral-500">
-                        {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
+                        {formatAmPm(slot.startTime)} - {formatAmPm(slot.endTime)}
                       </p>
                     </div>
                     <Badge variant={slot.type === "GROUP" ? "warning" : "primary"} className="text-[10px]">
@@ -694,6 +722,7 @@ export default function TeacherLiveStudioPage(): ReactNode {
                       key={session.id}
                       session={session}
                       onClick={() => { handleOpenSession(session); }}
+                      onDelete={(s): void => { setDeleteTarget(s); }}
                     />
                   ))}
                 </div>
@@ -732,6 +761,7 @@ export default function TeacherLiveStudioPage(): ReactNode {
                           key={session.id}
                           session={session}
                           onClick={() => { handleOpenSession(session); }}
+                          onDelete={(s): void => { setDeleteTarget(s); }}
                         />
                       ))}
                     </div>
@@ -812,6 +842,31 @@ export default function TeacherLiveStudioPage(): ReactNode {
         onClose={() => { setDetailSession(null); }}
       />
 
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onClose={() => { setDeleteTarget(null); }}
+        title="حذف المحاضرة"
+      >
+        <DialogContent>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            هل أنت متأكد من حذف «{deleteTarget?.title}»؟ لن يتمكن الطلاب من حجزها بعد الآن.
+          </p>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => { setDeleteTarget(null); }}>
+            إلغاء
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            loading={deleteSession.isPending}
+            onClick={(): void => { void handleDelete(); }}
+          >
+            حذف
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
       {sessionsError && (
         <ErrorState
           title="فشل تحميل الحصص"
@@ -825,36 +880,50 @@ export default function TeacherLiveStudioPage(): ReactNode {
 function GroupCard({
   session,
   onClick,
+  onDelete,
 }: {
   session: LiveSessionItem;
   onClick: () => void;
+  onDelete: (session: LiveSessionItem) => void;
 }): ReactNode {
   const meta = statusMeta(session);
   const start = new Date(session.startTime);
 
   return (
-    <button
-      onClick={onClick}
-      className="flex items-center justify-between gap-3 rounded-xl bg-neutral-50 px-3 py-2.5 text-start transition-colors hover:bg-neutral-100 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]"
-    >
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-          {session.title}
-        </p>
-        <p className="mt-0.5 text-xs text-neutral-500">
-          {start.toLocaleDateString("ar-EG", { weekday: "short", day: "numeric", month: "short" })}
-          {" · "}
-          {formatTime(session.startTime)} - {formatTime(session.endTime)}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <span className="text-xs tabular-nums text-neutral-500">
-          {String(session._count.bookings)}/{String(session.maxStudents)}
-        </span>
-        <Badge variant={meta.variant} className="text-[10px]">
-          {meta.label}
-        </Badge>
-      </div>
-    </button>
+    <div className="flex items-center gap-1">
+      <button
+        onClick={onClick}
+        className="flex flex-1 items-center justify-between gap-3 rounded-xl bg-neutral-50 px-3 py-2.5 text-start transition-colors hover:bg-neutral-100 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]"
+      >
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+            {session.title}
+          </p>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            {start.toLocaleDateString("ar-EG", { weekday: "short", day: "numeric", month: "short" })}
+            {" · "}
+            {formatTime(session.startTime)} - {formatTime(session.endTime)}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-xs tabular-nums text-neutral-500">
+            {String(session._count.bookings)}/{String(session.maxStudents)}
+          </span>
+          <Badge variant={meta.variant} className="text-[10px]">
+            {meta.label}
+          </Badge>
+        </div>
+      </button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="حذف المحاضرة"
+        disabled={session.status === "LIVE"}
+        className="text-danger-500 hover:bg-danger-500/10"
+        onClick={(): void => { onDelete(session); }}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }

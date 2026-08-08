@@ -27,6 +27,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { LiveSessionTypeEnum } from "@el-bannawy/shared";
+import { formatAmPm } from "@/lib/live-format";
 
 const DAY_NAMES = [
   "السبت",
@@ -165,7 +166,7 @@ function AddSlotForm({
               >
                 {TIME_SLOTS.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {formatAmPm(t)}
                   </option>
                 ))}
               </select>
@@ -179,7 +180,7 @@ function AddSlotForm({
               >
                 {TIME_SLOTS.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {formatAmPm(t)}
                   </option>
                 ))}
               </select>
@@ -362,7 +363,7 @@ export default function AvailabilityPage(): ReactNode {
     }
   };
 
-  const formatTime = (t: string): string => t.slice(0, 5);
+  const formatTime = (t: string): string => formatAmPm(t.slice(0, 5));
 
   return (
     <div className="flex flex-col gap-6 pb-4">
