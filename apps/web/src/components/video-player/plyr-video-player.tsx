@@ -50,6 +50,31 @@ function requestFullscreenOn(el: HTMLElement): Promise<void> {
   return Promise.resolve();
 }
 
+/**
+ * Lock the screen to LANDSCAPE while fullscreen is active. `lock("landscape")`
+ * keeps the device rotating between left/right landscape only and blocks
+ * portrait — released again as soon as fullscreen is exited (Android only;
+ * iOS does not expose orientation.lock, so the user rotates manually there).
+ */
+function lockLandscape(): void {
+  try {
+    const ori = (screen as unknown as { orientation?: { lock?: (o: string) => Promise<void> } }).orientation;
+    void ori?.lock?.("landscape").catch((): void => undefined);
+  } catch {
+    // unsupported — ignore
+  }
+}
+
+/** Release the landscape lock when fullscreen is exited. */
+function unlockOrientation(): void {
+  try {
+    const ori = (screen as unknown as { orientation?: { unlock?: () => void } }).orientation;
+    ori?.unlock?.();
+  } catch {
+    // ignore
+  }
+}
+
 /** Format seconds as MM:SS (or H:MM:SS for durations >= 1h). */
 function formatTime(totalSeconds: number): string {
   const secs = Math.max(0, Math.floor(totalSeconds));
@@ -188,14 +213,33 @@ export function PlyrVideoPlayer({
     if (!root) return;
     if (isDocumentFullscreen()) {
       void document.exitFullscreen().catch(() => undefined);
+      unlockOrientation();
     } else {
       // Enter fullscreen on the FULL container (which contains the custom
       // control bar), not on Plyr's internal embed container — otherwise the
       // controls stay behind and the video is letterboxed inside the screen.
-      void requestFullscreenOn(root);
+      void requestFullscreenOn(root).finally((): void => {
+        // Give the browser a moment to promote the element before locking,
+        // otherwise the orientation lock is rejected.
+        window.setTimeout(lockLandscape, 120);
+      });
     }
     showControlsTemporarily();
   }, [showControlsTemporarily]);
+
+  // While fullscreen is active, keep the device locked to landscape
+  // (left/right); release the lock as soon as fullscreen is exited.
+  useEffect(() => {
+    const onFullscreenChange = (): void => {
+      if (isDocumentFullscreen()) {
+        window.setTimeout(lockLandscape, 120);
+      } else {
+        unlockOrientation();
+      }
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return (): void => { document.removeEventListener("fullscreenchange", onFullscreenChange); };
+  }, []);
 
   useEffect(() => {
     return (): void => {
@@ -685,9 +729,12 @@ export function PlyrVideoPlayer({
         .elb-video-root:fullscreen .plyr__video-embed,
         .elb-video-root:-webkit-full-screen .plyr__video-embed {
           position: absolute !important;
-          top: 50% !important;
-          left: 50% !important;
-          transform: translate(-50%, -50%) !important;
+          inset: 0 !important;
+          margin: auto !important;
+          /* Fallback for browsers without min()/max(): fill the screen. */
+          width: 100vw !important;
+          height: 100vh !important;
+          /* When supported, cover the screen edge-to-edge (no side bars). */
           width: max(100vw, calc(100vh * 16 / 9)) !important;
           height: max(100vh, calc(100vw * 9 / 16)) !important;
           max-width: none !important;
@@ -752,7 +799,7 @@ export function PlyrVideoPlayer({
           <iframe
             src={`https://www.youtube-nocookie.com/embed/${providerVideoId}?controls=0&rel=0&iv_load_policy=3&playsinline=1&modestbranding=1&enablejsapi=1${typeof window !== "undefined" ? `&origin=${window.location.origin}` : ""}`}
             allowFullScreen
-            allow="autoplay"
+            allow="autoplay; fullscreen"
             title={lessonTitle ?? "Video lesson"}
           />
         </div>
