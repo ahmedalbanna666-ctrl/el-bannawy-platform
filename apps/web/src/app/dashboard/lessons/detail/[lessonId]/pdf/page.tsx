@@ -18,24 +18,6 @@ interface LessonDocumentMeta {
   readonly downloadable: boolean;
 }
 
-async function fetchDocumentBlob(lessonId: string): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/lessons/${lessonId}/document`, {
-    credentials: "include",
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    const message =
-      response.status === 403
-        ? "هذا الملف غير متاح للتحميل"
-        : response.status === 404
-          ? "الملف غير موجود"
-          : "تعذر تحميل الملف";
-    throw new Error(message);
-  }
-  const blob = await response.blob();
-  return URL.createObjectURL(blob);
-}
-
 async function fetchSavedStatus(lessonId: string): Promise<boolean> {
   const res = await api.get<readonly { lessonId: string }[]>("/saved-documents");
   return (res.data ?? []).some((d) => d.lessonId === lessonId);
@@ -56,12 +38,6 @@ export default function LessonPdfPage(): ReactNode {
       if (!res.data) throw new Error("Lesson not found");
       return res.data;
     },
-  });
-
-  const blobQuery = useQuery({
-    queryKey: ["lesson-document-blob", lessonId],
-    queryFn: () => fetchDocumentBlob(lessonId),
-    enabled: Boolean(metaQuery.data?.document?.downloadable),
   });
 
   const savedQuery = useQuery({
@@ -85,6 +61,7 @@ export default function LessonPdfPage(): ReactNode {
   const docMeta = metaQuery.data?.document ?? null;
   const isSaved = savedQuery.data ?? false;
   const [isDownloading, setIsDownloading] = useState(false);
+  const documentUrl = `${API_BASE_URL}/lessons/${lessonId}/document`;
 
   if (metaQuery.isLoading) {
     return (
@@ -144,7 +121,7 @@ export default function LessonPdfPage(): ReactNode {
             onClick={() => {
               setIsDownloading(true);
               const a = window.document.createElement("a");
-              a.href = `${API_BASE_URL}/lessons/${lessonId}/document`;
+              a.href = documentUrl;
               a.download = docMeta.fileName;
               a.click();
               setTimeout(() => { setIsDownloading(false); }, 1000);
@@ -191,23 +168,11 @@ export default function LessonPdfPage(): ReactNode {
       </header>
 
       <div className="flex-1">
-        {blobQuery.isLoading && <Skeleton className="h-full w-full" />}
-        {blobQuery.isError && (
-          <div className="flex h-full items-center justify-center">
-            <ErrorState
-              title="تعذر عرض الملف"
-              description={blobQuery.error instanceof Error ? blobQuery.error.message : "حدث خطأ غير متوقع"}
-              onRetry={() => void blobQuery.refetch()}
-            />
-          </div>
-        )}
-        {blobQuery.data && (
-          <iframe
-            title={docMeta.fileName}
-            src={blobQuery.data}
-            className="h-full w-full border-0"
-          />
-        )}
+        <iframe
+          title={docMeta.fileName}
+          src={documentUrl}
+          className="h-full w-full border-0"
+        />
       </div>
     </div>
   );
