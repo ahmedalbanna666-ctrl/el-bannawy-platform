@@ -1,14 +1,20 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Document, Page, pdfjs } from "react-pdf";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FileText, Download, Bookmark, BookmarkCheck, X, CheckCircle } from "lucide-react";
+import { FileText, Download, Bookmark, BookmarkCheck, X, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -18,9 +24,95 @@ interface LessonDocumentMeta {
   readonly downloadable: boolean;
 }
 
+async function fetchDocumentBlob(lessonId: string): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/lessons/${lessonId}/document`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const message =
+      response.status === 403
+        ? "هذا الملف غير متاح للتحميل"
+        : response.status === 404
+          ? "الملف غير موجود"
+          : "تعذر تحميل الملف";
+    throw new Error(message);
+  }
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
 async function fetchSavedStatus(lessonId: string): Promise<boolean> {
   const res = await api.get<readonly { lessonId: string }[]>("/saved-documents");
   return (res.data ?? []).some((d) => d.lessonId === lessonId);
+}
+
+function PdfViewer({ file }: { file: string }): ReactNode {
+  const [numPages, setNumPages] = useState(0);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageWidth, setPageWidth] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const onDocumentLoadSuccess = useCallback(({ numPages: n }: { numPages: number }): void => {
+    setNumPages(n);
+    setPageNumber(1);
+  }, []);
+
+  useEffect(() => {
+    const measure = (): void => {
+      setPageWidth(containerRef.current?.clientWidth ?? 0);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return (): void => {
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-center gap-3 border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-2"
+          onClick={(): void => { setPageNumber((p) => Math.max(1, p - 1)); }}
+          disabled={pageNumber <= 1}
+          aria-label="الصفحة السابقة"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+          {pageNumber} / {numPages}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-2"
+          onClick={(): void => { setPageNumber((p) => Math.min(numPages, p + 1)); }}
+          disabled={pageNumber >= numPages || numPages === 0}
+          aria-label="الصفحة التالية"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+      </div>
+      <div ref={containerRef} className="flex-1 overflow-auto bg-neutral-100 p-3 dark:bg-neutral-900">
+        <Document
+          file={file}
+          onLoadSuccess={onDocumentLoadSuccess}
+          loading={<Skeleton className="mx-auto h-96 w-full max-w-2xl" />}
+          error={<p className="py-16 text-center text-sm text-neutral-500">تعذر عرض الملف</p>}
+        >
+          <Page
+            pageNumber={pageNumber}
+            width={Math.max(pageWidth - 24, 320)}
+            renderTextLayer={false}
+            renderAnnotationLayer={false}
+          />
+        </Document>
+      </div>
+    </div>
+  );
 }
 
 export default function LessonPdfPage(): ReactNode {
@@ -38,6 +130,13 @@ export default function LessonPdfPage(): ReactNode {
       if (!res.data) throw new Error("Lesson not found");
       return res.data;
     },
+  });
+
+  const blobQuery = useQuery({
+    queryKey: ["lesson-document-blob", lessonId],
+    queryFn: () => fetchDocumentBlob(lessonId),
+    enabled: Boolean(metaQuery.data?.document?.downloadable),
+    staleTime: Infinity,
   });
 
   const savedQuery = useQuery({
@@ -167,12 +266,18 @@ export default function LessonPdfPage(): ReactNode {
         )}
       </header>
 
-      <div className="flex-1">
-        <iframe
-          title={docMeta.fileName}
-          src={documentUrl}
-          className="h-full w-full border-0"
-        />
+      <div className="flex-1 overflow-hidden">
+        {blobQuery.isLoading && <Skeleton className="h-full w-full" />}
+        {blobQuery.isError && (
+          <div className="flex h-full items-center justify-center">
+            <ErrorState
+              title="تعذر عرض الملف"
+              description={blobQuery.error instanceof Error ? blobQuery.error.message : "حدث خطأ غير متوقع"}
+              onRetry={() => void blobQuery.refetch()}
+            />
+          </div>
+        )}
+        {blobQuery.data && <PdfViewer file={blobQuery.data} />}
       </div>
     </div>
   );
