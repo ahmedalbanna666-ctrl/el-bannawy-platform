@@ -5,11 +5,12 @@ import { useTheme } from "@/providers/theme-provider";
 import { useAuthStore } from "@/lib/auth-store";
 import { usePermissions } from "@/lib/use-permissions";
 import { useRouter } from "next/navigation";
-import { Moon, Sun, Menu, Flame, Coins, Zap, Trophy, History, ShoppingCart } from "lucide-react";
+import { Moon, Sun, Menu, Flame, Coins, Zap, Trophy, History, ShoppingCart, RotateCw } from "lucide-react";
 import { Button } from "./button";
 import { AcademicContextBar } from "./academic-context-bar";
 import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown";
 import { useHomeData } from "@/lib/home-api";
+import { useRotationEnabled, setRotationEnabled } from "@/hooks/use-screen-orientation";
 import { type ReactNode } from "react";
 
 interface HeaderProps {
@@ -27,6 +28,7 @@ export function Header({
   const { isStudent } = usePermissions();
   const router = useRouter();
   const { data } = useHomeData(isStudent);
+  const rotationEnabled = useRotationEnabled();
 
   const fullName = user?.fullName ?? "";
   const firstName = fullName ? fullName.split(" ")[0] : "";
@@ -66,6 +68,17 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={(): void => { setRotationEnabled(!rotationEnabled); }}
+            aria-label={rotationEnabled ? "إيقاف التدوير التلقائي" : "تفعيل التدوير التلقائي"}
+            title={rotationEnabled ? "التدوير التلقائي مفعّل — اضغط للإيقاف" : "التدوير التلقائي متوقف — اضغط للتفعيل"}
+            className={rotationEnabled ? "text-amber-500" : ""}
+          >
+            <RotateCw className={`h-5 w-5 ${rotationEnabled ? "" : "text-neutral-400 dark:text-neutral-500"}`} />
+          </Button>
+
           <Button
             variant="ghost"
             size="icon-sm"
