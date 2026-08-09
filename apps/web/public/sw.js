@@ -1,7 +1,7 @@
-/* El-bannawy PWA Service Worker — Offline & Smart Cache Engine (v4) */
+/* El-bannawy PWA Service Worker — Offline & Smart Cache Engine (v5) */
 /* eslint-disable */
-const CACHE_APP = "el-bannawy-app-v4";
-const CACHE_FILES = "el-bannawy-files-v4";
+const CACHE_APP = "el-bannawy-app-v5";
+const CACHE_FILES = "el-bannawy-files-v5";
 const OFFLINE_URL = "/offline";
 
 const APP_SHELL = [

@@ -5,13 +5,36 @@ import { useTheme } from "@/providers/theme-provider";
 import { useAuthStore } from "@/lib/auth-store";
 import { usePermissions } from "@/lib/use-permissions";
 import { useRouter } from "next/navigation";
-import { Moon, Sun, Menu, Flame, Coins, Zap, Trophy, History, ShoppingCart, RotateCw } from "lucide-react";
+import { Moon, Sun, Menu, Flame, Coins, Zap, Trophy, History, ShoppingCart } from "lucide-react";
 import { Button } from "./button";
 import { AcademicContextBar } from "./academic-context-bar";
 import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown";
 import { useHomeData } from "@/lib/home-api";
 import { useRotationEnabled, setRotationEnabled } from "@/hooks/use-screen-orientation";
 import { type ReactNode } from "react";
+
+/** Phone auto-rotate symbol (smartphone with rotation arrows), like the OS toggle. */
+function RotatePhoneIcon({ className }: { className?: string }): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="7.5" y="2.5" width="9" height="19" rx="2" />
+      <line x1="11" y1="18.5" x2="13" y2="18.5" />
+      <path d="M2.5 11.5 L5.5 11.5" />
+      <path d="M4 10 L2.5 11.5 L4 13" />
+      <path d="M21.5 11.5 L18.5 11.5" />
+      <path d="M20 10 L21.5 11.5 L20 13" />
+    </svg>
+  );
+}
 
 interface HeaderProps {
   title?: string;
@@ -76,7 +99,7 @@ export function Header({
             title={rotationEnabled ? "التدوير التلقائي مفعّل — اضغط للإيقاف" : "التدوير التلقائي متوقف — اضغط للتفعيل"}
             className={rotationEnabled ? "text-amber-500" : ""}
           >
-            <RotateCw className={`h-5 w-5 ${rotationEnabled ? "" : "text-neutral-400 dark:text-neutral-500"}`} />
+            <RotatePhoneIcon className={`h-5 w-5 ${rotationEnabled ? "" : "text-neutral-400 dark:text-neutral-500"}`} />
           </Button>
 
           <Button

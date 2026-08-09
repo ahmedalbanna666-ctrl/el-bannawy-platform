@@ -58,12 +58,21 @@ export function useRotationEnabled(): boolean {
 }
 
 function lockPortraitDirect(): void {
-  try {
-    const ori = getOrientation();
-    void ori?.lock?.("portrait").catch((): void => undefined);
-  } catch {
-    // unsupported (iOS / older browsers) — the phone keeps its default
-  }
+  const attempt = (): void => {
+    try {
+      const ori = getOrientation();
+      const result = ori?.lock?.("portrait");
+      if (result) {
+        void result.catch((): void => {
+          // Some browsers reject if the layout isn't settled — retry once.
+          window.setTimeout(attempt, 250);
+        });
+      }
+    } catch {
+      // unsupported (iOS / older browsers) — the phone keeps its default
+    }
+  };
+  attempt();
 }
 
 /** Force landscape (left or right) — used when the video goes fullscreen. */
@@ -138,13 +147,19 @@ export function usePortraitLock(): void {
       // Outside fullscreen the app must respect the preference immediately.
       window.setTimeout(lock, 0);
     };
+    const onResize = (): void => {
+      // A rotation attempt usually also fires resize — re-assert the lock.
+      if (!document.fullscreenElement) lockPortrait();
+    };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", lock);
     window.addEventListener("orientationchange", onOrientationChange);
+    window.addEventListener("resize", onResize);
     return (): void => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", lock);
       window.removeEventListener("orientationchange", onOrientationChange);
+      window.removeEventListener("resize", onResize);
     };
   }, []);
 }
