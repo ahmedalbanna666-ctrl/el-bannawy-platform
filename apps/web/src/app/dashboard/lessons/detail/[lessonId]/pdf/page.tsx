@@ -21,6 +21,7 @@ interface LessonDocumentMeta {
 async function fetchDocumentBlob(lessonId: string): Promise<string> {
   const response = await fetch(`${API_BASE_URL}/lessons/${lessonId}/document`, {
     credentials: "include",
+    cache: "no-store",
   });
   if (!response.ok) {
     const message =

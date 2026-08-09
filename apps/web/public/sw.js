@@ -153,6 +153,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname.startsWith("/api/")) {
+    // Never intercept authenticated binary downloads (lesson documents) with
+    // the cache — a stale/opaque cached response breaks PDF rendering.
+    if (/\/lessons\/[^/]+\/document$/.test(url.pathname)) {
+      return;
+    }
     event.respondWith(networkFirst(request));
     return;
   }
