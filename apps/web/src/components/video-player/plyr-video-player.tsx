@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import Script from "next/script";
 import { api } from "@/lib/api-client";
-import { allowRotation, lockPortrait } from "@/hooks/use-screen-orientation";
+import { lockLandscape, lockPortrait } from "@/hooks/use-screen-orientation";
 import type { VideoEvent, QuestionData, LessonCompletedActions } from "./types";
 import { VideoQuestionModal } from "./video-question-modal";
 
@@ -195,20 +195,21 @@ export function PlyrVideoPlayer({
       // control bar), not on Plyr's internal embed container — otherwise the
       // controls stay behind and the video is letterboxed inside the screen.
       void requestFullscreenOn(root);
-      // Let the phone rotate to landscape (left/right) while the video is
-      // fullscreen; the platform stays portrait otherwise.
-      window.setTimeout(allowRotation, 150);
+      // Force landscape (left or right) immediately — the video fills the
+      // screen horizontally the moment fullscreen is entered, on phones and
+      // tablets alike. Portrait is restored on exit.
+      window.setTimeout(lockLandscape, 150);
     }
     showControlsTemporarily();
   }, [showControlsTemporarily]);
 
-  // Keep rotation unlocked while the video is fullscreen and restore the
-  // platform portrait lock as soon as fullscreen is exited (including the
+  // Keep the video locked to landscape while fullscreen is active and restore
+  // the platform portrait lock as soon as fullscreen is exited (including the
   // browser's own exit: ESC, swipe-back, etc.).
   useEffect(() => {
     const onFullscreenChange = (): void => {
       if (isDocumentFullscreen()) {
-        window.setTimeout(allowRotation, 150);
+        window.setTimeout(lockLandscape, 150);
       } else {
         lockPortrait();
       }

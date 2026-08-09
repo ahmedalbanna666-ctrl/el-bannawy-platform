@@ -22,7 +22,17 @@ export function lockPortrait(): void {
   }
 }
 
-/** Release the portrait lock so the phone can rotate freely (video fullscreen). */
+/** Force landscape (left or right) — used when the video goes fullscreen. */
+export function lockLandscape(): void {
+  try {
+    const ori = getOrientation();
+    void ori?.lock?.("landscape").catch((): void => undefined);
+  } catch {
+    // unsupported (iOS / older browsers) — the phone keeps its default
+  }
+}
+
+/** Release the portrait lock so the phone can rotate freely. */
 export function allowRotation(): void {
   try {
     getOrientation()?.unlock?.();
