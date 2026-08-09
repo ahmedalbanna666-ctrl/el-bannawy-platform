@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, type ChangeEvent, type ReactNode } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -934,15 +935,13 @@ function PdfBlock({
       footer={
         document ? (
           <div className="flex items-center justify-between gap-3">
-            <a
-              href={`${API_BASE_URL}/lessons/${lessonId}/document`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href={`/dashboard/lessons/detail/${lessonId}/pdf`}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-500 hover:underline"
             >
               <Eye className="h-4 w-4" />
               معاينة الملف
-            </a>
+            </Link>
             {isStaff && (
               <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
                 <Switch
