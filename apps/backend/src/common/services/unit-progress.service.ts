@@ -153,6 +153,77 @@ export class UnitProgressService {
   }
 
   /**
+   * Per-lesson activity completion for the given lessons.
+   *
+   * A lesson counts as completed only when ALL of its existing activities are
+   * done: video (all enabled videos completed), homework (submitted + passed),
+   * and quiz (submitted + passed). Lessons without a given activity ignore it.
+   *
+   * This is the single source of truth for "lesson complete" and must stay in
+   * sync with getUnitProgress / getUnitsProgress so the dashboard progress
+   * card and the next-action button never disagree.
+   */
+  async getLessonsCompletion(
+    userId: string,
+    lessons: {
+      id: string;
+      videos: { id: string }[];
+      homework: { id: string } | null;
+      quiz: { id: string } | null;
+    }[],
+  ): Promise<Map<string, boolean>> {
+    const result = new Map<string, boolean>();
+    if (lessons.length === 0) return result;
+
+    const videoIds = lessons.flatMap((l) => l.videos.map((v) => v.id));
+    const homeworkIds = lessons.flatMap((l) => (l.homework ? [l.homework.id] : []));
+    const quizIds = lessons.flatMap((l) => (l.quiz ? [l.quiz.id] : []));
+
+    const [videoLessonMap, videoRows, homeworkRows, quizRows] = await Promise.all([
+      this.getVideoLessonMap(videoIds),
+      videoIds.length > 0
+        ? this.prisma.videoProgress.findMany({
+            where: { userId, videoId: { in: videoIds }, completed: true },
+            select: { videoId: true },
+          })
+        : [],
+      homeworkIds.length > 0
+        ? this.prisma.studentHomeworkAttempt.findMany({
+            where: { userId, homeworkId: { in: homeworkIds }, submitted: true, passed: true },
+            select: { homeworkId: true },
+          })
+        : [],
+      quizIds.length > 0
+        ? this.prisma.quizAttempt.findMany({
+            where: { userId, quizId: { in: quizIds }, submitted: true, passed: true },
+            select: { quizId: true },
+          })
+        : [],
+    ]);
+
+    const completedVideoCounts = new Map<string, number>();
+    for (const row of videoRows) {
+      const lessonId = videoLessonMap.get(row.videoId);
+      if (lessonId) {
+        completedVideoCounts.set(lessonId, (completedVideoCounts.get(lessonId) ?? 0) + 1);
+      }
+    }
+
+    const passedHomework = new Set(homeworkRows.map((r) => r.homeworkId));
+    const passedQuizzes = new Set(quizRows.map((r) => r.quizId));
+
+    for (const lesson of lessons) {
+      const videoDone = lesson.videos.length === 0
+        || (completedVideoCounts.get(lesson.id) ?? 0) >= lesson.videos.length;
+      const homeworkDone = !lesson.homework || passedHomework.has(lesson.homework.id);
+      const quizDone = !lesson.quiz || passedQuizzes.has(lesson.quiz.id);
+      result.set(lesson.id, videoDone && homeworkDone && quizDone);
+    }
+
+    return result;
+  }
+
+  /**
    * Compute activity-based progress for multiple units in one pass.
    * Returns a Map<unitId, UnitActivityProgress>.
    */

@@ -347,6 +347,10 @@ export class HomeService {
   /**
    * Resolve the student's next learning action from saved database progress.
    * Deterministic across refreshes, logouts and devices (no local state).
+   *
+   * Lesson completion is computed from the three activities (video, homework,
+   * quiz) via UnitProgressService — the same source of truth as the dashboard
+   * progress card — so the button never contradicts the shown percentage.
    */
   private async resolveNextAction(
     userId: string,
@@ -393,45 +397,64 @@ export class HomeService {
         lessons: {
           where: { published: true },
           orderBy: { displayOrder: "asc" },
-          select: { id: true },
+          select: {
+            id: true,
+            videos: { where: { enabled: true }, select: { id: true } },
+            homework: { select: { id: true } },
+            quiz: { select: { id: true } },
+          },
         },
       },
     });
 
     const orderedLessons = units.flatMap((unit) =>
-      unit.lessons.map((lesson) => ({ lessonId: lesson.id, unitId: unit.id })),
+      unit.lessons.map((lesson) => ({
+        id: lesson.id,
+        unitId: unit.id,
+        videos: lesson.videos,
+        homework: lesson.homework,
+        quiz: lesson.quiz,
+      })),
     );
 
-    const progressRows = await this.prisma.lessonProgress.findMany({
-      where: { userId, completed: true },
-      orderBy: { completedAt: "desc" },
-      select: { lessonId: true, completedAt: true, lesson: { select: { unitId: true } } },
-    });
-    const completedIds = new Set(progressRows.map((row) => row.lessonId));
+    // 3) Activity-based completion for every lesson (video + homework + quiz).
+    const completion = await this.unitProgress.getLessonsCompletion(
+      userId,
+      orderedLessons,
+    );
 
-    // 3) First lesson that is not completed yet.
-    const next = orderedLessons.find((item) => !completedIds.has(item.lessonId)) ?? null;
+    // 4) First lesson that is not fully completed yet.
+    const next = orderedLessons.find((item) => !completion.get(item.id)) ?? null;
 
-    // 4) Entire curriculum completed → final review.
+    // 5) Entire curriculum completed → final review.
     if (!next) {
       return { type: "final_review", label: "ابدأ المراجعة النهائية", href: "/dashboard/final-reviews" };
     }
 
-    // 5) Nothing completed yet → start with the first available lesson.
-    if (completedIds.size === 0) {
-      return { type: "start", label: "ابدأ الدرس", href: `/dashboard/lessons/detail/${next.lessonId}` };
+    // 6) Nothing completed yet → start with the first available lesson.
+    const anyCompleted = orderedLessons.some((item) => completion.get(item.id) === true);
+    if (!anyCompleted) {
+      return { type: "start", label: "ابدأ الدرس", href: `/dashboard/lessons/detail/${next.id}` };
     }
 
-    // 6) Next lesson is in the same unit as the most recently completed one.
-    //    progressRows is non-empty here (completedIds.size > 0), ordered by
-    //    completedAt desc, so [0] is the most recent completed lesson.
-    const lastCompleted = progressRows[0];
-    if (lastCompleted.lesson.unitId === next.unitId) {
-      return { type: "next_lesson", label: "ابدأ الدرس التالي", href: `/dashboard/lessons/detail/${next.lessonId}` };
+    // 7) The student has some progress on the next lesson already → resume it.
+    const nextProgress = await this.prisma.lessonProgress.findFirst({
+      where: { userId, lessonId: next.id },
+      select: { progress: true },
+    });
+    if (nextProgress && nextProgress.progress > 0) {
+      return { type: "continue", label: "استكمل الدرس", href: `/dashboard/lessons/detail/${next.id}` };
     }
 
-    // 7) A new unit is next.
-    return { type: "next_unit", label: "ابدأ الوحدة التالية", href: `/dashboard/lessons/detail/${next.lessonId}` };
+    // 8) Next lesson belongs to a new unit → announce the unit.
+    const lastCompletedIndex = orderedLessons.map((item) => completion.get(item.id) === true).lastIndexOf(true);
+    const lastCompleted = lastCompletedIndex >= 0 ? orderedLessons[lastCompletedIndex] : null;
+    if (lastCompleted && lastCompleted.unitId !== next.unitId) {
+      return { type: "next_unit", label: "ابدأ الوحدة التالية", href: `/dashboard/lessons/detail/${next.id}` };
+    }
+
+    // 9) Next lesson is in the same unit as the last completed one.
+    return { type: "next_lesson", label: "ابدأ الدرس التالي", href: `/dashboard/lessons/detail/${next.id}` };
   }
 
   /**
@@ -503,20 +526,21 @@ export class HomeService {
           lessons: {
             where: { published: true },
             orderBy: { displayOrder: "asc" },
-            select: { id: true, title: true, displayOrder: true },
+            select: {
+              id: true,
+              title: true,
+              displayOrder: true,
+              videos: { where: { enabled: true }, select: { id: true } },
+              homework: { select: { id: true } },
+              quiz: { select: { id: true } },
+            },
           },
         },
       }),
     ]);
 
-    const lessonIds = unit?.lessons.map((l) => l.id) ?? [];
-    const completedRows = lessonIds.length > 0
-      ? await this.prisma.lessonProgress.findMany({
-          where: { userId, completed: true, lessonId: { in: lessonIds } },
-          select: { lessonId: true },
-        })
-      : [];
-    const completedSet = new Set(completedRows.map((r) => r.lessonId));
+    const lessons = unit?.lessons ?? [];
+    const completion = await this.unitProgress.getLessonsCompletion(userId, lessons);
 
     return {
       unitId: progress.unitId,
@@ -525,11 +549,11 @@ export class HomeService {
       completedActivities: progress.completedActivities,
       totalActivities: progress.totalActivities,
       percent: progress.percent,
-      lessons: (unit?.lessons ?? []).map((lesson) => ({
+      lessons: lessons.map((lesson) => ({
         id: lesson.id,
         title: lesson.title,
         displayOrder: lesson.displayOrder,
-        completed: completedSet.has(lesson.id),
+        completed: completion.get(lesson.id) === true,
       })),
     };
   }
