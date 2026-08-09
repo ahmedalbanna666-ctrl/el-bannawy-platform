@@ -188,6 +188,20 @@ export default function QuizPage(): ReactNode {
     retry: false,
   });
 
+  const { data: history } = useQuery({
+    queryKey: ["quiz-history", lessonId],
+    queryFn: async () => {
+      const res = await api.get<{ attemptNum: number }[]>(`/quizzes/${lessonId}/history`);
+      return res.data ?? [];
+    },
+    enabled: !!quiz,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const usedAttempts = history?.length ?? 0;
+  const attemptsLeft = quiz ? Math.max(0, quiz.maxAttempts - usedAttempts) : 0;
+
   const isSubmitted = result !== null && result.passed !== null;
 
   useAutoIssueCertificates(isSubmitted && result.passed === true);
@@ -248,6 +262,7 @@ export default function QuizPage(): ReactNode {
       void queryClient.invalidateQueries({ queryKey: ["quiz", lessonId] });
       void queryClient.invalidateQueries({ queryKey: ["quiz-questions", lessonId] });
       void queryClient.invalidateQueries({ queryKey: ["quiz-result", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["quiz-history", lessonId] });
     } catch (err) {
       if (err instanceof Error && err.message.includes("403")) {
         setPrereqError(err.message);
@@ -272,6 +287,7 @@ export default function QuizPage(): ReactNode {
         setResultFilter("all");
         setResultDialogOpen(true);
         if (saveTimerRef.current) clearInterval(saveTimerRef.current);
+        void queryClient.invalidateQueries({ queryKey: ["quiz-history", lessonId] });
       }
     } catch (err) {
       // If no active attempt, auto-start one and retry
@@ -286,6 +302,7 @@ export default function QuizPage(): ReactNode {
             setResultFilter("all");
             setResultDialogOpen(true);
             if (saveTimerRef.current) clearInterval(saveTimerRef.current);
+            void queryClient.invalidateQueries({ queryKey: ["quiz-history", lessonId] });
             return;
           }
         } catch (startErr) {
@@ -433,6 +450,12 @@ href={`/dashboard/lessons/detail/${lessonId}`}
                 نسبة النجاح {quiz.passingScore}%
               </span>
               <span>الحد الأقصى {quiz.maxAttempts} محاولات</span>
+              {isSubmitted && (
+                <span className="flex items-center gap-1">
+                  <RotateCcw className="h-4 w-4" />
+                  متبقي {attemptsLeft} محاولات
+                </span>
+              )}
               {quiz.durationMinutes !== null && quiz.durationMinutes > 0 && (
                 <span className="flex items-center gap-1">
                   ⏱ مدة الاختبار {quiz.durationMinutes} دقيقة
@@ -465,12 +488,12 @@ href={`/dashboard/lessons/detail/${lessonId}`}
               </Button>
             )}
             {isSubmitted ? (
-              quiz.allowRetry && (
+              quiz.allowRetry && attemptsLeft > 0 ? (
                 <Button variant="outline" size="sm" onClick={(): void => { void handleRetry(); }}>
                   <RotateCcw className="mr-2 h-4 w-4" />
                   إعادة المحاولة
                 </Button>
-              )
+              ) : null
             ) : (
               <Button
                 variant="primary"

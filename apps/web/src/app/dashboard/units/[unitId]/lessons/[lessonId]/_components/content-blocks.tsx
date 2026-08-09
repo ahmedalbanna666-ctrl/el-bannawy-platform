@@ -107,6 +107,7 @@ interface LessonDocument {
 interface QuizData {
   readonly id: string;
   readonly title: string;
+  readonly maxAttempts: number;
   readonly questionCount: number | null;
   readonly durationMinutes: number | null;
   readonly _count?: { readonly questions: number };
@@ -976,16 +977,19 @@ function QuizBlock({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [maxAttempts, setMaxAttempts] = useState<string>("");
   const [questionCount, setQuestionCount] = useState<string>("");
   const [durationMinutes, setDurationMinutes] = useState<string>("");
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
   // Initialize settings inputs whenever the quiz data is (re)loaded.
   const quizId = quiz?.id;
+  const initialMaxAttempts = quiz?.maxAttempts ?? null;
   const initialCount = quiz?.questionCount ?? null;
   const initialDuration = quiz?.durationMinutes ?? null;
   const settingsInitRef = useRef(false);
   if (quizId && !settingsInitRef.current) {
+    setMaxAttempts(initialMaxAttempts !== null ? String(initialMaxAttempts) : "");
     setQuestionCount(initialCount !== null ? String(initialCount) : "");
     setDurationMinutes(initialDuration !== null ? String(initialDuration) : "");
     settingsInitRef.current = true;
@@ -1009,6 +1013,10 @@ function QuizBlock({
     mutationFn: async () => {
       if (!quizId) return;
       const payload: Record<string, number> = {};
+      const ma = Number(maxAttempts);
+      if (maxAttempts.trim() !== "" && Number.isFinite(ma) && ma >= 1) {
+        payload.maxAttempts = ma;
+      }
       const qc = Number(questionCount);
       if (questionCount.trim() !== "" && Number.isFinite(qc) && qc > 0) {
         payload.questionCount = qc;
@@ -1080,6 +1088,18 @@ function QuizBlock({
 
           {quiz && (
             <div className="grid grid-cols-1 gap-3 rounded-xl border border-neutral-200 bg-neutral-50/50 p-3 dark:border-neutral-700 dark:bg-neutral-900/40 sm:grid-cols-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                  عدد مرات إعادة الاختبار
+                </span>
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder={initialMaxAttempts !== null ? String(initialMaxAttempts) : "3"}
+                  value={maxAttempts}
+                  onChange={(e): void => { setMaxAttempts(e.target.value); }}
+                />
+              </label>
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
                   عدد الأسئلة في كل محاولة (فارغ = كل الأسئلة)
