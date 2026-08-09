@@ -14,15 +14,28 @@ function getOrientation(): OrientationLike | null {
 
 /**
  * Lock the whole platform to portrait so the app never auto-rotates — no
- * rotation anywhere, not even on content screens.
+ * rotation anywhere, not even on content screens. Re-applies the lock when
+ * the app returns to the foreground so a rotation can never slip in.
  */
 export function usePortraitLock(): void {
   useEffect(() => {
-    try {
-      const ori = getOrientation();
-      void ori?.lock?.("portrait").catch((): void => undefined);
-    } catch {
-      // unsupported (iOS / older browsers) — the phone keeps its default
-    }
+    const lock = (): void => {
+      try {
+        const ori = getOrientation();
+        void ori?.lock?.("portrait").catch((): void => undefined);
+      } catch {
+        // unsupported (iOS / older browsers) — the phone keeps its default
+      }
+    };
+    lock();
+    const onVisibility = (): void => {
+      if (document.visibilityState === "visible") lock();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", lock);
+    return (): void => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", lock);
+    };
   }, []);
 }
