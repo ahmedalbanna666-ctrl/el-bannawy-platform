@@ -421,7 +421,7 @@ Blur levels: `backdrop-blur-sm` (8px, subtle), `backdrop-blur-xl` (24px, header/
 
 ## 6.4 Live Classes (teacher)
 
-- See §10. Teacher view: availability editor, create session dialog (title, type, capacity, date/time, provider EXTERNAL_URL/Zoom, waiting room), publish/unpublish, control panel, attendance, countdown.
+- See §10. Teacher view: availability editor, edit session dialog (title, capacity, date/time, provider EXTERNAL_URL/Zoom), publish/unpublish, control panel, attendance, countdown.
 
 ## 6.5 Availability
 
@@ -602,7 +602,7 @@ Blur levels: `backdrop-blur-sm` (8px, subtle), `backdrop-blur-xl` (24px, header/
 ## 10.2 Teacher — Live Management
 
 - Availability editor: date blocks + time slots; list of published sessions.
-- Create session dialog: title, description, grade/lesson link, type (private/group), capacity, date/time/duration, provider (EXTERNAL_URL or Zoom SDK), waiting room toggle, publish on save.
+- Edit session dialog: title, description, capacity, date/time/duration, provider (EXTERNAL_URL or Zoom SDK). No create-session flow — sessions are materialized from availability/schedule flows and only edited here.
 - Session control panel (`/dashboard/live/sessions/[sessionId]`): status transitions (publish/unpublish/start/end), meeting link/password, bookings list, attendance marking, announcements, control log, countdown, recording (future).
 - KPIs: today's sessions, upcoming, attendance rate, fill rate.
 
@@ -887,11 +887,11 @@ Notifications: `NotificationsDropdown` · `NotificationProvider`
 - Focus trap; Escape closes; backdrop click closes; aria-modal.
 - Loading state on primary button while submitting; success → close + toast; error → inline message.
 
-## 17.2 Create Session Dialog (existing)
+## 17.2 Edit Session Dialog (existing)
 
-Fields: title, description, type (private/group), grade/lesson, capacity, date, start time, duration, provider (external URL / Zoom), waiting room toggle, publish checkbox.
+Fields: title, description, capacity, date, start time, duration, provider (external URL / Zoom). Sessions are materialized from availability/schedule flows; this dialog only edits an existing session. Manual sessions are not linked to a grade/lesson.
 Validation: required title/date/time; end > start; capacity > 0.
-Buttons: إنشاء (primary) / إلغاء.
+Buttons: حفظ (primary) / إلغاء.
 
 ## 17.3 Book Session / Confirm Booking
 
@@ -955,7 +955,7 @@ Quiz enabled lesson → intro (rules/attempts) → question stepper → submit �
 Live hub → service/plan select → available slots → confirm → booking card + notify → reminder → join → attend → session consumed → attendance recorded.
 
 ## 18.5 Live Session Journey (teacher)
-Availability → create session → publish → students book → control panel → start meeting → attendance → end → summary.
+Availability/schedule → session materialized → publish → students book → control panel → start meeting → attendance → end → summary.
 
 ## 18.6 AI Learning Journey
 AI chat → context shown → ask → streaming answer (sources) → feedback → credits decrement → history → (0 credits → purchase).
@@ -964,7 +964,7 @@ AI chat → context shown → ask → streaming answer (sources) → feedback �
 Units manager → create/edit lesson (video, vocab, questions, settings) → publish → students see it → monitor results.
 
 ## 18.8 Teacher Live Journey
-Availability editor → create session → publish → today's list → start → attendance → reports.
+Availability editor → session materialized → publish → today's list → start → attendance → reports.
 
 ## 18.9 Secretary Booking Journey
 Log in → bookings view → waiting list → attendance view → reports (view) → support/notifications where permitted.

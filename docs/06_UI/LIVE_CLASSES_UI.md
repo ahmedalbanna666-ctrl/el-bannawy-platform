@@ -253,7 +253,7 @@ Weekly availability grid, blocked dates, and recurring slots.
 
 Group sessions, private/individual students, and the weekly sessions chart.
 
-A fixed live-control card floats when a session is `LIVE` (end / control). Create-edit and session-detail dialogs remain available in every tab.
+A fixed live-control card floats when a session is `LIVE` (end / control). Edit and session-detail dialogs remain available in every tab. There is no manual create-session dialog — sessions are materialized from availability/schedule flows.
 
 ---
 

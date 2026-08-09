@@ -52,7 +52,7 @@ Status: Rules reflected by the current implementation
 
 ## Live Classes
 
-- Teachers define availability and date blocks, then create concrete sessions.
+- Teachers define availability and date blocks; concrete sessions are materialized automatically from those availability slots (and study schedules), with no manual session creation.
 - Sessions support private/group type, capacity, external meeting URL or reserved Zoom SDK provider, publication/status transitions, bookings, announcements, control logs, and attendance.
 - A student booking is unique per session and student.
 

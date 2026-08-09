@@ -288,7 +288,7 @@ READING, STORY_QUESTIONS, CONVERSATION, SPEAKING, WRITING, PARAGRAPH
 **Purpose:** Schedule, book, and run live group/private classes.
 
 **Business Rules:**
-- Teachers define availability and date blocks, then create concrete sessions.
+- Teachers define availability and date blocks; concrete sessions are materialized automatically from those availability slots (and study schedules), with no manual session creation.
 - Session fields: type (PRIVATE/GROUP), capacity, provider (`EXTERNAL_URL` or Zoom SDK), status lifecycle (`DRAFT → PUBLISHED → SCHEDULED → OPEN → FULL → ...`).
 - Booking: unique per `(sessionId, studentId)`; status defaults `CONFIRMED`.
 - Attendance is recorded; announcements and control logs supported.

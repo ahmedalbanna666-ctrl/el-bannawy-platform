@@ -34,7 +34,6 @@ import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
 import {
-  CreateLiveSessionDto,
   UpdateLiveSessionDto,
   BookSessionDto,
   BookBySlotDto,
@@ -174,16 +173,6 @@ export class LiveController {
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.attendance.requestLeave(id, userId);
     return successResponse(data, "Attendance updated");
-  }
-
-  @Post("sessions")
-  @Roles("ADMINISTRATOR", "TEACHER")
-  async createSession(
-    @CurrentUser() userId: string,
-    @Body() dto: CreateLiveSessionDto,
-  ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.sessions.createSession(dto);
-    return successResponse(data, "Session created");
   }
 
   @Patch("sessions/:id")

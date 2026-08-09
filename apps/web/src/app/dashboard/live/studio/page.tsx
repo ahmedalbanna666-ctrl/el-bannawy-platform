@@ -9,7 +9,6 @@ import {
   User,
   Clock,
   ArrowLeft,
-  Plus,
   Play,
   Square,
   Radio,
@@ -36,7 +35,7 @@ import {
   StudioSkeleton,
 } from "@/components/live/studio/studio-shell";
 import { LiveCountdown } from "@/components/live/live-countdown";
-import { CreateSessionDialog } from "@/components/live/create-session-dialog";
+import { EditSessionDialog } from "@/components/live/edit-session-dialog";
 import { SessionDetailDialog } from "@/components/live/studio/session-detail-dialog";
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuthStore } from "@/lib/auth-store";
@@ -133,7 +132,6 @@ export default function TeacherLiveStudioPage(): ReactNode {
   const deleteSession = useDeleteSession();
 
   const [activeTab, setActiveTab] = useState<"today" | "schedule" | "sessions">("today");
-  const [createOpen, setCreateOpen] = useState(false);
   const [editSession, setEditSession] = useState<LiveSessionItem | null>(null);
   const [detailSession, setDetailSession] = useState<LiveSessionItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LiveSessionItem | null>(null);
@@ -311,13 +309,6 @@ export default function TeacherLiveStudioPage(): ReactNode {
             leftIcon={<Settings2 className="h-4 w-4" />}
           >
             جداول الدراسة
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => { setCreateOpen(true); }}
-            leftIcon={<Plus className="h-4 w-4" />}
-          >
-            إنشاء محاضرة
           </Button>
         </div>
       </div>
@@ -826,16 +817,11 @@ export default function TeacherLiveStudioPage(): ReactNode {
       )}
 
       {/* Dialogs */}
-      <CreateSessionDialog
-        open={createOpen}
-        onClose={() => { setCreateOpen(false); }}
-        onCreated={() => { void retrySessions(); }}
-      />
-      <CreateSessionDialog
+      <EditSessionDialog
         open={Boolean(editSession)}
         session={editSession}
         onClose={() => { setEditSession(null); }}
-        onCreated={() => { void retrySessions(); }}
+        onSaved={() => { void retrySessions(); }}
       />
       <SessionDetailDialog
         session={detailSession}

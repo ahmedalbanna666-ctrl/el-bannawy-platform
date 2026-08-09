@@ -16,7 +16,6 @@ Every route requires JWT authentication and the roles guard. Teacher/administrat
 | GET    | `/sessions`                             | Authenticated         | List sessions             |
 | GET    | `/sessions/:id`                         | Authenticated         | Read session              |
 | GET    | `/sessions/by-lesson/:lessonId`         | Authenticated         | List sessions linked to a lesson, with per-user join eligibility |
-| POST   | `/sessions`                             | Administrator/Teacher | Create session            |
 | PATCH  | `/sessions/:id`                         | Administrator/Teacher | Update session            |
 | DELETE | `/sessions/:id`                         | Administrator/Teacher | Delete session            |
 | POST   | `/sessions/:id/publish`                 | Administrator/Teacher | Publish session           |

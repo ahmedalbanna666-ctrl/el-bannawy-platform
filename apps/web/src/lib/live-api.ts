@@ -251,15 +251,6 @@ export function useAvailableSlots(teacherId?: string): UseQueryResult<AvailableS
   });
 }
 
-export function useCreateSession(): UseMutationResult<ApiResponse<{ id: string }>, Error, ICreateLiveSessionDto> {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (dto: ICreateLiveSessionDto) =>
-      api.post<{ id: string }>("/live/sessions", dto),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: LIVE_KEYS.all }); },
-  });
-}
-
 export function useBookSession(): UseMutationResult<unknown, Error, IBookSessionDto> {
   const qc = useQueryClient();
   return useMutation({

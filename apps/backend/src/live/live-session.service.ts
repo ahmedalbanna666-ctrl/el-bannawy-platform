@@ -14,7 +14,7 @@ import { RefundPolicyService } from "./booking/refund-policy.service";
 import { SESSION_INCLUDE } from "./live.constants";
 import { LIVE_DOMAIN_EVENT_BUS, LIVE_SESSION_EVENTS, type LiveDomainEventBus } from "./events";
 import { LiveSessionStatusEnum } from "@el-bannawy/shared";
-import type { Prisma, $Enums } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 /** Lead time before session start at which a reminder notification is sent. */
 const SESSION_REMINDER_LEAD_MINUTES = 30;
@@ -117,70 +117,6 @@ export class LiveSessionService {
   ): Record<string, unknown> {
     if (role === "ADMINISTRATOR" || session.teacherId === viewerId) return session;
     return { ...session, meetingPassword: null, zoomPassword: null };
-  }
-
-  async createSession(dto: {
-    title: string;
-    description?: string;
-    teacherId: string;
-    gradeId?: string;
-    lessonId?: string;
-    courseId?: string;
-    availabilitySlotId?: string;
-    date: string;
-    startTime: string;
-    endTime: string;
-    durationMinutes?: number;
-    maxStudents?: number;
-    type: string;
-    meetingUrl?: string;
-    meetingPassword?: string;
-    meetingProvider?: string;
-    zoomMeetingId?: string;
-    zoomPassword?: string;
-    zoomJoinUrl?: string;
-    waitingRoom?: boolean;
-    autoRecord?: boolean;
-    notes?: string;
-  }): Promise<unknown> {
-    const teacher = await this.prisma.user.findUnique({
-      where: { id: dto.teacherId },
-      select: { id: true },
-    });
-    if (!teacher) throw new NotFoundException("Teacher not found");
-    if (dto.lessonId) {
-      const lesson = await this.prisma.lesson.findUnique({ where: { id: dto.lessonId }, select: { id: true } });
-      if (!lesson) throw new BadRequestException("Lesson not found");
-    }
-    return this.prisma.liveSession.create({
-      data: {
-        title: dto.title,
-        description: dto.description ?? null,
-        teacherId: dto.teacherId,
-        gradeId: dto.gradeId ?? null,
-        lessonId: dto.lessonId ?? null,
-        courseId: dto.courseId ?? null,
-        availabilitySlotId: dto.availabilitySlotId ?? null,
-        date: new Date(dto.date),
-        startTime: new Date(dto.startTime),
-        endTime: new Date(dto.endTime),
-        durationMinutes: dto.durationMinutes ?? 60,
-        maxStudents: dto.maxStudents ?? null,
-        availableSeats: dto.maxStudents ?? null,
-        type: dto.type as $Enums.LiveSessionType,
-        meetingUrl: dto.meetingUrl ?? null,
-        meetingPassword: dto.meetingPassword ?? null,
-        meetingProvider: (dto.meetingProvider ?? "EXTERNAL_URL") as $Enums.MeetingProvider,
-        zoomMeetingId: dto.zoomMeetingId ?? null,
-        zoomPassword: dto.zoomPassword ?? null,
-        zoomJoinUrl: dto.zoomJoinUrl ?? null,
-        waitingRoom: dto.waitingRoom ?? true,
-        autoRecord: dto.autoRecord ?? false,
-        notes: dto.notes ?? null,
-        status: LiveSessionStatusEnum.DRAFT,
-      },
-      include: SESSION_INCLUDE,
-    });
   }
 
   async updateSession(
