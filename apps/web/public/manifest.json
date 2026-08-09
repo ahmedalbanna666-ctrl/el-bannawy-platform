@@ -10,7 +10,6 @@
   "orientation": "portrait",
   "background_color": "#0f0f0f",
   "theme_color": "#6366f1",
-  "orientation": "any",
   "lang": "ar",
   "dir": "rtl",
   "launch_handler": {
