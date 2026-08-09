@@ -43,9 +43,10 @@ export function allowRotation(): void {
 
 /**
  * Lock the whole platform to portrait so the app never auto-rotates. The only
- * exception is the video player's fullscreen, which calls allowRotation() while
- * fullscreen is active — the lock is never reapplied behind an active
- * fullscreen (checked via document.fullscreenElement).
+ * exception is the video player's fullscreen, which locks landscape while
+ * fullscreen is active — the portrait lock is never reapplied behind an active
+ * fullscreen (checked via document.fullscreenElement), and any rotation that
+ * happens outside fullscreen is corrected immediately.
  */
 export function usePortraitLock(): void {
   useEffect(() => {
@@ -58,11 +59,17 @@ export function usePortraitLock(): void {
     const onVisibility = (): void => {
       if (document.visibilityState === "visible") lock();
     };
+    const onOrientationChange = (): void => {
+      // Outside fullscreen the app must always come back to portrait.
+      window.setTimeout(lock, 0);
+    };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", lock);
+    window.addEventListener("orientationchange", onOrientationChange);
     return (): void => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", lock);
+      window.removeEventListener("orientationchange", onOrientationChange);
     };
   }, []);
 }
