@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { BookOpen, GraduationCap, AlertTriangle, CheckCircle2, Play, RotateCcw, ArrowLeft, Layers, X, Target, Trophy } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { QuestionCard, groupQuestions, type StudentQuestion } from "@/components/questions/question-card";
+import { formatMcqAnswerFromTexts } from "@/lib/mcq-format";
 import {
   useMistakes,
   useMistakeFilters,
@@ -409,6 +410,9 @@ function FilterBar({
 
 function MistakeCard({ item }: { item: WrongAnswerItem }): ReactNode {
   const hasWrongAnswer = item.studentAnswer !== null && item.studentAnswer !== "" && item.studentAnswer !== item.correctAnswer;
+  const optionTexts = item.options.map((o) => o.text);
+  const studentAnswerText = formatMcqAnswerFromTexts(optionTexts, item.studentAnswer);
+  const correctAnswerText = formatMcqAnswerFromTexts(optionTexts, item.correctAnswer);
   return (
     <Card>
       <CardContent className="p-4">
@@ -429,13 +433,13 @@ function MistakeCard({ item }: { item: WrongAnswerItem }): ReactNode {
           {hasWrongAnswer && (
             <span className="flex items-center gap-1 text-red-500">
               <X className="h-3.5 w-3.5" />
-              إجابتك: {item.studentAnswer}
+              إجابتك: {studentAnswerText || item.studentAnswer}
             </span>
           )}
           {item.correctAnswer && (
             <span className="flex items-center gap-1 text-green-600 dark:text-green-500">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              الإجابة الصحيحة: {item.correctAnswer}
+              الإجابة الصحيحة: {correctAnswerText || item.correctAnswer}
             </span>
           )}
           {item.explanation && (

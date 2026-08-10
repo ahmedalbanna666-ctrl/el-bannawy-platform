@@ -159,6 +159,7 @@ export class HomeworkService {
             question: true,
             options: true,
             correctAnswer: true,
+            explanation: true,
             correctionMode: true,
           },
         },
@@ -175,7 +176,12 @@ export class HomeworkService {
     if (!latestAttempt) throw new ForbiddenException("No active attempt found. Start a new attempt first.");
 
     const correctAnswers: string[] = [];
-    const wrongAnswersList: { questionId: string; studentAnswer: string }[] = [];
+    const wrongAnswersList: { questionId: string; studentAnswer: string; correctAnswer: string | null }[] = [];
+    const details: {
+      id: string; type: string; question: string; options: string | null;
+      studentAnswer: string | null; correctAnswer: string | null;
+      explanation: string | null; isCorrect: boolean;
+    }[] = [];
 
     // Auto-grade and record individual answers
     const homeworkAnswerRecords: {
@@ -242,8 +248,20 @@ export class HomeworkService {
         wrongAnswersList.push({
           questionId: question.id,
           studentAnswer: rawAnswer.trim(),
+          correctAnswer: question.correctAnswer,
         });
       }
+
+      details.push({
+        id: question.id,
+        type: question.type,
+        question: question.question,
+        options: question.options,
+        studentAnswer: rawAnswer.trim() || null,
+        correctAnswer: question.correctAnswer,
+        explanation: question.explanation,
+        isCorrect,
+      });
     }
 
     const score = homework.questions.length > 0
@@ -278,6 +296,7 @@ export class HomeworkService {
       passed,
       attemptNum: latestAttempt.attemptNum,
       wrongAnswersList,
+      details,
     };
   }
 

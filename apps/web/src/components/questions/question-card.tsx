@@ -4,6 +4,7 @@ import { memo, type ReactNode, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CheckCircle, XCircle, ArrowUp, ArrowDown, HelpCircle, BookOpen } from "lucide-react";
+import { formatMcqAnswer } from "@/lib/mcq-format";
 
 export interface StudentQuestion {
   id: string;
@@ -43,6 +44,9 @@ export const QuestionCard = memo(function QuestionCard({
       : "border-neutral-200 dark:border-neutral-700";
 
   const studentAnswerText = isSubmitted && showResult ? selectedAnswer : "";
+  const isMcq = question.type === "MULTIPLE_CHOICE";
+  const displayStudentAnswer = isMcq ? formatMcqAnswer(question.options, selectedAnswer) : studentAnswerText;
+  const displayCorrectAnswer = isMcq ? formatMcqAnswer(question.options, correctAnswer) : correctAnswer;
 
   return (
     <Card variant="outline" padding="sm" className={borderClass}>
@@ -92,14 +96,14 @@ export const QuestionCard = memo(function QuestionCard({
 
           {showResult && isSubmitted && (
             <div className="flex flex-col gap-1.5 pr-10">
-              {isWrong && studentAnswerText && (
+              {isWrong && displayStudentAnswer && (
                 <p className="text-xs text-red-500">
-                  إجابتك: <span className="font-semibold">{studentAnswerText}</span>
+                  إجابتك: <span className="font-semibold">{displayStudentAnswer}</span>
                 </p>
               )}
-              {correctAnswer && (
+              {displayCorrectAnswer && (
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                  الإجابة الصحيحة: <span className="font-semibold">{correctAnswer}</span>
+                  الإجابة الصحيحة: <span className="font-semibold">{displayCorrectAnswer}</span>
                 </p>
               )}
             </div>
