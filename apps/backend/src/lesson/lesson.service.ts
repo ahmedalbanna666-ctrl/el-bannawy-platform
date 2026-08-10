@@ -238,12 +238,18 @@ export class LessonService {
     const youtubeId = this.extractYoutubeId(youtubeUrl);
     if (!youtubeId) throw new BadRequestException("Invalid YouTube URL");
 
-    const title = await this.fetchVideoTitle(youtubeId);
+    const [title, duration] = await Promise.all([
+      this.fetchVideoTitle(youtubeId),
+      this.fetchVideoDuration(youtubeId),
+    ]);
     const displayOrder = await this.prisma.lessonVideo.count({ where: { lessonId } });
 
-    return this.prisma.lessonVideo.create({
-      data: { lessonId, title, youtubeUrl, youtubeId, providerVideoId: youtubeId, providerUrl: youtubeUrl, displayOrder },
+    await this.prisma.lessonVideo.create({
+      data: { lessonId, title, youtubeUrl, youtubeId, providerVideoId: youtubeId, providerUrl: youtubeUrl, displayOrder, duration },
     });
+
+    await this.recalculateLessonDuration(lessonId);
+    return this.prisma.lessonVideo.findFirst({ where: { lessonId }, orderBy: { displayOrder: "desc" } });
   }
 
   private async fetchVideoTitle(youtubeId: string): Promise<string> {
@@ -253,10 +259,39 @@ export class LessonService {
       );
       if (!response.ok) return youtubeId;
       const data = (await response.json()) as { title?: string };
-      return data.title?.trim() || youtubeId;
+      return data.title?.trim() ?? youtubeId;
     } catch {
       return youtubeId;
     }
+  }
+
+  private async fetchVideoDuration(youtubeId: string): Promise<number> {
+    try {
+      const response = await fetch(`https://www.youtube.com/watch?v=${youtubeId}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+      });
+      if (!response.ok) return 0;
+      const html = await response.text();
+      const match = /"lengthSeconds":"?(\d+)"?/.exec(html);
+      if (!match) return 0;
+      const seconds = Number.parseInt(match[1], 10);
+      return Number.isFinite(seconds) ? seconds : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private async recalculateLessonDuration(lessonId: string): Promise<void> {
+    const agg = await this.prisma.lessonVideo.aggregate({
+      where: { lessonId, enabled: true },
+      _sum: { duration: true },
+    });
+    const totalSeconds = agg._sum.duration ?? 0;
+    const totalMinutes = Math.max(1, Math.ceil(totalSeconds / 60));
+    await this.prisma.lesson.update({
+      where: { id: lessonId },
+      data: { estimatedDuration: totalMinutes },
+    });
   }
 
   async deleteVideo(lessonId: string, videoId: string, userId: string): Promise<void> {
@@ -264,6 +299,7 @@ export class LessonService {
     const video = await this.prisma.lessonVideo.findFirst({ where: { id: videoId, lessonId } });
     if (!video) throw new NotFoundException("Video not found");
     await this.prisma.lessonVideo.delete({ where: { id: videoId } });
+    await this.recalculateLessonDuration(lessonId);
   }
 
   async addVocabulary(lessonId: string, dto: { word: string; translation: string; definition?: string; example?: string; partOfSpeech?: string }, userId: string): Promise<unknown> {
