@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
-
-const STORAGE_KEY = "el-bannawy:auto-rotate";
+import { useEffect } from "react";
 
 interface OrientationLike {
   lock?: (orientation: string) => Promise<void>;
@@ -12,49 +10,6 @@ interface OrientationLike {
 function getOrientation(): OrientationLike | null {
   if (typeof screen === "undefined") return null;
   return (screen as unknown as { orientation?: OrientationLike }).orientation ?? null;
-}
-
-// ── Global "auto-rotate" preference (module store) ────────────────────────
-// Controls rotation for the WHOLE platform. The video player is untouched:
-// its fullscreen still forces landscape and its exit calls lockPortrait(),
-// which simply respects this preference (no-op when rotation is enabled).
-let rotationEnabled = false;
-let initialized = false;
-const listeners = new Set<() => void>();
-
-function ensureInitialized(): void {
-  if (initialized || typeof window === "undefined") return;
-  initialized = true;
-  try {
-    rotationEnabled = window.localStorage.getItem(STORAGE_KEY) === "1";
-  } catch {
-    rotationEnabled = false;
-  }
-}
-
-function emit(): void {
-  for (const listener of listeners) listener();
-}
-
-/** Current auto-rotate preference (false = platform stays portrait). */
-export function isRotationEnabled(): boolean {
-  ensureInitialized();
-  return rotationEnabled;
-}
-
-function subscribe(listener: () => void): () => void {
-  ensureInitialized();
-  listeners.add(listener);
-  return (): void => { listeners.delete(listener); };
-}
-
-function serverSnapshot(): boolean {
-  return false;
-}
-
-/** Reactive hook for the header toggle. */
-export function useRotationEnabled(): boolean {
-  return useSyncExternalStore(subscribe, isRotationEnabled, serverSnapshot);
 }
 
 function lockPortraitDirect(): void {
@@ -95,67 +50,38 @@ export function allowRotation(): void {
 }
 
 /**
- * Lock the platform to portrait. ALWAYS locks — used by the video player on
- * fullscreen exit, so the video's behavior is completely independent of the
- * header rotation toggle. The platform's own preference is handled separately
- * by lockPlatformPortrait() (see usePortraitLock).
+ * Lock the platform to portrait — ALWAYS. Also used by the video player on
+ * fullscreen exit, so the video restores portrait regardless of anything else.
  */
 export function lockPortrait(): void {
   lockPortraitDirect();
 }
 
-/** Toggle-aware platform lock: only locks when auto-rotation is disabled. */
-function lockPlatformPortrait(): void {
-  if (isRotationEnabled()) return;
-  lockPortraitDirect();
-}
-
-function applyRotationPreference(): void {
-  if (isRotationEnabled()) {
-    allowRotation();
-  } else {
-    lockPortraitDirect();
-  }
-}
-
-/** Turn the platform auto-rotation on/off (header toggle). */
-export function setRotationEnabled(enabled: boolean): void {
-  ensureInitialized();
-  if (rotationEnabled === enabled) return;
-  rotationEnabled = enabled;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
-  } catch {
-    // ignore
-  }
-  emit();
-  applyRotationPreference();
-}
-
 /**
- * Mounted once in the root layout. Locks the platform to portrait by default
- * (or keeps the user's stored preference). Any rotation that happens outside
- * video fullscreen is corrected immediately.
+ * Mounted once in the root layout. Keeps the whole platform locked to
+ * portrait — no auto-rotation anywhere. The only exception is the video
+ * player's fullscreen, which temporarily forces landscape while active;
+ * the portrait lock is never reapplied behind an active fullscreen, and any
+ * rotation that happens outside fullscreen is corrected immediately.
  */
 export function usePortraitLock(): void {
   useEffect(() => {
-    ensureInitialized();
-    applyRotationPreference();
     const lock = (): void => {
       // Never fight the video player's fullscreen rotation.
       if (typeof document !== "undefined" && document.fullscreenElement) return;
-      lockPlatformPortrait();
+      lockPortrait();
     };
+    lock();
     const onVisibility = (): void => {
       if (document.visibilityState === "visible") lock();
     };
     const onOrientationChange = (): void => {
-      // Outside fullscreen the app must respect the preference immediately.
+      // Outside fullscreen the app must always come back to portrait.
       window.setTimeout(lock, 0);
     };
     const onResize = (): void => {
       // A rotation attempt usually also fires resize — re-assert the lock.
-      if (!document.fullscreenElement) lockPlatformPortrait();
+      if (!document.fullscreenElement) lockPortrait();
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", lock);
