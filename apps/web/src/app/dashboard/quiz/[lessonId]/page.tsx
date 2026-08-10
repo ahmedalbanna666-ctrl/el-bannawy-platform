@@ -7,7 +7,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -15,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { TeacherContextBanner } from "@/components/ui/teacher-context-banner";
 import { QuestionCard, groupQuestions, type StudentQuestion } from "@/components/questions/question-card";
 import { useAutoIssueCertificates } from "@/lib/use-auto-issue-certificates";
+import { formatMcqAnswer } from "@/lib/mcq-format";
 import {
   GraduationCap,
   ChevronLeft,
@@ -28,6 +28,8 @@ import {
   ArrowLeft,
   Zap,
   Lock,
+  Target,
+  Layers,
 } from "lucide-react";
 
 interface QuizData {
@@ -123,8 +125,7 @@ export default function QuizPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [prereqError, setPrereqError] = useState<string | null>(null);
-  const [resultDialogOpen, setResultDialogOpen] = useState(false);
-  const [resultFilter, setResultFilter] = useState<"all" | "correct" | "wrong">("all");
+  const [resultView, setResultView] = useState<"hub" | "wrong" | "correct" | "all">("hub");
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queryClient = useQueryClient();
 
@@ -284,8 +285,7 @@ export default function QuizPage(): ReactNode {
       });
       if (res.data) {
         setResult(res.data);
-        setResultFilter("all");
-        setResultDialogOpen(true);
+        setResultView("hub");
         if (saveTimerRef.current) clearInterval(saveTimerRef.current);
         void queryClient.invalidateQueries({ queryKey: ["quiz-history", lessonId] });
       }
@@ -299,8 +299,7 @@ export default function QuizPage(): ReactNode {
           });
           if (retryRes.data) {
             setResult(retryRes.data);
-            setResultFilter("all");
-            setResultDialogOpen(true);
+            setResultView("hub");
             if (saveTimerRef.current) clearInterval(saveTimerRef.current);
             void queryClient.invalidateQueries({ queryKey: ["quiz-history", lessonId] });
             return;
@@ -406,13 +405,19 @@ export default function QuizPage(): ReactNode {
                     <p>
                       <span className="text-neutral-500">إجابتك: </span>
                       <span className={q.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
-                        {q.studentAnswer ?? "(فارغ)"}
+                        {q.type === "MULTIPLE_CHOICE"
+                          ? formatMcqAnswer(q.options, q.studentAnswer)
+                          : (q.studentAnswer ?? "(فارغ)")}
                       </span>
                     </p>
                     {!q.isCorrect && q.correctAnswer && (
                       <p>
                         <span className="text-neutral-500">الإجابة الصحيحة: </span>
-                        <span className="font-medium text-success-600">{q.correctAnswer}</span>
+                        <span className="font-medium text-success-600">
+                          {q.type === "MULTIPLE_CHOICE"
+                            ? formatMcqAnswer(q.options, q.correctAnswer)
+                            : q.correctAnswer}
+                        </span>
                       </p>
                     )}
                     {q.explanation && <p className="text-neutral-400 italic">{q.explanation}</p>}
@@ -481,20 +486,7 @@ href={`/dashboard/lessons/detail/${lessonId}`}
               durationMinutes={quiz.durationMinutes}
               onExpire={(): void => { void handleSubmit(); }}
             />
-            {isSubmitted && quiz.showAnswers && (
-              <Button variant="outline" size="sm" onClick={(): void => { void handleViewReview(); }}>
-                <Eye className="mr-2 h-4 w-4" />
-                مراجعة الإجابات
-              </Button>
-            )}
-            {isSubmitted ? (
-              quiz.allowRetry && attemptsLeft > 0 ? (
-                <Button variant="outline" size="sm" onClick={(): void => { void handleRetry(); }}>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  إعادة المحاولة
-                </Button>
-              ) : null
-            ) : (
+            {isSubmitted ? null : (
               <Button
                 variant="primary"
                 size="md"
@@ -509,102 +501,69 @@ href={`/dashboard/lessons/detail/${lessonId}`}
         </div>
       </div>
 
-      {quiz.instructions && (
-        <Card variant="outline" padding="sm">
-          <CardContent>
-            <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-              <Info className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>{quiz.instructions}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {isSubmitted ? (
+        <QuizResultsHub
+          result={result}
+          attemptsLeft={attemptsLeft}
+          resultView={resultView}
+          onViewChange={setResultView}
+          onRetry={(): void => { void handleRetry(); }}
+          onViewReview={(): void => { void handleViewReview(); }}
+          showReviewButton={quiz.showAnswers}
+        />
+      ) : (
+        <>
+          {quiz.instructions && (
+            <Card variant="outline" padding="sm">
+              <CardContent>
+                <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>{quiz.instructions}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      {result !== null && (
-        <Card
-          variant={result.passed ? "gradient" : "outline"}
-          padding="md"
-          className={result.passed ? "" : "border-warning-500/50"}
-        >
-          <CardContent>
-            <div className="flex flex-col items-center gap-3 text-center">
-              {result.passed ? (
-                <CheckCircle className="h-12 w-12 text-success-500" />
-              ) : (
-                <XCircle className="h-12 w-12 text-warning-500" />
-              )}
-              <div>
-                <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">النتيجة: {result.score}%</h2>
-                <p className="text-sm text-neutral-500">
-                  {result.correctAnswers} صحيحة / {result.wrongAnswers} خاطئة من أصل {result.totalQuestions} سؤال
-                </p>
-                <Badge variant={result.passed ? "success" : "warning"} className="mt-2">
-                  {result.passed ? "ناجح" : "حاول مرة أخرى"}
-                </Badge>
-                {result.xpAwarded !== undefined && result.xpAwarded > 0 && (
-                  <p className="mt-2 flex items-center justify-center gap-1 text-sm font-medium text-yellow-600">
-                    <Zap className="h-4 w-4" />+{result.xpAwarded} XP مكتسبة
-                  </p>
-                )}
-                {result.nextLessonUnlocked && (
-                  <Badge variant="success" className="mt-2">
-                    تم فتح الدرس التالي
-                  </Badge>
-                )}
+          <div className="flex flex-col gap-4" dir="ltr">
+            {groupedQuestions.map((group, gi) => (
+              <div key={gi} className="flex flex-col gap-3">
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
+                  {group.heading}
+                </h2>
+                <div className="flex flex-col gap-4">
+                  {group.questions.map(({ question, originalIndex }) => (
+                    <QuestionCard
+                      key={question.id}
+                      question={question}
+                      index={originalIndex}
+                      selectedAnswer={answers[originalIndex] ?? ""}
+                      isSubmitted={isSubmitted}
+                      showResult={isSubmitted}
+                      correctAnswer={getCorrectAnswer(question.id, result)}
+                      explanation={getExplanation(question.id, result)}
+                      isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
+                      onAnswerChange={handleAnswerChange}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex flex-col gap-4" dir="ltr">
-        {groupedQuestions.map((group, gi) => (
-          <div key={gi} className="flex flex-col gap-3">
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
-              {group.heading}
-            </h2>
-            <div className="flex flex-col gap-4">
-              {group.questions.map(({ question, originalIndex }) => (
-                <QuestionCard
-                  key={question.id}
-                  question={question}
-                  index={originalIndex}
-                  selectedAnswer={answers[originalIndex] ?? ""}
-                  isSubmitted={isSubmitted}
-                  showResult={isSubmitted}
-                  correctAnswer={getCorrectAnswer(question.id, result)}
-                  explanation={getExplanation(question.id, result)}
-                  isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
-                  onAnswerChange={handleAnswerChange}
-                />
-              ))}
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {!isSubmitted && questions.length > 0 && (
-        <div className="flex justify-end">
-          <Button
-            variant="primary"
-            size="md"
-            onClick={(): void => { void handleSubmit(); }}
-            disabled={!allAnswered}
-            loading={submitting}
-          >
-            <Trophy className="mr-2 h-4 w-4" />
-            تسليم الاختبار
-          </Button>
-        </div>
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={(): void => { void handleSubmit(); }}
+              disabled={!allAnswered}
+              loading={submitting}
+            >
+              <Trophy className="mr-2 h-4 w-4" />
+              تسليم الاختبار
+            </Button>
+          </div>
+        </>
       )}
-
-      <QuizResultDialog
-        open={resultDialogOpen}
-        result={result}
-        filter={resultFilter}
-        onFilterChange={setResultFilter}
-        onClose={(): void => { setResultDialogOpen(false); }}
-      />
     </div>
   );
 }
@@ -704,107 +663,201 @@ function QuizCountdown({
   );
 }
 
-// Result dialog after submitting: shows the percentage and lets the student
-// filter the questions by الصواب / الخطأ / كل الأسئلة.
-function QuizResultDialog({
-  open,
+// Inline results hub after submitting: congratulation/motivation message + a
+// vertical action list (like lessons inside a unit) that opens dedicated
+// question views inside the same page.
+function QuizResultsHub({
   result,
-  filter,
-  onFilterChange,
-  onClose,
+  attemptsLeft,
+  resultView,
+  onViewChange,
+  onRetry,
+  onViewReview,
+  showReviewButton,
 }: {
-  open: boolean;
   result: QuizResult | null;
-  filter: "all" | "correct" | "wrong";
-  onFilterChange: (f: "all" | "correct" | "wrong") => void;
-  onClose: () => void;
+  attemptsLeft: number;
+  resultView: "hub" | "wrong" | "correct" | "all";
+  onViewChange: (v: "hub" | "wrong" | "correct" | "all") => void;
+  onRetry: () => void;
+  onViewReview: () => void;
+  showReviewButton: boolean;
 }): ReactNode {
   const details = result?.details ?? [];
+  const wrongDetails = details.filter((d) => !d.isCorrect);
+  const correctDetails = details.filter((d) => d.isCorrect);
 
-  const filtered = details.filter((d) => {
-    if (filter === "correct") return d.isCorrect;
-    if (filter === "wrong") return !d.isCorrect;
-    return true;
-  });
+  const score = result?.score ?? 0;
+  const passed = result?.passed ?? false;
+  const message = passed
+    ? "أحسنت! لقد اجتزت الاختبار بنجاح"
+    : score >= 50
+      ? "قريب! واصل المحاولة وستنجح"
+      : "لا بأس، كل محاولة تقربك من النجاح — حاول مرة أخرى";
 
-  const filterButtons: { key: "all" | "correct" | "wrong"; label: string; count: number }[] = [
-    { key: "all", label: "كل الأسئلة", count: details.length },
-    { key: "correct", label: "الصواب", count: details.filter((d) => d.isCorrect).length },
-    { key: "wrong", label: "الخطأ", count: details.filter((d) => !d.isCorrect).length },
-  ];
-
-  return (
-    <Dialog open={open} onClose={onClose} title="نتيجة الاختبار">
+  // ── Dedicated filtered question views (opened from the action icons) ──
+  if (resultView !== "hub") {
+    const filtered = resultView === "wrong"
+      ? wrongDetails
+      : resultView === "correct"
+        ? correctDetails
+        : details;
+    return (
       <div className="flex flex-col gap-4">
-        {/* Score headline */}
-        <div className="flex flex-col items-center gap-2 py-2 text-center">
-          {result?.passed ? (
-            <CheckCircle className="h-10 w-10 text-success-500" />
-          ) : (
-            <XCircle className="h-10 w-10 text-warning-500" />
-          )}
-          <p className="text-3xl font-black text-neutral-900 dark:text-neutral-100">
-            {result?.score ?? 0}%
-          </p>
-          <p className="text-sm text-neutral-500">
-            {result?.correctAnswers ?? 0} صحيحة / {result?.wrongAnswers ?? 0} خاطئة من أصل {result?.totalQuestions ?? 0} سؤال
-          </p>
-          <Badge variant={result?.passed ? "success" : "warning"}>
-            {result?.passed ? "ناجح" : "حاول مرة أخرى"}
-          </Badge>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={(): void => { onViewChange("hub"); }}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            العودة
+          </Button>
+          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+            {resultView === "wrong" ? "الأسئلة الخاطئة" : resultView === "correct" ? "الأسئلة الصحيحة" : "كل الأسئلة"}
+          </h2>
+          <Badge variant="secondary" className="ml-auto">{filtered.length} سؤال</Badge>
         </div>
 
-        {/* Filter buttons */}
-        <div className="grid grid-cols-3 gap-2">
-          {filterButtons.map((btn) => (
-            <Button
-              key={btn.key}
-              variant={filter === btn.key ? "primary" : "outline"}
-              size="sm"
-              onClick={(): void => { onFilterChange(btn.key); }}
-            >
-              {btn.label} ({btn.count})
-            </Button>
-          ))}
-        </div>
-
-        {/* Filtered questions */}
         {filtered.length === 0 ? (
-          <p className="py-6 text-center text-sm text-neutral-400">لا توجد أسئلة في هذا التصنيف</p>
+          <p className="py-10 text-center text-sm text-neutral-400">لا توجد أسئلة في هذا التصنيف</p>
         ) : (
-          <div className="max-h-[50vh] flex flex-col gap-2 overflow-y-auto pe-1">
+          <div className="flex flex-col gap-3">
             {filtered.map((d, idx) => (
-              <div
-                key={d.id}
-                className={`rounded-xl border p-3 text-sm ${
-                  d.isCorrect
-                    ? "border-success-500/50 bg-success-500/5"
-                    : "border-danger-500/50 bg-danger-500/5"
-                }`}
-              >
-                <p className="font-medium text-neutral-900 dark:text-neutral-100">
-                  {idx + 1}. {d.question}
-                </p>
-                <div className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
-                  <p>
-                    <span>إجابتك: </span>
-                    <span className={d.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
-                      {d.studentAnswer ?? "(فارغ)"}
-                    </span>
-                  </p>
-                  {!d.isCorrect && d.correctAnswer && (
-                    <p>
-                      <span>الإجابة الصحيحة: </span>
-                      <span className="font-medium text-success-600">{d.correctAnswer}</span>
-                    </p>
-                  )}
-                  {d.explanation && <p className="italic text-neutral-400">{d.explanation}</p>}
-                </div>
-              </div>
+              <QuestionResultCard key={d.id} detail={d} index={idx} />
             ))}
           </div>
         )}
       </div>
-    </Dialog>
+    );
+  }
+
+  // ── Hub: congratulation / motivation + vertical action list ──
+  const actions: { key: "wrong" | "correct" | "all"; icon: ReactNode; label: string; count: number; color: string }[] = [
+    { key: "wrong", icon: <XCircle className="h-5 w-5" />, label: "عرض الأخطاء", count: wrongDetails.length, color: "text-danger-500 bg-danger-500/10" },
+    { key: "correct", icon: <CheckCircle className="h-5 w-5" />, label: "الأسئلة الصحيحة", count: correctDetails.length, color: "text-success-500 bg-success-500/10" },
+    { key: "all", icon: <Layers className="h-5 w-5" />, label: "كل الأسئلة", count: details.length, color: "text-primary-500 bg-primary-500/10" },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Congratulation / motivation message */}
+      <Card
+        variant={passed ? "gradient" : "outline"}
+        padding="md"
+        className={passed ? "" : "border-warning-500/50"}
+      >
+        <CardContent>
+          <div className="flex flex-col items-center gap-3 py-2 text-center">
+            {passed ? (
+              <CheckCircle className="h-14 w-14 text-success-500" />
+            ) : (
+              <Target className="h-14 w-14 text-warning-500" />
+            )}
+            <div>
+              <h2 className="text-2xl font-black text-neutral-900 dark:text-neutral-100">{score}%</h2>
+              <p className="mt-1 text-sm font-medium text-neutral-600 dark:text-neutral-400">{message}</p>
+              <p className="mt-1 text-sm text-neutral-500">
+                {result?.correctAnswers ?? 0} صحيحة / {result?.wrongAnswers ?? 0} خاطئة من أصل {result?.totalQuestions ?? 0} سؤال
+              </p>
+              <Badge variant={passed ? "success" : "warning"} className="mt-2">
+                {passed ? "ناجح" : "حاول مرة أخرى"}
+              </Badge>
+              {result?.xpAwarded !== undefined && result.xpAwarded > 0 && (
+                <p className="mt-2 flex items-center justify-center gap-1 text-sm font-medium text-yellow-600">
+                  <Zap className="h-4 w-4" />+{result.xpAwarded} XP مكتسبة
+                </p>
+              )}
+              {result?.nextLessonUnlocked && (
+                <Badge variant="success" className="mt-2">تم فتح الدرس التالي</Badge>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Vertical action list */}
+      <div className="flex flex-col gap-2">
+        {actions.map((action) => (
+          <button
+            key={action.key}
+            type="button"
+            onClick={(): void => { onViewChange(action.key); }}
+            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${action.color}`}>
+              {action.icon}
+            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              {action.label}
+            </span>
+            <span className="text-sm text-neutral-400">{action.count} سؤال</span>
+          </button>
+        ))}
+
+        {showReviewButton && (
+          <button
+            type="button"
+            onClick={onViewReview}
+            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info-500/10 text-info-500">
+              <Eye className="h-5 w-5" />
+            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              مراجعة الإجابات
+            </span>
+          </button>
+        )}
+
+        {attemptsLeft > 0 && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+              <RotateCcw className="h-5 w-5" />
+            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              إعادة الامتحان
+            </span>
+            <span className="text-sm text-neutral-400">متبقي {attemptsLeft} محاولات</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Single question result card shown in the filtered views (uses "a) reading"
+// formatting for MCQ answers).
+function QuestionResultCard({ detail, index }: { detail: QuizDetail; index: number }): ReactNode {
+  const isMcq = detail.type === "MULTIPLE_CHOICE";
+  const studentText = isMcq ? formatMcqAnswer(detail.options, detail.studentAnswer) : detail.studentAnswer;
+  const correctText = isMcq ? formatMcqAnswer(detail.options, detail.correctAnswer) : detail.correctAnswer;
+  return (
+    <div
+      className={`rounded-xl border p-3 text-sm ${
+        detail.isCorrect
+          ? "border-success-500/50 bg-success-500/5"
+          : "border-danger-500/50 bg-danger-500/5"
+      }`}
+    >
+      <p className="font-medium text-neutral-900 dark:text-neutral-100">
+        {index + 1}. {detail.question}
+      </p>
+      <div className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
+        <p>
+          <span>إجابتك: </span>
+          <span className={detail.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
+            {studentText ?? "(فارغ)"}
+          </span>
+        </p>
+        {!detail.isCorrect && correctText && (
+          <p>
+            <span>الإجابة الصحيحة: </span>
+            <span className="font-medium text-success-600">{correctText}</span>
+          </p>
+        )}
+        {detail.explanation && <p className="italic text-neutral-400">{detail.explanation}</p>}
+      </div>
+    </div>
   );
 }

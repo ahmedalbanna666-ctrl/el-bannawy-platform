@@ -13,6 +13,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
 import { TeacherContextBanner } from "@/components/ui/teacher-context-banner";
 import { QuestionCard, groupQuestions, type StudentQuestion } from "@/components/questions/question-card";
+import { formatMcqAnswer } from "@/lib/mcq-format";
 import {
   ClipboardList,
   ChevronLeft,
@@ -26,6 +27,8 @@ import {
   Info,
   Eye,
   ArrowLeft,
+  Target,
+  Layers,
 } from "lucide-react";
 
 interface HomeworkData {
@@ -58,7 +61,19 @@ interface HomeworkResult {
   totalQuestions: number;
   passed: boolean | null;
   attemptNum: number;
-  wrongAnswersList?: { questionId: string; studentAnswer: string; correctAnswer: string }[];
+  wrongAnswersList?: { questionId: string; studentAnswer: string; correctAnswer: string | null }[];
+  details?: HomeworkDetail[];
+}
+
+interface HomeworkDetail {
+  id: string;
+  type: string;
+  question: string;
+  options: string | null;
+  studentAnswer: string | null;
+  correctAnswer: string | null;
+  explanation: string | null;
+  isCorrect: boolean;
 }
 
 interface ReviewQuestion {
@@ -90,6 +105,7 @@ export default function HomeworkPage(): ReactNode {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [resultView, setResultView] = useState<"hub" | "wrong" | "correct" | "all">("hub");
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const answersRef = useRef(answers);
   answersRef.current = answers;
@@ -138,6 +154,20 @@ export default function HomeworkPage(): ReactNode {
     retry: false,
   });
 
+  const { data: history } = useQuery({
+    queryKey: ["homework-history", lessonId],
+    queryFn: async () => {
+      const res = await api.get<{ attemptNum: number }[]>(`/homework/${lessonId}/history`);
+      return res.data ?? [];
+    },
+    enabled: !!homework,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const usedAttempts = history?.length ?? 0;
+  const attemptsLeft = homework ? Math.max(0, homework.maxAttempts - usedAttempts) : 0;
+
   const loading = hwLoading || questionsLoading || resultLoading;
 
   useEffect(() => {
@@ -184,6 +214,7 @@ export default function HomeworkPage(): ReactNode {
       void queryClient.invalidateQueries({ queryKey: ["homework", lessonId] });
       void queryClient.invalidateQueries({ queryKey: ["homework-questions", lessonId] });
       void queryClient.invalidateQueries({ queryKey: ["homework-result", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["homework-history", lessonId] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "فشل بدء المحاولة");
     }
@@ -201,9 +232,11 @@ export default function HomeworkPage(): ReactNode {
       });
       if (res.data) {
         setResult(res.data);
+        setResultView("hub");
         if (saveTimerRef.current) {
           clearInterval(saveTimerRef.current);
         }
+        void queryClient.invalidateQueries({ queryKey: ["homework-history", lessonId] });
       }
     } catch (err) {
       if (err instanceof Error && err.message.includes("No active attempt")) {
@@ -214,7 +247,9 @@ export default function HomeworkPage(): ReactNode {
           });
           if (retryRes.data) {
             setResult(retryRes.data);
+            setResultView("hub");
             if (saveTimerRef.current) clearInterval(saveTimerRef.current);
+            void queryClient.invalidateQueries({ queryKey: ["homework-history", lessonId] });
             return;
           }
         } catch { /* fall through to error state */ }
@@ -489,20 +524,7 @@ export default function HomeworkPage(): ReactNode {
             </div>
           </div>
           <div className="flex gap-2">
-            {isSubmitted && homework.showAnswers && (
-              <Button variant="outline" size="sm" onClick={(): void => { void handleViewReview(); }}>
-                <Eye className="mr-2 h-4 w-4" />
-                مراجعة الإجابات
-              </Button>
-            )}
-            {isSubmitted ? (
-              homework.allowRetry && (
-                <Button variant="outline" size="sm" onClick={(): void => { void handleRetry(); }}>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  إعادة المحاولة
-                </Button>
-              )
-            ) : (
+            {isSubmitted ? null : (
               <Button
                 variant="primary"
                 size="md"
@@ -517,86 +539,67 @@ export default function HomeworkPage(): ReactNode {
         </div>
       </div>
 
-      {homework.instructions && (
-        <Card variant="outline" padding="sm">
-          <CardContent>
-            <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-              <Info className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>{homework.instructions}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {isSubmitted ? (
+        <HomeworkResultsHub
+          result={result}
+          attemptsLeft={attemptsLeft}
+          resultView={resultView}
+          onViewChange={setResultView}
+          onRetry={(): void => { void handleRetry(); }}
+          onViewReview={(): void => { void handleViewReview(); }}
+          showReviewButton={homework.showAnswers}
+        />
+      ) : (
+        <>
+          {homework.instructions && (
+            <Card variant="outline" padding="sm">
+              <CardContent>
+                <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>{homework.instructions}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      {result !== null && (
-        <Card
-          variant={result.passed ? "gradient" : "outline"}
-          padding="md"
-          className={result.passed ? "" : "border-warning-500/50"}
-        >
-          <CardContent>
-            <div className="flex flex-col items-center gap-3 text-center">
-              {result.passed ? (
-                <CheckCircle className="h-12 w-12 text-success-500" />
-              ) : (
-                <XCircle className="h-12 w-12 text-warning-500" />
-              )}
-              <div>
-                <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
-                  النتيجة: {result.score}%
+          <div className="flex flex-col gap-4" dir="ltr">
+            {groupedQuestions.map((group, gi) => (
+              <div key={gi} className="flex flex-col gap-3">
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
+                  {group.heading}
                 </h2>
-                <p className="text-sm text-neutral-500">
-                  {result.correctAnswers} صحيحة / {result.wrongAnswers} خاطئة من أصل{" "}
-                  {result.totalQuestions} سؤال
-                </p>
-                <Badge variant={result.passed ? "success" : "warning"} className="mt-2">
-                  {result.passed ? "ناجح" : "حاول مرة أخرى"}
-                </Badge>
+                <div className="flex flex-col gap-4">
+                  {group.questions.map(({ question, originalIndex }) => (
+                    <QuestionCard
+                      key={question.id}
+                      question={question}
+                      index={originalIndex}
+                      selectedAnswer={answers[originalIndex] ?? ""}
+                      isSubmitted={isSubmitted}
+                      showResult={isSubmitted}
+                      correctAnswer={getCorrectAnswer(question.id, result)}
+                      explanation={getExplanation(question.id, result)}
+                      isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
+                      onAnswerChange={handleAnswerChange}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex flex-col gap-4" dir="ltr">
-        {groupedQuestions.map((group, gi) => (
-          <div key={gi} className="flex flex-col gap-3">
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
-              {group.heading}
-            </h2>
-            <div className="flex flex-col gap-4">
-              {group.questions.map(({ question, originalIndex }) => (
-                <QuestionCard
-                  key={question.id}
-                  question={question}
-                  index={originalIndex}
-                  selectedAnswer={answers[originalIndex] ?? ""}
-                  isSubmitted={isSubmitted}
-                  showResult={isSubmitted}
-                  correctAnswer={getCorrectAnswer(question.id, result)}
-                  explanation={getExplanation(question.id, result)}
-                  isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
-                  onAnswerChange={handleAnswerChange}
-                />
-              ))}
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {!isSubmitted && questions.length > 0 && (
-        <div className="flex justify-end">
-          <Button
-            variant="primary"
-            size="md"
-            onClick={(): void => { void handleSubmit(); }}
-            disabled={!allAnswered}
-            loading={submitting}
-          >
-            <Trophy className="mr-2 h-4 w-4" />
-            تسليم الواجب
-          </Button>
-        </div>
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={(): void => { void handleSubmit(); }}
+              disabled={!allAnswered}
+              loading={submitting}
+            >
+              تسليم الواجب
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );
@@ -745,6 +748,190 @@ function HomeworkSkeleton(): ReactNode {
         {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-32 rounded-xl" />
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Inline results hub after submitting homework: congratulation/motivation
+// message + a vertical action list that opens dedicated question views.
+function HomeworkResultsHub({
+  result,
+  attemptsLeft,
+  resultView,
+  onViewChange,
+  onRetry,
+  onViewReview,
+  showReviewButton,
+}: {
+  result: HomeworkResult | null;
+  attemptsLeft: number;
+  resultView: "hub" | "wrong" | "correct" | "all";
+  onViewChange: (v: "hub" | "wrong" | "correct" | "all") => void;
+  onRetry: () => void;
+  onViewReview: () => void;
+  showReviewButton: boolean;
+}): ReactNode {
+  const details = result?.details ?? [];
+  const wrongDetails = details.filter((d) => !d.isCorrect);
+  const correctDetails = details.filter((d) => d.isCorrect);
+
+  const score = result?.score ?? 0;
+  const passed = result?.passed ?? false;
+  const message = passed
+    ? "أحسنت! لقد أنجزت الواجب بنجاح"
+    : score >= 50
+      ? "قريب! واصل المحاولة وستنجح"
+      : "لا بأس، كل محاولة تقربك من النجاح — حاول مرة أخرى";
+
+  if (resultView !== "hub") {
+    const filtered = resultView === "wrong"
+      ? wrongDetails
+      : resultView === "correct"
+        ? correctDetails
+        : details;
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={(): void => { onViewChange("hub"); }}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            العودة
+          </Button>
+          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+            {resultView === "wrong" ? "الأسئلة الخاطئة" : resultView === "correct" ? "الأسئلة الصحيحة" : "كل الأسئلة"}
+          </h2>
+          <Badge variant="secondary" className="ml-auto">{filtered.length} سؤال</Badge>
+        </div>
+
+        {filtered.length === 0 ? (
+          <p className="py-10 text-center text-sm text-neutral-400">لا توجد أسئلة في هذا التصنيف</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {filtered.map((d, idx) => (
+              <HomeworkQuestionResultCard key={d.id} detail={d} index={idx} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const actions: { key: "wrong" | "correct" | "all"; icon: ReactNode; label: string; count: number; color: string }[] = [
+    { key: "wrong", icon: <XCircle className="h-5 w-5" />, label: "عرض الأخطاء", count: wrongDetails.length, color: "text-danger-500 bg-danger-500/10" },
+    { key: "correct", icon: <CheckCircle className="h-5 w-5" />, label: "الأسئلة الصحيحة", count: correctDetails.length, color: "text-success-500 bg-success-500/10" },
+    { key: "all", icon: <Layers className="h-5 w-5" />, label: "كل الأسئلة", count: details.length, color: "text-primary-500 bg-primary-500/10" },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card
+        variant={passed ? "gradient" : "outline"}
+        padding="md"
+        className={passed ? "" : "border-warning-500/50"}
+      >
+        <CardContent>
+          <div className="flex flex-col items-center gap-3 py-2 text-center">
+            {passed ? (
+              <CheckCircle className="h-14 w-14 text-success-500" />
+            ) : (
+              <Target className="h-14 w-14 text-warning-500" />
+            )}
+            <div>
+              <h2 className="text-2xl font-black text-neutral-900 dark:text-neutral-100">{score}%</h2>
+              <p className="mt-1 text-sm font-medium text-neutral-600 dark:text-neutral-400">{message}</p>
+              <p className="mt-1 text-sm text-neutral-500">
+                {result?.correctAnswers ?? 0} صحيحة / {result?.wrongAnswers ?? 0} خاطئة من أصل {result?.totalQuestions ?? 0} سؤال
+              </p>
+              <Badge variant={passed ? "success" : "warning"} className="mt-2">
+                {passed ? "ناجح" : "حاول مرة أخرى"}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-col gap-2">
+        {actions.map((action) => (
+          <button
+            key={action.key}
+            type="button"
+            onClick={(): void => { onViewChange(action.key); }}
+            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${action.color}`}>
+              {action.icon}
+            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              {action.label}
+            </span>
+            <span className="text-sm text-neutral-400">{action.count} سؤال</span>
+          </button>
+        ))}
+
+        {showReviewButton && (
+          <button
+            type="button"
+            onClick={onViewReview}
+            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info-500/10 text-info-500">
+              <Eye className="h-5 w-5" />
+            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              مراجعة الإجابات
+            </span>
+          </button>
+        )}
+
+        {attemptsLeft > 0 && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+              <RotateCcw className="h-5 w-5" />
+            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              إعادة الواجب
+            </span>
+            <span className="text-sm text-neutral-400">متبقي {attemptsLeft} محاولات</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HomeworkQuestionResultCard({ detail, index }: { detail: HomeworkDetail; index: number }): ReactNode {
+  const isMcq = detail.type === "MULTIPLE_CHOICE";
+  const studentText = isMcq ? formatMcqAnswer(detail.options, detail.studentAnswer) : detail.studentAnswer;
+  const correctText = isMcq ? formatMcqAnswer(detail.options, detail.correctAnswer) : detail.correctAnswer;
+  return (
+    <div
+      className={`rounded-xl border p-3 text-sm ${
+        detail.isCorrect
+          ? "border-success-500/50 bg-success-500/5"
+          : "border-danger-500/50 bg-danger-500/5"
+      }`}
+    >
+      <p className="font-medium text-neutral-900 dark:text-neutral-100">
+        {index + 1}. {detail.question}
+      </p>
+      <div className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
+        <p>
+          <span>إجابتك: </span>
+          <span className={detail.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
+            {studentText ?? "(فارغ)"}
+          </span>
+        </p>
+        {!detail.isCorrect && correctText && (
+          <p>
+            <span>الإجابة الصحيحة: </span>
+            <span className="font-medium text-success-600">{correctText}</span>
+          </p>
+        )}
+        {detail.explanation && <p className="italic text-neutral-400">{detail.explanation}</p>}
       </div>
     </div>
   );
