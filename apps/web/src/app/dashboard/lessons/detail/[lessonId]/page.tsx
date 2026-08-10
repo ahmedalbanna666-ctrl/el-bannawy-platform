@@ -37,6 +37,7 @@ import {
   Trophy,
   MonitorPlay,
   CalendarClock,
+  RotateCcw,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -556,10 +557,18 @@ function QuizCard({
                 {quizData && <span>• +{quizData.xpReward} XP</span>}
               </div>
             </div>
-            <Badge variant="success" className="gap-1 px-4 py-2 mt-2 sm:mt-0">
-              <CheckCircle className="h-4 w-4" />
-              تم الإكمال
-            </Badge>
+            <div className="flex items-center gap-2 mt-2 sm:mt-0">
+              <Badge variant="success" className="gap-1 px-4 py-2">
+                <CheckCircle className="h-4 w-4" />
+                تم الإكمال
+              </Badge>
+              <Link href={`/dashboard/quiz/${lessonId}`}>
+                <Button variant="outline" size="sm">
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  إعادة الاختبار
+                </Button>
+              </Link>
+            </div>
           </div>
         </CardContent>
       </Card>
