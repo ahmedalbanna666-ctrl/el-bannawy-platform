@@ -76,12 +76,16 @@ export function usePortraitLock(): void {
       if (document.visibilityState === "visible") lock();
     };
     const onOrientationChange = (): void => {
-      // Outside fullscreen the app must always come back to portrait.
-      window.setTimeout(lock, 0);
+      // Outside fullscreen the app must always come back to portrait. Give the
+      // fullscreen transition a moment so the video lock isn't fought.
+      window.setTimeout(lock, 60);
     };
     const onResize = (): void => {
-      // A rotation attempt usually also fires resize — re-assert the lock.
-      if (!document.fullscreenElement) lockPortrait();
+      // A rotation attempt usually also fires resize — re-assert the lock,
+      // but only after fullscreen has had a chance to settle.
+      window.setTimeout(() => {
+        if (!document.fullscreenElement) lockPortrait();
+      }, 60);
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", lock);
