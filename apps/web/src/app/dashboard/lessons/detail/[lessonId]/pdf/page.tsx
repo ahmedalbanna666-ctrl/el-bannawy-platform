@@ -11,10 +11,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FileText, Download, Bookmark, BookmarkCheck, X, CheckCircle } from "lucide-react";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -24,7 +21,7 @@ interface LessonDocumentMeta {
   readonly downloadable: boolean;
 }
 
-async function fetchDocumentBlob(lessonId: string): Promise<string> {
+async function fetchDocumentBlob(lessonId: string): Promise<ArrayBuffer> {
   const response = await fetch(`${API_BASE_URL}/lessons/${lessonId}/document`, {
     credentials: "include",
     cache: "no-store",
@@ -38,8 +35,7 @@ async function fetchDocumentBlob(lessonId: string): Promise<string> {
           : "تعذر تحميل الملف";
     throw new Error(message);
   }
-  const blob = await response.blob();
-  return URL.createObjectURL(blob);
+  return response.arrayBuffer();
 }
 
 async function fetchSavedStatus(lessonId: string): Promise<boolean> {
@@ -47,13 +43,15 @@ async function fetchSavedStatus(lessonId: string): Promise<boolean> {
   return (res.data ?? []).some((d) => d.lessonId === lessonId);
 }
 
-function PdfViewer({ file }: { file: string }): ReactNode {
+function PdfViewer({ file }: { file: ArrayBuffer }): ReactNode {
   const [numPages, setNumPages] = useState(0);
   const [pageWidth, setPageWidth] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const onDocumentLoadSuccess = useCallback(({ numPages: n }: { numPages: number }): void => {
     setNumPages(n);
+    setLoadError(null);
   }, []);
 
   useEffect(() => {
@@ -74,8 +72,16 @@ function PdfViewer({ file }: { file: string }): ReactNode {
       <Document
         file={file}
         onLoadSuccess={onDocumentLoadSuccess}
+        onLoadError={(err: Error): void => {
+          console.error("[PDF] failed to load:", err);
+          setLoadError(err instanceof Error ? err.message : String(err));
+        }}
         loading={<Skeleton className="mx-auto h-96 w-full max-w-2xl" />}
-        error={<p className="py-16 text-center text-sm text-neutral-500">تعذر عرض الملف</p>}
+        error={
+          <p className="py-16 text-center text-sm text-neutral-500">
+            تعذر عرض الملف{loadError ? ` (${loadError})` : ""}
+          </p>
+        }
       >
         {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
           <div key={n} className="mx-auto mb-4 w-fit max-w-full overflow-hidden rounded-lg bg-white shadow-md last:mb-0 dark:bg-neutral-800">
