@@ -35,8 +35,8 @@ export default function SavedPdfsPage(): ReactNode {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["saved-documents"],
     queryFn: async (): Promise<readonly SavedDocument[]> => {
-      const res = await api.get<{ data: readonly SavedDocument[] }>("/saved-documents");
-      return res.data?.data ?? [];
+      const res = await api.get<readonly SavedDocument[]>("/saved-documents");
+      return res.data ?? [];
     },
   });
 
