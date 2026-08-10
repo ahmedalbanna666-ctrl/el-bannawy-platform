@@ -95,11 +95,17 @@ export function allowRotation(): void {
 }
 
 /**
- * Lock the platform to portrait. No-op when the user enabled auto-rotate via
- * the header toggle — this is also what the video player calls on fullscreen
- * exit, so it adapts to the preference without any video code changes.
+ * Lock the platform to portrait. ALWAYS locks — used by the video player on
+ * fullscreen exit, so the video's behavior is completely independent of the
+ * header rotation toggle. The platform's own preference is handled separately
+ * by lockPlatformPortrait() (see usePortraitLock).
  */
 export function lockPortrait(): void {
+  lockPortraitDirect();
+}
+
+/** Toggle-aware platform lock: only locks when auto-rotation is disabled. */
+function lockPlatformPortrait(): void {
   if (isRotationEnabled()) return;
   lockPortraitDirect();
 }
@@ -138,7 +144,7 @@ export function usePortraitLock(): void {
     const lock = (): void => {
       // Never fight the video player's fullscreen rotation.
       if (typeof document !== "undefined" && document.fullscreenElement) return;
-      lockPortrait();
+      lockPlatformPortrait();
     };
     const onVisibility = (): void => {
       if (document.visibilityState === "visible") lock();
@@ -149,7 +155,7 @@ export function usePortraitLock(): void {
     };
     const onResize = (): void => {
       // A rotation attempt usually also fires resize — re-assert the lock.
-      if (!document.fullscreenElement) lockPortrait();
+      if (!document.fullscreenElement) lockPlatformPortrait();
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", lock);
