@@ -453,7 +453,7 @@ export class QuizService {
     return attempts;
   }
 
-  async reviewAnswers(lessonId: string, userId: string): Promise<unknown> {
+  async reviewAnswers(lessonId: string, userId: string, attemptId?: string): Promise<unknown> {
     await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const quiz = await this.prisma.quiz.findFirst({
       where: { lessonId, deletedAt: null },
@@ -479,7 +479,12 @@ export class QuizService {
     }
 
     const latestAttempt = await this.prisma.quizAttempt.findFirst({
-      where: { userId, quizId: quiz.id, submitted: true },
+      where: {
+        userId,
+        quizId: quiz.id,
+        submitted: true,
+        ...(attemptId ? { id: attemptId } : {}),
+      },
       orderBy: { submittedAt: "desc" },
       include: {
         answers: {
@@ -501,9 +506,11 @@ export class QuizService {
     const answerMap = new Map(latestAttempt.answers.map((a) => [a.questionId, a]));
 
     return {
+      id: latestAttempt.id,
       score: latestAttempt.score,
       passed: latestAttempt.passed,
       attemptNum: latestAttempt.attemptNum,
+      submittedAt: latestAttempt.submittedAt,
       questions: orderedQuestions.map((q) => {
         const studentAnswer = answerMap.get(q.id);
         return {
@@ -577,10 +584,19 @@ export class QuizService {
       where: { userId, quizId: quiz.id },
     });
     if (totalAttempts >= quiz.maxAttempts) {
-      return { eligible: false, reason: "Maximum attempts reached" };
+      return { eligible: false, reason: "Maximum attempts reached", attemptsLeft: 0 };
     }
 
-    return { eligible: true, reason: null };
+    const activeAttempts = await this.prisma.quizAttempt.count({
+      where: { userId, quizId: quiz.id, submitted: false },
+    });
+
+    return {
+      eligible: true,
+      reason: null,
+      hasActiveAttempt: activeAttempts > 0,
+      attemptsLeft: Math.max(0, quiz.maxAttempts - totalAttempts),
+    };
   }
 
   // --- Teacher / Admin Management ---

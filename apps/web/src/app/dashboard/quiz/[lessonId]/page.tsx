@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo, type ReactNode } from "react";
 import { useParams } from "next/navigation";
@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -30,6 +31,7 @@ import {
   Lock,
   Target,
   Layers,
+  Play,
 } from "lucide-react";
 
 interface QuizData {
@@ -93,22 +95,32 @@ interface ReviewQuestion {
 }
 
 interface ReviewData {
+  id?: string;
   score: number | null;
   passed: boolean | null;
   attemptNum: number;
+  submittedAt?: string | null;
   questions: ReviewQuestion[];
+}
+
+interface AttemptSummary {
+  id: string;
+  attemptNum: number;
+  score: number | null;
+  passed: boolean | null;
+  submittedAt: string | null;
 }
 
 function translatePrereqReason(reason: string | null): string | null {
   if (!reason) return null;
   if (reason.includes("All lesson videos must be completed")) {
-    return "أكمل جميع فيديوهات الدرس قبل بدء الاختبار";
+    return "ط£ظƒظ…ظ„ ط¬ظ…ظٹط¹ ظپظٹط¯ظٹظˆظ‡ط§طھ ط§ظ„ط¯ط±ط³ ظ‚ط¨ظ„ ط¨ط¯ط، ط§ظ„ط§ط®طھط¨ط§ط±";
   }
   if (reason.includes("Homework must be submitted")) {
-    return "يجب تسليم واجب الدرس قبل بدء الاختبار";
+    return "ظٹط¬ط¨ طھط³ظ„ظٹظ… ظˆط§ط¬ط¨ ط§ظ„ط¯ط±ط³ ظ‚ط¨ظ„ ط¨ط¯ط، ط§ظ„ط§ط®طھط¨ط§ط±";
   }
   if (reason.includes("Maximum attempts reached")) {
-    return "لقد استنفدت جميع محاولاتك لهذا الاختبار";
+    return "ظ„ظ‚ط¯ ط§ط³طھظ†ظپط¯طھ ط¬ظ…ظٹط¹ ظ…ط­ط§ظˆظ„ط§طھظƒ ظ„ظ‡ط°ط§ ط§ظ„ط§ط®طھط¨ط§ط±";
   }
   return reason;
 }
@@ -126,6 +138,11 @@ export default function QuizPage(): ReactNode {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [prereqError, setPrereqError] = useState<string | null>(null);
   const [resultView, setResultView] = useState<"hub" | "wrong" | "correct" | "all">("hub");
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [attemptStarted, setAttemptStarted] = useState(false);
+  const [selectedAttempt, setSelectedAttempt] = useState<AttemptSummary | null>(null);
+  const [attemptReview, setAttemptReview] = useState<ReviewData | null>(null);
+  const [attemptView, setAttemptView] = useState<"hub" | "wrong" | "correct" | "all">("hub");
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queryClient = useQueryClient();
 
@@ -179,7 +196,7 @@ export default function QuizPage(): ReactNode {
   const { data: eligibility } = useQuery({
     queryKey: ["quiz-eligibility", lessonId],
     queryFn: async () => {
-      const res = await api.get<{ eligible: boolean; reason: string | null }>(
+      const res = await api.get<{ eligible: boolean; reason: string | null; hasActiveAttempt?: boolean; attemptsLeft?: number }>(
         `/quizzes/${lessonId}/eligibility`,
       );
       return res.data ?? { eligible: true, reason: null };
@@ -192,7 +209,7 @@ export default function QuizPage(): ReactNode {
   const { data: history } = useQuery({
     queryKey: ["quiz-history", lessonId],
     queryFn: async () => {
-      const res = await api.get<{ attemptNum: number }[]>(`/quizzes/${lessonId}/history`);
+      const res = await api.get<AttemptSummary[]>(`/quizzes/${lessonId}/history`);
       return res.data ?? [];
     },
     enabled: !!quiz,
@@ -202,6 +219,10 @@ export default function QuizPage(): ReactNode {
 
   const usedAttempts = history?.length ?? 0;
   const attemptsLeft = quiz ? Math.max(0, quiz.maxAttempts - usedAttempts) : 0;
+
+  const bestAttempt = (history ?? [])
+    .filter((a) => a.score !== null)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] ?? null;
 
   const isSubmitted = result !== null && result.passed !== null;
 
@@ -220,6 +241,24 @@ export default function QuizPage(): ReactNode {
   }, [quiz, eligibility, isSubmitted, viewingReview, prereqError]);
 
   const loading = quizLoading || questionsLoading || resultLoading;
+
+  // Show the start popup (quiz details + ط¨ط¯ط، ط§ظ„ط§ط®طھط¨ط§ط±) before the timer begins.
+  // It appears when the student can take the quiz and hasn't started an attempt yet.
+  useEffect(() => {
+    if (!quiz || !eligibility || loading) return;
+    if (isSubmitted) return;
+    if (!eligibility.eligible) return;
+    // A mid-attempt reload should resume instead of showing the popup.
+    if (eligibility.hasActiveAttempt) {
+      setAttemptStarted(true);
+      setStartDialogOpen(false);
+      return;
+    }
+    // First entry with attempts remaining â†’ show the start popup.
+    if ((eligibility.attemptsLeft ?? attemptsLeft) > 0 && !attemptStarted) {
+      setStartDialogOpen(true);
+    }
+  }, [quiz, eligibility, loading, isSubmitted, attemptStarted, attemptsLeft]);
 
   useEffect(() => {
     if (result || viewingReview) return;
@@ -260,6 +299,8 @@ export default function QuizPage(): ReactNode {
       setReview(null);
       setViewingReview(false);
       setAnswers({});
+      setAttemptStarted(true);
+      setStartDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["quiz", lessonId] });
       void queryClient.invalidateQueries({ queryKey: ["quiz-questions", lessonId] });
       void queryClient.invalidateQueries({ queryKey: ["quiz-result", lessonId] });
@@ -268,7 +309,7 @@ export default function QuizPage(): ReactNode {
       if (err instanceof Error && err.message.includes("403")) {
         setPrereqError(err.message);
       } else {
-        setError(err instanceof Error ? err.message : "فشل بدء المحاولة");
+        setError(err instanceof Error ? err.message : "ظپط´ظ„ ط¨ط¯ط، ط§ظ„ظ…ط­ط§ظˆظ„ط©");
       }
     }
   };
@@ -305,11 +346,11 @@ export default function QuizPage(): ReactNode {
             return;
           }
         } catch (startErr) {
-          setError(startErr instanceof Error ? startErr.message : "فشل بدء المحاولة");
+          setError(startErr instanceof Error ? startErr.message : "ظپط´ظ„ ط¨ط¯ط، ط§ظ„ظ…ط­ط§ظˆظ„ط©");
           return;
         }
       }
-      setError(err instanceof Error ? err.message : "فشل تسليم الاختبار");
+      setError(err instanceof Error ? err.message : "ظپط´ظ„ طھط³ظ„ظٹظ… ط§ظ„ط§ط®طھط¨ط§ط±");
     } finally {
       setSubmitting(false);
     }
@@ -327,7 +368,7 @@ export default function QuizPage(): ReactNode {
         setViewingReview(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل تحميل المراجعة");
+      setError(err instanceof Error ? err.message : "ظپط´ظ„ طھط­ظ…ظٹظ„ ط§ظ„ظ…ط±ط§ط¬ط¹ط©");
     }
   };
 
@@ -336,15 +377,34 @@ export default function QuizPage(): ReactNode {
     setReview(null);
   };
 
+  const handleOpenAttempt = async (attempt: AttemptSummary): Promise<void> => {
+    try {
+      const res = await api.get<ReviewData>(`/quizzes/${lessonId}/review?attemptId=${attempt.id}`);
+      if (res.data) {
+        setSelectedAttempt(attempt);
+        setAttemptReview(res.data);
+        setAttemptView("hub");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ظپط´ظ„ طھط­ظ…ظٹظ„ ظ…ط­ط§ظˆظ„ط©");
+    }
+  };
+
+  const handleBackFromAttempt = (): void => {
+    setSelectedAttempt(null);
+    setAttemptReview(null);
+    setAttemptView("hub");
+  };
+
   const allAnswered = questions.length > 0 && questions.every((_, i) => (answers[i] ?? "").trim() !== "");
 
   if (loading) return <QuizSkeleton />;
-  if (error) return <ErrorState title="فشل تحميل الاختبار" description={error} />;
+  if (error) return <ErrorState title="ظپط´ظ„ طھط­ظ…ظٹظ„ ط§ظ„ط§ط®طھط¨ط§ط±" description={error} />;
   if (!quiz) {
     return (
       <EmptyState
-        title="لا يوجد اختبار"
-        description="لا يوجد اختبار مخصص لهذا الدرس"
+        title="ظ„ط§ ظٹظˆط¬ط¯ ط§ط®طھط¨ط§ط±"
+        description="ظ„ط§ ظٹظˆط¬ط¯ ط§ط®طھط¨ط§ط± ظ…ط®طµطµ ظ„ظ‡ط°ط§ ط§ظ„ط¯ط±ط³"
         icon={<GraduationCap className="h-16 w-16" />}
       />
     );
@@ -354,12 +414,12 @@ export default function QuizPage(): ReactNode {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <Lock className="h-16 w-16 text-warning-500" />
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">الاختبار مقفل</h2>
+        <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">ط§ظ„ط§ط®طھط¨ط§ط± ظ…ظ‚ظپظ„</h2>
         <p className="text-sm text-neutral-500">{prereqError}</p>
         <Link href={`/dashboard/lessons/${lessonId}`}>
           <Button variant="outline" size="sm">
             <ChevronLeft className="mr-2 h-4 w-4" />
-            العودة للدرس
+            ط§ظ„ط¹ظˆط¯ط© ظ„ظ„ط¯ط±ط³
           </Button>
         </Link>
       </div>
@@ -373,11 +433,11 @@ export default function QuizPage(): ReactNode {
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={handleBackToResult}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            العودة للنتائج
+            ط§ظ„ط¹ظˆط¯ط© ظ„ظ„ظ†طھط§ط¦ط¬
           </Button>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">مراجعة الإجابات</h1>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">ظ…ط±ط§ط¬ط¹ط© ط§ظ„ط¥ط¬ط§ط¨ط§طھ</h1>
           <Badge variant={review.passed ? "success" : "warning"} className="ml-auto">
-            النتيجة: {review.score}%
+            ط§ظ„ظ†طھظٹط¬ط©: {review.score}%
           </Badge>
         </div>
         <div className="flex flex-col gap-4">
@@ -403,16 +463,16 @@ export default function QuizPage(): ReactNode {
                   </div>
                   <div className="ps-4 sm:ps-8 space-y-1 text-sm">
                     <p>
-                      <span className="text-neutral-500">إجابتك: </span>
+                      <span className="text-neutral-500">ط¥ط¬ط§ط¨طھظƒ: </span>
                       <span className={q.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
                         {q.type === "MULTIPLE_CHOICE"
                           ? formatMcqAnswer(q.options, q.studentAnswer)
-                          : (q.studentAnswer ?? "(فارغ)")}
+                          : (q.studentAnswer ?? "(ظپط§ط±ط؛)")}
                       </span>
                     </p>
                     {!q.isCorrect && q.correctAnswer && (
                       <p>
-                        <span className="text-neutral-500">الإجابة الصحيحة: </span>
+                        <span className="text-neutral-500">ط§ظ„ط¥ط¬ط§ط¨ط© ط§ظ„طµط­ظٹط­ط©: </span>
                         <span className="font-medium text-success-600">
                           {q.type === "MULTIPLE_CHOICE"
                             ? formatMcqAnswer(q.options, q.correctAnswer)
@@ -440,7 +500,7 @@ href={`/dashboard/lessons/detail/${lessonId}`}
           className="mb-4 flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
         >
           <ChevronLeft className="h-4 w-4" />
-          العودة للدرس
+          ط§ظ„ط¹ظˆط¯ط© ظ„ظ„ط¯ط±ط³
         </Link>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex-1">
@@ -448,22 +508,22 @@ href={`/dashboard/lessons/detail/${lessonId}`}
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-500">
               <span className="flex items-center gap-1">
                 <GraduationCap className="h-4 w-4" />
-                {questions.length} من {quiz._count.questions} سؤال
+                {questions.length} ظ…ظ† {quiz._count.questions} ط³ط¤ط§ظ„
               </span>
               <span className="flex items-center gap-1">
                 <Trophy className="h-4 w-4" />
-                نسبة النجاح {quiz.passingScore}%
+                ظ†ط³ط¨ط© ط§ظ„ظ†ط¬ط§ط­ {quiz.passingScore}%
               </span>
-              <span>الحد الأقصى {quiz.maxAttempts} محاولات</span>
+              <span>ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ {quiz.maxAttempts} ظ…ط­ط§ظˆظ„ط§طھ</span>
               {isSubmitted && (
                 <span className="flex items-center gap-1">
                   <RotateCcw className="h-4 w-4" />
-                  متبقي {attemptsLeft} محاولات
+                  ظ…طھط¨ظ‚ظٹ {attemptsLeft} ظ…ط­ط§ظˆظ„ط§طھ
                 </span>
               )}
               {quiz.durationMinutes !== null && quiz.durationMinutes > 0 && (
                 <span className="flex items-center gap-1">
-                  ⏱ مدة الاختبار {quiz.durationMinutes} دقيقة
+                  âڈ± ظ…ط¯ط© ط§ظ„ط§ط®طھط¨ط§ط± {quiz.durationMinutes} ط¯ظ‚ظٹظ‚ط©
                 </span>
               )}
               {quiz.xpReward > 0 && (
@@ -475,14 +535,14 @@ href={`/dashboard/lessons/detail/${lessonId}`}
               {lastSaved && (
                 <span className="flex items-center gap-1 text-success-600">
                   <Save className="h-3 w-3" />
-                  تم الحفظ
+                  طھظ… ط§ظ„ط­ظپط¸
                 </span>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <QuizCountdown
-              active={!isSubmitted && !viewingReview && questions.length > 0}
+              active={attemptStarted && !isSubmitted && !viewingReview && questions.length > 0}
               durationMinutes={quiz.durationMinutes}
               onExpire={(): void => { void handleSubmit(); }}
             />
@@ -494,26 +554,52 @@ href={`/dashboard/lessons/detail/${lessonId}`}
                 disabled={!allAnswered}
                 loading={submitting}
               >
-                تسليم الاختبار
+                طھط³ظ„ظٹظ… ط§ظ„ط§ط®طھط¨ط§ط±
               </Button>
             )}
           </div>
         </div>
       </div>
 
-      {isSubmitted ? (
-        <QuizResultsHub
-          result={result}
-          attemptsLeft={attemptsLeft}
-          resultView={resultView}
-          onViewChange={setResultView}
-          onRetry={(): void => { void handleRetry(); }}
-          onViewReview={(): void => { void handleViewReview(); }}
-          showReviewButton={quiz.showAnswers}
+      {selectedAttempt && attemptReview ? (
+        <QuizAttemptReviewView
+          attempt={selectedAttempt}
+          review={attemptReview}
+          view={attemptView}
+          onViewChange={setAttemptView}
+          onBack={handleBackFromAttempt}
         />
+      ) : isSubmitted ? (
+        <>
+          <QuizResultsHub
+            result={result}
+            attemptsLeft={attemptsLeft}
+            resultView={resultView}
+            onViewChange={setResultView}
+            onRetry={(): void => { void handleRetry(); }}
+            onViewReview={(): void => { void handleViewReview(); }}
+            showReviewButton={quiz.showAnswers}
+          />
+          {history && history.length > 0 && (
+            <AttemptsList
+              attempts={[...history].sort((a, b) => a.attemptNum - b.attemptNum)}
+              bestAttempt={bestAttempt}
+              onOpenAttempt={(attempt): void => { void handleOpenAttempt(attempt); }}
+            />
+          )}
+        </>
       ) : (
         <>
-          {quiz.instructions && (
+          {!attemptStarted && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <GraduationCap className="h-12 w-12 text-primary-500" />
+              <p className="text-sm text-neutral-500">
+                ط§ط¶ط؛ط· "ط§ط¨ط¯ط£ ط§ظ„ط§ط®طھط¨ط§ط±" ظ„ط¨ط¯ط، ط§ظ„ظ…ط­ط§ظˆظ„ط© â€” ط§ظ„ظ…ط¤ظ‚طھ ظٹط¨ط¯ط£ ط¨ط¹ط¯ ط§ظ„ط¶ط؛ط·
+              </p>
+            </div>
+          )}
+
+          {attemptStarted && quiz.instructions && (
             <Card variant="outline" padding="sm">
               <CardContent>
                 <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
@@ -524,46 +610,64 @@ href={`/dashboard/lessons/detail/${lessonId}`}
             </Card>
           )}
 
-          <div className="flex flex-col gap-4" dir="ltr">
-            {groupedQuestions.map((group, gi) => (
-              <div key={gi} className="flex flex-col gap-3">
-                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
-                  {group.heading}
-                </h2>
-                <div className="flex flex-col gap-4">
-                  {group.questions.map(({ question, originalIndex }) => (
-                    <QuestionCard
-                      key={question.id}
-                      question={question}
-                      index={originalIndex}
-                      selectedAnswer={answers[originalIndex] ?? ""}
-                      isSubmitted={isSubmitted}
-                      showResult={isSubmitted}
-                      correctAnswer={getCorrectAnswer(question.id, result)}
-                      explanation={getExplanation(question.id, result)}
-                      isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
-                      onAnswerChange={handleAnswerChange}
-                    />
-                  ))}
+          {attemptStarted && (
+            <div className="flex flex-col gap-4" dir="ltr">
+              {groupedQuestions.map((group, gi) => (
+                <div key={gi} className="flex flex-col gap-3">
+                  <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
+                    {group.heading}
+                  </h2>
+                  <div className="flex flex-col gap-4">
+                    {group.questions.map(({ question, originalIndex }) => (
+                      <QuestionCard
+                        key={question.id}
+                        question={question}
+                        index={originalIndex}
+                        selectedAnswer={answers[originalIndex] ?? ""}
+                        isSubmitted={isSubmitted}
+                        showResult={isSubmitted}
+                        correctAnswer={getCorrectAnswer(question.id, result)}
+                        explanation={getExplanation(question.id, result)}
+                        isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
+                        onAnswerChange={handleAnswerChange}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              size="md"
-              onClick={(): void => { void handleSubmit(); }}
-              disabled={!allAnswered}
-              loading={submitting}
-            >
-              <Trophy className="mr-2 h-4 w-4" />
-              تسليم الاختبار
-            </Button>
-          </div>
+          {attemptStarted && (
+            <div className="flex justify-end">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={(): void => { void handleSubmit(); }}
+                disabled={!allAnswered}
+                loading={submitting}
+              >
+                <Trophy className="mr-2 h-4 w-4" />
+                طھط³ظ„ظٹظ… ط§ظ„ط§ط®طھط¨ط§ط±
+              </Button>
+            </div>
+          )}
+
+          {history && history.length > 0 && (
+            <AttemptsList
+              attempts={[...history].sort((a, b) => a.attemptNum - b.attemptNum)}
+              bestAttempt={bestAttempt}
+              onOpenAttempt={(attempt): void => { void handleOpenAttempt(attempt); }}
+            />
+          )}
         </>
       )}
+
+      <QuizStartDialog
+        open={startDialogOpen}
+        quiz={quiz}
+        onStart={(): void => { void handleStartAttempt(); }}
+      />
     </div>
   );
 }
@@ -658,7 +762,7 @@ function QuizCountdown({
             : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
       }`}
     >
-      ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
+      âڈ± {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
     </div>
   );
 }
@@ -690,12 +794,12 @@ function QuizResultsHub({
   const score = result?.score ?? 0;
   const passed = result?.passed ?? false;
   const message = passed
-    ? "أحسنت! لقد اجتزت الاختبار بنجاح"
+    ? "ط£ط­ط³ظ†طھ! ظ„ظ‚ط¯ ط§ط¬طھط²طھ ط§ظ„ط§ط®طھط¨ط§ط± ط¨ظ†ط¬ط§ط­"
     : score >= 50
-      ? "قريب! واصل المحاولة وستنجح"
-      : "لا بأس، كل محاولة تقربك من النجاح — حاول مرة أخرى";
+      ? "ظ‚ط±ظٹط¨! ظˆط§طµظ„ ط§ظ„ظ…ط­ط§ظˆظ„ط© ظˆط³طھظ†ط¬ط­"
+      : "ظ„ط§ ط¨ط£ط³طŒ ظƒظ„ ظ…ط­ط§ظˆظ„ط© طھظ‚ط±ط¨ظƒ ظ…ظ† ط§ظ„ظ†ط¬ط§ط­ â€” ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰";
 
-  // ── Dedicated filtered question views (opened from the action icons) ──
+  // â”€â”€ Dedicated filtered question views (opened from the action icons) â”€â”€
   if (resultView !== "hub") {
     const filtered = resultView === "wrong"
       ? wrongDetails
@@ -707,16 +811,16 @@ function QuizResultsHub({
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={(): void => { onViewChange("hub"); }}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            العودة
+            ط§ظ„ط¹ظˆط¯ط©
           </Button>
           <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-            {resultView === "wrong" ? "الأسئلة الخاطئة" : resultView === "correct" ? "الأسئلة الصحيحة" : "كل الأسئلة"}
+            {resultView === "wrong" ? "ط§ظ„ط£ط³ط¦ظ„ط© ط§ظ„ط®ط§ط·ط¦ط©" : resultView === "correct" ? "ط§ظ„ط£ط³ط¦ظ„ط© ط§ظ„طµط­ظٹط­ط©" : "ظƒظ„ ط§ظ„ط£ط³ط¦ظ„ط©"}
           </h2>
-          <Badge variant="secondary" className="ml-auto">{filtered.length} سؤال</Badge>
+          <Badge variant="secondary" className="ml-auto">{filtered.length} ط³ط¤ط§ظ„</Badge>
         </div>
 
         {filtered.length === 0 ? (
-          <p className="py-10 text-center text-sm text-neutral-400">لا توجد أسئلة في هذا التصنيف</p>
+          <p className="py-10 text-center text-sm text-neutral-400">ظ„ط§ طھظˆط¬ط¯ ط£ط³ط¦ظ„ط© ظپظٹ ظ‡ط°ط§ ط§ظ„طھطµظ†ظٹظپ</p>
         ) : (
           <div className="flex flex-col gap-3">
             {filtered.map((d, idx) => (
@@ -728,11 +832,11 @@ function QuizResultsHub({
     );
   }
 
-  // ── Hub: congratulation / motivation + vertical action list ──
+  // â”€â”€ Hub: congratulation / motivation + vertical action list â”€â”€
   const actions: { key: "wrong" | "correct" | "all"; icon: ReactNode; label: string; count: number; color: string }[] = [
-    { key: "wrong", icon: <XCircle className="h-5 w-5" />, label: "عرض الأخطاء", count: wrongDetails.length, color: "text-danger-500 bg-danger-500/10" },
-    { key: "correct", icon: <CheckCircle className="h-5 w-5" />, label: "الأسئلة الصحيحة", count: correctDetails.length, color: "text-success-500 bg-success-500/10" },
-    { key: "all", icon: <Layers className="h-5 w-5" />, label: "كل الأسئلة", count: details.length, color: "text-primary-500 bg-primary-500/10" },
+    { key: "wrong", icon: <XCircle className="h-5 w-5" />, label: "ط¹ط±ط¶ ط§ظ„ط£ط®ط·ط§ط،", count: wrongDetails.length, color: "text-danger-500 bg-danger-500/10" },
+    { key: "correct", icon: <CheckCircle className="h-5 w-5" />, label: "ط§ظ„ط£ط³ط¦ظ„ط© ط§ظ„طµط­ظٹط­ط©", count: correctDetails.length, color: "text-success-500 bg-success-500/10" },
+    { key: "all", icon: <Layers className="h-5 w-5" />, label: "ظƒظ„ ط§ظ„ط£ط³ط¦ظ„ط©", count: details.length, color: "text-primary-500 bg-primary-500/10" },
   ];
 
   return (
@@ -754,18 +858,18 @@ function QuizResultsHub({
               <h2 className="text-2xl font-black text-neutral-900 dark:text-neutral-100">{score}%</h2>
               <p className="mt-1 text-sm font-medium text-neutral-600 dark:text-neutral-400">{message}</p>
               <p className="mt-1 text-sm text-neutral-500">
-                {result?.correctAnswers ?? 0} صحيحة / {result?.wrongAnswers ?? 0} خاطئة من أصل {result?.totalQuestions ?? 0} سؤال
+                {result?.correctAnswers ?? 0} طµط­ظٹط­ط© / {result?.wrongAnswers ?? 0} ط®ط§ط·ط¦ط© ظ…ظ† ط£طµظ„ {result?.totalQuestions ?? 0} ط³ط¤ط§ظ„
               </p>
               <Badge variant={passed ? "success" : "warning"} className="mt-2">
-                {passed ? "ناجح" : "حاول مرة أخرى"}
+                {passed ? "ظ†ط§ط¬ط­" : "ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰"}
               </Badge>
               {result?.xpAwarded !== undefined && result.xpAwarded > 0 && (
                 <p className="mt-2 flex items-center justify-center gap-1 text-sm font-medium text-yellow-600">
-                  <Zap className="h-4 w-4" />+{result.xpAwarded} XP مكتسبة
+                  <Zap className="h-4 w-4" />+{result.xpAwarded} XP ظ…ظƒطھط³ط¨ط©
                 </p>
               )}
               {result?.nextLessonUnlocked && (
-                <Badge variant="success" className="mt-2">تم فتح الدرس التالي</Badge>
+                <Badge variant="success" className="mt-2">طھظ… ظپطھط­ ط§ظ„ط¯ط±ط³ ط§ظ„طھط§ظ„ظٹ</Badge>
               )}
             </div>
           </div>
@@ -787,7 +891,7 @@ function QuizResultsHub({
             <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
               {action.label}
             </span>
-            <span className="text-sm text-neutral-400">{action.count} سؤال</span>
+            <span className="text-sm text-neutral-400">{action.count} ط³ط¤ط§ظ„</span>
           </button>
         ))}
 
@@ -801,7 +905,7 @@ function QuizResultsHub({
               <Eye className="h-5 w-5" />
             </span>
             <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              مراجعة الإجابات
+              ظ…ط±ط§ط¬ط¹ط© ط§ظ„ط¥ط¬ط§ط¨ط§طھ
             </span>
           </button>
         )}
@@ -816,9 +920,9 @@ function QuizResultsHub({
               <RotateCcw className="h-5 w-5" />
             </span>
             <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              إعادة الامتحان
+              ط¥ط¹ط§ط¯ط© ط§ظ„ط§ظ…طھط­ط§ظ†
             </span>
-            <span className="text-sm text-neutral-400">متبقي {attemptsLeft} محاولات</span>
+            <span className="text-sm text-neutral-400">ظ…طھط¨ظ‚ظٹ {attemptsLeft} ظ…ط­ط§ظˆظ„ط§طھ</span>
           </button>
         )}
       </div>
@@ -845,18 +949,268 @@ function QuestionResultCard({ detail, index }: { detail: QuizDetail; index: numb
       </p>
       <div className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
         <p>
-          <span>إجابتك: </span>
+          <span>ط¥ط¬ط§ط¨طھظƒ: </span>
           <span className={detail.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
-            {studentText ?? "(فارغ)"}
+            {studentText ?? "(ظپط§ط±ط؛)"}
           </span>
         </p>
         {!detail.isCorrect && correctText && (
           <p>
-            <span>الإجابة الصحيحة: </span>
+            <span>ط§ظ„ط¥ط¬ط§ط¨ط© ط§ظ„طµط­ظٹط­ط©: </span>
             <span className="font-medium text-success-600">{correctText}</span>
           </p>
         )}
         {detail.explanation && <p className="italic text-neutral-400">{detail.explanation}</p>}
+      </div>
+    </div>
+  );
+}
+
+// Start popup shown before the timer begins: quiz details + ط¨ط¯ط، ط§ظ„ط§ط®طھط¨ط§ط± button.
+function QuizStartDialog({
+  open,
+  quiz,
+  onStart,
+}: {
+  open: boolean;
+  quiz: QuizData;
+  onStart: () => void;
+}): ReactNode {
+  const shownQuestions = quiz.questionCount && quiz.questionCount > 0
+    ? Math.min(quiz.questionCount, quiz._count.questions)
+    : quiz._count.questions;
+  return (
+    <Dialog open={open} onClose={() => { /* must start to continue */ }} title={quiz.title}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col items-center gap-2 py-2 text-center">
+          <GraduationCap className="h-12 w-12 text-primary-500" />
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            ط±ط§ط¬ط¹ طھظپط§طµظٹظ„ ط§ظ„ط§ط®طھط¨ط§ط± ظ‚ط¨ظ„ ط§ظ„ط¨ط¯ط، â€” ط§ظ„ظ…ط¤ظ‚طھ ظٹط¨ط¯ط£ ظپظˆط± ط§ظ„ط¶ط؛ط· ط¹ظ„ظ‰ "ط§ط¨ط¯ط£ ط§ظ„ط§ط®طھط¨ط§ط±".
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-900/40">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-neutral-500">ط¹ط¯ط¯ ط§ظ„ط£ط³ط¦ظ„ط©</span>
+            <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+              {shownQuestions} ظ…ظ† {quiz._count.questions}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-neutral-500">ظ†ط³ط¨ط© ط§ظ„ظ†ط¬ط§ط­</span>
+            <span className="font-semibold text-neutral-900 dark:text-neutral-100">{quiz.passingScore}%</span>
+          </div>
+          {quiz.durationMinutes !== null && quiz.durationMinutes > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-neutral-500">ظ…ط¯ط© ط§ظ„ط§ط®طھط¨ط§ط±</span>
+              <span className="font-semibold text-neutral-900 dark:text-neutral-100">{quiz.durationMinutes} ط¯ظ‚ظٹظ‚ط©</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-neutral-500">ط¹ط¯ط¯ ط§ظ„ظ…ط­ط§ظˆظ„ط§طھ</span>
+            <span className="font-semibold text-neutral-900 dark:text-neutral-100">{quiz.maxAttempts}</span>
+          </div>
+          {quiz.xpReward > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-neutral-500">ط§ظ„ظ…ظƒط§ظپط£ط©</span>
+              <span className="font-semibold text-yellow-600">+{quiz.xpReward} XP</span>
+            </div>
+          )}
+        </div>
+
+        {quiz.instructions && (
+          <p className="text-sm text-neutral-500">{quiz.instructions}</p>
+        )}
+
+        <Button variant="primary" size="lg" onClick={onStart} className="w-full">
+          <Play className="mr-2 h-5 w-5" />
+          ط§ط¨ط¯ط£ ط§ظ„ط§ط®طھط¨ط§ط±
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
+// Vertical list of the student's attempts (ط§ظ„ظ…ط­ط§ظˆظ„ط© ط§ظ„ط£ظˆظ„ظ‰/ط§ظ„ط«ط§ظ†ظٹط©/ط§ظ„ط«ط§ظ„ط«ط©) at
+// the bottom of the page; clicking one opens that attempt's review.
+function AttemptsList({
+  attempts,
+  bestAttempt,
+  onOpenAttempt,
+}: {
+  attempts: AttemptSummary[];
+  bestAttempt: AttemptSummary | null;
+  onOpenAttempt: (attempt: AttemptSummary) => void;
+}): ReactNode {
+  const bestId = bestAttempt?.id;
+  const bestScore = bestAttempt?.score;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">المحاولات</h2>
+        {bestScore !== undefined && bestScore !== null && bestAttempt && (
+          <Badge variant="success" className="gap-1">
+            <Trophy className="h-3.5 w-3.5" />
+            أعلى درجة {bestScore}%
+          </Badge>
+        )}
+      </div>
+
+      {attempts.map((attempt) => {
+        const ordinal = attemptNumberLabel(attempt.attemptNum);
+        const isBest = attempt.id === bestId;
+        return (
+          <button
+            key={attempt.id}
+            type="button"
+            onClick={(): void => { onOpenAttempt(attempt); }}
+            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isBest ? "bg-success-500/10 text-success-500" : "bg-primary-500/10 text-primary-500"}`}>
+              {isBest ? <Trophy className="h-5 w-5" /> : <GraduationCap className="h-5 w-5" />}
+            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              {ordinal}
+            </span>
+            {attempt.score !== null && (
+              <Badge variant={attempt.passed ? "success" : "warning"}>{attempt.score}%</Badge>
+            )}
+            {attempt.submittedAt && (
+              <span className="hidden text-xs text-neutral-400 sm:block">
+                {new Date(attempt.submittedAt).toLocaleDateString("ar-EG")}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function attemptNumberLabel(attemptNum: number): string {
+  const arabic = ["ط§ظ„ط£ظˆظ„ظ‰", "ط§ظ„ط«ط§ظ†ظٹط©", "ط§ظ„ط«ط§ظ„ط«ط©", "ط§ظ„ط±ط§ط¨ط¹ط©", "ط§ظ„ط®ط§ظ…ط³ط©", "ط§ظ„ط³ط§ط¯ط³ط©", "ط§ظ„ط³ط§ط¨ط¹ط©", "ط§ظ„ط«ط§ظ…ظ†ط©", "ط§ظ„طھط§ط³ط¹ط©", "ط§ظ„ط¹ط§ط´ط±ط©"];
+  return `ط§ظ„ظ…ط­ط§ظˆظ„ط© ${arabic[attemptNum - 1] ?? String(attemptNum)}`;
+}
+
+// Per-attempt review: attempt data at top + the 3 filter icons (ط¹ط±ط¶ ط§ظ„ط£ط®ط·ط§ط، /
+// ط§ظ„ط£ط³ط¦ظ„ط© ط§ظ„طµط­ظٹط­ط© / ظƒظ„ ط§ظ„ط£ط³ط¦ظ„ط©) that filter that attempt's questions.
+function QuizAttemptReviewView({
+  attempt,
+  review,
+  view,
+  onViewChange,
+  onBack,
+}: {
+  attempt: AttemptSummary;
+  review: ReviewData;
+  view: "hub" | "wrong" | "correct" | "all";
+  onViewChange: (v: "hub" | "wrong" | "correct" | "all") => void;
+  onBack: () => void;
+}): ReactNode {
+  const questions = review.questions;
+  const wrong = questions.filter((q) => q.isCorrect === false);
+  const correct = questions.filter((q) => q.isCorrect === true);
+
+  if (view !== "hub") {
+    const filtered = view === "wrong" ? wrong : view === "correct" ? correct : questions;
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={(): void => { onViewChange("hub"); }}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            ط§ظ„ط¹ظˆط¯ط©
+          </Button>
+          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+            {view === "wrong" ? "ط§ظ„ط£ط³ط¦ظ„ط© ط§ظ„ط®ط§ط·ط¦ط©" : view === "correct" ? "ط§ظ„ط£ط³ط¦ظ„ط© ط§ظ„طµط­ظٹط­ط©" : "ظƒظ„ ط§ظ„ط£ط³ط¦ظ„ط©"}
+          </h2>
+          <Badge variant="secondary" className="ml-auto">{filtered.length} ط³ط¤ط§ظ„</Badge>
+        </div>
+        {filtered.length === 0 ? (
+          <p className="py-10 text-center text-sm text-neutral-400">ظ„ط§ طھظˆط¬ط¯ ط£ط³ط¦ظ„ط© ظپظٹ ظ‡ط°ط§ ط§ظ„طھطµظ†ظٹظپ</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {filtered.map((q, idx) => (
+              <div
+                key={q.id}
+                className={`rounded-xl border p-3 text-sm ${
+                  q.isCorrect ? "border-success-500/50 bg-success-500/5" : "border-danger-500/50 bg-danger-500/5"
+                }`}
+              >
+                <p className="font-medium text-neutral-900 dark:text-neutral-100">{idx + 1}. {q.question}</p>
+                <div className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
+                  <p>
+                    <span>ط¥ط¬ط§ط¨طھظƒ: </span>
+                    <span className={q.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
+                      {q.type === "MULTIPLE_CHOICE" ? formatMcqAnswer(q.options, q.studentAnswer) : (q.studentAnswer ?? "(ظپط§ط±ط؛)")}
+                    </span>
+                  </p>
+                  {!q.isCorrect && q.correctAnswer && (
+                    <p>
+                      <span>ط§ظ„ط¥ط¬ط§ط¨ط© ط§ظ„طµط­ظٹط­ط©: </span>
+                      <span className="font-medium text-success-600">
+                        {q.type === "MULTIPLE_CHOICE" ? formatMcqAnswer(q.options, q.correctAnswer) : q.correctAnswer}
+                      </span>
+                    </p>
+                  )}
+                  {q.explanation && <p className="italic text-neutral-400">{q.explanation}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          ط§ظ„ط¹ظˆط¯ط©
+        </Button>
+        <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">{attemptNumberLabel(attempt.attemptNum)}</h2>
+      </div>
+
+      <Card variant={attempt.passed ? "gradient" : "outline"} padding="md" className={attempt.passed ? "" : "border-warning-500/50"}>
+        <CardContent>
+          <div className="flex flex-col items-center gap-2 py-2 text-center">
+            {attempt.passed ? <CheckCircle className="h-10 w-10 text-success-500" /> : <XCircle className="h-10 w-10 text-warning-500" />}
+            <p className="text-2xl font-black text-neutral-900 dark:text-neutral-100">{attempt.score ?? 0}%</p>
+            <p className="text-sm text-neutral-500">
+              {correct.length} طµط­ظٹط­ط© / {wrong.length} ط®ط§ط·ط¦ط© ظ…ظ† ط£طµظ„ {questions.length} ط³ط¤ط§ظ„
+            </p>
+            <Badge variant={attempt.passed ? "success" : "warning"}>
+              {attempt.passed ? "ظ†ط§ط¬ط­" : "ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰"}
+            </Badge>
+            {attempt.submittedAt && (
+              <p className="text-xs text-neutral-400">
+                {new Date(attempt.submittedAt).toLocaleString("ar-EG")}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-col gap-2">
+        {[
+          { key: "wrong" as const, icon: <XCircle className="h-5 w-5" />, label: "ط¹ط±ط¶ ط§ظ„ط£ط®ط·ط§ط،", count: wrong.length, color: "text-danger-500 bg-danger-500/10" },
+          { key: "correct" as const, icon: <CheckCircle className="h-5 w-5" />, label: "ط§ظ„ط£ط³ط¦ظ„ط© ط§ظ„طµط­ظٹط­ط©", count: correct.length, color: "text-success-500 bg-success-500/10" },
+          { key: "all" as const, icon: <Layers className="h-5 w-5" />, label: "ظƒظ„ ط§ظ„ط£ط³ط¦ظ„ط©", count: questions.length, color: "text-primary-500 bg-primary-500/10" },
+        ].map((action) => (
+          <button
+            key={action.key}
+            type="button"
+            onClick={(): void => { onViewChange(action.key); }}
+            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${action.color}`}>
+              {action.icon}
+            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">{action.label}</span>
+            <span className="text-sm text-neutral-400">{action.count} ط³ط¤ط§ظ„</span>
+          </button>
+        ))}
       </div>
     </div>
   );

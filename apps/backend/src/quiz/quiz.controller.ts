@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Param, Query, ParseUUIDPipe, Body, UseGuards } from "@nestjs/common";
 import { QuizService } from "./quiz.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -173,9 +173,10 @@ export class QuizController {
   @UseGuards(JwtAuthGuard)
   async reviewAnswers(
     @Param("lessonId", ParseUUIDPipe) lessonId: string,
+    @Query("attemptId") attemptId: string | undefined,
     @CurrentUser() userId: string,
   ): Promise<ISuccessResponse<unknown>> {
-    const data = await this.quizService.reviewAnswers(lessonId, userId);
+    const data = await this.quizService.reviewAnswers(lessonId, userId, attemptId);
     return successResponse(data, "Quiz review retrieved successfully");
   }
 
