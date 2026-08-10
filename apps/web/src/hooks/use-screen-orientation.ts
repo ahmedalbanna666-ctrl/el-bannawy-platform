@@ -12,6 +12,16 @@ function getOrientation(): OrientationLike | null {
   return (screen as unknown as { orientation?: OrientationLike }).orientation ?? null;
 }
 
+/** True while ANY element is in fullscreen (standard + WebKit variants). */
+function isFullscreenActive(): boolean {
+  if (typeof document === "undefined") return false;
+  const doc = document as Document & {
+    webkitFullscreenElement?: Element | null;
+    webkitIsFullScreen?: boolean;
+  };
+  return Boolean(doc.fullscreenElement ?? doc.webkitFullscreenElement ?? doc.webkitIsFullScreen ?? false);
+}
+
 function lockPortraitDirect(): void {
   const attempt = (): void => {
     try {
@@ -19,8 +29,11 @@ function lockPortraitDirect(): void {
       const result = ori?.lock?.("portrait");
       if (result) {
         void result.catch((): void => {
-          // Some browsers reject if the layout isn't settled — retry once.
-          window.setTimeout(attempt, 250);
+          // Some browsers reject if the layout isn't settled — retry once,
+          // but never while the video is in fullscreen (would force portrait).
+          window.setTimeout(() => {
+            if (!isFullscreenActive()) attempt();
+          }, 250);
         });
       }
     } catch {
@@ -68,7 +81,7 @@ export function usePortraitLock(): void {
   useEffect(() => {
     const lock = (): void => {
       // Never fight the video player's fullscreen rotation.
-      if (typeof document !== "undefined" && document.fullscreenElement) return;
+      if (isFullscreenActive()) return;
       lockPortrait();
     };
     lock();
@@ -84,7 +97,7 @@ export function usePortraitLock(): void {
       // A rotation attempt usually also fires resize — re-assert the lock,
       // but only after fullscreen has had a chance to settle.
       window.setTimeout(() => {
-        if (!document.fullscreenElement) lockPortrait();
+        if (!isFullscreenActive()) lockPortrait();
       }, 60);
     };
     document.addEventListener("visibilitychange", onVisibility);
