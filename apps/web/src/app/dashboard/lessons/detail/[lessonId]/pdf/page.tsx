@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FileText, Download, Bookmark, BookmarkCheck, X, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, Download, Bookmark, BookmarkCheck, X, CheckCircle } from "lucide-react";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -49,13 +49,11 @@ async function fetchSavedStatus(lessonId: string): Promise<boolean> {
 
 function PdfViewer({ file }: { file: string }): ReactNode {
   const [numPages, setNumPages] = useState(0);
-  const [pageNumber, setPageNumber] = useState(1);
   const [pageWidth, setPageWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const onDocumentLoadSuccess = useCallback(({ numPages: n }: { numPages: number }): void => {
     setNumPages(n);
-    setPageNumber(1);
   }, []);
 
   useEffect(() => {
@@ -69,48 +67,27 @@ function PdfViewer({ file }: { file: string }): ReactNode {
     };
   }, []);
 
+  const width = Math.max(pageWidth - 24, 320);
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-center gap-3 border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2"
-          onClick={(): void => { setPageNumber((p) => Math.max(1, p - 1)); }}
-          disabled={pageNumber <= 1}
-          aria-label="الصفحة السابقة"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-          {pageNumber} / {numPages}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2"
-          onClick={(): void => { setPageNumber((p) => Math.min(numPages, p + 1)); }}
-          disabled={pageNumber >= numPages || numPages === 0}
-          aria-label="الصفحة التالية"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-      </div>
-      <div ref={containerRef} className="flex-1 overflow-auto bg-neutral-100 p-3 dark:bg-neutral-900">
-        <Document
-          file={file}
-          onLoadSuccess={onDocumentLoadSuccess}
-          loading={<Skeleton className="mx-auto h-96 w-full max-w-2xl" />}
-          error={<p className="py-16 text-center text-sm text-neutral-500">تعذر عرض الملف</p>}
-        >
-          <Page
-            pageNumber={pageNumber}
-            width={Math.max(pageWidth - 24, 320)}
-            renderTextLayer={false}
-            renderAnnotationLayer={false}
-          />
-        </Document>
-      </div>
+    <div ref={containerRef} className="h-full overflow-y-auto bg-neutral-100 p-3 dark:bg-neutral-900">
+      <Document
+        file={file}
+        onLoadSuccess={onDocumentLoadSuccess}
+        loading={<Skeleton className="mx-auto h-96 w-full max-w-2xl" />}
+        error={<p className="py-16 text-center text-sm text-neutral-500">تعذر عرض الملف</p>}
+      >
+        {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
+          <div key={n} className="mx-auto mb-4 w-fit max-w-full overflow-hidden rounded-lg bg-white shadow-md last:mb-0 dark:bg-neutral-800">
+            <Page
+              pageNumber={n}
+              width={width}
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
+            />
+          </div>
+        ))}
+      </Document>
     </div>
   );
 }
