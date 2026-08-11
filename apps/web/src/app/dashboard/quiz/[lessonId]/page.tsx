@@ -25,7 +25,6 @@ import {
   RotateCcw,
   Save,
   Info,
-  Eye,
   ArrowLeft,
   Zap,
   Lock,
@@ -137,7 +136,6 @@ export default function QuizPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [prereqError, setPrereqError] = useState<string | null>(null);
-  const [resultView, setResultView] = useState<"hub" | "wrong" | "correct" | "all">("hub");
   const [startDialogOpen, setStartDialogOpen] = useState(false);
   const [attemptStarted, setAttemptStarted] = useState(false);
   const [selectedAttempt, setSelectedAttempt] = useState<AttemptSummary | null>(null);
@@ -324,7 +322,6 @@ export default function QuizPage(): ReactNode {
       });
       if (res.data) {
         setResult(res.data);
-        setResultView("hub");
         if (saveTimerRef.current) clearInterval(saveTimerRef.current);
         void queryClient.invalidateQueries({ queryKey: ["quiz-history", lessonId] });
       }
@@ -338,7 +335,6 @@ export default function QuizPage(): ReactNode {
           });
           if (retryRes.data) {
             setResult(retryRes.data);
-            setResultView("hub");
             if (saveTimerRef.current) clearInterval(saveTimerRef.current);
             void queryClient.invalidateQueries({ queryKey: ["quiz-history", lessonId] });
             return;
@@ -356,18 +352,6 @@ export default function QuizPage(): ReactNode {
 
   const handleRetry = async (): Promise<void> => {
     await handleStartAttempt();
-  };
-
-  const handleViewReview = async (): Promise<void> => {
-    try {
-      const res = await api.get<ReviewData>(`/quizzes/${lessonId}/review`);
-      if (res.data) {
-        setReview(res.data);
-        setViewingReview(true);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل تحميل المراجعة");
-    }
   };
 
   const handleBackToResult = (): void => {
@@ -569,15 +553,11 @@ href={`/dashboard/lessons/detail/${lessonId}`}
         />
       ) : isSubmitted ? (
         <>
-          <QuizResultsHub
-            result={result}
-            attemptsLeft={attemptsLeft}
-            resultView={resultView}
-            onViewChange={setResultView}
-            onRetry={(): void => { void handleRetry(); }}
-            onViewReview={(): void => { void handleViewReview(); }}
-            showReviewButton={quiz.showAnswers}
-          />
+            <QuizResultsHub
+              result={result}
+              attemptsLeft={attemptsLeft}
+              onRetry={(): void => { void handleRetry(); }}
+            />
           {history && history.length > 0 && (
             <AttemptsList
               attempts={[...history].sort((a, b) => a.attemptNum - b.attemptNum)}
@@ -765,30 +745,18 @@ function QuizCountdown({
   );
 }
 
-// Inline results hub after submitting: congratulation/motivation message + a
-// vertical action list (like lessons inside a unit) that opens dedicated
-// question views inside the same page.
+// Inline results after submitting: congratulation/motivation message + retry.
+// The per-question icons (عرض الأخطاء/الأسئلة الصحيحة/كل الأسئلة) live inside
+// each attempt's review view (QuizAttemptReviewView), not here.
 function QuizResultsHub({
   result,
   attemptsLeft,
-  resultView,
-  onViewChange,
   onRetry,
-  onViewReview,
-  showReviewButton,
 }: {
   result: QuizResult | null;
   attemptsLeft: number;
-  resultView: "hub" | "wrong" | "correct" | "all";
-  onViewChange: (v: "hub" | "wrong" | "correct" | "all") => void;
   onRetry: () => void;
-  onViewReview: () => void;
-  showReviewButton: boolean;
 }): ReactNode {
-  const details = result?.details ?? [];
-  const wrongDetails = details.filter((d) => !d.isCorrect);
-  const correctDetails = details.filter((d) => d.isCorrect);
-
   const score = result?.score ?? 0;
   const passed = result?.passed ?? false;
   const message = passed
@@ -796,46 +764,6 @@ function QuizResultsHub({
     : score >= 50
       ? "قريب! واصل المحاولة وستنجح"
       : "لا بأس، كل محاولة تقربك من النجاح — حاول مرة أخرى";
-
-  // ── Dedicated filtered question views (opened from the action icons) ──
-  if (resultView !== "hub") {
-    const filtered = resultView === "wrong"
-      ? wrongDetails
-      : resultView === "correct"
-        ? correctDetails
-        : details;
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={(): void => { onViewChange("hub"); }}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            العودة
-          </Button>
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-            {resultView === "wrong" ? "الأسئلة الخاطئة" : resultView === "correct" ? "الأسئلة الصحيحة" : "كل الأسئلة"}
-          </h2>
-          <Badge variant="secondary" className="ml-auto">{filtered.length} سؤال</Badge>
-        </div>
-
-        {filtered.length === 0 ? (
-          <p className="py-10 text-center text-sm text-neutral-400">لا توجد أسئلة في هذا التصنيف</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {filtered.map((d, idx) => (
-              <QuestionResultCard key={d.id} detail={d} index={idx} />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Hub: congratulation / motivation + vertical action list ──
-  const actions: { key: "wrong" | "correct" | "all"; icon: ReactNode; label: string; count: number; color: string }[] = [
-    { key: "wrong", icon: <XCircle className="h-5 w-5" />, label: "عرض الأخطاء", count: wrongDetails.length, color: "text-danger-500 bg-danger-500/10" },
-    { key: "correct", icon: <CheckCircle className="h-5 w-5" />, label: "الأسئلة الصحيحة", count: correctDetails.length, color: "text-success-500 bg-success-500/10" },
-    { key: "all", icon: <Layers className="h-5 w-5" />, label: "كل الأسئلة", count: details.length, color: "text-primary-500 bg-primary-500/10" },
-  ];
 
   return (
     <div className="flex flex-col gap-4">
@@ -874,92 +802,21 @@ function QuizResultsHub({
         </CardContent>
       </Card>
 
-      {/* Vertical action list */}
-      <div className="flex flex-col gap-2">
-        {actions.map((action) => (
-          <button
-            key={action.key}
-            type="button"
-            onClick={(): void => { onViewChange(action.key); }}
-            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
-          >
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${action.color}`}>
-              {action.icon}
-            </span>
-            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              {action.label}
-            </span>
-            <span className="text-sm text-neutral-400">{action.count} سؤال</span>
-          </button>
-        ))}
-
-        {showReviewButton && (
-          <button
-            type="button"
-            onClick={onViewReview}
-            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info-500/10 text-info-500">
-              <Eye className="h-5 w-5" />
-            </span>
-            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              مراجعة الإجابات
-            </span>
-          </button>
-        )}
-
-        {attemptsLeft > 0 && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
-              <RotateCcw className="h-5 w-5" />
-            </span>
-            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              إعادة الامتحان
-            </span>
-            <span className="text-sm text-neutral-400">متبقي {attemptsLeft} محاولات</span>
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Single question result card shown in the filtered views (uses "a) reading"
-// formatting for MCQ answers).
-function QuestionResultCard({ detail, index }: { detail: QuizDetail; index: number }): ReactNode {
-  const isMcq = detail.type === "MULTIPLE_CHOICE";
-  const studentText = isMcq ? formatMcqAnswer(detail.options, detail.studentAnswer) : detail.studentAnswer;
-  const correctText = isMcq ? formatMcqAnswer(detail.options, detail.correctAnswer) : detail.correctAnswer;
-  return (
-    <div
-      className={`rounded-xl border p-3 text-sm ${
-        detail.isCorrect
-          ? "border-success-500/50 bg-success-500/5"
-          : "border-danger-500/50 bg-danger-500/5"
-      }`}
-    >
-      <p className="font-medium text-neutral-900 dark:text-neutral-100">
-        {index + 1}. {detail.question}
-      </p>
-      <div className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
-        <p>
-          <span>إجابتك: </span>
-          <span className={detail.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
-            {studentText ?? "(فارغ)"}
+      {attemptsLeft > 0 && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+            <RotateCcw className="h-5 w-5" />
           </span>
-        </p>
-        {!detail.isCorrect && correctText && (
-          <p>
-            <span>الإجابة الصحيحة: </span>
-            <span className="font-medium text-success-600">{correctText}</span>
-          </p>
-        )}
-        {detail.explanation && <p className="italic text-neutral-400">{detail.explanation}</p>}
-      </div>
+          <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            إعادة الامتحان
+          </span>
+          <span className="text-sm text-neutral-400">متبقي {attemptsLeft} محاولات</span>
+        </button>
+      )}
     </div>
   );
 }
