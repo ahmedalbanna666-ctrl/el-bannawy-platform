@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import Script from "next/script";
 import { api } from "@/lib/api-client";
-import { useUiSettings } from "@/lib/use-ui-settings";
 import { lockLandscape, lockPortrait } from "@/hooks/use-screen-orientation";
 import type { VideoEvent, QuestionData, LessonCompletedActions } from "./types";
 import { VideoQuestionModal } from "./video-question-modal";
@@ -15,6 +14,8 @@ interface PlyrVideoPlayerProps {
   readonly lessonTitle?: string;
   readonly enableLessonCompleted?: boolean;
   readonly completedActions?: LessonCompletedActions;
+  /** Show the YouTube thumbnail as the video poster (per-video teacher control). */
+  readonly showThumbnail?: boolean;
 }
 
 const SAVE_INTERVAL_MS = 90_000;
@@ -70,10 +71,9 @@ export function PlyrVideoPlayer({
   lessonTitle,
   enableLessonCompleted = false,
   completedActions,
+  showThumbnail = true,
 }: PlyrVideoPlayerProps): ReactNode {
   const playerId = `yt-player-${providerVideoId}`;
-  const { config: uiConfig } = useUiSettings();
-  const showThumbnails = uiConfig?.videoThumbnails.enabled ?? true;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const plyrRef = useRef<unknown>(null);
   const eventsRef = useRef<readonly VideoEvent[]>([]);
@@ -472,7 +472,7 @@ export function PlyrVideoPlayer({
           fs: 0,
           cc_load_policy: 0,
         },
-        poster: showThumbnails ? `https://img.youtube.com/vi/${providerVideoId}/maxresdefault.jpg` : "",
+        poster: showThumbnail ? `https://img.youtube.com/vi/${providerVideoId}/maxresdefault.jpg` : "",
         ratio: "16:9",
         resetOnEnd: true,
         clickToPlay: true,
@@ -603,7 +603,7 @@ export function PlyrVideoPlayer({
     };
 
     createPlayer();
-  }, [providerVideoId, enableLessonCompleted, handleComplete, renderQuestionMarkers, playerId, fireQuestion, showThumbnails]);
+  }, [providerVideoId, enableLessonCompleted, handleComplete, renderQuestionMarkers, playerId, fireQuestion, showThumbnail]);
 
   useEffect(() => {
     initPlayer();

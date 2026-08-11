@@ -152,12 +152,6 @@ export class SidebarBorderSettings {
   width?: number;
 }
 
-export class VideoThumbnailsSettings {
-  @IsOptional()
-  @IsBoolean()
-  enabled?: boolean;
-}
-
 export class UpdateUiSettingsDto {
   @IsOptional()
   @ValidateNested()
@@ -193,9 +187,4 @@ export class UpdateUiSettingsDto {
   @ValidateNested()
   @Type(() => SidebarBorderSettings)
   sidebarBorder?: SidebarBorderSettings;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => VideoThumbnailsSettings)
-  videoThumbnails?: VideoThumbnailsSettings;
 }

@@ -893,6 +893,7 @@ model LessonVideo {
   displayOrder               Int             @default(0)
   enabled                    Boolean         @default(true)
   interactiveTimelineEnabled Boolean         @default(true)
+  showThumbnail              Boolean         @default(true)
   createdAt                  DateTime        @default(now())
   updatedAt                  DateTime        @updatedAt
   activities                 Activity[]

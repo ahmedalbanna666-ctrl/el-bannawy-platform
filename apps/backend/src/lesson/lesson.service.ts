@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { PrismaService } from "../prisma/prisma.service";
 import { AcademicContextService } from "../common/services/academic-context.service";
 import { LessonRepository } from "./lesson.repository";
+import type { UpdateLessonVideoDto } from "./dto/video.dto";
 import { VocabularyPreviewService } from "../document-import/services/vocabulary-preview.service";
 import { QuestionPreviewService } from "../document-import/services/question-preview.service";
 import { QuestionPersistenceService } from "../document-import/services/question-persistence.service";
@@ -250,6 +251,22 @@ export class LessonService {
 
     await this.recalculateLessonDuration(lessonId);
     return this.prisma.lessonVideo.findFirst({ where: { lessonId }, orderBy: { displayOrder: "desc" } });
+  }
+
+  async updateVideo(lessonId: string, videoId: string, dto: UpdateLessonVideoDto, userId: string): Promise<unknown> {
+    const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId }, select: { id: true } });
+    if (!lesson) throw new NotFoundException("Lesson not found");
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+
+    const existing = await this.prisma.lessonVideo.findFirst({ where: { id: videoId, lessonId } });
+    if (!existing) throw new NotFoundException("Video not found");
+
+    await this.prisma.lessonVideo.update({
+      where: { id: videoId },
+      data: { showThumbnail: dto.showThumbnail },
+    });
+
+    return this.prisma.lessonVideo.findUnique({ where: { id: videoId } });
   }
 
   private async fetchVideoTitle(youtubeId: string): Promise<string> {

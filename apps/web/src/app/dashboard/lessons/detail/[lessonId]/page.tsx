@@ -72,6 +72,7 @@ interface LessonVideo {
   providerUrl: string;
   duration: number;
   displayOrder: number;
+  showThumbnail: boolean;
   timelineEvents: unknown[];
   activities: unknown[];
 }
@@ -784,6 +785,7 @@ export default function LessonDetailPage(): ReactNode {
               lessonTitle={activeVideo.title}
               enableLessonCompleted
               completedActions={lessonCompletedActions}
+              showThumbnail={activeVideo.showThumbnail}
             />
           </div>
         ) : (

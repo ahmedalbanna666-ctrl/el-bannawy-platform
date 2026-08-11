@@ -8,6 +8,7 @@ import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { successResponse, type ISuccessResponse } from "../common/helpers/response.helper";
 import { CreateVocabularyDto, UpdateVocabularyDto, CommitVocabularyImportDto } from "./dto/vocabulary.dto";
+import { UpdateLessonVideoDto } from "./dto/video.dto";
 import { CommitQuestionImportDto } from "./dto/question-import.dto";
 import { validateUploadedFile, sanitizeFilename, utf8FilenameInterceptorOptions } from "../common/validators/file.validator";
 import type { VocabularyStructuredDraft } from "../document-import/types/vocabulary-structured.types";
@@ -70,6 +71,11 @@ export class LessonController {
   @Post(":id/videos") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR")
   async addVideo(@Param("id", ParseUUIDPipe) lessonId: string, @Body("youtubeUrl") youtubeUrl: string, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
     return successResponse(await this.lessonService.addVideo(lessonId, youtubeUrl, userId), "Video added");
+  }
+
+  @Patch(":id/videos/:videoId") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR")
+  async updateVideo(@Param("id", ParseUUIDPipe) lessonId: string, @Param("videoId", ParseUUIDPipe) videoId: string, @Body() dto: UpdateLessonVideoDto, @CurrentUser() userId: string): Promise<ISuccessResponse<unknown>> {
+    return successResponse(await this.lessonService.updateVideo(lessonId, videoId, dto, userId), "Video updated");
   }
 
   @Delete(":id/videos/:videoId") @UseGuards(JwtAuthGuard, RolesGuard) @Roles("TEACHER", "ADMINISTRATOR") @HttpCode(HttpStatus.NO_CONTENT)

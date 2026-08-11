@@ -73,6 +73,7 @@ interface LessonVideo {
   readonly providerUrl: string;
   readonly duration: number;
   readonly displayOrder: number;
+  readonly showThumbnail: boolean;
 }
 
 interface LessonVocabularyItem {
@@ -217,6 +218,14 @@ function VideoBlock({
     },
   });
 
+  const toggleThumbnailMutation = useMutation({
+    mutationFn: async ({ videoId, showThumbnail }: { videoId: string; showThumbnail: boolean }) =>
+      api.patch(`/lessons/${lessonId}/videos/${videoId}`, { showThumbnail }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+    },
+  });
+
   return (
     <ContentBlock
       icon={MonitorPlay}
@@ -252,6 +261,18 @@ function VideoBlock({
                   {video.providerName} • {video.providerVideoId}
                 </p>
               </div>
+              <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-neutral-100 px-2 py-1.5 dark:bg-neutral-800">
+                <input
+                  type="checkbox"
+                  checked={video.showThumbnail}
+                  disabled={toggleThumbnailMutation.isPending}
+                  onChange={(): void => {
+                    toggleThumbnailMutation.mutate({ videoId: video.id, showThumbnail: !video.showThumbnail });
+                  }}
+                  className="h-3.5 w-3.5 rounded border-neutral-300"
+                />
+                <span className="text-[10px] font-medium text-neutral-600 dark:text-neutral-300">الصورة</span>
+              </label>
               <Button
                 variant="ghost"
                 size="icon-sm"

@@ -65,9 +65,6 @@ const DEFAULT_CONFIG = {
     color: "rgba(255,255,255,0.1)",
     width: 1,
   },
-  videoThumbnails: {
-    enabled: true,
-  },
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
