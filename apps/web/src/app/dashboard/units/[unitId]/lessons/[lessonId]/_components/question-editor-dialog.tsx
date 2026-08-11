@@ -166,7 +166,7 @@ export function QuestionEditorDialog({
           </div>
 
           {(type === "MULTIPLE_CHOICE" || type === "TRUE_FALSE") && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2" dir="ltr">
               <label className="text-xs font-medium text-neutral-500">
                 {type === "TRUE_FALSE" ? "الإجابة الصحيحة" : "الخيارات"}
               </label>
@@ -184,7 +184,8 @@ export function QuestionEditorDialog({
                     value={text}
                     onChange={(e): void => { updateOption(idx, e.target.value); }}
                     readOnly={type === "TRUE_FALSE"}
-                    className="flex-1"
+                    dir="ltr"
+                    className="flex-1 text-left"
                   />
                   {type === "MULTIPLE_CHOICE" && options.length > 2 && (
                     <Button variant="ghost" size="icon-sm" aria-label="حذف" className="text-danger-500"
