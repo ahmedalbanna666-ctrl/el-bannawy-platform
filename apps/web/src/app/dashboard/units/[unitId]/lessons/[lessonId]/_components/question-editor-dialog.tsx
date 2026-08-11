@@ -138,9 +138,9 @@ export function QuestionEditorDialog({
     : question.trim().length > 0;
 
   return (
-    <Dialog open={open} onClose={onClose} title={initial ? "تعديل السؤال" : "إضافة سؤال جديد"} className="max-h-[85vh] overflow-y-auto max-w-xl">
-      <DialogContent className="max-w-xl">
-        <div className="flex flex-col gap-4">
+    <Dialog open={open} onClose={onClose} title={initial ? "تعديل السؤال" : "إضافة سؤال جديد"} className="max-h-[85vh] overflow-y-auto max-w-4xl">
+      <DialogContent className="max-w-4xl">
+        <div className="flex flex-col gap-4" dir="ltr">
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-500">نوع السؤال</label>
             <select
