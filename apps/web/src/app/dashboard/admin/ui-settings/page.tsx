@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
 import { toast } from "sonner";
-import { Save, RotateCcw, Eye, Palette, Type, Monitor, Image, Layout, Upload, Trash2 } from "lucide-react";
+import { Save, RotateCcw, Eye, Palette, Type, Monitor, Image, Layout, Upload, Trash2, MonitorPlay } from "lucide-react";
 
 function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }): ReactNode {
   return (
@@ -308,6 +308,16 @@ export default function UiSettingsPage(): ReactNode {
           <ColorInput label="لون الخلفية" value={cfg.splashScreen.backgroundColor} onChange={(v) => { set(["splashScreen", "backgroundColor"], v); }} />
           <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">رابط الشعار (اختياري)</span>
           <Input value={cfg.splashScreen.logoUrl} onChange={(e) => { set(["splashScreen", "logoUrl"], e.target.value); }} placeholder="https://..." dir="ltr" />
+        </SectionCard>
+
+        <SectionCard title="صور مصغرات الفيديو (YouTube)" icon={MonitorPlay}>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            تحكم في ظهور صورة الفيديو المصغرة التي تُجلب من يوتيوب داخل مشغّل الفيديو.
+          </p>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" checked={cfg.videoThumbnails.enabled} onChange={(e) => { set(["videoThumbnails", "enabled"], e.target.checked); }} className="h-4 w-4 rounded border-neutral-300" />
+            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">عرض صور مصغرات الفيديو في المنصة</span>
+          </div>
         </SectionCard>
 
         <SectionCard title="بوردر الكروت" icon={Layout}>

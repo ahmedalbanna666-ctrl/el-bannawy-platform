@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import Script from "next/script";
 import { api } from "@/lib/api-client";
+import { useUiSettings } from "@/lib/use-ui-settings";
 import { lockLandscape, lockPortrait } from "@/hooks/use-screen-orientation";
 import type { VideoEvent, QuestionData, LessonCompletedActions } from "./types";
 import { VideoQuestionModal } from "./video-question-modal";
@@ -71,6 +72,8 @@ export function PlyrVideoPlayer({
   completedActions,
 }: PlyrVideoPlayerProps): ReactNode {
   const playerId = `yt-player-${providerVideoId}`;
+  const { config: uiConfig } = useUiSettings();
+  const showThumbnails = uiConfig?.videoThumbnails.enabled ?? true;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const plyrRef = useRef<unknown>(null);
   const eventsRef = useRef<readonly VideoEvent[]>([]);
@@ -469,7 +472,7 @@ export function PlyrVideoPlayer({
           fs: 0,
           cc_load_policy: 0,
         },
-        poster: `https://img.youtube.com/vi/${providerVideoId}/maxresdefault.jpg`,
+        poster: showThumbnails ? `https://img.youtube.com/vi/${providerVideoId}/maxresdefault.jpg` : "",
         ratio: "16:9",
         resetOnEnd: true,
         clickToPlay: true,
@@ -600,7 +603,7 @@ export function PlyrVideoPlayer({
     };
 
     createPlayer();
-  }, [providerVideoId, enableLessonCompleted, handleComplete, renderQuestionMarkers, playerId, fireQuestion]);
+  }, [providerVideoId, enableLessonCompleted, handleComplete, renderQuestionMarkers, playerId, fireQuestion, showThumbnails]);
 
   useEffect(() => {
     initPlayer();
