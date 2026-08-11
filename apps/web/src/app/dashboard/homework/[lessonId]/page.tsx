@@ -1074,7 +1074,7 @@ function HomeworkAttemptReviewView({
         {filtered.length === 0 ? (
           <p className="py-10 text-center text-sm text-neutral-400">لا توجد أسئلة في هذا التصنيف</p>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3" dir="ltr">
             {filtered.map((q, idx) => (
               <div
                 key={q.id}
