@@ -358,7 +358,7 @@ export class HomeworkService {
     return attempts;
   }
 
-  async reviewAnswers(lessonId: string, userId: string): Promise<unknown> {
+  async reviewAnswers(lessonId: string, userId: string, attemptId?: string): Promise<unknown> {
     await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
     const homework = await this.prisma.homework.findFirst({
       where: { lessonId, deletedAt: null },
@@ -384,7 +384,12 @@ export class HomeworkService {
     }
 
     const latestAttempt = await this.prisma.studentHomeworkAttempt.findFirst({
-      where: { userId, homeworkId: homework.id, submitted: true },
+      where: {
+        userId,
+        homeworkId: homework.id,
+        submitted: true,
+        ...(attemptId ? { id: attemptId } : {}),
+      },
       orderBy: { submittedAt: "desc" },
       include: {
         answers: {
@@ -402,9 +407,11 @@ export class HomeworkService {
     const answerMap = new Map(latestAttempt.answers.map((a) => [a.questionId, a]));
 
     return {
+      id: latestAttempt.id,
       score: latestAttempt.score,
       passed: latestAttempt.passed,
       attemptNum: latestAttempt.attemptNum,
+      submittedAt: latestAttempt.submittedAt,
       questions: homework.questions.map((q) => {
         const studentAnswer = answerMap.get(q.id);
         return {

@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -25,10 +26,10 @@ import {
   RotateCcw,
   Save,
   Info,
-  Eye,
   ArrowLeft,
   Target,
   Layers,
+  Play,
 } from "lucide-react";
 
 interface HomeworkData {
@@ -88,10 +89,27 @@ interface ReviewQuestion {
 }
 
 interface ReviewData {
+  id?: string;
   score: number | null;
   passed: boolean | null;
   attemptNum: number;
+  submittedAt?: string | null;
   questions: ReviewQuestion[];
+}
+
+interface AttemptSummary {
+  id: string;
+  attemptNum: number;
+  score: number | null;
+  passed: boolean | null;
+  submittedAt: string | null;
+}
+
+interface HomeworkStatusData {
+  status: string;
+  activeAttemptId: string | null;
+  attemptCount: number;
+  maxAttempts: number;
 }
 
 export default function HomeworkPage(): ReactNode {
@@ -105,7 +123,11 @@ export default function HomeworkPage(): ReactNode {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [resultView, setResultView] = useState<"hub" | "wrong" | "correct" | "all">("hub");
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [attemptStarted, setAttemptStarted] = useState(false);
+  const [selectedAttempt, setSelectedAttempt] = useState<AttemptSummary | null>(null);
+  const [attemptReview, setAttemptReview] = useState<ReviewData | null>(null);
+  const [attemptView, setAttemptView] = useState<"hub" | "wrong" | "correct" | "all">("hub");
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const answersRef = useRef(answers);
   answersRef.current = answers;
@@ -157,8 +179,19 @@ export default function HomeworkPage(): ReactNode {
   const { data: history } = useQuery({
     queryKey: ["homework-history", lessonId],
     queryFn: async () => {
-      const res = await api.get<{ attemptNum: number }[]>(`/homework/${lessonId}/history`);
+      const res = await api.get<AttemptSummary[]>(`/homework/${lessonId}/history`);
       return res.data ?? [];
+    },
+    enabled: !!homework,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const { data: statusData } = useQuery({
+    queryKey: ["homework-status", lessonId],
+    queryFn: async () => {
+      const res = await api.get<HomeworkStatusData>(`/homework/${lessonId}/status`);
+      return res.data ?? null;
     },
     enabled: !!homework,
     staleTime: 30_000,
@@ -168,7 +201,28 @@ export default function HomeworkPage(): ReactNode {
   const usedAttempts = history?.length ?? 0;
   const attemptsLeft = homework ? Math.max(0, homework.maxAttempts - usedAttempts) : 0;
 
+  const bestAttempt = (history ?? [])
+    .filter((a) => a.score !== null)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] ?? null;
+
   const loading = hwLoading || questionsLoading || resultLoading;
+
+  const isSubmitted = result !== null && result.passed !== null;
+
+  // Show the start popup (homework details + ابدأ الواجب) before the student
+  // begins answering. A mid-attempt reload resumes instead.
+  useEffect(() => {
+    if (!homework || !statusData || loading) return;
+    if (isSubmitted) return;
+    if (statusData.activeAttemptId) {
+      setAttemptStarted(true);
+      setStartDialogOpen(false);
+      return;
+    }
+    if (statusData.status === "AVAILABLE" && !attemptStarted) {
+      setStartDialogOpen(true);
+    }
+  }, [homework, statusData, loading, isSubmitted, attemptStarted]);
 
   useEffect(() => {
     if (result || viewingReview) return;
@@ -211,10 +265,13 @@ export default function HomeworkPage(): ReactNode {
       setReview(null);
       setViewingReview(false);
       setAnswers({});
+      setAttemptStarted(true);
+      setStartDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["homework", lessonId] });
       void queryClient.invalidateQueries({ queryKey: ["homework-questions", lessonId] });
       void queryClient.invalidateQueries({ queryKey: ["homework-result", lessonId] });
       void queryClient.invalidateQueries({ queryKey: ["homework-history", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: ["homework-status", lessonId] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "فشل بدء المحاولة");
     }
@@ -232,11 +289,11 @@ export default function HomeworkPage(): ReactNode {
       });
       if (res.data) {
         setResult(res.data);
-        setResultView("hub");
         if (saveTimerRef.current) {
           clearInterval(saveTimerRef.current);
         }
         void queryClient.invalidateQueries({ queryKey: ["homework-history", lessonId] });
+        void queryClient.invalidateQueries({ queryKey: ["homework-status", lessonId] });
       }
     } catch (err) {
       if (err instanceof Error && err.message.includes("No active attempt")) {
@@ -247,9 +304,9 @@ export default function HomeworkPage(): ReactNode {
           });
           if (retryRes.data) {
             setResult(retryRes.data);
-            setResultView("hub");
             if (saveTimerRef.current) clearInterval(saveTimerRef.current);
             void queryClient.invalidateQueries({ queryKey: ["homework-history", lessonId] });
+            void queryClient.invalidateQueries({ queryKey: ["homework-status", lessonId] });
             return;
           }
         } catch { /* fall through to error state */ }
@@ -264,21 +321,28 @@ export default function HomeworkPage(): ReactNode {
     await handleStartAttempt();
   };
 
-  const handleViewReview = async (): Promise<void> => {
-    try {
-      const res = await api.get<ReviewData>(`/homework/${lessonId}/review`);
-      if (res.data) {
-        setReview(res.data);
-        setViewingReview(true);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل تحميل المراجعة");
-    }
-  };
-
   const handleBackToResult = (): void => {
     setViewingReview(false);
     setReview(null);
+  };
+
+  const handleOpenAttempt = async (attempt: AttemptSummary): Promise<void> => {
+    try {
+      const res = await api.get<ReviewData>(`/homework/${lessonId}/review?attemptId=${attempt.id}`);
+      if (res.data) {
+        setSelectedAttempt(attempt);
+        setAttemptReview(res.data);
+        setAttemptView("hub");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل تحميل محاولة");
+    }
+  };
+
+  const handleBackFromAttempt = (): void => {
+    setSelectedAttempt(null);
+    setAttemptReview(null);
+    setAttemptView("hub");
   };
 
   if (loading) return <HomeworkSkeleton />;
@@ -294,7 +358,6 @@ export default function HomeworkPage(): ReactNode {
   }
 
   const allAnswered = questions.length > 0 && questions.every((_, i) => (answers[i] ?? "").trim() !== "");
-  const isSubmitted = result !== null && result.passed !== null;
 
   if (viewingReview && review) {
     return (
@@ -524,7 +587,7 @@ export default function HomeworkPage(): ReactNode {
             </div>
           </div>
           <div className="flex gap-2">
-            {isSubmitted ? null : (
+            {attemptStarted && !isSubmitted ? (
               <Button
                 variant="primary"
                 size="md"
@@ -534,24 +597,46 @@ export default function HomeworkPage(): ReactNode {
               >
                 تسليم الواجب
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
 
-      {isSubmitted ? (
-        <HomeworkResultsHub
-          result={result}
-          attemptsLeft={attemptsLeft}
-          resultView={resultView}
-          onViewChange={setResultView}
-          onRetry={(): void => { void handleRetry(); }}
-          onViewReview={(): void => { void handleViewReview(); }}
-          showReviewButton={homework.showAnswers}
+      {selectedAttempt && attemptReview ? (
+        <HomeworkAttemptReviewView
+          attempt={selectedAttempt}
+          review={attemptReview}
+          view={attemptView}
+          onViewChange={setAttemptView}
+          onBack={handleBackFromAttempt}
         />
+      ) : isSubmitted ? (
+        <>
+          <HomeworkResultsHub
+            result={result}
+            attemptsLeft={attemptsLeft}
+            onRetry={(): void => { void handleRetry(); }}
+          />
+          {history && history.length > 0 && (
+            <AttemptsList
+              attempts={[...history].sort((a, b) => a.attemptNum - b.attemptNum)}
+              bestAttempt={bestAttempt}
+              onOpenAttempt={(attempt): void => { void handleOpenAttempt(attempt); }}
+            />
+          )}
+        </>
       ) : (
         <>
-          {homework.instructions && (
+          {!attemptStarted && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <ClipboardList className="h-12 w-12 text-primary-500" />
+              <p className="text-sm text-neutral-500">
+                اضغط "ابدأ الواجب" لبدء المحاولة
+              </p>
+            </div>
+          )}
+
+          {attemptStarted && homework.instructions && (
             <Card variant="outline" padding="sm">
               <CardContent>
                 <div className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-400">
@@ -562,45 +647,63 @@ export default function HomeworkPage(): ReactNode {
             </Card>
           )}
 
-          <div className="flex flex-col gap-4" dir="ltr">
-            {groupedQuestions.map((group, gi) => (
-              <div key={gi} className="flex flex-col gap-3">
-                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
-                  {group.heading}
-                </h2>
-                <div className="flex flex-col gap-4">
-                  {group.questions.map(({ question, originalIndex }) => (
-                    <QuestionCard
-                      key={question.id}
-                      question={question}
-                      index={originalIndex}
-                      selectedAnswer={answers[originalIndex] ?? ""}
-                      isSubmitted={isSubmitted}
-                      showResult={isSubmitted}
-                      correctAnswer={getCorrectAnswer(question.id, result)}
-                      explanation={getExplanation(question.id, result)}
-                      isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
-                      onAnswerChange={handleAnswerChange}
-                    />
-                  ))}
+          {attemptStarted && (
+            <div className="flex flex-col gap-4" dir="ltr">
+              {groupedQuestions.map((group, gi) => (
+                <div key={gi} className="flex flex-col gap-3">
+                  <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 border-b border-neutral-200 dark:border-neutral-700 pb-2">
+                    {group.heading}
+                  </h2>
+                  <div className="flex flex-col gap-4">
+                    {group.questions.map(({ question, originalIndex }) => (
+                      <QuestionCard
+                        key={question.id}
+                        question={question}
+                        index={originalIndex}
+                        selectedAnswer={answers[originalIndex] ?? ""}
+                        isSubmitted={isSubmitted}
+                        showResult={isSubmitted}
+                        correctAnswer={getCorrectAnswer(question.id, result)}
+                        explanation={getExplanation(question.id, result)}
+                        isAnswerCorrect={getIsCorrect(question.id, answers[originalIndex] ?? "", result)}
+                        onAnswerChange={handleAnswerChange}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              size="md"
-              onClick={(): void => { void handleSubmit(); }}
-              disabled={!allAnswered}
-              loading={submitting}
-            >
-              تسليم الواجب
-            </Button>
-          </div>
+          {attemptStarted && (
+            <div className="flex justify-end">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={(): void => { void handleSubmit(); }}
+                disabled={!allAnswered}
+                loading={submitting}
+              >
+                تسليم الواجب
+              </Button>
+            </div>
+          )}
+
+          {history && history.length > 0 && (
+            <AttemptsList
+              attempts={[...history].sort((a, b) => a.attemptNum - b.attemptNum)}
+              bestAttempt={bestAttempt}
+              onOpenAttempt={(attempt): void => { void handleOpenAttempt(attempt); }}
+            />
+          )}
         </>
       )}
+
+      <HomeworkStartDialog
+        open={startDialogOpen}
+        homework={homework}
+        onStart={(): void => { void handleStartAttempt(); }}
+      />
     </div>
   );
 }
@@ -753,29 +856,18 @@ function HomeworkSkeleton(): ReactNode {
   );
 }
 
-// Inline results hub after submitting homework: congratulation/motivation
-// message + a vertical action list that opens dedicated question views.
+// Inline results after submitting homework: congratulation/motivation message +
+// retry. The per-question icons (عرض الأخطاء/الأسئلة الصحيحة/كل الأسئلة) live
+// inside each attempt's review view (HomeworkAttemptReviewView), not here.
 function HomeworkResultsHub({
   result,
   attemptsLeft,
-  resultView,
-  onViewChange,
   onRetry,
-  onViewReview,
-  showReviewButton,
 }: {
   result: HomeworkResult | null;
   attemptsLeft: number;
-  resultView: "hub" | "wrong" | "correct" | "all";
-  onViewChange: (v: "hub" | "wrong" | "correct" | "all") => void;
   onRetry: () => void;
-  onViewReview: () => void;
-  showReviewButton: boolean;
 }): ReactNode {
-  const details = result?.details ?? [];
-  const wrongDetails = details.filter((d) => !d.isCorrect);
-  const correctDetails = details.filter((d) => d.isCorrect);
-
   const score = result?.score ?? 0;
   const passed = result?.passed ?? false;
   const message = passed
@@ -783,44 +875,6 @@ function HomeworkResultsHub({
     : score >= 50
       ? "قريب! واصل المحاولة وستنجح"
       : "لا بأس، كل محاولة تقربك من النجاح — حاول مرة أخرى";
-
-  if (resultView !== "hub") {
-    const filtered = resultView === "wrong"
-      ? wrongDetails
-      : resultView === "correct"
-        ? correctDetails
-        : details;
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={(): void => { onViewChange("hub"); }}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            العودة
-          </Button>
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-            {resultView === "wrong" ? "الأسئلة الخاطئة" : resultView === "correct" ? "الأسئلة الصحيحة" : "كل الأسئلة"}
-          </h2>
-          <Badge variant="secondary" className="ml-auto">{filtered.length} سؤال</Badge>
-        </div>
-
-        {filtered.length === 0 ? (
-          <p className="py-10 text-center text-sm text-neutral-400">لا توجد أسئلة في هذا التصنيف</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {filtered.map((d, idx) => (
-              <HomeworkQuestionResultCard key={d.id} detail={d} index={idx} />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const actions: { key: "wrong" | "correct" | "all"; icon: ReactNode; label: string; count: number; color: string }[] = [
-    { key: "wrong", icon: <XCircle className="h-5 w-5" />, label: "عرض الأخطاء", count: wrongDetails.length, color: "text-danger-500 bg-danger-500/10" },
-    { key: "correct", icon: <CheckCircle className="h-5 w-5" />, label: "الأسئلة الصحيحة", count: correctDetails.length, color: "text-success-500 bg-success-500/10" },
-    { key: "all", icon: <Layers className="h-5 w-5" />, label: "كل الأسئلة", count: details.length, color: "text-primary-500 bg-primary-500/10" },
-  ];
 
   return (
     <div className="flex flex-col gap-4">
@@ -850,8 +904,246 @@ function HomeworkResultsHub({
         </CardContent>
       </Card>
 
+      {attemptsLeft > 0 && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+            <RotateCcw className="h-5 w-5" />
+          </span>
+          <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            إعادة الواجب
+          </span>
+          <span className="text-sm text-neutral-400">متبقي {attemptsLeft} محاولات</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Start popup shown before the student begins: homework details + ابدأ الواجب button.
+function HomeworkStartDialog({
+  open,
+  homework,
+  onStart,
+}: {
+  open: boolean;
+  homework: HomeworkData;
+  onStart: () => void;
+}): ReactNode {
+  return (
+    <Dialog open={open} onClose={() => { /* must start to continue */ }} title={homework.title}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col items-center gap-2 py-2 text-center">
+          <ClipboardList className="h-12 w-12 text-primary-500" />
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            راجع تفاصيل الواجب قبل البدء.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-900/40">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-neutral-500">عدد الأسئلة</span>
+            <span className="font-semibold text-neutral-900 dark:text-neutral-100">{homework._count.questions}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-neutral-500">نسبة النجاح</span>
+            <span className="font-semibold text-neutral-900 dark:text-neutral-100">{homework.passingScore}%</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-neutral-500">عدد المحاولات</span>
+            <span className="font-semibold text-neutral-900 dark:text-neutral-100">{homework.maxAttempts}</span>
+          </div>
+          {homework.xpReward > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-neutral-500">المكافأة</span>
+              <span className="font-semibold text-yellow-600">+{homework.xpReward} XP</span>
+            </div>
+          )}
+        </div>
+
+        {homework.instructions && (
+          <p className="text-sm text-neutral-500">{homework.instructions}</p>
+        )}
+
+        <Button variant="primary" size="lg" onClick={onStart} className="w-full">
+          <Play className="mr-2 h-5 w-5" />
+          ابدأ الواجب
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
+// Vertical list of the student's homework attempts (المحاولة الأولى/الثانية/
+// الثالثة) at the bottom of the page; clicking one opens that attempt's review.
+function AttemptsList({
+  attempts,
+  bestAttempt,
+  onOpenAttempt,
+}: {
+  attempts: AttemptSummary[];
+  bestAttempt: AttemptSummary | null;
+  onOpenAttempt: (attempt: AttemptSummary) => void;
+}): ReactNode {
+  const bestId = bestAttempt?.id;
+  const bestScore = bestAttempt?.score;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">المحاولات</h2>
+        {bestScore !== undefined && bestScore !== null && bestAttempt && (
+          <Badge variant="success" className="gap-1">
+            <Trophy className="h-3.5 w-3.5" />
+            أعلى درجة {bestScore}%
+          </Badge>
+        )}
+      </div>
+
+      {attempts.map((attempt) => {
+        const ordinal = homeworkAttemptNumberLabel(attempt.attemptNum);
+        const isBest = attempt.id === bestId;
+        return (
+          <button
+            key={attempt.id}
+            type="button"
+            onClick={(): void => { onOpenAttempt(attempt); }}
+            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          >
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isBest ? "bg-success-500/10 text-success-500" : "bg-primary-500/10 text-primary-500"}`}>
+              {isBest ? <Trophy className="h-5 w-5" /> : <ClipboardList className="h-5 w-5" />}
+            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              {ordinal}
+            </span>
+            {attempt.score !== null && (
+              <Badge variant={attempt.passed ? "success" : "warning"}>{attempt.score}%</Badge>
+            )}
+            {attempt.submittedAt && (
+              <span className="hidden text-xs text-neutral-400 sm:block">
+                {new Date(attempt.submittedAt).toLocaleDateString("ar-EG")}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function homeworkAttemptNumberLabel(attemptNum: number): string {
+  const arabic = ["الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة", "الثامنة", "التاسعة", "العاشرة"];
+  return `المحاولة ${arabic[attemptNum - 1] ?? String(attemptNum)}`;
+}
+
+// Per-attempt review: attempt data at top + the 3 filter icons (عرض الأخطاء /
+// الأسئلة الصحيحة / كل الأسئلة) that filter that attempt's questions.
+function HomeworkAttemptReviewView({
+  attempt,
+  review,
+  view,
+  onViewChange,
+  onBack,
+}: {
+  attempt: AttemptSummary;
+  review: ReviewData;
+  view: "hub" | "wrong" | "correct" | "all";
+  onViewChange: (v: "hub" | "wrong" | "correct" | "all") => void;
+  onBack: () => void;
+}): ReactNode {
+  const questions = review.questions;
+  const wrong = questions.filter((q) => q.isCorrect === false);
+  const correct = questions.filter((q) => q.isCorrect === true);
+
+  if (view !== "hub") {
+    const filtered = view === "wrong" ? wrong : view === "correct" ? correct : questions;
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={(): void => { onViewChange("hub"); }}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            العودة
+          </Button>
+          <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+            {view === "wrong" ? "الأسئلة الخاطئة" : view === "correct" ? "الأسئلة الصحيحة" : "كل الأسئلة"}
+          </h2>
+          <Badge variant="secondary" className="ml-auto">{filtered.length} سؤال</Badge>
+        </div>
+        {filtered.length === 0 ? (
+          <p className="py-10 text-center text-sm text-neutral-400">لا توجد أسئلة في هذا التصنيف</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {filtered.map((q, idx) => (
+              <div
+                key={q.id}
+                className={`rounded-xl border p-3 text-sm ${
+                  q.isCorrect ? "border-success-500/50 bg-success-500/5" : "border-danger-500/50 bg-danger-500/5"
+                }`}
+              >
+                <p className="font-medium text-neutral-900 dark:text-neutral-100">{idx + 1}. {q.question}</p>
+                <div className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
+                  <p>
+                    <span>إجابتك: </span>
+                    <span className={q.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
+                      {q.type === "MULTIPLE_CHOICE" ? formatMcqAnswer(q.options, q.studentAnswer) : (q.studentAnswer ?? "(فارغ)")}
+                    </span>
+                  </p>
+                  {!q.isCorrect && q.correctAnswer && (
+                    <p>
+                      <span>الإجابة الصحيحة: </span>
+                      <span className="font-medium text-success-600">
+                        {q.type === "MULTIPLE_CHOICE" ? formatMcqAnswer(q.options, q.correctAnswer) : q.correctAnswer}
+                      </span>
+                    </p>
+                  )}
+                  {q.explanation && <p className="italic text-neutral-400">{q.explanation}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          العودة
+        </Button>
+        <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">{homeworkAttemptNumberLabel(attempt.attemptNum)}</h2>
+      </div>
+
+      <Card variant={attempt.passed ? "gradient" : "outline"} padding="md" className={attempt.passed ? "" : "border-warning-500/50"}>
+        <CardContent>
+          <div className="flex flex-col items-center gap-2 py-2 text-center">
+            {attempt.passed ? <CheckCircle className="h-10 w-10 text-success-500" /> : <XCircle className="h-10 w-10 text-warning-500" />}
+            <p className="text-2xl font-black text-neutral-900 dark:text-neutral-100">{attempt.score ?? 0}%</p>
+            <p className="text-sm text-neutral-500">
+              {correct.length} صحيحة / {wrong.length} خاطئة من أصل {questions.length} سؤال
+            </p>
+            <Badge variant={attempt.passed ? "success" : "warning"}>
+              {attempt.passed ? "ناجح" : "حاول مرة أخرى"}
+            </Badge>
+            {attempt.submittedAt && (
+              <p className="text-xs text-neutral-400">
+                {new Date(attempt.submittedAt).toLocaleString("ar-EG")}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex flex-col gap-2">
-        {actions.map((action) => (
+        {[
+          { key: "wrong" as const, icon: <XCircle className="h-5 w-5" />, label: "عرض الأخطاء", count: wrong.length, color: "text-danger-500 bg-danger-500/10" },
+          { key: "correct" as const, icon: <CheckCircle className="h-5 w-5" />, label: "الأسئلة الصحيحة", count: correct.length, color: "text-success-500 bg-success-500/10" },
+          { key: "all" as const, icon: <Layers className="h-5 w-5" />, label: "كل الأسئلة", count: questions.length, color: "text-primary-500 bg-primary-500/10" },
+        ].map((action) => (
           <button
             key={action.key}
             type="button"
@@ -861,77 +1153,10 @@ function HomeworkResultsHub({
             <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${action.color}`}>
               {action.icon}
             </span>
-            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              {action.label}
-            </span>
+            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">{action.label}</span>
             <span className="text-sm text-neutral-400">{action.count} سؤال</span>
           </button>
         ))}
-
-        {showReviewButton && (
-          <button
-            type="button"
-            onClick={onViewReview}
-            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info-500/10 text-info-500">
-              <Eye className="h-5 w-5" />
-            </span>
-            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              مراجعة الإجابات
-            </span>
-          </button>
-        )}
-
-        {attemptsLeft > 0 && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-start transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
-              <RotateCcw className="h-5 w-5" />
-            </span>
-            <span className="flex-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              إعادة الواجب
-            </span>
-            <span className="text-sm text-neutral-400">متبقي {attemptsLeft} محاولات</span>
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function HomeworkQuestionResultCard({ detail, index }: { detail: HomeworkDetail; index: number }): ReactNode {
-  const isMcq = detail.type === "MULTIPLE_CHOICE";
-  const studentText = isMcq ? formatMcqAnswer(detail.options, detail.studentAnswer) : detail.studentAnswer;
-  const correctText = isMcq ? formatMcqAnswer(detail.options, detail.correctAnswer) : detail.correctAnswer;
-  return (
-    <div
-      className={`rounded-xl border p-3 text-sm ${
-        detail.isCorrect
-          ? "border-success-500/50 bg-success-500/5"
-          : "border-danger-500/50 bg-danger-500/5"
-      }`}
-    >
-      <p className="font-medium text-neutral-900 dark:text-neutral-100">
-        {index + 1}. {detail.question}
-      </p>
-      <div className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
-        <p>
-          <span>إجابتك: </span>
-          <span className={detail.isCorrect ? "text-success-600 font-medium" : "text-danger-600 font-medium"}>
-            {studentText ?? "(فارغ)"}
-          </span>
-        </p>
-        {!detail.isCorrect && correctText && (
-          <p>
-            <span>الإجابة الصحيحة: </span>
-            <span className="font-medium text-success-600">{correctText}</span>
-          </p>
-        )}
-        {detail.explanation && <p className="italic text-neutral-400">{detail.explanation}</p>}
       </div>
     </div>
   );
