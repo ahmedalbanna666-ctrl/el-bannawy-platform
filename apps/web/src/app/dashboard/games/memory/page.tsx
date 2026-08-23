@@ -6,6 +6,7 @@ import { useCurriculumUnits, useUnitVocabulary } from "@/lib/games/use-games-dat
 import { useGameSettings } from "@/lib/games/settings";
 import { MemoryGame } from "@/components/games/memory-game";
 import { UnitMapSelect } from "@/components/games/unit-map-select";
+import { GameIntroDialog } from "@/components/games/game-intro-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ export default function MemoryGamePage(): ReactNode {
   const router = useRouter();
   const { settings } = useGameSettings();
   const { data: units, isLoading, isError, refetch } = useCurriculumUnits();
+  const [showIntro, setShowIntro] = useState(true);
 
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [round, setRound] = useState(0);
@@ -63,6 +65,13 @@ export default function MemoryGamePage(): ReactNode {
 
   return (
     <div className="flex flex-col gap-6">
+      <GameIntroDialog
+        gameKey="memory"
+        open={showIntro}
+        onClose={() => {
+          setShowIntro(false);
+        }}
+      />
       <div>
         <button
           onClick={(): void => { router.push("/dashboard/games"); }}

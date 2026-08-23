@@ -8,13 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { useGameSettings } from "@/lib/games/settings";
 import {
   Volume2,
-  Sparkles,
   Gamepad2,
   Mic,
   Lock,
   ArrowLeft,
   Brain,
-  Zap,
   Trophy,
 } from "lucide-react";
 
@@ -88,49 +86,18 @@ export default function GamesHubPage(): ReactNode {
   return (
     <div className="flex flex-col gap-6">
       {/* Hero */}
-      <Card variant="gradient" padding="lg" className="overflow-hidden">
-        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-white shadow-inner">
-            <Gamepad2 className="h-11 w-11" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Badge variant="primary" className="w-fit bg-white/20 text-white hover:bg-white/20">
-              <Zap className="h-3.5 w-3.5" />
-              العب وتعلم
-            </Badge>
-            <h1 className="text-2xl font-black text-white sm:text-3xl">
-              الألعاب التعليمية
-            </h1>
-            <p className="text-sm text-white/85">
-              كل الألعاب تعتمد على كلمات من منهجك الدراسي. اختر لعبة وابدأ التحدي الآن.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stats strip */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card variant="outline" padding="sm" className="items-center text-center">
-          <CardContent className="flex flex-col items-center gap-1">
-            <Trophy className="h-5 w-5 text-amber-500" />
-            <p className="text-lg font-black text-neutral-900 dark:text-neutral-100">3</p>
-            <p className="text-[11px] text-neutral-500">ألعاب متاحة</p>
-          </CardContent>
-        </Card>
-        <Card variant="outline" padding="sm" className="items-center text-center">
-          <CardContent className="flex flex-col items-center gap-1">
-            <Volume2 className="h-5 w-5 text-primary-500" />
-            <p className="text-lg font-black text-neutral-900 dark:text-neutral-100">عربي</p>
-            <p className="text-[11px] text-neutral-500">تعليم إنجليزي</p>
-          </CardContent>
-        </Card>
-        <Card variant="outline" padding="sm" className="items-center text-center">
-          <CardContent className="flex flex-col items-center gap-1">
-            <Sparkles className="h-5 w-5 text-purple-500" />
-            <p className="text-lg font-black text-neutral-900 dark:text-neutral-100">∞</p>
-            <p className="text-[11px] text-neutral-500">إعادة لعب</p>
-          </CardContent>
-        </Card>
+      <div className="flex items-center gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-secondary-600 text-white shadow-md">
+          <Gamepad2 className="h-7 w-7" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-black text-neutral-900 dark:text-neutral-100">
+            الألعاب التعليمية
+          </h1>
+          <p className="text-sm text-neutral-500">
+            كل الألعاب من منهجك الدراسي. اختر لعبة وابدأ التحدي.
+          </p>
+        </div>
       </div>
 
       {/* Game cards */}
@@ -158,7 +125,6 @@ export default function GamesHubPage(): ReactNode {
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
                     {game.title}
                   </h2>
-                  <p className="text-sm leading-relaxed text-neutral-500">{game.description}</p>
                 </div>
 
                 <div className="flex items-center justify-between text-xs font-semibold text-neutral-400">
