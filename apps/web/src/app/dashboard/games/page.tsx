@@ -38,7 +38,7 @@ const GAMES: GameCardData[] = [
     title: "تحدي الاستماع",
     description:
       "اسمع الكلمة الإنجليزية واختر معناها الصحيح من بين الخيارات. طوّر مهارة الفهم السمعي لديك.",
-    icon: <Volume2 className="h-9 w-9 sm:h-8 sm:w-8" />,
+    icon: <Volume2 className="h-8 w-8" />,
     href: "/dashboard/games/listening-challenge",
     soon: false,
     accent: "from-primary-500 to-secondary-600",
@@ -52,7 +52,7 @@ const GAMES: GameCardData[] = [
     title: "تحدي النطق",
     description:
       "انطق الكلمة الظاهرة أمامك وليكشف النظام دقة نطقك ويحفّزك بمكافآت XP وعملات.",
-    icon: <Mic className="h-9 w-9 sm:h-8 sm:w-8" />,
+    icon: <Mic className="h-8 w-8" />,
     href: "/dashboard/games/pronunciation-challenge",
     soon: false,
     accent: "from-warning-500 to-rose-500",
@@ -65,7 +65,7 @@ const GAMES: GameCardData[] = [
     key: "memory",
     title: "لعبة الذاكرة",
     description: "قلّب البطاقات وطابق كل كلمة إنجليزية مع معناها. قوّي ذاكرتك ووسّع مفرداتك.",
-    icon: <Brain className="h-9 w-9 sm:h-8 sm:w-8" />,
+    icon: <Brain className="h-8 w-8" />,
     href: "/dashboard/games/memory",
     soon: false,
     accent: "from-purple-500 to-primary-600",
@@ -134,7 +134,7 @@ export default function GamesHubPage(): ReactNode {
       </div>
 
       {/* Game cards */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         {GAMES.map((game) => {
           const disabled = disabledGames.some((g) => g.key === game.key);
           return (
@@ -142,23 +142,23 @@ export default function GamesHubPage(): ReactNode {
               key={game.title}
               variant="outline"
               padding="none"
-              className={`group flex h-full min-h-[420px] flex-col overflow-hidden transition-all duration-200 ${
+              className={`group flex h-full flex-col overflow-hidden transition-all duration-200 ${
                 disabled ? "opacity-70" : "hover:-translate-y-0.5"
               }`}
             >
-              <div className={`h-2 w-full bg-gradient-to-r ${game.accent}`} />
-              <CardContent className="flex flex-1 flex-col gap-5 p-6 sm:gap-4 sm:p-5">
+              <div className={`h-1.5 w-full bg-gradient-to-r ${game.accent}`} />
+              <CardContent className="flex flex-1 flex-col gap-4 p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className={`flex h-16 w-16 items-center justify-center rounded-2xl ${game.iconBg} sm:h-14 sm:w-14`}>
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${game.iconBg}`}>
                     {game.icon}
                   </div>
                   <Badge variant={game.tagVariant}>{game.tag}</Badge>
                 </div>
                 <div className="flex flex-1 flex-col gap-1">
-                  <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 sm:text-lg">
+                  <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
                     {game.title}
                   </h2>
-                  <p className="text-[15px] leading-relaxed text-neutral-500 sm:text-sm">{game.description}</p>
+                  <p className="text-sm leading-relaxed text-neutral-500">{game.description}</p>
                 </div>
 
                 <div className="flex items-center justify-between text-xs font-semibold text-neutral-400">
@@ -170,18 +170,18 @@ export default function GamesHubPage(): ReactNode {
                 </div>
 
                 {game.soon ? (
-                  <Button variant="ghost" disabled fullWidth className="h-14 text-base sm:h-12 sm:text-sm">
+                  <Button variant="ghost" disabled fullWidth>
                     <Lock className="h-4 w-4" />
                     قريباً
                   </Button>
                 ) : disabled ? (
-                  <Button variant="ghost" disabled fullWidth className="h-14 text-base sm:h-12 sm:text-sm">
+                  <Button variant="ghost" disabled fullWidth>
                     <Lock className="h-4 w-4" />
                     غير مفعّلة حالياً
                   </Button>
                 ) : (
                   <Link href={game.href ?? "#"} className="w-full">
-                    <Button variant="primary" fullWidth className="h-14 rounded-full text-base sm:h-12 sm:rounded-xl sm:text-sm">
+                    <Button variant="primary" fullWidth>
                       ابدأ اللعب
                       <ArrowLeft className="h-4 w-4" />
                     </Button>
