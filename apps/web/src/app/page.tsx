@@ -49,7 +49,7 @@ function CtaButton({ href, children, primary = true }: { href: string; children:
 
 export default function HomePage(): ReactNode {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-gradient-to-b from-slate-50 to-white text-neutral-900 dark:bg-transparent dark:text-white">
+    <main className="relative min-h-screen overflow-hidden bg-gradient-to-b from-slate-50 to-white text-neutral-900 dark:bg-gradient-to-b dark:from-[#0b1628] dark:to-[#08111f] dark:text-white">
       <div aria-hidden="true" className={`pointer-events-none absolute inset-0 ${styles.gridOverlay}`} />
       <div
         aria-hidden="true"
