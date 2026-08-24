@@ -454,7 +454,7 @@ export function ListeningChallenge({
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
         {current.options.map((option, idx) => {
           const isCorrect = option === current.correctTranslation;
           const isSelected = option === selectedOption;
@@ -477,10 +477,10 @@ export function ListeningChallenge({
               onClick={() => {
                 handleSelect(option);
               }}
-              className={`flex items-center gap-3 rounded-2xl border-2 p-4 text-center text-base font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${tone}`}
+              className={`flex items-center gap-2 rounded-2xl border-2 p-3 text-center text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:p-4 sm:text-base ${tone}`}
             >
               <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black sm:h-8 sm:w-8 sm:text-sm ${
                   answered && isCorrect
                     ? "bg-success-500 text-white"
                     : answered && isSelected
