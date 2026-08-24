@@ -1,71 +1,239 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
+import {
+  GraduationCap,
+  BookOpen,
+  FileText,
+  Video,
+  BarChart3,
+  AlertCircle,
+  Sparkles,
+  ArrowLeft,
+  LayoutGrid,
+  Smartphone,
+  Headphones,
+  ShieldCheck,
+} from "lucide-react";
+import styles from "./home.module.css";
 
 const FEATURES = [
-  "دروس تفاعلية",
-  "اختبارات",
-  "واجبات",
-  "متابعة التقدم",
-  "التعلم من الأخطاء",
-  "حصص مباشرة",
-  "أدوات ذكاء اصطناعي",
+  { icon: BookOpen, title: "دروس تفاعلية", desc: "محتوى يبني المهارة خطوة بخطوة." },
+  { icon: FileText, title: "اختبارات وواجبات", desc: "تقييم مستمر مع تغذية راجعة." },
+  { icon: Video, title: "حصص مباشرة", desc: "جلسات مباشرة مع المعلمين." },
+  { icon: BarChart3, title: "متابعة التقدم", desc: "تقارير واضحة لنموك اللغوي." },
+  { icon: AlertCircle, title: "التعلم من الأخطاء", desc: "نصحح أخطاءك ونشرحها لك." },
+  { icon: Sparkles, title: "أدوات ذكاء اصطناعي", desc: "مساعدة ذكية في رحلة التعلم." },
 ];
 
-export default function HomePage(): React.ReactNode {
+const VALUE = [
+  { icon: LayoutGrid, label: "تجربة تعليمية منظمة" },
+  { icon: Smartphone, label: "تعمل على مختلف الأجهزة" },
+  { icon: Headphones, label: "دعم مستمر" },
+  { icon: ShieldCheck, label: "بيئة تعليمية آمنة" },
+];
+
+function CtaButton({ href, children, primary = true }: { href: string; children: ReactNode; primary?: boolean }): ReactNode {
+  const base =
+    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950";
+  const cls = primary
+    ? `${base} bg-primary-500 px-7 py-3 text-base text-white shadow-md shadow-primary-500/20 hover:bg-primary-600 hover:shadow-primary-500/30`
+    : `${base} border-2 border-neutral-600 px-7 py-3 text-base text-neutral-200 hover:border-neutral-500 hover:bg-white/5`;
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-neutral-950 via-neutral-900 to-[#0a0e1a] px-6 py-10 text-center text-white">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-1/3 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-500/20 blur-[120px]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 rounded-full bg-teal-400/10 blur-[100px]"
-      />
+    <Link href={href} className={cls}>
+      {children}
+      {primary ? <ArrowLeft className="h-5 w-5" /> : null}
+    </Link>
+  );
+}
 
-      <header className="relative z-10 mb-8">
-        <p className="mb-2 text-xs tracking-[0.4em] text-primary-300/80">EL-BANNAWY</p>
-        <h1 className="text-4xl font-bold sm:text-5xl">منصة البناوي</h1>
-      </header>
-
-      <section className="relative z-10 flex w-full max-w-xl flex-col items-center">
-        <h2 className="mb-4 text-xl font-semibold text-white/90 sm:text-2xl">
-          تعلّم الإنجليزية بطريقة تفاعلية
-        </h2>
-
-        <p className="mb-6 text-sm leading-relaxed text-white/70 sm:text-base">
-          منصة البناوي (El-Bannawy) منصة تعليمية للغة الإنجليزية تقدّم للطلاب تجربة
-          تعلم تفاعلية تشمل الدروس والأنشطة والاختبارات والواجبات، مع متابعة للتقدم
-          وحصص مباشرة وأدوات ذكاء اصطناعي لدعم رحلة التعلم.
-        </p>
-
-        <ul className="mb-8 flex flex-wrap items-center justify-center gap-2">
-          {FEATURES.map((feature) => (
-            <li
-              key={feature}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80 backdrop-blur-sm"
-            >
-              {feature}
-            </li>
-          ))}
-        </ul>
-
-        <div className="flex flex-col items-center gap-3 sm:flex-row">
-          <Link
-            href="/login"
-            className="inline-flex w-full items-center justify-center rounded-xl bg-primary-500 px-6 py-3 text-sm font-semibold text-neutral-950 shadow-lg shadow-primary-500/20 transition-colors hover:bg-primary-400 sm:w-auto"
-          >
-            دخول إلى المنصة
-          </Link>
-          <Link
-            href="/register"
-            className="inline-flex w-full items-center justify-center rounded-xl border border-white/15 px-6 py-3 text-sm font-medium text-white/80 transition-colors hover:bg-white/5 sm:w-auto"
-          >
-            إنشاء حساب
-          </Link>
+function DashboardPreview(): ReactNode {
+  return (
+    <div className={`${styles.float} relative w-full max-w-md`}>
+      <div className="rounded-3xl border border-white/10 bg-[var(--ui-card-bg-dark)] p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),inset_0_0_28px_rgba(6,182,212,0.08),0_0_0_1px_rgba(80,220,255,0.16),0_24px_56px_-18px_rgba(6,182,212,0.18)] backdrop-blur-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-sm font-bold text-neutral-950">
+              أ
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">أحمد</p>
+              <p className="text-xs text-white/50">الصف العاشر</p>
+            </div>
+          </div>
+          <span className="rounded-full border border-primary-400/30 bg-primary-500/10 px-3 py-1 text-xs text-primary-300">
+            متصل
+          </span>
         </div>
 
-        <p className="mt-10 text-xs text-white/40">أسسها أحمد البنا — معلم اللغة الإنجليزية</p>
-      </section>
+        <div className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+          <div className="relative">
+            <svg viewBox="0 0 120 120" className="h-24 w-24 -rotate-90">
+              <defs>
+                <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#22d3ee" />
+                  <stop offset="100%" stopColor="#2dd4bf" />
+                </linearGradient>
+              </defs>
+              <circle cx="60" cy="60" r="52" stroke="rgba(255,255,255,0.08)" strokeWidth="10" fill="none" />
+              <circle
+                cx="60"
+                cy="60"
+                r="52"
+                stroke="url(#ringGrad)"
+                strokeWidth="10"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray="326.7"
+                strokeDashoffset="104.5"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-xl font-bold text-white">68%</span>
+              <span className="text-[10px] text-white/50">التقدم</span>
+            </div>
+          </div>
+          <div className="grid flex-1 grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-lg font-bold text-white">24</p>
+              <p className="text-[10px] text-white/50">درس</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-white">12</p>
+              <p className="text-[10px] text-white/50">اختبار</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-primary-300">7</p>
+              <p className="text-[10px] text-white/50">سلسلة</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+          <p className="mb-1 text-xs text-white/50">الدرس الحالي</p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/15 text-primary-300">
+              <BookOpen className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">Unit 5: Past Perfect</p>
+              <p className="text-xs text-white/50">الوحدة الخامسة</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 flex h-16 items-end gap-2 rounded-2xl border border-white/5 bg-white/[0.03] p-3">
+          {[40, 65, 50, 80, 60, 90, 72].map((h, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-md bg-gradient-to-t from-primary-600/40 to-primary-400/80"
+              style={{ height: `${String(h)}%` }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function HomePage(): ReactNode {
+  return (
+    <main className="relative min-h-screen overflow-hidden text-white">
+      <div aria-hidden="true" className={`pointer-events-none absolute inset-0 ${styles.gridOverlay}`} />
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-x-0 top-0 h-[70vh] ${styles.heroGlow}`}
+      />
+
+      <div className="container-page relative z-10">
+        <header className="flex items-center justify-between py-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 text-neutral-950">
+              <GraduationCap className="h-5 w-5" />
+            </span>
+            <span className="text-lg font-bold">منصة البناوي</span>
+          </Link>
+          <Link
+            href="/login"
+            className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white/80 transition-colors hover:bg-white/5"
+          >
+            دخول
+          </Link>
+        </header>
+
+        <section className="grid items-center gap-10 py-10 lg:grid-cols-2 lg:gap-8 lg:py-16">
+          <div className={styles.reveal}>
+            <p className="mb-3 text-xs font-medium tracking-[0.4em] text-primary-300/80">EL-BANNAWY</p>
+            <h1 className="text-4xl font-bold leading-tight sm:text-5xl">
+              منصة <span className="text-primary-400">البناوي</span>
+            </h1>
+            <p className="mt-3 text-xl font-semibold text-white/90 sm:text-2xl">
+              تعلّم الإنجليزية بطريقة تفاعلية
+            </p>
+            <p className="mt-5 max-w-md text-sm leading-relaxed text-white/65">
+              منصة تعليمية تساعدك على تطوير مستواك في اللغة الإنجليزية من خلال الدروس التفاعلية،
+              الاختبارات والواجبات، الحصص المباشرة، متابعة تقدمك، وأدوات الذكاء الاصطناعي.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <CtaButton href="/login" primary>
+                دخول إلى المنصة
+              </CtaButton>
+              <CtaButton href="/register" primary={false}>
+                إنشاء حساب
+              </CtaButton>
+            </div>
+          </div>
+
+          <div className="flex justify-center lg:justify-end">
+            <DashboardPreview />
+          </div>
+        </section>
+
+        <section className="grid grid-cols-2 gap-3 py-8 sm:gap-4 md:grid-cols-3">
+          {FEATURES.map((feature) => (
+            <div
+              key={feature.title}
+              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-sm transition-colors hover:border-primary-400/30"
+            >
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/15 text-primary-300">
+                <feature.icon className="h-5 w-5" />
+              </div>
+              <h3 className="text-sm font-semibold text-white">{feature.title}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-white/55">{feature.desc}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="my-10 rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm sm:p-8">
+          <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-start">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 text-2xl font-bold text-neutral-950">
+              أ
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">أسسها أحمد البنا</h2>
+              <p className="mt-1 text-sm leading-relaxed text-white/65">
+                معلم اللغة الإنجليزية وصاحب خبرة في تدريس اللغة الإنجليزية، يجمع في البناوي بين الخبرة
+                التعليمية والتقنية الحديثة.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-2 gap-3 pb-10 sm:grid-cols-4">
+          {VALUE.map((item) => (
+            <div key={item.label} className="flex items-center gap-2 text-xs text-white/60">
+              <item.icon className="h-4 w-4 shrink-0 text-primary-300" />
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </section>
+
+        <footer className="border-t border-white/10 py-8 text-center">
+          <p className="text-sm font-bold tracking-[0.3em] text-white/80">EL-BANNAWY</p>
+          <p className="mt-1 text-sm text-white/60">منصة البناوي</p>
+          <p className="mt-3 text-xs text-white/45">رحلتك نحو إتقان الإنجليزية تبدأ من هنا.</p>
+          <p className="mt-4 text-xs text-white/30">© 2026 منصة البناوي. جميع الحقوق محفوظة.</p>
+        </footer>
+      </div>
     </main>
   );
 }
