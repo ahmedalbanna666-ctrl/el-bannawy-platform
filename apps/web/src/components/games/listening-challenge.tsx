@@ -40,8 +40,6 @@ interface ListeningChallengeProps {
   words?: readonly GameWord[];
 }
 
-const LETTERS = ["أ", "ب", "ج", "د", "هـ", "و", "ز", "ح"];
-
 export function ListeningChallenge({
   unitId: forcedUnitId,
   words: lessonWords,
@@ -455,7 +453,7 @@ export function ListeningChallenge({
       </Card>
 
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
-        {current.options.map((option, idx) => {
+        {current.options.map((option) => {
           const isCorrect = option === current.correctTranslation;
           const isSelected = option === selectedOption;
           let tone =
@@ -477,20 +475,11 @@ export function ListeningChallenge({
               onClick={() => {
                 handleSelect(option);
               }}
-              className={`flex items-center gap-2 rounded-2xl border-2 p-3 text-center text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:p-4 sm:text-base ${tone}`}
+              className={`flex items-center justify-center rounded-2xl border-2 p-2.5 text-center font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:p-4 sm:text-base ${tone}`}
             >
-              <span
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black sm:h-8 sm:w-8 sm:text-sm ${
-                  answered && isCorrect
-                    ? "bg-success-500 text-white"
-                    : answered && isSelected
-                      ? "bg-danger-500 text-white"
-                      : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"
-                }`}
-              >
-                {LETTERS[idx] ?? String(idx + 1)}
+              <span className="w-full text-sm leading-tight sm:text-base">
+                {option}
               </span>
-              <span className="flex-1">{option}</span>
             </button>
           );
         })}
