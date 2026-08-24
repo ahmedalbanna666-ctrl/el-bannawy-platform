@@ -208,17 +208,14 @@ export function ListeningChallenge({
 
   if (phase === "select") {
     return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/15 text-primary-500">
-              <Volume2 className="h-6 w-6" />
-            </span>
+      <div className="flex flex-col gap-5">
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/15 text-primary-500 sm:h-10 sm:w-10">
+            <Volume2 className="h-5 w-5 sm:h-6 sm:w-6" />
+          </span>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 sm:text-2xl">
             تحدي الاستماع
           </h1>
-          <p className="mt-2 text-sm text-neutral-500">
-            اختر الوحدة التي تريد التحدي بكلماتها، ثم استمع للكلمة واختر معناها الصحيح.
-          </p>
         </div>
 
         {isLoading && (
@@ -364,7 +361,7 @@ export function ListeningChallenge({
   if (!current) return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4">
       <div className="flex items-center justify-between">
         <button
           type="button"
@@ -395,7 +392,7 @@ export function ListeningChallenge({
         سؤال {currentIndex + 1} من {questions.length}
       </p>
 
-      <Card variant="elevated" padding="lg">
+      <Card variant="elevated" padding="md" className="sm:p-6">
         <CardContent className="flex flex-col items-center gap-4">
           {isSupported ? (
             <>
@@ -404,7 +401,7 @@ export function ListeningChallenge({
                 onClick={handleReplay}
                 disabled={replaysLeft <= 0}
                 aria-label="إعادة تشغيل النطق"
-                className={`relative flex h-24 w-24 items-center justify-center rounded-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
+                className={`relative flex h-20 w-20 items-center justify-center rounded-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:h-24 sm:w-24 ${
                   isSpeaking("lc-current")
                     ? "scale-105 bg-primary-500 text-white shadow-[0_0_30px_rgba(34,211,238,0.4)]"
                     : "bg-primary-500/10 text-primary-500 hover:bg-primary-500/20"
@@ -425,7 +422,7 @@ export function ListeningChallenge({
             </>
           ) : (
             <>
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-info-500/10 text-info-500">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-info-500/10 text-info-500 sm:h-24 sm:w-24">
                 <VolumeX className="h-10 w-10" />
               </div>
               <p dir="ltr" className="text-3xl font-black tracking-wide text-neutral-900 dark:text-neutral-100">
