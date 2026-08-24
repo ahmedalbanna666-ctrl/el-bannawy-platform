@@ -143,6 +143,17 @@ def clamp_gop(gop: float) -> float:
     return max(0.0, min(100.0, round(float(gop) * GOP_SCALE, 1)))
 
 
+def _resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+    """Resample a 1-D audio array via linear interpolation (no scipy)."""
+    if orig_sr == target_sr or audio.size == 0:
+        return audio
+    duration = audio.shape[-1] / float(orig_sr)
+    target_len = max(1, int(round(duration * target_sr)))
+    x_old = np.linspace(0.0, duration, num=audio.shape[-1], endpoint=False)
+    x_new = np.linspace(0.0, duration, num=target_len, endpoint=False)
+    return np.interp(x_new, x_old, audio).astype(audio.dtype)
+
+
 def _mean(values: list[float]) -> float:
     return sum(values) / max(len(values), 1)
 

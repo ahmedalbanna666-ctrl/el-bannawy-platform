@@ -39,6 +39,48 @@ def _build_providers() -> dict[str, BasePronunciationProvider]:
 PROVIDERS = _build_providers()
 
 
+def _log_provider_diagnostics() -> None:
+    """Log availability of every provider dependency at startup."""
+    import importlib
+
+    for module in (
+        "numpy",
+        "soundfile",
+        "resampy",
+        "faster_whisper",
+        "torch",
+        "transformers",
+    ):
+        try:
+            importlib.import_module(module)
+            logger.info("provider-dep OK: %s", module)
+        except Exception as exc:
+            logger.error("provider-dep FAIL: %s -> %r", module, exc)
+    available = [name for name, p in PROVIDERS.items() if p.available()]
+    logger.info("available providers: %s", available or "NONE")
+
+
+_log_provider_diagnostics()
+
+
+@app.on_event("startup")
+async def _warmup_local_model() -> None:
+    """Pre-load the whisper weights so the first assessment is fast."""
+    import asyncio
+
+    provider = PROVIDERS.get("local")
+    if provider is None or not provider.available():
+        return
+    loader = getattr(provider, "_load", None)
+    if loader is None:
+        return
+    try:
+        await asyncio.get_running_loop().run_in_executor(None, loader)
+        logger.info("local whisper model warmed up")
+    except Exception as exc:  # pragma: no cover - network/model issues
+        logger.error("local model warm-up failed -> %r", exc)
+
+
 def _select_provider(name: Optional[str]) -> BasePronunciationProvider:
     requested = name or DEFAULT_PROVIDER
     provider = PROVIDERS.get(requested)

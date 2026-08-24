@@ -18,6 +18,8 @@ resampy==0.4.3
 
 # ── Local fallback (self-hosted, CPU-only): faster-whisper ASR ───────
 faster-whisper==1.0.3
+# faster-whisper 1.0.x imports `requests` without declaring it.
+requests==2.32.3
 
 # ── Tests ─────────────────────────────────────────────────────────────
 pytest==8.3.2
