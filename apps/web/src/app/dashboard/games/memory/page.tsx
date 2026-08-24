@@ -23,6 +23,7 @@ export default function MemoryGamePage(): ReactNode {
 
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [round, setRound] = useState(0);
+  const [started, setStarted] = useState(false);
 
   const selectedUnit = useMemo(
     () => units?.find((unit) => unit.id === selectedUnitId) ?? null,
@@ -72,46 +73,71 @@ export default function MemoryGamePage(): ReactNode {
           setShowIntro(false);
         }}
       />
-      <div>
-        <button
-          onClick={(): void => { router.push("/dashboard/games"); }}
-          className="mb-2 flex items-center gap-1 text-sm text-neutral-500 transition-colors hover:text-primary-500"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          رجوع للألعاب
-        </button>
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/15 text-purple-500">
-            <Brain className="h-6 w-6" />
-          </span>
-          لعبة الذاكرة
-        </h1>
-        <p className="mt-2 text-sm text-neutral-500">
-          اختر وحدة، ثم اقلب البطاقات لتطابق كل كلمة إنجليزية مع معناها.
-        </p>
-      </div>
 
-      {isLoading && (
-        <div className="flex flex-col gap-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-40 w-full rounded-2xl" />
+      {!started ? (
+        <div className="flex flex-col gap-6">
+          <div>
+            <button
+              onClick={(): void => { router.push("/dashboard/games"); }}
+              className="mb-2 flex items-center gap-1 text-sm text-neutral-500 transition-colors hover:text-primary-500"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              رجوع للألعاب
+            </button>
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/15 text-purple-500">
+                <Brain className="h-6 w-6" />
+              </span>
+              لعبة الذاكرة
+            </h1>
+            <p className="mt-2 text-sm text-neutral-500">
+              اختر وحدة، ثم اقلب البطاقات لتطابق كل كلمة إنجليزية مع معناها.
+            </p>
+          </div>
+
+          {isLoading && (
+            <div className="flex flex-col gap-4">
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-40 w-full rounded-2xl" />
+            </div>
+          )}
+
+          {isError && (
+            <ErrorState title="فشل تحميل الوحدات" onRetry={(): void => { void refetch(); }} />
+          )}
+
+          {!isLoading && !isError && units?.length === 0 && (
+            <EmptyState
+              title="لا يوجد منهج متاح"
+              description="يتم إنشاء محتوى المنهج حالياً"
+              icon={<Brain className="h-16 w-16" />}
+            />
+          )}
+
+          {!isLoading && !isError && units && units.length > 0 && (
+            <UnitMapSelect
+              units={units}
+              selectedId={selectedUnitId}
+              onSelect={(id): void => {
+                setSelectedUnitId(id);
+                setRound(0);
+                setStarted(true);
+              }}
+            />
+          )}
         </div>
-      )}
-
-      {isError && (
-        <ErrorState title="فشل تحميل الوحدات" onRetry={(): void => { void refetch(); }} />
-      )}
-
-      {!isLoading && !isError && (
-        <>
-          <UnitMapSelect
-            units={units ?? []}
-            selectedId={selectedUnitId}
-            onSelect={(id): void => {
-              setSelectedUnitId(id);
-              setRound(0);
-            }}
-          />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={(): void => { setStarted(false); }}
+              className="flex items-center gap-1 text-sm text-neutral-500 transition-colors hover:text-primary-500"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              رجوع للوحدات
+            </button>
+            {selectedUnit && <Badge variant="secondary">{selectedUnit.title}</Badge>}
+          </div>
 
           {poolLoading && <Skeleton className="h-64 w-full rounded-2xl" />}
 
@@ -122,7 +148,7 @@ export default function MemoryGamePage(): ReactNode {
           {!poolLoading && !poolError && selectedUnit && words.length < 3 && (
             <EmptyState
               title="لا توجد كلمات كافية"
-              description="هذه الوحدة لا تحتوي على مفردات كافية لتشغيل لعبة الذاكرة. اختر وحدة أخرى."
+              description="هذه الوحدة لا تحتوي على مفردات كافية لتشغيل لعبة الذاكرة. اضغط رجوع واختر وحدة أخرى."
               icon={<Sparkles className="h-16 w-16" />}
             />
           )}
@@ -131,26 +157,17 @@ export default function MemoryGamePage(): ReactNode {
             <Card variant="elevated" padding="lg">
               <CardContent className="flex flex-col gap-4">
                 <div className="flex items-center justify-between gap-2">
-                  <Badge variant="secondary">{selectedUnit.title}</Badge>
                   <Badge variant="secondary">{words.length} أزواج</Badge>
+                  <Button variant="outline" size="sm" onClick={startRound}>
+                    <Shuffle className="ms-2 h-4 w-4" />
+                    إعادة الخلط
+                  </Button>
                 </div>
                 <MemoryGame key={round} words={words} />
-                <Button variant="outline" size="md" onClick={startRound} className="self-center">
-                  <Shuffle className="ms-2 h-4 w-4" />
-                  إعادة خلط البطاقات
-                </Button>
               </CardContent>
             </Card>
           )}
-
-          {!selectedUnit && (
-            <EmptyState
-              title="اختر وحدة للبدء"
-              description="اختر وحدة دراسية من الخريطة أعلاه لتجهيز كلمات اللعبة"
-              icon={<Brain className="h-16 w-16" />}
-            />
-          )}
-        </>
+        </div>
       )}
     </div>
   );

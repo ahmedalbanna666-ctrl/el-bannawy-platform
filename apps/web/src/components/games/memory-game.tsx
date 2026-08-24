@@ -131,7 +131,7 @@ export function MemoryGame({ words }: MemoryGameProps): ReactNode {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {cards.map((card) => {
           const isFlipped = flipped.has(card.id) || matched.has(card.pairId);
           const isWrong = wrongIds.has(card.id);
@@ -149,7 +149,7 @@ export function MemoryGame({ words }: MemoryGameProps): ReactNode {
                 }`}
               >
                 <div className="absolute inset-0 flex items-center justify-center rounded-xl border-2 border-neutral-200 bg-neutral-50 [backface-visibility:hidden] transition-colors duration-200 group-hover:border-primary-500/30 dark:border-neutral-700 dark:bg-neutral-800/50">
-                  <span className="text-lg font-bold text-neutral-400">?</span>
+                  <span className="text-2xl font-bold text-neutral-400">?</span>
                 </div>
                 <div
                   className={`absolute inset-0 flex items-center justify-center rounded-xl border-2 [backface-visibility:hidden] [transform:rotateY(180deg)] transition-colors duration-200 ${
@@ -160,7 +160,7 @@ export function MemoryGame({ words }: MemoryGameProps): ReactNode {
                 >
                   <span
                     dir="ltr"
-                    className={`break-words px-1.5 text-center text-[10px] font-semibold leading-tight sm:text-xs ${
+                    className={`break-words px-2 text-center text-base font-bold leading-tight sm:text-lg ${
                       isWrong
                         ? "text-danger-400"
                         : "text-neutral-900 dark:text-neutral-100"
