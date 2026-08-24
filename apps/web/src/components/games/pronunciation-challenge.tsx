@@ -109,7 +109,7 @@ export function PronunciationChallenge({
 
   useEffect(() => {
     if (finalTranscript && !listening && attemptScore === null && current) {
-      const score = pronunciationScore(current.word, finalTranscript);
+      const score = pronunciationScore(current.word, finalTranscript || transcript);
       setAttemptScore(score);
       setAnswered(true);
       setTotalScore((prev) => prev + score);
