@@ -1,11 +1,11 @@
 .heroGlow {
-  background: radial-gradient(60% 55% at 50% 38%, rgba(6, 182, 212, 0.18), transparent 70%);
+  background: radial-gradient(60% 55% at 50% 38%, rgba(6, 182, 212, 0.2), transparent 70%);
 }
 
 .gridOverlay {
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    linear-gradient(to right, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.12) 1px, transparent 1px);
   background-size: 46px 46px;
   -webkit-mask-image: radial-gradient(ellipse 75% 60% at 50% 30%, #000 25%, transparent 78%);
   mask-image: radial-gradient(ellipse 75% 60% at 50% 30%, #000 25%, transparent 78%);
