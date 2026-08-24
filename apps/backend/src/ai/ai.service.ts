@@ -8,6 +8,7 @@ import { AiProviderService, type ChatMessage } from "../ai-settings/providers/ai
 import { AiCostService } from "../ai-settings/providers/ai-cost.service";
 import { AiKnowledgeBaseService } from "../ai-knowledge-base/ai-knowledge-base.service";
 import type { SendMessageDto, CreateFeedbackDto, RegenerateMessageDto } from "./dto/ai.dto";
+import { isCoTDump } from "./cot-guard";
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_CONVERSATION_MESSAGES = 50;
@@ -499,13 +500,22 @@ export class AiService {
     const finalModel = this.config.ai.model;
 
     async function* stream(): AsyncGenerator<string> {
-      let usedProvider = false;
+      let produced = false;
+      let buffer = "";
       for await (const chunk of providerService.streamChat(messages, { maxTokens })) {
-        usedProvider = true;
+        buffer += chunk;
+        if (isCoTDump(buffer)) {
+          const fallback = ruleBasedResponse(sanitizedMessage, lessonContext, ragResults, studentName);
+          accumulated = fallback;
+          yield fallback;
+          produced = true;
+          return;
+        }
         accumulated += chunk;
         yield chunk;
+        produced = true;
       }
-      if (!usedProvider) {
+      if (!produced) {
         const fallback = ruleBasedResponse(sanitizedMessage, lessonContext, ragResults, studentName);
         accumulated = fallback;
         yield fallback;
@@ -838,7 +848,7 @@ export class AiService {
 
     try {
       const result = await this.providerService.chat(messages, { maxTokens });
-      if (result?.content) {
+      if (result?.content && !isCoTDump(result.content)) {
         return {
           content: this.redactOutput(result.content),
           provider: result.provider,

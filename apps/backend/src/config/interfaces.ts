@@ -58,6 +58,12 @@ export interface AiConfig {
   endpoint: string;
 }
 
+export interface OpenCodeConfig {
+  apiKey: string;
+  baseUrl: string;
+  defaultModel: string;
+}
+
 export interface FireAuthConfig {
   /** Whether Firebase Auth token verification is enabled (credentials present). */
   enabled: boolean;

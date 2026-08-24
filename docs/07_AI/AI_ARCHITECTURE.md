@@ -12,6 +12,7 @@ Client -> JWT -> AiController -> AiService -> Prisma conversation history
                                       |
                                       +-> AiProviderService (configurable providers, priority failover)
                                       |     +-> OpenAI / Gemini / Claude adapters
+                                      |     +-> OpenCode Zen adapter (OpenAI-compatible, `deepseek-v4-flash-free`)
                                       |     +-> SSE streaming
                                       |     +-> health probes
                                       +-> AiSettingsService

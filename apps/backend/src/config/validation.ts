@@ -74,6 +74,13 @@ export const validationSchema = Joi.object({
       otherwise: Joi.allow("").optional(),
     }),
 
+  OPENCODE_API_KEY: Joi.string().allow("").optional(),
+  OPENCODE_BASE_URL: Joi.string()
+    .uri()
+    .allow("")
+    .default("https://opencode.ai/zen/v1"),
+  OPENCODE_DEFAULT_MODEL: Joi.string().default("deepseek-v4-flash-free"),
+
   ZOOM_CLIENT_ID: Joi.string().allow("").optional(),
   ZOOM_CLIENT_SECRET: Joi.string().allow("").optional(),
   ZOOM_SDK_KEY: Joi.string().allow("").optional(),

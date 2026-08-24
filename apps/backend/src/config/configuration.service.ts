@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { AppConfig, AuthConfig, PaymentConfig, AiConfig, ZoomConfig, EmailConfig } from "./interfaces";
+import type { AppConfig, AuthConfig, PaymentConfig, AiConfig, OpenCodeConfig, ZoomConfig, EmailConfig } from "./interfaces";
 
 @Injectable()
 export class ConfigurationService {
@@ -87,6 +87,14 @@ export class ConfigurationService {
       apiKey: this.configService.get<string>("AI_API_KEY", ""),
       model: this.configService.get<string>("AI_MODEL", "gpt-4o-mini"),
       endpoint: this.configService.get<string>("AI_ENDPOINT", "https://api.openai.com/v1/chat/completions"),
+    };
+  }
+
+  get opencode(): OpenCodeConfig {
+    return {
+      apiKey: this.configService.get<string>("OPENCODE_API_KEY", ""),
+      baseUrl: this.configService.get<string>("OPENCODE_BASE_URL", "https://opencode.ai/zen/v1"),
+      defaultModel: this.configService.get<string>("OPENCODE_DEFAULT_MODEL", "deepseek-v4-flash-free"),
     };
   }
 

@@ -119,6 +119,7 @@ model User {
   referralsReceived           Referral[]         @relation("ReferralReferred")
   referralCampaignsCreated    ReferralCampaign[] @relation("ReferralCampaignCreator")
   referralCampaignViews       ReferralCampaignView[]
+  pronunciationAttempts       PronunciationAttempt[]
 
   @@index([mobileNumber])
   @@index([role])
@@ -135,6 +136,7 @@ model Session {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @db.Uuid
   token     String   @unique
+  deviceId  String?
   expiresAt DateTime
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -142,6 +144,7 @@ model Session {
   @@index([userId])
   @@index([token])
   @@index([expiresAt])
+  @@index([deviceId])
   @@map("sessions")
 }
 
@@ -1616,6 +1619,7 @@ model AiModelConfig {
   modelName         String
   apiKey            String
   baseUrl           String?
+  apiType           String    @default("OPENAI_COMPATIBLE_CHAT") // OPENAI_RESPONSES, OPENAI_COMPATIBLE_CHAT
   temperature       Float     @default(0.7)
   maxTokens         Int       @default(2000)
   timeout           Int       @default(30)
@@ -2676,4 +2680,44 @@ model UiConfig {
   updatedAt DateTime @updatedAt
 
   @@map("ui_config")
+}
+
+/// Records a student's spoken pronunciation attempt, scored by the self-hosted
+/// pronunciation engine (GOPT-based, with a local CPU fallback). Mirrors the
+/// aiScore/aiFeedback/aiDetails pattern used by HomeworkAnswer/QuizAnswer.
+model PronunciationAttempt {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  /// Expected text the student was asked to read/speak (phonemes resolved by the engine).
+  expectedText String
+  /// Transcript produced by the engine ASR stage (may differ from expected).
+  transcript   String?
+  /// Audio file storage key (bucket path / URL) for the recorded attempt.
+  audioUrl     String?
+  audioFormat  String?
+  durationMs   Int?
+  /// Overall pronunciation score (0-100), normalized by the engine.
+  overallScore Int?
+  /// Per-aspect scores (0-100): accuracy, fluency, prosody, completeness.
+  accuracy     Int?
+  fluency      Int?
+  prosody      Int?
+  completeness Int?
+  /// Engine that produced the result (e.g. "gopt", "local").
+  engine       String   @default("gopt")
+  /// Resolved phoneme sequence for the expected text.
+  phonemes     String?
+  /// Word-level feedback array (serialized).
+  wordFeedback Json?
+  /// Phoneme-level feedback array (serialized).
+  phonemeFeedback Json?
+  /// Raw engine payload for audit/tuning.
+  rawResult    Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@map("pronunciation_attempts")
 }

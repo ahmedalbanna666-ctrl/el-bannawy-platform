@@ -14,11 +14,22 @@ export interface ProviderConfig {
   modelName: string;
   apiKey: string;
   baseUrl: string | null;
+  apiType?: string;
   temperature: number;
   maxTokens: number;
   timeout: number;
   supportsStreaming: boolean;
 }
+
+/**
+ * OpenAI API contract types.
+ * - OPENAI_COMPATIBLE_CHAT: OpenAI Chat Completions (`POST {base}/chat/completions`), used by OpenAI, OpenCode Zen, and compatible gateways.
+ * - OPENAI_RESPONSES: OpenAI Responses API (`POST {base}/responses`).
+ */
+export const API_TYPE = {
+  OPENAI_RESPONSES: "OPENAI_RESPONSES",
+  OPENAI_COMPATIBLE_CHAT: "OPENAI_COMPATIBLE_CHAT",
+} as const;
 
 export interface ChatCompletionResult {
   content: string;
@@ -59,13 +70,26 @@ export class AiProviderService {
       where: { isActive: true, isEnabled: true },
       orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
     });
-    return configs.map((c) => ({ ...c, apiKey: this.encryption.decrypt(c.apiKey) }));
+    const result: ProviderConfig[] = [];
+    for (const c of configs) {
+      try {
+        result.push({ ...c, apiKey: this.encryption.decrypt(c.apiKey) });
+      } catch (err) {
+        this.logger.warn(`Skipping provider config ${c.provider}/${c.modelName}: cannot decrypt apiKey (${err instanceof Error ? err.message : "unknown error"})`);
+      }
+    }
+    return result;
   }
 
   async getProviderConfig(id: string): Promise<ProviderConfig | null> {
     const config = await this.prisma.aiModelConfig.findFirst({ where: { id } });
     if (!config) return null;
-    return { ...config, apiKey: this.encryption.decrypt(config.apiKey) };
+    try {
+      return { ...config, apiKey: this.encryption.decrypt(config.apiKey) };
+    } catch (err) {
+      this.logger.warn(`Provider config ${config.provider}/${config.modelName} apiKey cannot be decrypted (${err instanceof Error ? err.message : "unknown error"})`);
+      return null;
+    }
   }
 
   /**
@@ -123,6 +147,7 @@ export class AiProviderService {
         return this.callGemini(config, messages, options);
       case "CLAUDE":
         return this.callClaude(config, messages, options);
+      case "OPENCODE":
       case "OPENAI":
       default:
         return this.callOpenAi(config, messages, options);
@@ -134,7 +159,7 @@ export class AiProviderService {
     messages: ChatMessage[],
     options?: { temperature?: number; maxTokens?: number; signal?: AbortSignal },
   ): Promise<{ content: string; tokensIn?: number; tokensOut?: number; cachedReadTokens?: number; cachedWriteTokens?: number; streamed: boolean }> {
-    const endpoint = config.baseUrl ?? "https://api.openai.com/v1/chat/completions";
+    const endpoint = this.buildOpenAiEndpoint(config);
     const controller = new AbortController();
     const timeout = setTimeout(() => { controller.abort(); }, config.timeout * 1000);
     const signal = this.combineSignals(controller.signal, options?.signal);
@@ -147,14 +172,10 @@ export class AiProviderService {
           "Content-Type": "application/json",
           Authorization: `Bearer ${config.apiKey}`,
         },
-        body: JSON.stringify({
-          model: config.modelName,
-          messages,
-          temperature: options?.temperature ?? config.temperature,
-          max_tokens: options?.maxTokens ?? config.maxTokens,
-          stream: false,
-        }),
+        body: JSON.stringify(this.buildOpenAiRequestBody(config, messages, options, false)),
       });
+
+      this.logDevCall(config, endpoint, response, "POST");
 
       if (!response.ok) {
         const body = await response.text().catch(() => "");
@@ -180,6 +201,75 @@ export class AiProviderService {
       };
     } finally {
       clearTimeout(timeout);
+    }
+  }
+
+  /**
+   * Builds the final HTTP endpoint for an OpenAI-family provider.
+   *
+   * - OPENAI_COMPATIBLE_CHAT: the base URL is the API root, and the endpoint is `${base}/chat/completions`.
+   *   This covers OpenCode Zen (`https://opencode.ai/zen/v1` -> `https://opencode.ai/zen/v1/chat/completions`).
+   *   If the stored baseUrl already ends with `/chat/completions`, it is used as-is (backward compatible).
+   * - OPENAI_RESPONSES: endpoint is `${base}/responses`.
+   * - No baseUrl: falls back to the native OpenAI defaults.
+   */
+  private buildOpenAiEndpoint(config: ProviderConfig): string {
+    const apiType = config.apiType ?? API_TYPE.OPENAI_COMPATIBLE_CHAT;
+
+    if (apiType === API_TYPE.OPENAI_RESPONSES) {
+      const base = config.baseUrl ?? "https://api.openai.com/v1";
+      return this.joinUrl(base, "responses");
+    }
+
+    const base = config.baseUrl ?? "https://api.openai.com/v1";
+    if (base.endsWith("/chat/completions")) return base;
+    return this.joinUrl(base, "chat/completions");
+  }
+
+  private joinUrl(base: string, path: string): string {
+    const trimmedBase = base.replace(/\/+$/, "");
+    return `${trimmedBase}/${path}`;
+  }
+
+  private buildOpenAiRequestBody(
+    config: ProviderConfig,
+    messages: ChatMessage[],
+    options?: { temperature?: number; maxTokens?: number; signal?: AbortSignal },
+    stream = false,
+  ): Record<string, unknown> {
+    const apiType = config.apiType ?? API_TYPE.OPENAI_COMPATIBLE_CHAT;
+    if (apiType === API_TYPE.OPENAI_RESPONSES) {
+      return {
+        model: config.modelName,
+        input: messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        temperature: options?.temperature ?? config.temperature,
+        max_output_tokens: options?.maxTokens ?? config.maxTokens,
+        stream,
+      };
+    }
+    return {
+      model: config.modelName,
+      messages,
+      temperature: options?.temperature ?? config.temperature,
+      max_tokens: options?.maxTokens ?? config.maxTokens,
+      stream,
+    };
+  }
+
+  private logDevCall(
+    config: ProviderConfig,
+    endpoint: string,
+    response: { status: number; headers?: Headers },
+    method = "POST",
+  ): void {
+    if ((process.env.NODE_ENV ?? "development") !== "production") {
+      const contentType = response.headers?.get("content-type") ?? "";
+      this.logger.log(
+        `[AI Call] provider=${config.provider} baseUrl=${config.baseUrl ?? "(default)"} apiType=${config.apiType ?? "OPENAI_COMPATIBLE_CHAT"} model=${config.modelName} url=${endpoint} method=${method} http=${String(response.status)} contentType=${contentType}`,
+      );
     }
   }
 
@@ -335,6 +425,8 @@ export class AiProviderService {
       case "CLAUDE":
         yield* this.streamClaude(config, messages, options);
         return;
+      case "OPENCODE":
+      case "OPENAI":
       default:
         yield* this.streamOpenAi(config, messages, options);
     }
@@ -345,7 +437,7 @@ export class AiProviderService {
     messages: ChatMessage[],
     options?: { temperature?: number; maxTokens?: number; signal?: AbortSignal },
   ): AsyncGenerator<string> {
-    const endpoint = config.baseUrl ?? "https://api.openai.com/v1/chat/completions";
+    const endpoint = this.buildOpenAiEndpoint(config);
     const controller = new AbortController();
     const timeout = setTimeout(() => { controller.abort(); }, config.timeout * 1000);
     const signal = this.combineSignals(controller.signal, options?.signal);
@@ -358,14 +450,10 @@ export class AiProviderService {
           "Content-Type": "application/json",
           Authorization: `Bearer ${config.apiKey}`,
         },
-        body: JSON.stringify({
-          model: config.modelName,
-          messages,
-          temperature: options?.temperature ?? config.temperature,
-          max_tokens: options?.maxTokens ?? config.maxTokens,
-          stream: true,
-        }),
+        body: JSON.stringify(this.buildOpenAiRequestBody(config, messages, options, true)),
       });
+
+      this.logDevCall(config, endpoint, response, "POST");
 
       if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
       if (!response.body) throw new Error("No response body for streaming");

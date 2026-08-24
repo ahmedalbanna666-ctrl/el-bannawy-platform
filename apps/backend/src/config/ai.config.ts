@@ -36,5 +36,10 @@ export default registerAs("ai", () => {
     endpoint: process.env.AI_ENDPOINT ?? "https://api.openai.com/v1/chat/completions",
     prices: { ...DEFAULT_PRICES, ...customPrices },
     costCurrency: process.env.AI_COST_CURRENCY ?? "USD",
+    opencode: {
+      apiKey: process.env.OPENCODE_API_KEY ?? "",
+      baseUrl: process.env.OPENCODE_BASE_URL ?? "https://opencode.ai/zen/v1",
+      defaultModel: process.env.OPENCODE_DEFAULT_MODEL ?? "deepseek-v4-flash-free",
+    },
   };
 });

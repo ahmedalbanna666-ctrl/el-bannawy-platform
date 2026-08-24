@@ -138,6 +138,10 @@ export class CreateModelConfigDto {
   baseUrl?: string;
 
   @IsOptional()
+  @IsString()
+  apiType?: string;
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(2)
@@ -186,6 +190,10 @@ export class UpdateModelConfigDto {
   @IsOptional()
   @IsString()
   baseUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  apiType?: string;
 
   @IsOptional()
   @IsNumber()

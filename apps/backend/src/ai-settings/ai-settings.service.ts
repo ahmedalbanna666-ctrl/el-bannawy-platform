@@ -1,8 +1,9 @@
-﻿import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+﻿import { Injectable, NotFoundException, BadRequestException, Logger, type OnModuleInit } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EncryptionService } from "../common/services/encryption.service";
 import { CacheService } from "../common/services/cache.service";
+import { ConfigurationService } from "../config/configuration.service";
 import { AiProviderService } from "./providers/ai-provider.service";
 import {
   CreateTeachingStyleDto,
@@ -28,13 +29,20 @@ type StudentCreditsWithRelations = Prisma.StudentAiCreditsGetPayload<{
 type TeachingStyle = Prisma.AiTeachingStyleGetPayload<Record<string, never>>;
 
 @Injectable()
-export class AiSettingsService {
+export class AiSettingsService implements OnModuleInit {
+  private readonly logger = new Logger(AiSettingsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
     private readonly providerService: AiProviderService,
     private readonly cache: CacheService,
+    private readonly config: ConfigurationService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.bootstrapOpenCodeProvider();
+  }
 
   // ---------- Teaching styles ----------
 
@@ -121,6 +129,7 @@ export class AiSettingsService {
         modelName: dto.modelName,
         apiKey: encryptedApiKey ?? "",
         baseUrl: dto.baseUrl,
+        apiType: dto.apiType ?? "OPENAI_COMPATIBLE_CHAT",
         temperature: dto.temperature ?? 0.7,
         maxTokens: dto.maxTokens ?? 2000,
         timeout: dto.timeout ?? 30,
@@ -145,6 +154,7 @@ export class AiSettingsService {
       provider: dto.provider,
       modelName: dto.modelName,
       baseUrl: dto.baseUrl,
+      apiType: dto.apiType,
       temperature: dto.temperature,
       maxTokens: dto.maxTokens,
       timeout: dto.timeout,
@@ -173,13 +183,65 @@ export class AiSettingsService {
     return configs.map((c) => this.toSafeModelConfig(c));
   }
 
-  async getActiveModelConfig(): Promise<{ apiKey: string; modelName: string; provider: string; baseUrl: string | null; maxTokens: number; temperature: number; timeout: number } | null> {
-    const config = await this.prisma.aiModelConfig.findFirst({ where: { isActive: true, isEnabled: true } });
+  /**
+   * Registers the OpenCode Zen provider (DeepSeek V4 Flash Free) from environment
+   * configuration into the database-driven AI model config registry.
+   *
+   * This is idempotent and only acts when `OPENCODE_API_KEY` is set. The API key is
+   * encrypted at rest using the platform's EncryptionService and is never exposed.
+   * The stored baseUrl is the API root; the OpenAI-compatible provider layer appends
+   * `/chat/completions` at request time.
+   */
+  async bootstrapOpenCodeProvider(): Promise<void> {
+    const opencode = this.config.opencode;
+    if (!opencode.apiKey) {
+      this.logger.log("OPENCODE_API_KEY not set — skipping OpenCode provider bootstrap");
+      return;
+    }
+
+    const existing = await this.prisma.aiModelConfig.findFirst({
+      where: { provider: "opencode", modelName: opencode.defaultModel },
+    });
+
+    const encryptedKey = this.encryption.encrypt(opencode.apiKey);
+    const data = {
+      provider: "opencode",
+      modelName: opencode.defaultModel,
+      apiKey: encryptedKey,
+      baseUrl: opencode.baseUrl,
+      apiType: "OPENAI_COMPATIBLE_CHAT",
+      temperature: 0.7,
+      maxTokens: 2000,
+      timeout: 30,
+      isEnabled: true,
+      supportsStreaming: true,
+    } as const;
+
+    if (existing) {
+      await this.prisma.aiModelConfig.update({ where: { id: existing.id }, data });
+      this.logger.log(`OpenCode provider config updated (${opencode.defaultModel})`);
+    } else {
+      await this.prisma.aiModelConfig.create({
+        data: { ...data, isActive: false },
+      });
+      this.logger.log(`OpenCode provider config created (${opencode.defaultModel})`);
+    }
+  }
+
+  async getActiveModelConfig(): Promise<{ apiKey: string; modelName: string; provider: string; baseUrl: string | null; apiType: string; maxTokens: number; temperature: number; timeout: number } | null> {
+    const config = await this.prisma.aiModelConfig.findFirst({
+      where: { isActive: true, isEnabled: true },
+      orderBy: { priority: "asc" },
+    });
     if (!config) return null;
-    return {
-      ...config,
-      apiKey: config.apiKey ? this.encryption.decrypt(config.apiKey) : "",
-    };
+    try {
+      return {
+        ...config,
+        apiKey: config.apiKey ? this.encryption.decrypt(config.apiKey) : "",
+      };
+    } catch {
+      return null;
+    }
   }
 
   private toSafeModelConfig(config: {
@@ -924,6 +986,8 @@ export class AiSettingsService {
         id: p.id,
         provider: p.provider,
         modelName: p.modelName,
+        baseUrl: p.baseUrl,
+        apiType: p.apiType,
         isActive: p.isActive,
         isEnabled: p.isEnabled,
         priority: p.priority,
@@ -937,6 +1001,7 @@ export class AiSettingsService {
             provider: activeProvider.provider,
             modelName: activeProvider.modelName,
             baseUrl: activeProvider.baseUrl,
+            apiType: activeProvider.apiType,
             isActive: activeProvider.isActive,
             isEnabled: activeProvider.isEnabled,
             priority: activeProvider.priority,
