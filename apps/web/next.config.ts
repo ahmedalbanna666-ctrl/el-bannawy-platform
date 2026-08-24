@@ -11,11 +11,6 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        source: "/",
-        destination: "/login",
-        permanent: false,
-      },
-      {
         source: "/logo.png",
         destination: "/icons/icon-192.png",
         permanent: true,

@@ -68,7 +68,7 @@ export class DeviceConfirmationError extends Error {
   }
 }
 
-const PUBLIC_PATHS = ["/certificates/verify"];
+const PUBLIC_PATHS = ["/certificates/verify", "/"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
