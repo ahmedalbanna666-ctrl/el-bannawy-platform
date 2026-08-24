@@ -14,6 +14,7 @@ import {
   Headphones,
   ShieldCheck,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import styles from "./home.module.css";
 
 const FEATURES = [
@@ -63,12 +64,15 @@ export default function HomePage(): ReactNode {
             </span>
             <span className="text-lg font-bold text-neutral-900 dark:text-white">منصة البناوي</span>
           </Link>
-          <Link
-            href="/login"
-            className="rounded-xl border border-neutral-200 px-4 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-white/10 dark:text-white/80 dark:hover:bg-white/5"
-          >
-            دخول
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link
+              href="/login"
+              className="rounded-xl border border-neutral-200 px-4 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-white/10 dark:text-white/80 dark:hover:bg-white/5"
+            >
+              دخول
+            </Link>
+          </div>
         </header>
 
         <section className="mx-auto flex max-w-3xl flex-col items-center py-14 text-center lg:py-20">

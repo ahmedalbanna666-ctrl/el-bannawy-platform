@@ -23,7 +23,6 @@ function getInitialTheme(): Theme {
   if (typeof window === "undefined") return "dark";
   const stored = localStorage.getItem("el-bannawy-theme") as Theme | null;
   if (stored === "light" || stored === "dark") return stored;
-  if (window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
   return "dark";
 }
 
