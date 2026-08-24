@@ -36,7 +36,7 @@ const GAMES: GameCardData[] = [
     title: "تحدي الاستماع",
     description:
       "اسمع الكلمة الإنجليزية واختر معناها الصحيح من بين الخيارات. طوّر مهارة الفهم السمعي لديك.",
-    icon: <Volume2 className="h-8 w-8" />,
+    icon: <Volume2 className="h-7 w-7 sm:h-8 sm:w-8" />,
     href: "/dashboard/games/listening-challenge",
     soon: false,
     accent: "from-primary-500 to-secondary-600",
@@ -50,7 +50,7 @@ const GAMES: GameCardData[] = [
     title: "تحدي النطق",
     description:
       "انطق الكلمة الظاهرة أمامك وليكشف النظام دقة نطقك ويحفّزك بمكافآت XP وعملات.",
-    icon: <Mic className="h-8 w-8" />,
+    icon: <Mic className="h-7 w-7 sm:h-8 sm:w-8" />,
     href: "/dashboard/games/pronunciation-challenge",
     soon: false,
     accent: "from-warning-500 to-rose-500",
@@ -63,7 +63,7 @@ const GAMES: GameCardData[] = [
     key: "memory",
     title: "لعبة الذاكرة",
     description: "قلّب البطاقات وطابق كل كلمة إنجليزية مع معناها. قوّي ذاكرتك ووسّع مفرداتك.",
-    icon: <Brain className="h-8 w-8" />,
+    icon: <Brain className="h-7 w-7 sm:h-8 sm:w-8" />,
     href: "/dashboard/games/memory",
     soon: false,
     accent: "from-purple-500 to-primary-600",
@@ -114,22 +114,24 @@ export default function GamesHubPage(): ReactNode {
               }`}
             >
               <div className={`h-1.5 w-full bg-gradient-to-r ${game.accent}`} />
-              <CardContent className="flex flex-1 flex-col gap-4 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${game.iconBg}`}>
+              <CardContent className="flex flex-1 flex-col gap-3 p-4 sm:gap-4 sm:p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${game.iconBg} sm:h-14 sm:w-14`}>
                     {game.icon}
                   </div>
-                  <Badge variant={game.tagVariant}>{game.tag}</Badge>
+                  <Badge variant={game.tagVariant} className="max-w-[55%] truncate text-[11px] sm:text-xs">
+                    {game.tag}
+                  </Badge>
                 </div>
                 <div className="flex flex-1 flex-col gap-1">
-                  <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+                  <h2 className="text-base font-bold leading-snug text-neutral-900 dark:text-neutral-100 sm:text-lg">
                     {game.title}
                   </h2>
                 </div>
 
-                <div className="flex items-center justify-between text-xs font-semibold text-neutral-400">
-                  <span>{game.stat}</span>
-                  <span className="flex items-center gap-1 text-success-600 dark:text-success-400">
+                <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-neutral-400 sm:text-xs">
+                  <span className="truncate">{game.stat}</span>
+                  <span className="flex shrink-0 items-center gap-1 text-success-600 dark:text-success-400">
                     <Trophy className="h-3.5 w-3.5" />
                     ممتع وتعليمي
                   </span>
