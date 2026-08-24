@@ -65,7 +65,7 @@ export const QuestionCard = memo(function QuestionCard({
               ) : null;
             })()}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 leading-relaxed max-md:text-[clamp(0.8125rem,3.6vw,0.875rem)]" dir="auto">
+              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 leading-relaxed max-md:text-[clamp(0.8125rem,3.6vw,0.875rem)]" dir="ltr">
                 {renderQuestionText(question.question)}
               </p>
             </div>

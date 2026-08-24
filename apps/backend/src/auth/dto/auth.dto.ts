@@ -100,6 +100,10 @@ export class FirebaseLoginDto {
   idToken!: string;
 
   @IsOptional()
+  @IsString()
+  deviceId?: string;
+
+  @IsOptional()
   @IsBoolean()
   rememberMe?: boolean;
 }
@@ -112,6 +116,10 @@ export class LoginDto {
   @IsOptional()
   @IsString()
   mobile?: string;
+
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
 
   @IsString()
   password!: string;

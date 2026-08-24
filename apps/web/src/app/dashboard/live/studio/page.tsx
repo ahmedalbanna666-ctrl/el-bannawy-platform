@@ -35,8 +35,14 @@ import {
   StudioSkeleton,
 } from "@/components/live/studio/studio-shell";
 import { LiveCountdown } from "@/components/live/live-countdown";
-import { EditSessionDialog } from "@/components/live/edit-session-dialog";
-import { SessionDetailDialog } from "@/components/live/studio/session-detail-dialog";
+import dynamic from "next/dynamic";
+
+const EditSessionDialog = dynamic(
+  () => import("@/components/live/edit-session-dialog").then((m) => m.EditSessionDialog),
+);
+const SessionDetailDialog = dynamic(
+  () => import("@/components/live/studio/session-detail-dialog").then((m) => m.SessionDetailDialog),
+);
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuthStore } from "@/lib/auth-store";
 import {

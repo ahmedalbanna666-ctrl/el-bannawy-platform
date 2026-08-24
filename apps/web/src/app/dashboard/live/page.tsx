@@ -13,7 +13,11 @@ import {
 } from "@/components/live/live-session-card";
 import { ProductCard } from "@/components/live/product-card";
 import { MyBookingsTabs } from "@/components/live/my-bookings-tabs";
-import { JoinLiveSessionModal } from "@/components/live/join-live-session-modal";
+import dynamic from "next/dynamic";
+
+const JoinLiveSessionModal = dynamic(
+  () => import("@/components/live/join-live-session-modal").then((m) => m.JoinLiveSessionModal),
+);
 import { LiveEmpty } from "@/components/live/live-empty";
 import {
   useLiveSubscriptions,

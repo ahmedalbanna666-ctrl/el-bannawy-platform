@@ -18,7 +18,12 @@ import { SummaryCard, SummaryRow } from "@/components/live/summary-card";
 import { LiveEmpty } from "@/components/live/live-empty";
 import { cn } from "@/lib/utils";
 import { formatAmPm } from "@/lib/live-format";
-import { LiveCheckoutDialog, type LiveCheckoutDialogProps } from "@/components/live/live-checkout-dialog";
+import { type LiveCheckoutDialogProps } from "@/components/live/live-checkout-dialog";
+import dynamic from "next/dynamic";
+
+const LiveCheckoutDialog = dynamic(
+  () => import("@/components/live/live-checkout-dialog").then((m) => m.LiveCheckoutDialog),
+);
 
 const STEPS = [
   { key: "package", label: "اختر الخطة" },

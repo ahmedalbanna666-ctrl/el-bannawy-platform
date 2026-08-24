@@ -9,7 +9,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { UnitLockOverlay } from "@/components/coins/unit-lock-overlay";
-import { CertificateModal } from "@/components/certificates/certificate-modal";
+import dynamic from "next/dynamic";
+
+const CertificateModal = dynamic(
+  () => import("@/components/certificates/certificate-modal").then((m) => m.CertificateModal),
+);
 import {
   fetchCertificates,
   type UnitCertificate,

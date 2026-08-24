@@ -51,6 +51,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-elbannawy}:${POSTGRES_PASSWORD:-elbannawy_dev}@postgres:5432/${POSTGRES_DB:-elbannawy_platform}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      PRONUNCIATION_ENGINE_URL: http://ml-pronunciation:8000
       JWT_SECRET: ${JWT_SECRET:-production-secret-change-me}
       JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
@@ -60,6 +61,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ml-pronunciation:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/api/v1/home/health"]
       interval: 30s
@@ -108,8 +111,32 @@ services:
     depends_on:
       - backend
 
+  ml-pronunciation:
+    build:
+      context: ./apps/pronunciation-engine
+      dockerfile: Dockerfile
+    container_name: el-bannawy-ml-pronunciation
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      PRONUNCIATION_ENGINE_URL: http://ml-pronunciation:8000
+      PRONUNCIATION_ENGINE_TOKEN: ${PRONUNCIATION_ENGINE_TOKEN:-}
+      PRONUNCIATION_DEVICE: ${PRONUNCIATION_DEVICE:-cpu}
+      GOPT_MODEL_PATH: ${GOPT_MODEL_PATH:-}
+      LOCAL_MODEL_SIZE: ${LOCAL_MODEL_SIZE:-base}
+      PORT: 8000
+    volumes:
+      - ./apps/pronunciation-engine/models:/app/models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/internal/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
 volumes:
   postgres_data:
   redis_data:
   prometheus_data:
   grafana_data:
+  ml_models:

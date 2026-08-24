@@ -49,6 +49,7 @@ export interface PendingLoginData {
   role: string;
   rememberMe: boolean;
   oldSessionIds: string[];
+  deviceId: string | null;
   expiresAt: Date;
 }
 
@@ -239,7 +240,7 @@ export class AuthService {
     }
 
     const tokenExpiry = dto.rememberMe ? ACCESS_TOKEN_REMEMBER_ME_EXPIRY : ACCESS_TOKEN_EXPIRY;
-    return this.generateTokens(user.id, user.role, tokenExpiry);
+    return this.generateTokens(user.id, user.role, tokenExpiry, dto.deviceId ?? null);
   }
 
   private async sendVerificationCode(userId: string, email: string): Promise<void> {
@@ -326,9 +327,28 @@ export class AuthService {
     await this.logLoginAttempt(user.id, ipAddress, userAgent, true, null);
 
     // ── Single-session enforcement for STUDENT role ──────────────
+    // Only treat sessions on a DIFFERENT device as a conflict. A session
+    // belonging to the same device (matched by deviceId) is the current
+    // device's own prior session and must not trigger the dialog.
+    const deviceId = dto.deviceId ?? null;
     if (user.role === "STUDENT") {
       const activeSessions = await this.prisma.session.findMany({
-        where: { userId: user.id, expiresAt: { gt: new Date() } },
+        where: {
+          userId: user.id,
+          expiresAt: { gt: new Date() },
+          // Treat only sessions on a DIFFERENT, tagged device as a conflict.
+          // The current device's own session (matched by deviceId) and any
+          // untagged/legacy session are ignored so same-device re-login does
+          // not prompt the "logout from other device" dialog.
+          ...(deviceId
+            ? {
+                AND: [
+                  { deviceId: { not: deviceId } },
+                  { deviceId: { not: null } },
+                ],
+              }
+            : {}),
+        },
         select: { id: true },
       });
       if (activeSessions.length > 0) {
@@ -338,15 +358,22 @@ export class AuthService {
           role: user.role,
           rememberMe: !!dto.rememberMe,
           oldSessionIds: activeSessions.map((s) => s.id),
+          deviceId,
           expiresAt: new Date(Date.now() + PENDING_LOGIN_TTL_MS),
         });
         return { requiresConfirmation: true, confirmToken } as unknown as IAuthTokens;
+      }
+      // No other-device session — supersede the same-device prior session.
+      if (deviceId) {
+        await this.prisma.session.deleteMany({
+          where: { userId: user.id, deviceId },
+        });
       }
     }
     // ─────────────────────────────────────────────────────────────
 
     const tokenExpiry = dto.rememberMe ? ACCESS_TOKEN_REMEMBER_ME_EXPIRY : ACCESS_TOKEN_EXPIRY;
-    return this.generateTokens(user.id, user.role, tokenExpiry);
+    return this.generateTokens(user.id, user.role, tokenExpiry, deviceId);
   }
 
   async logout(userId: string, _token: string): Promise<void> {
@@ -540,6 +567,13 @@ export class AuthService {
     await this.prisma.session.deleteMany({
       where: { id: { in: pending.oldSessionIds } },
     });
+    // Also drop any earlier session from the SAME device (the current device's
+    // own prior session) so each device keeps a single clean session.
+    if (pending.deviceId) {
+      await this.prisma.session.deleteMany({
+        where: { userId: pending.userId, deviceId: pending.deviceId },
+      });
+    }
     await this.prisma.refreshToken.updateMany({
       where: { userId: pending.userId, revokedAt: null },
       data: { revokedAt: new Date() },
@@ -548,7 +582,7 @@ export class AuthService {
     const tokenExpiry = pending.rememberMe
       ? ACCESS_TOKEN_REMEMBER_ME_EXPIRY
       : ACCESS_TOKEN_EXPIRY;
-    return this.generateTokens(pending.userId, pending.role, tokenExpiry);
+    return this.generateTokens(pending.userId, pending.role, tokenExpiry, pending.deviceId);
   }
 
   cancelNewDevice(confirmToken: string): Promise<void> {
@@ -819,6 +853,7 @@ export class AuthService {
     userId: string,
     role: string,
     accessTokenExpiry: number = ACCESS_TOKEN_EXPIRY,
+    deviceId?: string | null,
   ): Promise<IAuthTokens> {
     const sessionExpiresAt = new Date(
       Date.now() + REFRESH_TOKEN_EXPIRY * 1000,
@@ -827,6 +862,7 @@ export class AuthService {
       data: {
         userId,
         token: uuidv4(),
+        deviceId: deviceId ?? null,
         expiresAt: sessionExpiresAt,
       },
     });

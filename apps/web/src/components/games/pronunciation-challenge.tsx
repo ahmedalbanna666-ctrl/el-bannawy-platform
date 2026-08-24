@@ -3,9 +3,14 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useCurriculumUnits, useUnitVocabulary } from "@/lib/games/use-games-data";
 import { useGameSettings } from "@/lib/games/settings";
-import { pickWordPairs, pronunciationScore } from "@/lib/games/question-engine";
+import { pickWordPairs } from "@/lib/games/question-engine";
 import type { GameWord, PronunciationQuestion } from "@/lib/games/types";
-import { useSpeechRecognition } from "@/lib/games/use-speech-recognition";
+import { useAudioRecorder } from "@/lib/games/use-audio-recorder";
+import { assessPronunciation } from "@/lib/games/pronunciation-api";
+import type {
+  PronunciationAssessmentResult,
+  WordAssessment,
+} from "@/lib/games/pronunciation-types";
 import { UnitMapSelect } from "@/components/games/unit-map-select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +32,8 @@ import {
   Award,
   Coins,
   MicOff,
+  Volume2,
+  Loader2,
 } from "lucide-react";
 
 type Phase = "select" | "playing" | "result";
@@ -37,21 +44,41 @@ interface PronunciationChallengeProps {
   words?: readonly GameWord[];
 }
 
+function useSpeak(): (text: string) => void {
+  return useCallback((text: string): void => {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 0.9;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }, []);
+}
+
+function scoreColor(score: number): string {
+  if (score >= 80) return "text-success-600 dark:text-success-400";
+  if (score >= 60) return "text-warning-600 dark:text-warning-400";
+  return "text-danger-600 dark:text-danger-400";
+}
+
+function AspectBar({ label, value }: { label: string; value: number }): ReactNode {
+  return (
+    <div className="rounded-xl bg-neutral-100 p-3 dark:bg-neutral-700/50">
+      <p className={`text-xl font-black ${scoreColor(value)}`}>{String(value)}</p>
+      <p className="text-[11px] text-neutral-500">{label}</p>
+    </div>
+  );
+}
+
 export function PronunciationChallenge({
   unitId: forcedUnitId,
   words: lessonWords,
 }: PronunciationChallengeProps): ReactNode {
   const { settings } = useGameSettings();
-  const {
-    supported,
-    listening,
-    transcript,
-    finalTranscript,
-    error: speechError,
-    start,
-    stop,
-    reset,
-  } = useSpeechRecognition();
+  const recorder = useAudioRecorder();
+  const speak = useSpeak();
+
   const { data: units, isLoading, isError, refetch } = useCurriculumUnits();
   const isLessonMode = lessonWords !== undefined;
 
@@ -61,7 +88,10 @@ export function PronunciationChallenge({
   );
   const [questions, setQuestions] = useState<PronunciationQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [attemptScore, setAttemptScore] = useState<number | null>(null);
+  const [attemptResult, setAttemptResult] =
+    useState<PronunciationAssessmentResult | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [assessError, setAssessError] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
   const [rewardsXp, setRewardsXp] = useState(0);
   const [rewardsCoins, setRewardsCoins] = useState(0);
@@ -94,7 +124,8 @@ export function PronunciationChallenge({
     const generated = pickWordPairs(pool, config.questionsPerRound);
     setQuestions(generated);
     setCurrentIndex(0);
-    setAttemptScore(null);
+    setAttemptResult(null);
+    setAssessError(null);
     setAnswered(false);
     setRewardsXp(0);
     setRewardsCoins(0);
@@ -106,54 +137,74 @@ export function PronunciationChallenge({
 
   const current = questions[currentIndex] as PronunciationQuestion | undefined;
   const isLast = currentIndex === questions.length - 1;
+  const attemptScore = attemptResult ? attemptResult.overallScore : null;
 
+  // Upload the recorded audio to the self-hosted pronunciation engine and
+  // store the structured result when recording finishes.
   useEffect(() => {
-    if (finalTranscript && !listening && attemptScore === null && current) {
-      const score = pronunciationScore(current.word, finalTranscript || transcript);
-      setAttemptScore(score);
-      setAnswered(true);
-      setTotalScore((prev) => prev + score);
-      setResolvedCount((prev) => prev + 1);
-      if (score >= config.threshold) {
-        setRewardsXp((prev) => prev + config.xpReward);
-        setRewardsCoins((prev) => prev + config.coinReward);
-      }
-    }
-  }, [finalTranscript, listening, attemptScore, current, config]);
+    if (!recorder.result || attemptResult || !current) return;
+    let cancelled = false;
+    setUploading(true);
+    setAssessError(null);
+    assessPronunciation(recorder.result.blob, current.word)
+      .then((res) => {
+        if (cancelled) return;
+        setAttemptResult(res);
+        setAnswered(true);
+        setTotalScore((prev) => prev + res.overallScore);
+        setResolvedCount((prev) => prev + 1);
+        if (res.overallScore >= config.threshold) {
+          setRewardsXp((prev) => prev + config.xpReward);
+          setRewardsCoins((prev) => prev + config.coinReward);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setAssessError(err instanceof Error ? err.message : "حدث خطأ أثناء التقييم");
+      })
+      .finally(() => {
+        if (!cancelled) setUploading(false);
+      });
+    return (): void => {
+      cancelled = true;
+    };
+  }, [recorder.result, attemptResult, current, config]);
 
   const handleSpeak = useCallback((): void => {
-    reset();
-    setAttemptScore(null);
+    recorder.reset();
+    setAttemptResult(null);
+    setAssessError(null);
     setAnswered(false);
-    start();
-  }, [reset, start]);
+    void recorder.start();
+  }, [recorder]);
 
   const handleSkip = useCallback((): void => {
-    stop();
-    reset();
-    setAttemptScore(null);
+    recorder.reset();
+    setAttemptResult(null);
+    setAssessError(null);
     setAnswered(true);
     setSkippedCount((prev) => prev + 1);
-  }, [stop, reset]);
+  }, [recorder]);
 
   const handleNext = useCallback((): void => {
-    stop();
-    reset();
-    setAttemptScore(null);
+    recorder.reset();
+    setAttemptResult(null);
+    setAssessError(null);
     setAnswered(false);
     if (isLast) {
       setPhase("result");
       return;
     }
     setCurrentIndex((prev) => prev + 1);
-  }, [stop, reset, isLast]);
+  }, [recorder, isLast]);
 
   const restart = useCallback((): void => {
     if (!pool) return;
     const generated = pickWordPairs(pool, config.questionsPerRound);
     setQuestions(generated);
     setCurrentIndex(0);
-    setAttemptScore(null);
+    setAttemptResult(null);
+    setAssessError(null);
     setAnswered(false);
     setRewardsXp(0);
     setRewardsCoins(0);
@@ -169,7 +220,8 @@ export function PronunciationChallenge({
     const generated = pickWordPairs(lessonWords, config.questionsPerRound);
     setQuestions(generated);
     setCurrentIndex(0);
-    setAttemptScore(null);
+    setAttemptResult(null);
+    setAssessError(null);
     setAnswered(false);
     setRewardsXp(0);
     setRewardsCoins(0);
@@ -284,10 +336,10 @@ export function PronunciationChallenge({
               </div>
             )}
 
-            {!supported && (
+            {!recorder.supported && (
               <div className="flex items-center gap-2 rounded-xl bg-warning-500/10 p-3 text-sm text-warning-600 dark:text-warning-400">
                 <MicOff className="h-4 w-4 shrink-0" />
-                متصفحك لا يدعم التعرف على الصوت، يمكنك المرور على الكلمات بدون نطق.
+                متصفحك لا يدعم تسجيل الصوت، يمكنك المرور على الكلمات بدون نطق.
               </div>
             )}
 
@@ -320,9 +372,7 @@ export function PronunciationChallenge({
             <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
               أحسنت!
             </h2>
-            <p className="text-sm text-neutral-500">
-              أكملت تحدي النطق
-            </p>
+            <p className="text-sm text-neutral-500">أكملت تحدي النطق</p>
             <div className="grid w-full grid-cols-3 gap-3">
               <div className="rounded-xl bg-neutral-100 p-3 dark:bg-neutral-700/50">
                 <p className="text-2xl font-black text-primary-500">
@@ -389,8 +439,9 @@ export function PronunciationChallenge({
         <button
           type="button"
           onClick={() => {
-            if (listening) stop();
-            reset();
+            if (recorder.recording) recorder.stop();
+            recorder.reset();
+            setAttemptResult(null);
             setPhase("select");
           }}
           className="flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -420,55 +471,73 @@ export function PronunciationChallenge({
       <Card variant="elevated" padding="lg">
         <CardContent className="flex flex-col items-center gap-4">
           <Badge variant="warning">المفردات</Badge>
-          <p
-            dir="ltr"
-            className="text-4xl font-black tracking-wide text-neutral-900 dark:text-neutral-100"
-          >
-            {current.word}
-          </p>
+          <div className="flex items-center gap-2">
+            <p
+              dir="ltr"
+              className="text-4xl font-black tracking-wide text-neutral-900 dark:text-neutral-100"
+            >
+              {current.word}
+            </p>
+            <button
+              type="button"
+              onClick={() => { speak(current.word); }}
+              aria-label="استمع للنطق الصحيح"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-500/10 text-primary-600 hover:bg-primary-500/20"
+            >
+              <Volume2 className="h-4 w-4" />
+            </button>
+          </div>
           <p className="text-center text-xs text-neutral-400">
             حد الأدنى للنجاح {String(config.threshold)}%
           </p>
 
-          {supported ? (
+          {recorder.supported ? (
             <>
               <button
                 type="button"
-                onClick={handleSpeak}
-                disabled={listening}
-                aria-label="انطق الكلمة"
+                onClick={recorder.recording ? recorder.stop : handleSpeak}
+                disabled={uploading}
+                aria-label="سجّل نطقك"
                 className={`relative flex h-24 w-24 items-center justify-center rounded-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning-500 focus-visible:ring-offset-2 ${
-                  listening
+                  recorder.recording
                     ? "scale-105 bg-danger-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)]"
                     : "bg-warning-500/10 text-warning-500 hover:bg-warning-500/20"
-                } ${listening ? "cursor-not-allowed" : ""}`}
+                }`}
               >
-                <Mic className="h-10 w-10" />
-                {listening && (
+                {uploading ? (
+                  <Loader2 className="h-10 w-10 animate-spin" />
+                ) : (
+                  <Mic className="h-10 w-10" />
+                )}
+                {recorder.recording && (
                   <span className="absolute inset-0 animate-ping rounded-full bg-danger-400/40" />
                 )}
               </button>
 
               <p className="text-sm text-neutral-500">
-                {listening ? "يتنصت..." : "اضغط وانطق الكلمة بوضوح"}
+                {recorder.recording
+                  ? `يُسجّل... ${(recorder.durationMs / 1000).toFixed(1)}s`
+                  : uploading
+                    ? "جاري التقييم..."
+                    : "اضغط وانطق الكلمة بوضوح"}
               </p>
 
-              {speechError && (
-                <p className="text-xs text-danger-500">
-                  {speechError === "not-allowed"
-                    ? "تم رفض الوصول للميكروفون"
-                    : speechError === "no-speech"
-                      ? "لم نسمع كلاماً واضحاً، حاول مرة أخرى"
-                      : speechError === "network"
-                        ? "خطأ في التعرف على الصوت، حاول مرة أخرى"
-                        : `تعذر التعرف على الصوت: ${speechError}`}
-                </p>
+              {recorder.error && (
+                <p className="text-xs text-danger-500">{recorder.error}</p>
               )}
 
-              {transcript && (
-                <p dir="ltr" className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
-                  {transcript}
-                </p>
+              {assessError && (
+                <p className="text-xs text-danger-500">{assessError}</p>
+              )}
+
+              {recorder.recording && (
+                <button
+                  type="button"
+                  onClick={recorder.stop}
+                  className="text-xs font-semibold text-danger-500"
+                >
+                  إيقاف التسجيل
+                </button>
               )}
             </>
           ) : (
@@ -477,7 +546,7 @@ export function PronunciationChallenge({
                 <MicOff className="h-9 w-9" />
               </div>
               <p className="text-sm text-neutral-500">
-                متصفحك لا يدعم التعرف على الصوت
+                متصفحك لا يدعم تسجيل الصوت
               </p>
               <p className="rounded-xl bg-neutral-100 p-3 text-sm font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
                 المعنى: {current.translation}
@@ -485,32 +554,68 @@ export function PronunciationChallenge({
             </div>
           )}
 
-          {answered && attemptScore !== null && (
-            <div
-              className={`flex w-full items-center gap-2 rounded-xl p-3 text-sm font-semibold ${
-                passed
-                  ? "bg-success-500/10 text-success-600"
-                  : "bg-danger-500/10 text-danger-600"
-              }`}
-            >
-              {passed ? (
-                <CheckCircle2 className="h-4 w-4" />
-              ) : (
-                <XCircle className="h-4 w-4" />
-              )}
-              <span>دقتك: {String(attemptScore)}%</span>
-              {passed && (
-                <span className="ms-auto flex items-center gap-3 font-bold">
-                  <span className="flex items-center gap-1">
-                    <Award className="h-3.5 w-3.5" />
-                    +{String(config.xpReward)} XP
+          {answered && attemptResult && (
+            <div className="flex w-full flex-col gap-3">
+              <div
+                className={`flex w-full items-center gap-2 rounded-xl p-3 text-sm font-semibold ${
+                  passed
+                    ? "bg-success-500/10 text-success-600"
+                    : "bg-danger-500/10 text-danger-600"
+                }`}
+              >
+                {passed ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                <span>درجتك العامة: {String(attemptScore)}%</span>
+                {passed && (
+                  <span className="ms-auto flex items-center gap-3 font-bold">
+                    <span className="flex items-center gap-1">
+                      <Award className="h-3.5 w-3.5" />
+                      +{String(config.xpReward)} XP
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Coins className="h-3.5 w-3.5" />
+                      +{String(config.coinReward)}
+                    </span>
                   </span>
-                  <span className="flex items-center gap-1">
-                    <Coins className="h-3.5 w-3.5" />
-                    +{String(config.coinReward)}
-                  </span>
-                </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                <AspectBar label="الدقة" value={attemptResult.accuracy} />
+                <AspectBar label="الطلاقة" value={attemptResult.fluency} />
+                <AspectBar label="النبرة" value={attemptResult.prosody} />
+                <AspectBar label="الاكتمال" value={attemptResult.completeness} />
+              </div>
+
+              {attemptResult.transcript && (
+                <p dir="ltr" className="text-center text-sm text-neutral-500">
+                  ما سمعه المحرك: {attemptResult.transcript}
+                </p>
               )}
+
+              <div className="flex flex-col gap-2">
+                {attemptResult.words.map((w: WordAssessment, i: number) => (
+                  <div
+                    key={`${w.word}-${String(i)}`}
+                    className="flex items-center justify-between gap-2 rounded-xl bg-neutral-100 p-2 dark:bg-neutral-700/50"
+                  >
+                    <div className="flex flex-col">
+                      <span dir="ltr" className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
+                        {w.word}
+                      </span>
+                      {w.feedback && (
+                        <span className="text-[11px] text-neutral-500">{w.feedback}</span>
+                      )}
+                    </div>
+                    <span className={`text-sm font-black ${scoreColor(w.score)}`}>
+                      {String(w.score)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -524,7 +629,7 @@ export function PronunciationChallenge({
 
       {answered && (
         <div className="flex flex-col gap-3 sm:flex-row">
-          {!passed && supported && (
+          {!passed && recorder.supported && (
             <Button variant="outline" fullWidth onClick={handleSpeak}>
               <Mic className="h-4 w-4" />
               حاول مرة أخرى
@@ -537,7 +642,7 @@ export function PronunciationChallenge({
         </div>
       )}
 
-      {!answered && !supported && (
+      {!answered && !recorder.supported && (
         <Button variant="outline" fullWidth onClick={handleSkip}>
           المرور على الكلمة
           <ArrowLeft className="h-4 w-4" />

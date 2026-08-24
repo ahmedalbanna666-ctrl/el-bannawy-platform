@@ -33,6 +33,7 @@ vi.mock("./video-question-modal", () => ({
     <div data-testid="question-modal">
       <span>{question.title}</span>
       <button onClick={() => { onComplete(true); }}>إجابة</button>
+      <button onClick={() => { onComplete(false); }}>غلط</button>
       <button onClick={onSkip}>تخطي</button>
     </div>
   ),
@@ -194,7 +195,7 @@ describe("PlyrVideoPlayer", () => {
       { timeout: 3000 },
     );
 
-    // The video must pause the moment the question is triggered.
+    // The question must PAUSE the video at its point.
     expect(player.pause).toHaveBeenCalled();
     expect(screen.getByTestId("question-modal")).toBeInTheDocument();
     expect(screen.getByText("What is 2+2?")).toBeInTheDocument();
@@ -217,6 +218,55 @@ describe("PlyrVideoPlayer", () => {
     await waitFor(() => { expect(screen.queryByTestId("question-modal")).not.toBeInTheDocument(); });
   });
 
+  it("does NOT resume the video on a wrong answer (only on correct)", async () => {
+    render(<PlyrVideoPlayer providerVideoId="xyz123" videoId="vid-1" />);
+    await waitFor(() => { expect(MockPlyr.last).toBeTruthy(); });
+
+    const player = getPlayer();
+    player.fire("play");
+    player.currentTime = 30;
+    player.fire("timeupdate");
+
+    await waitFor(() => { expect(screen.getByTestId("question-modal")).toBeInTheDocument(); }, { timeout: 3000 });
+
+    // A wrong answer must dismiss the question but leave the video PAUSED.
+    fireEvent.click(screen.getByText("غلط"));
+
+    expect(player.play).not.toHaveBeenCalled();
+    await waitFor(() => { expect(screen.queryByTestId("question-modal")).not.toBeInTheDocument(); });
+  });
+
+  it("after answering a fast-forwarded question, the next appears only at its timestamp (no cascade)", async () => {
+    render(<PlyrVideoPlayer providerVideoId="xyz123" videoId="vid-1" />);
+    await waitFor(() => { expect(MockPlyr.last).toBeTruthy(); });
+
+    const player = getPlayer();
+    player.fire("play");
+    // Fast-forward PAST both questions (q1@30, q2@60) to 90s.
+    player.currentTime = 90;
+    player.fire("seeked");
+
+    // Only the EARLIEST skipped question (q1) shows, pinned back to 30s.
+    await waitFor(() => { expect(screen.getByTestId("question-modal")).toBeInTheDocument(); }, { timeout: 3000 });
+    expect(player.currentTime).toBeLessThanOrEqual(30.5);
+
+    // Answer q1 correctly. The currentTime ref must now be at q1's timestamp.
+    fireEvent.click(screen.getByText("إجابة"));
+    await waitFor(() => { expect(screen.queryByTestId("question-modal")).not.toBeInTheDocument(); });
+
+    // Even though we fast-forwarded to 90, the student is now at 30s. q2@60 must
+    // NOT appear until the video actually reaches its timestamp.
+    player.currentTime = 30;
+    player.fire("timeupdate");
+    await new Promise((r) => setTimeout(r, 800));
+    expect(screen.queryByTestId("question-modal")).not.toBeInTheDocument();
+
+    // Only once playback reaches q2's timestamp does it appear.
+    player.currentTime = 65;
+    player.fire("timeupdate");
+    await waitFor(() => { expect(screen.getByTestId("question-modal")).toBeInTheDocument(); }, { timeout: 3000 });
+  });
+
   it("pulls the student back to a skipped mandatory question on fast-forward", async () => {
     render(<PlyrVideoPlayer providerVideoId="xyz123" videoId="vid-1" />);
     await waitFor(() => { expect(MockPlyr.last).toBeTruthy(); });
@@ -227,12 +277,14 @@ describe("PlyrVideoPlayer", () => {
     player.currentTime = 60;
     player.fire("seeked");
 
-    // The mandatory question must be fired immediately and the video paused.
+    // The mandatory question must be fired immediately, the student pinned back
+    // to it, and the video PAUSED at the question point (not skipped past it).
     await waitFor(
       () => { expect(apiMock.get).toHaveBeenCalledWith("/video-questions/by-video-event/evt-1"); },
       { timeout: 3000 },
     );
     expect(player.pause).toHaveBeenCalled();
+    expect(player.currentTime).toBeLessThanOrEqual(30.5);
     expect(screen.getByTestId("question-modal")).toBeInTheDocument();
   });
 
@@ -275,6 +327,67 @@ describe("PlyrVideoPlayer", () => {
     // The earliest unanswered question (30s) must be fired, not the latest.
     expect(apiMock.get).toHaveBeenCalledWith(
       expect.stringContaining("/video-questions/by-video-event/evt-1"),
+    );
+    expect(screen.getByTestId("question-modal")).toBeInTheDocument();
+  });
+
+  it("does NOT cascade questions when YouTube fires many seeked events on one fast-forward", async () => {
+    render(<PlyrVideoPlayer providerVideoId="xyz123" videoId="vid-1" />);
+    await waitFor(() => { expect(MockPlyr.last).toBeTruthy(); });
+
+    const player = getPlayer();
+    player.fire("play");
+    // Simulate a single fast-forward to 90s that YouTube reports with MANY
+    // seeked events (a known YouTube embed quirk that previously cascaded
+    // every surprise question at once).
+    player.currentTime = 90;
+    for (let i = 0; i < 6; i += 1) {
+      player.fire("seeked");
+    }
+
+    await waitFor(
+      () => { expect(screen.getByTestId("question-modal")).toBeInTheDocument(); },
+      { timeout: 3000 },
+    );
+
+    // Exactly ONE question must be fetched/shown, never one per seeked event.
+    expect(apiMock.get).toHaveBeenCalledTimes(2); // events list + single question fetch
+    expect(apiMock.get).toHaveBeenCalledWith("/video-questions/by-video-event/evt-1");
+    expect(screen.getByText("What is 2+2?")).toBeInTheDocument();
+    expect(screen.queryAllByTestId("question-modal")).toHaveLength(1);
+  });
+
+  it("fast-forward shows ONLY the first question, then the next on a second fast-forward", async () => {
+    // Question at 30s and a second REQUIRED question at 240s (4 min).
+    mockApi([requiredQuestion, { ...optionalQuestion, id: "evt-2", required: true, timestamp: 240 }]);
+    render(<PlyrVideoPlayer providerVideoId="xyz123" videoId="vid-1" />);
+    await waitFor(() => { expect(MockPlyr.last).toBeTruthy(); });
+
+    const player = getPlayer();
+    player.fire("play");
+
+    // Student fast-forwards straight to 360s (6 min), past BOTH questions.
+    player.currentTime = 360;
+    player.fire("seeked");
+
+    // Only the FIRST (30s) question must appear — never the 240s one too.
+    await waitFor(() => { expect(screen.getByTestId("question-modal")).toBeInTheDocument(); }, { timeout: 3000 });
+    expect(apiMock.get).toHaveBeenCalledWith("/video-questions/by-video-event/evt-1");
+    expect(apiMock.get).not.toHaveBeenCalledWith("/video-questions/by-video-event/evt-2");
+
+    // Answer the first question correctly → video resumes at its timestamp (30s).
+    fireEvent.click(screen.getByText("إجابة"));
+    await waitFor(() => { expect(screen.queryByTestId("question-modal")).not.toBeInTheDocument(); });
+    // Simulate the programmatic seek completing (real YouTube fires `seeked`).
+    player.fire("seeked");
+
+    // Student fast-forwards AGAIN → must be pulled to the NEXT question (240s).
+    player.currentTime = 360;
+    player.fire("seeked");
+
+    await waitFor(
+      () => { expect(apiMock.get).toHaveBeenCalledWith("/video-questions/by-video-event/evt-2"); },
+      { timeout: 3000 },
     );
     expect(screen.getByTestId("question-modal")).toBeInTheDocument();
   });

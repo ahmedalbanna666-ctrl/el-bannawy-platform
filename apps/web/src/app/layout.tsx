@@ -31,14 +31,38 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "منصة البناوي",
-  description: "منصة البناوي لتعليم اللغة الإنجليزية بالذكاء الاصطناعي",
-  applicationName: "البناوي",
+  metadataBase: new URL("https://www.elbannawy.online/"),
+  title: "منصة البناوي | تعلم الإنجليزية بطريقة تفاعلية",
+  description:
+    "منصة البناوي (El-Bannawy) منصة تعليمية تفاعلية لتعلم اللغة الإنجليزية، تقدم للطلاب دروسًا وأنشطة تفاعلية، اختبارات وواجبات، متابعة للتقدم، تعلمًا من الأخطاء، حصصًا مباشرة وأدوات ذكاء اصطناعي لدعم رحلة التعلم.",
+  applicationName: "منصة البناوي",
   manifest: "/manifest.json",
+  alternates: {
+    canonical: "https://www.elbannawy.online/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "البناوي",
+    title: "منصة البناوي",
+  },
+  openGraph: {
+    type: "website",
+    url: "https://www.elbannawy.online/",
+    siteName: "منصة البناوي | El-Bannawy",
+    title: "منصة البناوي | تعلم الإنجليزية بطريقة تفاعلية",
+    description:
+      "منصة البناوي (El-Bannawy) منصة تعليمية تفاعلية لتعلم اللغة الإنجليزية، تقدم للطلاب دروسًا وأنشطة تفاعلية، اختبارات وواجبات، متابعة للتقدم، تعلمًا من الأخطاء، حصصًا مباشرة وأدوات ذكاء اصطناعي لدعم رحلة التعلم.",
+    locale: "ar_EG",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "منصة البناوي | تعلم الإنجليزية بطريقة تفاعلية",
+    description:
+      "منصة البناوي (El-Bannawy) منصة تعليمية تفاعلية لتعلم اللغة الإنجليزية، تقدم دروسًا وأنشطة تفاعلية، اختبارات وواجبات، متابعة للتقدم وحصصًا مباشرة.",
   },
   icons: {
     icon: [

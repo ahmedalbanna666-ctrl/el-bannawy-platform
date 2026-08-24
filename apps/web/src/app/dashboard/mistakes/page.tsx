@@ -427,25 +427,27 @@ function MistakeCard({ item }: { item: WrongAnswerItem }): ReactNode {
 
         </div>
 
-        <p className="mb-3 text-sm font-medium text-neutral-900 dark:text-neutral-100">{item.question}</p>
+        <p className="mb-3 text-sm font-medium text-neutral-900 dark:text-neutral-100" dir="ltr">{item.question}</p>
 
         <div className="flex flex-col gap-2 text-xs">
           {hasWrongAnswer && (
             <span className="flex items-center gap-1 text-red-500">
               <X className="h-3.5 w-3.5" />
-              إجابتك: {studentAnswerText || item.studentAnswer}
+              <span className="shrink-0">إجابتك:</span>{" "}
+              <span dir="ltr">{studentAnswerText || item.studentAnswer}</span>
             </span>
           )}
           {item.correctAnswer && (
             <span className="flex items-center gap-1 text-green-600 dark:text-green-500">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              الإجابة الصحيحة: {correctAnswerText || item.correctAnswer}
+              <span className="shrink-0">الإجابة الصحيحة:</span>{" "}
+              <span dir="ltr">{correctAnswerText || item.correctAnswer}</span>
             </span>
           )}
           {item.explanation && (
             <span className="flex items-start gap-1 text-neutral-500 dark:text-neutral-400">
               <Target className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span><span className="font-medium">شرح:</span> {item.explanation}</span>
+              <span><span className="font-medium">شرح:</span> <span dir="auto">{item.explanation}</span></span>
             </span>
           )}
         </div>

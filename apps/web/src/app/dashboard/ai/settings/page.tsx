@@ -251,6 +251,7 @@ const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
 
 const PROVIDER_OPTIONS: SelectOption[] = [
   { value: "OPENAI", label: "OpenAI" },
+  { value: "OPENCODE", label: "OpenCode Zen" },
   { value: "GEMINI", label: "Gemini" },
   { value: "CLAUDE", label: "Claude" },
 ];

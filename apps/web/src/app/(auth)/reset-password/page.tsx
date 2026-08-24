@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { School, Mail, Lock, KeyRound, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 function ResetPasswordForm(): ReactNode {
   const router = useRouter();
@@ -121,7 +122,7 @@ function ResetPasswordForm(): ReactNode {
 
 export default function ResetPasswordPage(): ReactNode {
   return (
-    <Suspense fallback={<div className="flex min-h-[200px] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>}>
+    <Suspense fallback={<div className="flex min-h-[200px] items-center justify-center"><Spinner size="lg" /></div>}>
       <ResetPasswordForm />
     </Suspense>
   );

@@ -5,7 +5,7 @@ import { useTheme } from "@/providers/theme-provider";
 import { useAuthStore } from "@/lib/auth-store";
 import { usePermissions } from "@/lib/use-permissions";
 import { useRouter } from "next/navigation";
-import { Moon, Sun, Menu, Flame, Coins, Zap, Trophy, History, ShoppingCart } from "lucide-react";
+import { Moon, Sun, Menu, Coins, Zap, Trophy, History, ShoppingCart } from "lucide-react";
 import { Button } from "./button";
 import { AcademicContextBar } from "./academic-context-bar";
 import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown";
@@ -32,7 +32,6 @@ export function Header({
   const firstName = fullName ? fullName.split(" ")[0] : "";
   const stats = data
     ? {
-        streak: data.streak,
         coins: data.coins,
         level: data.xp.level,
         xp: data.xp.total,
@@ -99,10 +98,6 @@ export function Header({
           className="flex items-center gap-2 overflow-x-auto pb-2"
           style={{ scrollbarWidth: "none" }}
         >
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
-            <Flame className="h-3.5 w-3.5" />
-            {stats.streak} Days
-          </span>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-yellow-500/10 px-3 py-1 text-xs font-semibold text-yellow-600 dark:text-yellow-400">
             <Coins className="h-3.5 w-3.5" />
             {stats.coins}

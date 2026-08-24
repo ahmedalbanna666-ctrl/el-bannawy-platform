@@ -607,26 +607,14 @@ function QuizCard({
 
 function NavigationFooter({
   prevLesson,
-  nextLesson,
 }: {
   prevLesson: LessonSummary | null;
-  nextLesson: LessonSummary | null;
 }): ReactNode {
   return (
     <div className="flex flex-col gap-3 pt-2">
-      {/* Primary: Back + Next Lesson — equal size, right & left */}
+      {/* Primary: Back */}
       <div className="flex items-stretch gap-3">
         <BackButton fallbackHref="/dashboard/units" className="flex-1" />
-        {nextLesson ? (
-          <Link href={`/dashboard/lessons/detail/${nextLesson.id}`} className="flex-1">
-            <Button variant="outline" size="sm" className="w-full gap-1">
-              <ChevronLeft className="h-4 w-4" />
-              الدرس التالي
-            </Button>
-          </Link>
-        ) : (
-          <div className="flex-1" />
-        )}
       </div>
 
       {/* Secondary: previous lesson + back to units */}
@@ -745,11 +733,7 @@ export default function LessonDetailPage(): ReactNode {
       ? Math.min(100, Math.round((videoProgress.watchedSeconds / activeVideo.duration) * 100))
       : 0;
 
-  const nextLesson = navigation.next;
   const lessonCompletedActions = {
-    onNextLesson: nextLesson
-      ? (): void => { router.push(`/dashboard/lessons/detail/${nextLesson.id}`); }
-      : undefined,
     onReviewQuestions: (): void => {
       if (quizEnabled && quizData) {
         router.push(`/dashboard/quiz/${lessonId}`);
@@ -837,10 +821,7 @@ export default function LessonDetailPage(): ReactNode {
       />
 
       {/* Navigation */}
-      <NavigationFooter
-        prevLesson={navigation.prev}
-        nextLesson={navigation.next}
-      />
+      <NavigationFooter prevLesson={navigation.prev} />
     </div>
   );
 }
@@ -879,8 +860,8 @@ function LessonSkeleton(): ReactNode {
 function findAdjacentLessons(
   stages: Stage[],
   lessonId: string,
-): { prev: LessonSummary | null; next: LessonSummary | null } {
-  const allLessons: { id: string; title: string; displayOrder: number; unitId: string }[] = [];
+): { prev: LessonSummary | null } {
+  const allLessons: { id: string; title: string; displayOrder: number }[] = [];
 
   for (const stage of stages) {
     for (const grade of stage.grades) {
@@ -890,7 +871,6 @@ function findAdjacentLessons(
             id: lesson.id,
             title: lesson.title,
             displayOrder: lesson.displayOrder,
-            unitId: unit.id,
           });
         }
       }
@@ -898,13 +878,11 @@ function findAdjacentLessons(
   }
 
   const currentIdx = allLessons.findIndex((l) => l.id === lessonId);
-  if (currentIdx === -1) return { prev: null, next: null };
+  if (currentIdx === -1) return { prev: null };
 
   const prevLesson = currentIdx > 0 ? allLessons[currentIdx - 1] : null;
-  const nextLesson = currentIdx < allLessons.length - 1 ? allLessons[currentIdx + 1] : null;
 
   return {
     prev: prevLesson !== null ? { id: prevLesson.id, title: prevLesson.title, displayOrder: prevLesson.displayOrder } : null,
-    next: nextLesson !== null ? { id: nextLesson.id, title: nextLesson.title, displayOrder: nextLesson.displayOrder } : null,
   };
 }

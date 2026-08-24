@@ -48,6 +48,7 @@ import { SocialLinksModule } from "./social-links/social-links.module";
 import { UiSettingsModule } from "./ui-settings/ui-settings.module";
 import { GradeScheduleModule } from "./grade-schedule/grade-schedule.module";
 import { GamesModule } from "./games/games.module";
+import { PronunciationModule } from "./pronunciation/pronunciation.module";
 import { CertificatesModule } from "./certificates/certificates.module";
 import { ReferralModule } from "./referral/referral.module";
 import { MailModule } from "./mail/mail.module";
@@ -109,6 +110,7 @@ import { BootstrapService } from "./common/services/bootstrap.service";
     UiSettingsModule,
     GradeScheduleModule,
     GamesModule,
+    PronunciationModule,
     CertificatesModule,
     ReferralModule,
     MailModule,

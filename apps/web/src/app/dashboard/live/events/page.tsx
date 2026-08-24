@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { EventCard } from "@/components/live/event-card";
 import { LiveEmpty } from "@/components/live/live-empty";
 import { LiveError } from "@/components/live/live-error";
-import { JoinLiveSessionModal } from "@/components/live/join-live-session-modal";
+import dynamic from "next/dynamic";
+
+const JoinLiveSessionModal = dynamic(
+  () => import("@/components/live/join-live-session-modal").then((m) => m.JoinLiveSessionModal),
+);
 import { useLiveSessions, type LiveSessionItem } from "@/lib/live-api";
 
 export default function EventsPage(): ReactNode {

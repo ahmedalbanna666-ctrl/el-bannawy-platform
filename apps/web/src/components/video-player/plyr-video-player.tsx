@@ -84,7 +84,7 @@ export function PlyrVideoPlayer({
   const eventCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedActionsRef = useRef(completedActions);
   const answeredEventsRef = useRef<Set<string>>(new Set());
-  const isPausedForQuestionRef = useRef(false);
+  const questionLockRef = useRef(false);
   const activeQuestionRef = useRef<{ event: VideoEvent; question: QuestionData } | null>(null);
   const markersRef = useRef<HTMLDivElement[]>([]);
   const isSeekingProgrammaticallyRef = useRef(false);
@@ -167,6 +167,7 @@ export function PlyrVideoPlayer({
   const onSeekCommit = useCallback((value: number): void => {
     const plyr = plyrRef.current as { currentTime: number } | null;
     if (plyr) plyr.currentTime = value;
+    currentTimeRef.current = value;
     setIsScrubbing(false);
     setCustomTime(value);
     showControlsTemporarily();
@@ -242,17 +243,40 @@ export function PlyrVideoPlayer({
   }, [isPlaying]);
 
   const fireQuestion = useCallback(async (event: VideoEvent): Promise<void> => {
+    // Hard lock: never start a new question while one is already active or the
+    // timeline is already paused for a question. This is the single source of
+    // truth that prevents the cascade where every surprise question pops at once.
+    if (questionLockRef.current || activeQuestionRef.current) return;
     if (triggeredRef.current.has(event.id)) return;
     triggeredRef.current.add(event.id);
     // Pause the timeline checker IMMEDIATELY (before the async fetch) so a
     // concurrent checkTimelineEvents tick cannot fire a LATER question while
     // this one is still loading. This is what caused the player to jump to
     // the last question instead of the earliest unanswered one.
-    isPausedForQuestionRef.current = true;
+    questionLockRef.current = true;
+    // Stop the timeline checker completely while a question is active so it can
+    // never re-fire a later question underneath the open modal (this is what
+    // caused the cascade where every surprise question popped at once).
+    stopTimelineCheck();
 
-    // Fetch the question data FIRST so we never pause the video for a question
-    // that has no loadable content (previously this paused the video every
-    // time a stale/empty question event was reached, causing random pauses).
+    // Pull the student back to the question's timestamp IMMEDIATELY (before the
+    // network fetch) and PAUSE the video there. The question stops the video at
+    // its point; the video resumes automatically only when the answer is correct.
+    const plyr = plyrRef.current as { currentTime: number; pause?: () => void } | null;
+    const resumeAt = plyr ? plyr.currentTime : 0;
+    if (plyr) {
+      isSeekingProgrammaticallyRef.current = true;
+      plyr.currentTime = event.timestamp;
+      plyr.pause?.();
+      // Keep the ref in sync immediately. Relying only on `timeupdate` is unsafe
+      // because YouTube does not always emit one right after a programmatic
+      // seek — without this, currentTimeRef stays at the fast-forward position
+      // and every later question appears at once after the first answer.
+      currentTimeRef.current = event.timestamp;
+    }
+
+    // Fetch the question data. If it fails to load, release the lock and
+    // resume from where the student was (do not strand them at the question).
     let question: QuestionData | null = null;
     try {
       const res = await api.get<QuestionData>(`/video-questions/by-video-event/${event.id}`);
@@ -262,17 +286,15 @@ export function PlyrVideoPlayer({
     }
 
     if (!question) {
-      // No question content available — do not pause; keep playing.
       triggeredRef.current.delete(event.id);
-      isPausedForQuestionRef.current = false;
+      questionLockRef.current = false;
+      const resumePlyr = plyrRef.current as { currentTime: number; play?: () => void } | null;
+      if (resumePlyr) {
+        isSeekingProgrammaticallyRef.current = true;
+        resumePlyr.currentTime = resumeAt;
+        resumePlyr.play?.();
+      }
       return;
-    }
-
-    const plyr = plyrRef.current as { currentTime: number; pause?: () => void } | null;
-    if (plyr) {
-      isSeekingProgrammaticallyRef.current = true;
-      plyr.currentTime = event.timestamp;
-      plyr.pause?.();
     }
 
     const questionState = { event, question };
@@ -288,7 +310,7 @@ export function PlyrVideoPlayer({
     // Do not fire timeline questions before playback actually starts, and
     // guard against non-finite values that YouTube can report before the API
     // is ready (which previously caused questions to pop at the very start).
-    if (events.length === 0 || isPausedForQuestionRef.current || !isPlayingRef.current) return;
+    if (events.length === 0 || questionLockRef.current || activeQuestionRef.current || !isPlayingRef.current) return;
     if (!Number.isFinite(currentTime) || currentTime <= 0) return;
 
     // Find the EARLIEST (chronologically first) enabled question that the
@@ -305,31 +327,64 @@ export function PlyrVideoPlayer({
     }
   }, [fireQuestion]);
 
-  const handleQuestionComplete = useCallback((_correct: boolean): void => {
+  /** Stop the timeline-question checker interval (idempotent). */
+  const stopTimelineCheck = useCallback((): void => {
+    if (eventCheckIntervalRef.current) {
+      clearInterval(eventCheckIntervalRef.current);
+      eventCheckIntervalRef.current = null;
+    }
+  }, []);
+
+  /** Start the timeline-question checker interval, but only while playing. */
+  const startTimelineCheck = useCallback((): void => {
+    stopTimelineCheck();
+    if (isPlayingRef.current) {
+      eventCheckIntervalRef.current = setInterval((): void => { void checkTimelineEvents(); }, EVENT_CHECK_INTERVAL_MS);
+    }
+  }, [checkTimelineEvents, stopTimelineCheck]);
+
+  useEffect(() => {
+    if (isPlaying) startTimelineCheck();
+    else stopTimelineCheck();
+  }, [isPlaying, startTimelineCheck]);
+
+  const handleQuestionComplete = useCallback((correct: boolean): void => {
     const currentActive = activeQuestionRef.current;
     setActiveQuestion(null);
     activeQuestionRef.current = null;
-    isPausedForQuestionRef.current = false;
+    questionLockRef.current = false;
     if (currentActive) {
       answeredEventsRef.current.add(currentActive.event.id);
       const plyr = plyrRef.current as { currentTime: number; play?: () => void } | null;
       if (plyr) {
         isSeekingProgrammaticallyRef.current = true;
         plyr.currentTime = currentActive.event.timestamp;
-        plyr.play?.();
+        currentTimeRef.current = currentActive.event.timestamp;
+        // The video resumes automatically ONLY when the answer is correct.
+        // On a wrong answer it stays paused at the question point until the
+        // student chooses to continue.
+        if (correct) plyr.play?.();
       }
     }
+    startTimelineCheck();
     saveProgress();
-  }, [saveProgress]);
+  }, [saveProgress, startTimelineCheck]);
 
   const handleQuestionSkip = useCallback((): void => {
+    const currentActive = activeQuestionRef.current;
     setActiveQuestion(null);
     activeQuestionRef.current = null;
-    isPausedForQuestionRef.current = false;
-    const plyr = plyrRef.current as { play?: () => void } | null;
-    plyr?.play?.();
+    questionLockRef.current = false;
+    const plyr = plyrRef.current as { currentTime: number; play?: () => void } | null;
+    if (plyr) {
+      isSeekingProgrammaticallyRef.current = true;
+      plyr.currentTime = currentActive?.event.timestamp ?? plyr.currentTime;
+      currentTimeRef.current = currentActive?.event.timestamp ?? currentTimeRef.current;
+      plyr.play?.();
+    }
+    startTimelineCheck();
     saveProgress();
-  }, [saveProgress]);
+  }, [saveProgress, startTimelineCheck]);
 
   useEffect(() => {
     if (!videoId) return;
@@ -352,12 +407,6 @@ export function PlyrVideoPlayer({
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [videoId, saveProgress]);
-
-  useEffect(() => {
-    if (!isPlaying) return;
-    eventCheckIntervalRef.current = setInterval((): void => { void checkTimelineEvents(); }, EVENT_CHECK_INTERVAL_MS);
-    return function cleanup(): void { if (eventCheckIntervalRef.current) clearInterval(eventCheckIntervalRef.current); };
-  }, [checkTimelineEvents, isPlaying]);
 
   const renderQuestionMarkers = useCallback((): void => {
     markersRef.current.forEach((el) => { el.remove(); });
@@ -383,7 +432,10 @@ export function PlyrVideoPlayer({
       marker.addEventListener("click", (e) => {
         e.stopPropagation();
         const plyr = plyrRef.current as { currentTime: number } | null;
-        if (plyr) plyr.currentTime = event.timestamp;
+        if (plyr) {
+          plyr.currentTime = event.timestamp;
+          currentTimeRef.current = event.timestamp;
+        }
       });
       progressEl.style.position = "relative";
       progressEl.appendChild(marker);
@@ -501,7 +553,10 @@ export function PlyrVideoPlayer({
         // (e.g. the periodic video-progress refetch) — which previously
         // destroyed the player and paused the video every ~90 seconds.
         const resumeAt = startAtRef.current;
-        if (resumeAt > 1) player.currentTime = resumeAt;
+        if (resumeAt > 1) {
+          player.currentTime = resumeAt;
+          currentTimeRef.current = resumeAt;
+        }
         // Force the control bar (including the seek bar) to be visible right
         // away instead of waiting for a mouse move event.
         container.dispatchEvent(new Event("mousemove"));
@@ -555,47 +610,60 @@ export function PlyrVideoPlayer({
           isSeekingProgrammaticallyRef.current = false;
           return;
         }
+        // Sync the ref immediately — see fireQuestion for why we cannot rely on
+        // `timeupdate` firing reliably right after a seek in YouTube.
+        currentTimeRef.current = player.currentTime;
         saveProgress();
         // Only enforce question re-positioning while the video is actually
         // playing, so the initial YouTube setup seek cannot misfire questions.
         if (!isPlayingRef.current) return;
-        const currentTime = player.currentTime;
+
         const activeQ = activeQuestionRef.current;
         if (activeQ) {
+          // A question is already showing — keep the student pinned to it and
+          // NEVER fall through to the anti-skip branch (which would fire the
+          // NEXT question and cascade every surprise question at once). The
+          // video stays PAUSED at the question point; we only re-pin (seek back)
+          // if they try to skip ahead of the question point.
           const questionTimestamp = activeQ.event.timestamp;
-          if (currentTime > questionTimestamp + 0.5) {
+          if (player.currentTime > questionTimestamp + 0.5) {
             isSeekingProgrammaticallyRef.current = true;
             player.currentTime = questionTimestamp;
             player.pause();
-            return;
           }
+          return;
         }
+
+        // If a question lock is already held (e.g. the timeline checker is
+        // mid-flight), do not start another question here.
+        if (questionLockRef.current) return;
+
         // Anti-skip: pull the student back to the EARLIEST unanswered REQUIRED
         // question they have jumped past, so mandatory questions are answered
         // strictly in chronological order — never skipped, never jumping to a
-        // later question.
+        // later question. Only ONE question is ever fired per seek.
         const events = eventsRef.current;
+        const currentTime = player.currentTime;
         let target: number | null = null;
+        let targetEvent: VideoEvent | null = null;
         for (const e of events) {
           if (e.type !== "QUESTION" || !e.enabled || !e.required) continue;
           if (answeredEventsRef.current.has(e.id)) continue;
+          if (triggeredRef.current.has(e.id)) continue;
           if (e.timestamp >= currentTime) continue;
-          if (target === null || e.timestamp < target) target = e.timestamp;
+          if (target === null || e.timestamp < target) {
+            target = e.timestamp;
+            targetEvent = e;
+          }
         }
-        if (target !== null) {
+        if (targetEvent) {
           // Fire the mandatory question immediately and pause the video so the
           // student cannot fast-forward past it without answering.
-          // events is sorted ascending, so the first match is the earliest.
-          const targetEvent: VideoEvent | undefined = events.find(
-            (e) => e.type === "QUESTION" && e.enabled && e.timestamp === target
-              && !answeredEventsRef.current.has(e.id),
-          );
-          if (targetEvent) {
-            void fireQuestion(targetEvent);
-          } else {
-            isSeekingProgrammaticallyRef.current = true;
-            player.currentTime = target;
-          }
+          void fireQuestion(targetEvent);
+        } else if (target !== null) {
+          isSeekingProgrammaticallyRef.current = true;
+          player.currentTime = target;
+          currentTimeRef.current = target;
         }
       });
 

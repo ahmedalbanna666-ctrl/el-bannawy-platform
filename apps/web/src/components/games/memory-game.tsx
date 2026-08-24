@@ -141,7 +141,7 @@ export function MemoryGame({ words }: MemoryGameProps): ReactNode {
               onClick={(): void => { handleCardClick(card.id, card.pairId); }}
               disabled={matched.has(card.pairId)}
               aria-label={isFlipped ? card.content : "بطاقة مخفية"}
-              className="group aspect-square [perspective:1000px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+              className="group aspect-[4/3] [perspective:1000px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
             >
               <div
                 className={`relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d] ${

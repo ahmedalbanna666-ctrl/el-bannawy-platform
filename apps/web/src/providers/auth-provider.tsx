@@ -6,6 +6,24 @@ import { useAuthStore } from "@/lib/auth-store";
 import { api, ApiError } from "@/lib/api-client";
 import type { Permission, UserRole } from "@el-bannawy/shared";
 
+const DEVICE_ID_STORAGE_KEY = "el-bannawy-device-id";
+
+// Stable per-device identifier used by the backend to distinguish the current
+// device from other devices for the single-session enforcement.
+function getDeviceId(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    let id = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+}
+
 interface AuthContextValue {
   isAuthenticated: boolean;
   isInitialized: boolean;
@@ -168,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         identity: mobile,
         password,
         rememberMe,
+        deviceId: getDeviceId(),
       }, { skipAuthRetry: true });
 
       if (!response.data) {
@@ -252,7 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         return;
       }
       try {
-        const response = await api.post<{ userId: string }>("/auth/firebase-login", { idToken, rememberMe }, { skipAuthRetry: true });
+        const response = await api.post<{ userId: string }>("/auth/firebase-login", { idToken, rememberMe, deviceId: getDeviceId() }, { skipAuthRetry: true });
         if (!response.data) {
           throw new Error("Login failed");
         }

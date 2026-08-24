@@ -12,12 +12,13 @@ import { Dialog } from "@/components/ui/dialog";
 import { api } from "@/lib/api-client";
 import { AccountStatusScreen, type AccountStatusData } from "@/components/auth/account-status-screen";
 import { School, Mail, Lock, LogIn, Eye, EyeOff, MonitorSmartphone } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
 export default function LoginPage(): ReactNode {
   return (
-    <Suspense fallback={<div className="flex min-h-[200px] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>}>
+    <Suspense fallback={<div className="flex min-h-[200px] items-center justify-center"><Spinner size="lg" /></div>}>
       <LoginForm />
     </Suspense>
   );
