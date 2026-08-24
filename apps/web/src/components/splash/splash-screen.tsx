@@ -118,7 +118,7 @@ export function SplashScreen({ onFinish }: SplashScreenProps): ReactNode {
 
   useEffect(() => {
     if (phase !== "show") return;
-    const id = setTimeout((): void => { setPhase("exit"); }, 250);
+    const id = setTimeout((): void => { setPhase("exit"); }, 2250);
     return (): void => { clearTimeout(id); };
   }, [phase]);
 

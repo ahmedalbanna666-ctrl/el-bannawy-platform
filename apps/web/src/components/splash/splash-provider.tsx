@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { SplashScreen } from "./splash-screen";
-import { WelcomeNotification } from "./welcome-notification";
 
 const SPLASH_SEEN_KEY = "el-bannawy:splash-seen";
 
@@ -56,7 +55,6 @@ export function SplashProvider({ children }: { readonly children: ReactNode }): 
     <>
       {shouldShow && !splashDone && <SplashScreen onFinish={() => { setSplashDone(true); }} />}
       {children}
-      {splashDone && <WelcomeNotification />}
     </>
   );
 }
