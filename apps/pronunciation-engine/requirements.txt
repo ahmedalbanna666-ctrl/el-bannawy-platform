@@ -17,7 +17,7 @@ resampy==0.4.3
 # Then set GOPT_MODEL_PATH to a downloaded checkpoint.
 
 # ── Local fallback (self-hosted, CPU-only): faster-whisper ASR ───────
-# pip install faster-whisper
+faster-whisper==1.0.3
 
 # ── Tests ─────────────────────────────────────────────────────────────
 pytest==8.3.2

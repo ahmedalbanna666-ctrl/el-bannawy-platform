@@ -7,7 +7,7 @@ WORKDIR /app
 
 # System deps for soundfile / numpy.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg libsndfile1 build-essential \
+    ffmpeg libsndfile1 libgomp1 build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
