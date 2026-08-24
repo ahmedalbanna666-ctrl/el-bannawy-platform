@@ -13,7 +13,6 @@ import {
   Lock,
   ArrowLeft,
   Brain,
-  Trophy,
 } from "lucide-react";
 
 interface GameCardData {
@@ -127,14 +126,6 @@ export default function GamesHubPage(): ReactNode {
                   <h2 className="text-base font-bold leading-snug text-neutral-900 dark:text-neutral-100 sm:text-lg">
                     {game.title}
                   </h2>
-                </div>
-
-                <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-neutral-400 sm:text-xs">
-                  <span className="truncate">{game.stat}</span>
-                  <span className="flex shrink-0 items-center gap-1 text-success-600 dark:text-success-400">
-                    <Trophy className="h-3.5 w-3.5" />
-                    ممتع وتعليمي
-                  </span>
                 </div>
 
                 {game.soon ? (
