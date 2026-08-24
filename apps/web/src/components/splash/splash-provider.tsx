@@ -6,7 +6,7 @@ import { SplashScreen } from "./splash-screen";
 const SPLASH_SEEN_KEY = "el-bannawy:splash-seen";
 
 export function SplashProvider({ children }: { readonly children: ReactNode }): ReactNode {
-  const [shouldShow, setShouldShow] = useState(false);
+  const [shouldShow, setShouldShow] = useState(true);
   const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
@@ -16,7 +16,10 @@ export function SplashProvider({ children }: { readonly children: ReactNode }): 
     } catch {
       seen = false;
     }
-    if (seen) return;
+    if (seen) {
+      setShouldShow(false);
+      return;
+    }
     try {
       sessionStorage.setItem(SPLASH_SEEN_KEY, "1");
     } catch {
