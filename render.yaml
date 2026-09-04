@@ -1,34 +1,65 @@
 # El-bannawy Backend — Render Blueprint (container host)
 # Deploys the NestJS backend as a persistent web service so that
 # BullMQ workers, schedulers, and local file uploads keep working.
+# Data preservation: DATABASE_URL points to the same Neon PostgreSQL,
+# so no data loss on migration from Railway. R2 bucket is external.
 #
 # Usage:
-#   1. Push this repo to GitHub (https://github.com/ahmedalbanna666-ctrl/el-bannawy-platform).
-#   2. Create a new Blueprint on Render and connect the repo.
-#   3. Fill the env vars below (use a managed PostgreSQL/Redis or external providers).
-#   4. Set the resulting service URL (e.g. https://el-bannawy-backend.onrender.com)
-#      in Vercel's rewrites (apps/web/vercel.json) for the /api/* path.
+#   1. Push repo to GitHub (https://github.com/ahmedalbanna666-ctrl/el-bannawy-platform)
+#   2. In Render Dashboard > New > Blueprint > Connect repo > Apply
+#   3. Fill env vars marked sync:false in Render dashboard (see DEPLOYMENT_GUIDE.md)
+#   4. After deploy, copy the service URL (e.g. https://el-bannawy-backend.onrender.com)
+#      and update apps/web/vercel.json rewrites + Vercel env.
+#   5. Run `pnpm --filter @el-bannawy/database migrate:deploy` if needed (same Neon DB).
+
 services:
+  - type: redis
+    name: el-bannawy-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
   - type: web
     name: el-bannawy-backend
     runtime: docker
     repo: https://github.com/ahmedalbanna666-ctrl/el-bannawy-platform
     dockerfilePath: ./docker/Dockerfile.backend
     plan: starter
-    healthCheckPath: /api/v1/home/health
+    healthCheckPath: /api/v1/health
+    # Persistent disk for local uploads (if R2 not configured, files survive restarts)
+    disk:
+      name: uploads
+      mountPath: /app/uploads
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: "4000"
+      # --- Database (Neon — same as Railway, zero data loss) ---
       - key: DATABASE_URL
         sync: false
       - key: DIRECT_URL
         sync: false
+      # --- Redis (Render Redis service) ---
       - key: REDIS_HOST
-        sync: false
+        fromService:
+          type: redis
+          name: el-bannawy-redis
+          property: host
       - key: REDIS_PORT
-        value: "6379"
+        fromService:
+          type: redis
+          name: el-bannawy-redis
+          property: port
+      - key: REDIS_USER
+        sync: false
+      - key: REDIS_PASSWORD
+        fromService:
+          type: redis
+          name: el-bannawy-redis
+          property: password
+      # --- Auth ---
       - key: JWT_SECRET
         sync: false
       - key: JWT_ACCESS_EXPIRES_IN
@@ -37,25 +68,73 @@ services:
         value: 7d
       - key: COOKIE_SECRET
         sync: false
+      # --- URLs ---
       - key: FRONTEND_URL
         sync: false
       - key: PUBLIC_BASE_URL
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      # --- Payments ---
       - key: PAYMENT_WEBHOOK_SECRET
         sync: false
       - key: SIMULATION_HMAC_KEY
         sync: false
+      # --- Firebase Admin ---
       - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
         sync: false
       - key: FIREBASE_CLIENT_EMAIL
         sync: false
       - key: FIREBASE_PRIVATE_KEY
         sync: false
+      # --- Email (Brevo) ---
       - key: BREVO_API_KEY
         sync: false
       - key: BREVO_SENDER_EMAIL
         sync: false
       - key: BREVO_SENDER_NAME
         value: El-bannawy Platform
+      # --- R2 Storage ---
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      # --- AI ---
+      - key: AI_ENCRYPTION_KEY
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_ENDPOINT
+        sync: false
+      - key: AI_MODEL
+        sync: false
+      - key: OPENCODE_API_KEY
+        sync: false
+      - key: OPENCODE_BASE_URL
+        value: https://opencode.ai/zen/v1
+      - key: OPENCODE_DEFAULT_MODEL
+        value: laguna-s-2.1-free
+      # --- Zoom ---
+      - key: ZOOM_CLIENT_ID
+        sync: false
+      - key: ZOOM_CLIENT_SECRET
+        sync: false
+      - key: ZOOM_REDIRECT_URI
+        sync: false
+      - key: ZOOM_SDK_KEY
+        sync: false
+      - key: ZOOM_SDK_SECRET
+        sync: false
+      # --- Other ---
+      - key: PRONUNCIATION_ENGINE_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        sync: false
