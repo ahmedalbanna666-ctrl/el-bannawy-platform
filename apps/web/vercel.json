@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "pnpm --filter @el-bannawy/shared build && pnpm --filter @el-bannawy/web build",
@@ -7,11 +7,12 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://el-bannawy-backend.onrender.com/api/:path*"
+      "destination": "https://el-bannawy-backend-production-788c.up.railway.app/api/:path*"
     },
     {
       "source": "/files/:path*",
-      "destination": "https://el-bannawy-backend.onrender.com/files/:path*"
+      "destination": "https://el-bannawy-backend-production-788c.up.railway.app/files/:path*"
     }
   ]
 }
+
