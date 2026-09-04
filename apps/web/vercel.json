@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "pnpm --filter @el-bannawy/shared build && pnpm --filter @el-bannawy/web build",
@@ -15,4 +15,3 @@
     }
   ]
 }
-
