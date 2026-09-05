@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -59,6 +59,7 @@ export default function LessonListPage(): ReactNode {
   const unitId = params.unitId as string;
   const { isAdmin, isTeacher } = usePermissions();
   const isManagement = isAdmin || isTeacher;
+  const [buyOpen, setBuyOpen] = useState(false);
 
   const { data: stages, isLoading, isError, error } = useQuery<Stage[]>({
     queryKey: ["curriculum"],
@@ -109,11 +110,19 @@ export default function LessonListPage(): ReactNode {
       {unitLocked && (
         <UnitLockOverlay unitId={unit.id} unitTitle={unit.title} termId={unit.termId ?? undefined} />
       )}
+      <UnitLockOverlay
+        hideTrigger
+        unitId={unit.id}
+        unitTitle={unit.title}
+        termId={unit.termId ?? undefined}
+        open={buyOpen}
+        onOpenChange={(open): void => { setBuyOpen(open); }}
+      />
 
       <div className="flex flex-col gap-3">
           {unit.lessons.map((lesson, _idx) => {
           const isLocked = lesson.locked || unitLocked;
-          const showBuyOverlay = isLocked && !unitLocked && lesson.lockedOverride !== true;
+          const canBuy = lesson.lockedOverride !== true;
 
           return (
             <Card
@@ -126,11 +135,20 @@ export default function LessonListPage(): ReactNode {
                   : "cursor-pointer hover:-translate-y-0.5 hover:shadow-md"
               } border-neutral-200 dark:border-neutral-700`}
               onClick={(): void => {
-                if (isLocked) return;
+                if (isLocked) {
+                  if (canBuy) setBuyOpen(true);
+                  return;
+                }
                 router.push(`/dashboard/lessons/detail/${lesson.id}`);
               }}
               onKeyDown={(e): void => {
-                if (isLocked) return;
+                if (isLocked) {
+                  if (canBuy && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    setBuyOpen(true);
+                  }
+                  return;
+                }
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   router.push(`/dashboard/lessons/detail/${lesson.id}`);
@@ -173,17 +191,11 @@ export default function LessonListPage(): ReactNode {
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    {showBuyOverlay ? (
-                      <UnitLockOverlay unitId={unit.id} unitTitle={unit.title} termId={unit.termId ?? undefined} />
-                    ) : (
-                      <>
-                        {isLocked && (
-                          <span className="text-[11px] text-neutral-400">مغلق</span>
-                        )}
-                        {!isLocked && (
-                          <ArrowRight className="h-4 w-4 text-neutral-300 dark:text-neutral-600" />
-                        )}
-                      </>
+                    {isLocked && (
+                      <span className="text-[11px] text-neutral-400">مغلق</span>
+                    )}
+                    {!isLocked && (
+                      <ArrowRight className="h-4 w-4 text-neutral-300 dark:text-neutral-600" />
                     )}
                   </div>
                 </div>

@@ -23,6 +23,7 @@ interface UnitLockOverlayProps {
   termId?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
 export function UnitLockOverlay({
@@ -31,6 +32,7 @@ export function UnitLockOverlay({
   termId,
   open: controlledOpen,
   onOpenChange,
+  hideTrigger = false,
 }: UnitLockOverlayProps): ReactNode {
   const router = useRouter();
   const { data: wallet } = useCoinWallet();
@@ -99,15 +101,17 @@ export function UnitLockOverlay({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => { setFeedback(null); setOpen(true); }}
-        aria-haspopup="dialog"
-        className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-600 ring-1 ring-amber-500/20 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
-      >
-        <Lock className="h-3.5 w-3.5" />
-        وحدة مقفلة
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={() => { setFeedback(null); setOpen(true); }}
+          aria-haspopup="dialog"
+          className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-600 ring-1 ring-amber-500/20 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+        >
+          <Lock className="h-3.5 w-3.5" />
+          وحدة مقفلة
+        </button>
+      )}
 
       <Dialog
         open={open}
