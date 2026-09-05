@@ -13,7 +13,7 @@ import type {
 import type { CheerioAPI } from "cheerio";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const MAX_TABLES = 20;
+const MAX_TABLES = 200;
 const MAX_ROWS = 1000;
 const MAX_CELLS_PER_ROW = 20;
 const MAX_CELL_TEXT_LENGTH = 5000;

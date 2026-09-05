@@ -73,6 +73,13 @@ The system automatically converts the uploaded Word document into structured les
 
 The Word document is the only source of lesson content.
 
+Word document import limits (enforced by `DocxExtractorService`, `file.validator.ts`):
+
+- Format: `.docx` only (parsed with mammoth; legacy `.doc` is rejected)
+- Max file size: 10 MB for content extraction (20 MB at the upload validator)
+- Max 200 tables, 1000 total rows, 20 cells per row, 5000 chars per cell/paragraph, 500 top-level paragraphs
+- Downstream persistence caps: 50 groups / 500 questions (`question-persistence.service.ts`)
+
 Teachers do not manually recreate activities inside the dashboard.
 
 Teachers provide YouTube URLs for one or more lesson videos.
