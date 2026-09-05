@@ -60,10 +60,31 @@ export function QuestionEditorDialog({
   const [correctIndex, setCorrectIndex] = useState(() => {
     if (initial?.options) {
       try {
-        const parsed = JSON.parse(initial.options) as { text: string; isCorrect?: boolean }[];
-        const idx = parsed.findIndex((o) => o.isCorrect);
-        return idx >= 0 ? idx : 0;
+        const parsed = JSON.parse(initial.options) as { label?: string; text: string; isCorrect?: boolean }[];
+        const idxIsCorrect = parsed.findIndex((o) => o.isCorrect);
+        if (idxIsCorrect >= 0) return idxIsCorrect;
+        // Fallback for Homework/Quiz where correctAnswer is stored separately and options have no isCorrect
+        if (initial.correctAnswer) {
+          const ca = initial.correctAnswer.trim().toLowerCase();
+          // Match by label (a/b/c) or by text
+          const byLabel = parsed.findIndex((o) => (o.label ?? "").toLowerCase() === ca);
+          if (byLabel >= 0) return byLabel;
+          // Single letter like "b" -> index 1
+          const single = ca.replace(/[^a-z]/g, "");
+          if (single.length === 1) {
+            const bySingle = single.charCodeAt(0) - 97;
+            if (bySingle >= 0 && bySingle < parsed.length) return bySingle;
+          }
+          const byText = parsed.findIndex((o) => o.text.trim().toLowerCase() === ca);
+          if (byText >= 0) return byText;
+        }
       } catch { /* ignore */ }
+    }
+    if (initial?.correctAnswer) {
+      const ca = initial.correctAnswer.trim().toLowerCase().replace(/[^a-z]/g, "");
+      if (ca.length === 1 && ca >= "a" && ca <= "f") {
+        return ca.charCodeAt(0) - 97;
+      }
     }
     return 0;
   });
