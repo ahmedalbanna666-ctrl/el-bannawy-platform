@@ -72,6 +72,7 @@ export class LessonService {
     }
 
     await this.academicContext.verifyStudentLessonAccess(userId, id);
+    await this.assertStudentPaymentAccess(userId, id);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -117,6 +118,7 @@ export class LessonService {
     if (!lesson) throw new NotFoundException("Lesson not found");
 
     await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    await this.assertStudentPaymentAccess(userId, lessonId);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -148,6 +150,7 @@ export class LessonService {
     if (!lesson) throw new NotFoundException("Lesson not found");
 
     await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    await this.assertStudentPaymentAccess(userId, lessonId);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -169,6 +172,7 @@ export class LessonService {
     if (!lesson.homeworkEnabled) return null;
 
     await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    await this.assertStudentPaymentAccess(userId, lessonId);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -202,6 +206,7 @@ export class LessonService {
     if (!lesson.quizEnabled) return null;
 
     await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+    await this.assertStudentPaymentAccess(userId, lessonId);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -584,6 +589,7 @@ export class LessonService {
     }
     if (role === "STUDENT") {
       await this.academicContext.verifyStudentLessonAccess(userId, lessonId);
+      await this.assertStudentPaymentAccess(userId, lessonId);
     }
 
     const exists = await this.fileStorage.exists(doc.fileUrl);
@@ -607,6 +613,38 @@ export class LessonService {
   private async getRole(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     return user?.role ?? "STUDENT";
+  }
+
+  private async assertStudentPaymentAccess(userId: string, lessonId: string): Promise<void> {
+    const role = await this.getRole(userId);
+    if (role !== "STUDENT") return;
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: {
+        isPremium: true,
+        lockedOverride: true,
+        unit: { select: { id: true, isPremium: true, lockedOverride: true, termId: true } },
+      },
+    });
+    if (!lesson) return;
+    if (lesson.lockedOverride === true || lesson.unit.lockedOverride === true) {
+      throw new ForbiddenException("This lesson is locked");
+    }
+    if (lesson.lockedOverride === false || lesson.unit.lockedOverride === false) return;
+    if (!lesson.isPremium && !lesson.unit.isPremium) return;
+    const owned = await this.prisma.contentUnlock.findFirst({
+      where: {
+        userId,
+        OR: [
+          { targetType: "UNIT", targetId: lesson.unit.id },
+          ...(lesson.unit.termId ? [{ targetType: "TERM", targetId: lesson.unit.termId }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    if (!owned) {
+      throw new ForbiddenException("This lesson requires purchasing its unit or term");
+    }
   }
 
   async uploadQuiz(lessonId: string, title: string, buffer: Buffer, fileSize: number, userId: string): Promise<unknown> {

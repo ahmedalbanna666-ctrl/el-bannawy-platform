@@ -4,8 +4,11 @@ import { type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
+import { usePermissions } from "@/lib/use-permissions";
+import { useContentAccess } from "@/lib/coins/coins-access";
+import { UnitLockOverlay } from "@/components/coins/unit-lock-overlay";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -146,6 +149,7 @@ interface UnitSummary {
   id: string;
   title: string;
   displayOrder: number;
+  termId: string | null;
   lessons: LessonSummary[];
 }
 
@@ -641,6 +645,65 @@ function NavigationFooter({
   );
 }
 
+// ── Payment Paywall ──────────────────────────────────────────────────
+
+function findLessonUnit(
+  stages: Stage[],
+  lessonId: string,
+): { id: string; title: string; termId: string | null } | null {
+  for (const stage of stages) {
+    for (const grade of stage.grades) {
+      for (const unit of grade.units) {
+        if (unit.lessons.some((l) => l.id === lessonId)) {
+          return { id: unit.id, title: unit.title, termId: unit.termId ?? null };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function LessonPaywall({
+  unitId,
+  unitTitle,
+  termId,
+  onDialogClose,
+}: {
+  unitId: string;
+  unitTitle: string;
+  termId?: string;
+  onDialogClose?: () => void;
+}): ReactNode {
+  return (
+    <div className="flex flex-col gap-4">
+      <BackButton fallbackHref="/dashboard/units" />
+      <Card variant="elevated" padding="lg">
+        <CardContent>
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10">
+              <Lock className="h-8 w-8 text-amber-500" />
+            </div>
+            <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+              هذا الدرس مدفوع
+            </h3>
+            <p className="max-w-sm text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+              للوصول إلى هذا الدرس اشترِ الوحدة أو الترم الخاص به.
+            </p>
+            <UnitLockOverlay
+              unitId={unitId}
+              unitTitle={unitTitle}
+              termId={termId}
+              onOpenChange={(open): void => {
+                if (!open) onDialogClose?.();
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────
 
 export default function LessonDetailPage(): ReactNode {
@@ -648,6 +711,10 @@ export default function LessonDetailPage(): ReactNode {
   const params = useParams();
   const router = useRouter();
   const lessonId = params.lessonId as string;
+  const queryClient = useQueryClient();
+  const { isAdmin, isTeacher } = usePermissions();
+  const isManagement = isAdmin || isTeacher;
+  const accessQuery = useContentAccess("LESSON", isManagement ? undefined : lessonId);
 
   const {
     data: lesson,
@@ -682,10 +749,42 @@ export default function LessonDetailPage(): ReactNode {
   const navigation = findAdjacentLessons(stages ?? [], lessonId);
 
   // ── Guards — all hooks declared above this line ──
-  if (lessonLoading) return <LessonSkeleton />;
+  const accessLoading = !isManagement && accessQuery.isLoading;
+  if (lessonLoading || accessLoading) return <LessonSkeleton />;
+
+  const invalidateLessonAccess = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+    void queryClient.invalidateQueries({ queryKey: ["coins", "access", "LESSON", lessonId] });
+  };
+
+  if (!isManagement && accessQuery.data?.unlocked === false) {
+    const parent = findLessonUnit(stages ?? [], lessonId);
+    if (!parent) return <LessonSkeleton />;
+    return (
+      <LessonPaywall
+        unitId={parent.id}
+        unitTitle={parent.title}
+        termId={parent.termId ?? undefined}
+        onDialogClose={invalidateLessonAccess}
+      />
+    );
+  }
 
   if (lessonError) {
     if (lessonErr instanceof ApiError && lessonErr.status === 403) {
+      const message = lessonErr.message;
+      if (/purchasing its unit or term|lesson is locked/i.test(message)) {
+        const parent = findLessonUnit(stages ?? [], lessonId);
+        if (!parent) return <LessonSkeleton />;
+        return (
+          <LessonPaywall
+            unitId={parent.id}
+            unitTitle={parent.title}
+            termId={parent.termId ?? undefined}
+            onDialogClose={invalidateLessonAccess}
+          />
+        );
+      }
       return (
       <div className="flex flex-col gap-4">
         <BackButton fallbackHref="/dashboard/units" />

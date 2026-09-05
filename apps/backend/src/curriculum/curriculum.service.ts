@@ -570,7 +570,7 @@ export class CurriculumService {
               lessons: unit.lessons.map((lesson) => ({
                 ...lesson,
                 lockedOverride: lesson.lockedOverride ?? null,
-                locked: this.computeLessonLocked(lesson),
+                locked: this.computeLessonLocked(lesson, unit, owned, forceUnlocked),
               })),
             };
           }),
@@ -579,8 +579,16 @@ export class CurriculumService {
     }));
   }
 
-  private computeLessonLocked(lesson: CurriculumLesson): boolean {
-    if (lesson.lockedOverride === true) return true;
+  private computeLessonLocked(
+    lesson: CurriculumLesson,
+    unit: Pick<CurriculumUnit, "isPremium" | "lockedOverride">,
+    owned: boolean,
+    forceUnlocked: boolean,
+  ): boolean {
+    if (forceUnlocked) return false;
+    if (lesson.lockedOverride === true || unit.lockedOverride === true) return true;
+    if (lesson.lockedOverride === false || unit.lockedOverride === false) return false;
+    if ((lesson.isPremium || unit.isPremium) && !owned) return true;
     return false;
   }
 }

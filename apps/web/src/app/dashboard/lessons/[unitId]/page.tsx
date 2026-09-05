@@ -113,6 +113,7 @@ export default function LessonListPage(): ReactNode {
       <div className="flex flex-col gap-3">
           {unit.lessons.map((lesson, _idx) => {
           const isLocked = lesson.locked || unitLocked;
+          const showBuyOverlay = isLocked && !unitLocked && lesson.lockedOverride !== true;
 
           return (
             <Card
@@ -172,11 +173,17 @@ export default function LessonListPage(): ReactNode {
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    {isLocked && (
-                      <span className="text-[11px] text-neutral-400">مغلق</span>
-                    )}
-                    {!isLocked && (
-                      <ArrowRight className="h-4 w-4 text-neutral-300 dark:text-neutral-600" />
+                    {showBuyOverlay ? (
+                      <UnitLockOverlay unitId={unit.id} unitTitle={unit.title} termId={unit.termId ?? undefined} />
+                    ) : (
+                      <>
+                        {isLocked && (
+                          <span className="text-[11px] text-neutral-400">مغلق</span>
+                        )}
+                        {!isLocked && (
+                          <ArrowRight className="h-4 w-4 text-neutral-300 dark:text-neutral-600" />
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
