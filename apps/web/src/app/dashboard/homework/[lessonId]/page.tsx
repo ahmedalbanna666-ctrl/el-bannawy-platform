@@ -592,7 +592,7 @@ export default function HomeworkPage(): ReactNode {
                 variant="primary"
                 size="md"
                 onClick={(): void => { void handleSubmit(); }}
-                disabled={!allAnswered}
+                disabled={submitting || questions.length === 0}
                 loading={submitting}
               >
                 تسليم الواجب
@@ -676,12 +676,17 @@ export default function HomeworkPage(): ReactNode {
           )}
 
           {attemptStarted && (
-            <div className="flex justify-end">
+            <div className="flex flex-col items-end gap-2">
+              {!allAnswered && questions.length > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  أجبت على {Object.values(answers).filter((v) => v.trim() !== "").length} من {questions.length} — يمكنك التسليم وسيتم احتساب الأسئلة الفارغة كخاطئة
+                </p>
+              )}
               <Button
                 variant="primary"
                 size="md"
                 onClick={(): void => { void handleSubmit(); }}
-                disabled={!allAnswered}
+                disabled={submitting || questions.length === 0}
                 loading={submitting}
               >
                 تسليم الواجب

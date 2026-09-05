@@ -273,6 +273,12 @@ function buildSections(
       currentLines = [];
       currentStart = p.paragraphIndex;
       currentTableStart = sections.reduce((max, s) => Math.max(max, s.tables.length), 0);
+      // If the marker shares a paragraph with content (e.g. "@@answer_key@@ 1=a"), capture the trailing text
+      const markerEnd = (markerMatch.index ?? 0) + markerMatch[0].length;
+      const remainder = p.text.slice(markerEnd).trim().replace(/^[:\-–—\s]+/, "").trim();
+      if (remainder && currentState !== ParserState.NONE) {
+        currentLines.push(remainder);
+      }
     } else if (currentState !== ParserState.NONE) {
       currentLines.push(p.text);
     }
@@ -756,12 +762,96 @@ function createEssayItem(
 
 // ── Answer Key Parser ────────────────────────────────────────────────
 
-function parseAnswerKey(lines: string[]): Map<string, string> {
-  const key = new Map<string, string>();
-  for (const line of lines) {
-    const m = line.match(/(\d+)\s*=\s*(.+)/);
-    if (m) key.set(m[1], m[2].replace(/[,;]+$/, "").trim());
+const ARABIC_TO_LATIN_KEY: Record<string, string> = {
+  أ: "a",
+  ب: "b",
+  ج: "c",
+  د: "d",
+  ه: "e",
+  و: "f",
+};
+
+function normalizeAnswerValue(raw: string): string {
+  let v = raw.trim().replace(/^[,\s;]+/, "").replace(/[,;\s]+$/, "").replace(/^["'\(\[]+/, "").replace(/["'\)\]]+$/, "").trim();
+  if (!v) return v;
+  // Map single Arabic letter to Latin for MCQ (so "أ" matches option label "a")
+  if (ARABIC_TO_LATIN_KEY[v]) return ARABIC_TO_LATIN_KEY[v];
+  // If value is a single MCQ letter with trailing punctuation like "a." or "b," -> normalize to just the letter
+  const lettersOnly = v.replace(/[^a-zA-Zأ-ي]/g, "");
+  if (lettersOnly.length === 1 && v.trim().length <= 3) {
+    const mapped = ARABIC_TO_LATIN_KEY[lettersOnly] ?? lettersOnly.toLowerCase();
+    // only normalize if the original value was essentially that single letter (e.g. "a." , "b," , "A" , "أ")
+    if (/^[a-fA-Fأ-ه-و][\W]*$/i.test(v.trim())) {
+      return mapped;
+    }
+    // also handle "a" with surrounding punctuation
+    if (v.trim().length <= 2) return mapped;
   }
+  return v;
+}
+
+function parseAnswerKey(lines: string[], tables: readonly NormalizedTable[] = []): Map<string, string> {
+  const key = new Map<string, string>();
+
+  // 1) Table-based answer keys (each row = number + answer)
+  for (const tbl of tables) {
+    for (const row of tbl.rows) {
+      if (row.cells.length >= 2) {
+        const first = row.cells[0].text.trim();
+        const second = row.cells[1].text.trim();
+        const numMatch = first.match(/^(\d+)\.?$/);
+        if (numMatch && second) {
+          key.set(numMatch[1], normalizeAnswerValue(second));
+          continue;
+        }
+      }
+      for (const cell of row.cells) {
+        const text = cell.text.trim();
+        // try to extract all number -> answer pairs inside the cell (strict separators = : to avoid splitting values like 3-2-1)
+        const reCell = /(\d+)\s*[:=]+\s*([^\d]+?)(?=\s*\d+\s*[:=]|$)/g;
+        let m: RegExpExecArray | null;
+        const cellCombined = text;
+        while ((m = reCell.exec(cellCombined)) !== null) {
+          const num = m[1];
+          let val = m[2].trim().replace(/^[,\s;]+/, "").replace(/[,;\s]+$/, "");
+          if (val) key.set(num, normalizeAnswerValue(val));
+        }
+      }
+    }
+  }
+
+  const combined = lines.join(" ").replace(/\s+/g, " ").trim();
+  if (!combined) return key;
+
+  // 2) Text-based answer keys: support multiple entries per line.
+  // Use strict separators (= and :) globally so values like "3-2-1" are not split.
+  const re = /(\d+)\s*[:=]+\s*/g;
+  const matches: Array<{ num: string; start: number; end: number }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(combined)) !== null) {
+    matches.push({ num: m[1], start: m.index, end: re.lastIndex });
+  }
+
+  if (matches.length === 0) {
+    // Fallback for other separators (e.g. "1 - a", "1. a", "1) a") when only one entry per line
+    for (const line of lines) {
+      const mm = line.match(/(\d+)\s*[:=\-.)\]]+\s*(.+)/);
+      if (mm) key.set(mm[1], normalizeAnswerValue(mm[2]));
+    }
+    return key;
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const cur = matches[i];
+    const nextStart = i + 1 < matches.length ? matches[i + 1].start : combined.length;
+    let value = combined.slice(cur.end, nextStart).trim();
+    value = value.replace(/^[,\s;]+/, "").replace(/[,;\s]+$/, "").trim();
+    // Remove surrounding quotes/brackets that may have been left
+    value = value.replace(/^["'\(\[]+/, "").replace(/["'\)\]]+$/, "").trim();
+    if (!value) continue;
+    key.set(cur.num, normalizeAnswerValue(value));
+  }
+
   return key;
 }
 
@@ -1049,7 +1139,7 @@ export class QuestionsTableV1Parser {
       if (section.state === ParserState.ANSWER_KEY) {
         const prevSection = sections[si - 1];
         if (prevSection && prevSection.state !== ParserState.ANSWER_KEY) {
-          const key = parseAnswerKey(section.lines);
+          const key = parseAnswerKey(section.lines, section.tables);
           answerKeys.set(prevSection.state, key);
         }
       }
