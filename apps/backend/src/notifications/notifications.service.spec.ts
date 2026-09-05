@@ -20,6 +20,7 @@ describe("NotificationsService scheduling (M4)", () => {
   };
   let fcm: { sendPush: jest.Mock };
   let jobQueue: { schedule: jest.Mock };
+  let whatsapp: { sendTestMessage: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -38,13 +39,14 @@ describe("NotificationsService scheduling (M4)", () => {
       providers: [
         NotificationsService,
         { provide: PrismaService, useValue: prisma },
-        { provide: WhatsAppService, useValue: { sendTestMessage: jest.fn().mockResolvedValue({}) } },
+        { provide: WhatsAppService, useValue: { sendTestMessage: jest.fn().mockResolvedValue({ success: true, id: "log1" }) } },
         { provide: FcmService, useValue: fcm },
         { provide: BullJobQueue, useValue: jobQueue },
       ],
     }).compile();
 
     service = module.get<NotificationsService>(NotificationsService);
+    whatsapp = module.get<WhatsAppService>(WhatsAppService) as unknown as { sendTestMessage: jest.Mock };
   });
 
   describe("sendNotification", () => {
@@ -82,6 +84,23 @@ describe("NotificationsService scheduling (M4)", () => {
       expect(result.pushSent).toBe(1);
       expect(result.whatsappSent).toBe(1);
       expect(fcm.sendPush).toHaveBeenCalledTimes(1);
+    });
+
+    it("should count only successful WhatsApp sends", async () => {
+      prisma.user.findMany.mockResolvedValue([{ id: "u1", mobileNumber: "+201000000000" }]);
+      prisma.notification.createMany.mockResolvedValue({ count: 1 });
+      whatsapp.sendTestMessage.mockResolvedValueOnce({ success: false, error: "nope", id: "log9" });
+
+      const result = (await service.sendNotification("sender", {
+        type: "report_ready",
+        title: "Report",
+        message: "Your report is ready",
+        channel: NotificationChannel.WHATSAPP,
+        targetType: NotificationTargetType.ALL_STUDENTS,
+      })) as { sent: number; pushSent: number; whatsappSent: number };
+
+      expect(result.whatsappSent).toBe(0);
+      expect(result.pushSent).toBe(1);
     });
   });
 

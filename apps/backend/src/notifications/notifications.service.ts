@@ -265,8 +265,8 @@ export class NotificationsService implements OnModuleInit {
       for (const user of users) {
         if (user.mobileNumber) {
           try {
-            await this.whatsAppService.sendTestMessage(user.mobileNumber, dto.message);
-            whatsappSent++;
+            const sendResult = await this.whatsAppService.sendTestMessage(user.mobileNumber, dto.message);
+            if (sendResult.success) whatsappSent++;
           } catch (err) {
             Logger.error(`WhatsApp send failed for user ${user.id}: ${err instanceof Error ? err.message : "Unknown"}`, "NotificationsService");
           }
