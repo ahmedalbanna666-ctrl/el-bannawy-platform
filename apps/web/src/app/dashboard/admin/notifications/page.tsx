@@ -30,6 +30,9 @@ interface WhatsAppConfigData {
   phoneNumber: string | null;
   isEnabled: boolean;
   apiUrl: string | null;
+  hasAccountSid: boolean;
+  hasAuthToken: boolean;
+  hasApiKey: boolean;
 }
 
 interface WhatsAppMessage {
@@ -225,6 +228,14 @@ function PushNotificationsSection(): ReactNode {
 // القسم الثاني: التحكم في نظام واتس آب
 // ═══════════════════════════════════════════════════════════════════════
 
+function CredentialBadge({ configured }: { configured: boolean }): ReactNode {
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${configured ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-neutral-200 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"}`}>
+      {configured ? "مُدخل" : "غير مُدخل"}
+    </span>
+  );
+}
+
 function WhatsAppSection(): ReactNode {
   const [config, setConfig] = useState<WhatsAppConfigData | null>(null);
   const [logs, setLogs] = useState<WhatsAppMessage[]>([]);
@@ -249,6 +260,9 @@ function WhatsAppSection(): ReactNode {
   const [editProvider, setEditProvider] = useState("twilio");
   const [editPhone, setEditPhone] = useState("");
   const [editApiUrl, setEditApiUrl] = useState("");
+  const [editAccountSid, setEditAccountSid] = useState("");
+  const [editAuthToken, setEditAuthToken] = useState("");
+  const [editApiKey, setEditApiKey] = useState("");
   const [editEnabled, setEditEnabled] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
 
@@ -285,7 +299,13 @@ function WhatsAppSection(): ReactNode {
         phoneNumber: editPhone || null,
         apiUrl: editApiUrl || null,
         isEnabled: editEnabled,
+        ...(editAccountSid.trim() ? { accountSid: editAccountSid.trim() } : {}),
+        ...(editAuthToken.trim() ? { authToken: editAuthToken.trim() } : {}),
+        ...(editApiKey.trim() ? { apiKey: editApiKey.trim() } : {}),
       });
+      setEditAccountSid("");
+      setEditAuthToken("");
+      setEditApiKey("");
       setEditing(false);
       void fetchData();
     } catch { /* silent */ }
@@ -357,6 +377,29 @@ function WhatsAppSection(): ReactNode {
               <div>
                 <label className="mb-1 block text-xs text-neutral-500">رابط API</label>
                 <Input value={editApiUrl} onChange={(e): void => { setEditApiUrl(e.target.value); }} placeholder="https://api.example.com/send" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 flex items-center gap-2 text-xs text-neutral-500">
+                  Account SID (Twilio)
+                  <CredentialBadge configured={config?.hasAccountSid ?? false} />
+                </label>
+                <Input type="password" value={editAccountSid} onChange={(e): void => { setEditAccountSid(e.target.value); }} placeholder={config?.hasAccountSid ? "مُدخل — اتركه فارغًا للإبقاء" : "ACxxxxxxxxxxxxxxxx"} autoComplete="off" />
+              </div>
+              <div>
+                <label className="mb-1 flex items-center gap-2 text-xs text-neutral-500">
+                  Auth Token (Twilio)
+                  <CredentialBadge configured={config?.hasAuthToken ?? false} />
+                </label>
+                <Input type="password" value={editAuthToken} onChange={(e): void => { setEditAuthToken(e.target.value); }} placeholder={config?.hasAuthToken ? "مُدخل — اتركه فارغًا للإبقاء" : "أدخل الـ Auth Token"} autoComplete="off" />
+              </div>
+              <div>
+                <label className="mb-1 flex items-center gap-2 text-xs text-neutral-500">
+                  API Key (مزود مخصص)
+                  <CredentialBadge configured={config?.hasApiKey ?? false} />
+                </label>
+                <Input type="password" value={editApiKey} onChange={(e): void => { setEditApiKey(e.target.value); }} placeholder={config?.hasApiKey ? "مُدخل — اتركه فارغًا للإبقاء" : "مفتاح المزود المخصص"} autoComplete="off" />
               </div>
             </div>
             <div className="flex items-center gap-3">
