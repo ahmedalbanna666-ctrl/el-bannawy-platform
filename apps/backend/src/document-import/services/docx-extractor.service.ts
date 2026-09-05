@@ -57,6 +57,7 @@ export class DocxExtractorService {
     const contentOrder: ContentEntry[] = [];
     let totalRows = 0;
     let paragraphIndex = 0;
+    let olCounter = 0;
 
     // Single pass through body children preserving document order
     this.traverseBody($, $("body"), {
@@ -65,6 +66,7 @@ export class DocxExtractorService {
       contentOrder,
       totalRowsRef: { value: totalRows },
       paragraphIndexRef: { value: paragraphIndex },
+      olCounterRef: { value: olCounter },
     });
 
     // Fix totalRows from reference
@@ -89,6 +91,7 @@ export class DocxExtractorService {
       contentOrder: ContentEntry[];
       totalRowsRef: { value: number };
       paragraphIndexRef: { value: number };
+      olCounterRef: { value: number };
     },
   ): void {
     parent.contents().each((_idx, node) => {
@@ -140,7 +143,7 @@ export class DocxExtractorService {
           );
         }
         const $el = $(el);
-        const prefix = this.getListPrefix($, el);
+        const prefix = this.getListPrefix($, el, ctx.olCounterRef);
         const html = prefix + this.serializeParagraphHtml($, $el);
         const text = prefix + this.normalizeText($el.text());
 
@@ -300,11 +303,16 @@ export class DocxExtractorService {
     return rows.length > 0 ? { tableIndex, rows } : null;
   }
 
-  private getListPrefix($: CheerioAPI, liEl: any): string {
+  private getListPrefix($: CheerioAPI, liEl: any, olCounterRef?: { value: number }): string {
     const parent = $(liEl).parent();
     if (!parent.length) return "";
     const parentTag = parent[0].tagName.toLowerCase();
     if (parentTag === "ol") {
+      // Use a global counter so separate <ol> blocks with single <li> are numbered sequentially (1., 2., 3., ...)
+      if (olCounterRef) {
+        olCounterRef.value += 1;
+        return `${String(olCounterRef.value)}. `;
+      }
       const liIdx = parent.children("li").toArray().indexOf(liEl);
       return `${String(liIdx + 1)}. `;
     }

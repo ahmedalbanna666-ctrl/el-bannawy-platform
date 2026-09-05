@@ -350,6 +350,11 @@ function processMCQSection(
 
   for (const line of lines) {
     if (items.length + startOrder >= MAX_QUESTIONS) break;
+    const hasInlineOptions = extractInlineOptions(line).length >= 2;
+    // Skip headings/instructions that are not questions (e.g. "Exercise on Language Level 1")
+    // Unnumbered questions with inline options (e.g. "What is 2+2? a. 3 b. 4") have hasInlineOptions true, so they are not skipped
+    if (!isQuestionStart(line) && !hasInlineOptions) continue;
+
     const qn = extractQuestionNumber(line);
     const effectiveNum = qn || String(qNum);
 
@@ -373,7 +378,9 @@ function processMCQSection(
       null,
     ));
 
-    if (isQuestionStart(line)) qNum++;
+    // Increment for next question: numbered questions advance by their number, unnumbered advance sequentially
+    if (isQuestionStart(line) || hasInlineOptions) qNum++;
+    else qNum++;
   }
 
   return { items, usedTables: tableCursor };
