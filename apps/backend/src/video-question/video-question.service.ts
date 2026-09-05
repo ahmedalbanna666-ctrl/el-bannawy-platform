@@ -155,6 +155,13 @@ export class VideoQuestionService {
         });
       }
 
+      if (dto.timestamp !== undefined) {
+        await tx.videoEvent.update({
+          where: { id: existing.videoEventId },
+          data: { timestamp: dto.timestamp },
+        });
+      }
+
       const updated = await tx.videoQuestion.findUnique({
         where: { id },
         include: {

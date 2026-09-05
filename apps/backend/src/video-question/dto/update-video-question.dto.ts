@@ -41,6 +41,16 @@ export class UpdateVideoQuestionDto {
   @Min(0)
   displayOrder?: number;
 
+  /**
+   * Surprise-question time in seconds. Stored on the parent video EVENT
+   * (not on the question row), so the teacher can retime a question when
+   * editing it — previously the edit form silently dropped the timestamp.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  timestamp?: number;
+
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>;
