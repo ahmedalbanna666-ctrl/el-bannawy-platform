@@ -587,9 +587,10 @@ export class CurriculumService {
   ): boolean {
     if (forceUnlocked) return false;
     if (lesson.lockedOverride === true || unit.lockedOverride === true) return true;
-    if (lesson.lockedOverride === false || unit.lockedOverride === false) return false;
-    if ((lesson.isPremium || unit.isPremium) && !owned) return true;
-    return false;
+    if (lesson.lockedOverride === false) return false;
+    const needsPurchase = lesson.isPremium || (unit.isPremium && unit.lockedOverride !== false);
+    if (!needsPurchase) return false;
+    return !owned;
   }
 }
 

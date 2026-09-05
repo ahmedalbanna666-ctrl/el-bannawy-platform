@@ -372,8 +372,9 @@ export class CoinsService {
       const progress = await this.prisma.lessonProgress.findFirst({ where: { userId, lessonId: targetId } });
       if (!lesson) return { unlocked: false, hasProgress: !!progress };
       if (lesson.lockedOverride === true || lesson.unit.lockedOverride === true) return { unlocked: false, hasProgress: !!progress };
-      if (lesson.lockedOverride === false || lesson.unit.lockedOverride === false) return { unlocked: true, hasProgress: !!progress };
-      if (!lesson.isPremium && !lesson.unit.isPremium) return { unlocked: true, hasProgress: !!progress };
+      if (lesson.lockedOverride === false) return { unlocked: true, hasProgress: !!progress };
+      const needsPurchase = lesson.isPremium || (lesson.unit.isPremium && lesson.unit.lockedOverride !== false);
+      if (!needsPurchase) return { unlocked: true, hasProgress: !!progress };
       return { unlocked: await this.hasUnitOrTermUnlock(userId, lesson.unit), hasProgress: !!progress };
     }
 

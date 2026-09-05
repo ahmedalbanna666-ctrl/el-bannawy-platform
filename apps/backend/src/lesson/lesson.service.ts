@@ -630,8 +630,9 @@ export class LessonService {
     if (lesson.lockedOverride === true || lesson.unit.lockedOverride === true) {
       throw new ForbiddenException("This lesson is locked");
     }
-    if (lesson.lockedOverride === false || lesson.unit.lockedOverride === false) return;
-    if (!lesson.isPremium && !lesson.unit.isPremium) return;
+    if (lesson.lockedOverride === false) return;
+    const needsPurchase = lesson.isPremium || (lesson.unit.isPremium && lesson.unit.lockedOverride !== false);
+    if (!needsPurchase) return;
     const owned = await this.prisma.contentUnlock.findFirst({
       where: {
         userId,
