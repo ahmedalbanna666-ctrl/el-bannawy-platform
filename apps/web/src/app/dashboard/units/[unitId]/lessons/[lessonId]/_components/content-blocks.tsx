@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { usePronunciation } from "@/lib/use-pronunciation";
 import { usePermissions } from "@/lib/use-permissions";
 import { cn } from "@/lib/utils";
+import { parseUploadError } from "@/lib/upload-error";
 import {
   MonitorPlay,
   Languages,
@@ -57,7 +58,7 @@ async function uploadFile(endpoint: string, file: File): Promise<void> {
     body: formData,
   });
   if (!response.ok) {
-    throw new Error("فشل رفع الملف");
+    throw new Error(await parseUploadError(response));
   }
 }
 
@@ -1072,7 +1073,7 @@ function QuizBlock({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".docx,.doc"
+        accept=".docx"
         onChange={handleFileChange}
         className="hidden"
         aria-hidden="true"
@@ -1080,7 +1081,7 @@ function QuizBlock({
       />
       <ContentBlock
         title="اختبار الدرس"
-        description="رفع ملف Word لإنشاء الاختبار تلقائياً"
+        description="رفع ملف Word بصيغة .docx لإنشاء الاختبار تلقائياً"
         icon={GraduationCap}
         expanded={expanded}
         onToggle={onToggle}
@@ -1230,7 +1231,7 @@ function HomeworkBlock({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".docx,.doc"
+        accept=".docx"
         onChange={handleFileChange}
         className="hidden"
         aria-hidden="true"
@@ -1238,7 +1239,7 @@ function HomeworkBlock({
       />
       <ContentBlock
         title="الواجب"
-        description="رفع ملف Word لإنشاء الواجب تلقائياً"
+        description="رفع ملف Word بصيغة .docx لإنشاء الواجب تلقائياً"
         icon={ClipboardList}
         expanded={expanded}
         onToggle={onToggle}

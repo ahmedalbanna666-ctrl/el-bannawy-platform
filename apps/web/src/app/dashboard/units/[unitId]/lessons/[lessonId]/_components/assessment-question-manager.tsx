@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, type ReactNode, type ChangeEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { parseUploadError } from "@/lib/upload-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
@@ -54,7 +55,7 @@ async function uploadFile(endpoint: string, file: File): Promise<void> {
     credentials: "include",
     body: formData,
   });
-  if (!response.ok) throw new Error("فشل رفع الملف");
+  if (!response.ok) throw new Error(await parseUploadError(response));
 }
 
 export function AssessmentQuestionManager({
@@ -190,7 +191,7 @@ export function AssessmentQuestionManager({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".docx,.doc"
+        accept=".docx"
         onChange={handleFileChange}
         className="hidden"
         aria-hidden="true"
