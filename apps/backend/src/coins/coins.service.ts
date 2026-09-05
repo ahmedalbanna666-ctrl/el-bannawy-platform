@@ -139,6 +139,19 @@ export class CoinsService {
     return { cost: setting ? Number(setting.value) : targetType === "UNIT" ? 50 : 300 };
   }
 
+  async getEffectiveTermCost(userId: string, termId: string): Promise<{ cost: number; baseCost: number; credit: number }> {
+    const { cost: baseCost } = await this.getUnlockCost("TERM");
+    const units = await this.prisma.unit.findMany({ where: { termId }, select: { id: true } });
+    if (units.length === 0) return { cost: baseCost, baseCost, credit: 0 };
+    const unlocks = await this.prisma.contentUnlock.findMany({
+      where: { userId, targetType: "UNIT", targetId: { in: units.map((u) => u.id) } },
+      select: { coinAmount: true },
+    });
+    const paid = unlocks.reduce((sum, u) => sum + (u.coinAmount ?? 0), 0);
+    const credit = Math.min(paid, baseCost);
+    return { cost: Math.max(0, baseCost - paid), baseCost, credit };
+  }
+
   async setUnlockCost(userId: string, dto: { targetType: string; cost: number }): Promise<{ cost: number }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!user || (user.role !== "ADMINISTRATOR" && user.role !== "TEACHER")) {
@@ -312,7 +325,9 @@ export class CoinsService {
     });
     if (existing) return { unlocked: true };
 
-    const { cost } = await this.getUnlockCost(dto.targetType);
+    const { cost } = dto.targetType === "TERM"
+      ? await this.getEffectiveTermCost(userId, dto.targetId)
+      : await this.getUnlockCost(dto.targetType);
 
     await this.prisma.$transaction(async (tx) => {
       if (cost > 0) {

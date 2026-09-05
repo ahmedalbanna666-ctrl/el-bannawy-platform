@@ -36,7 +36,7 @@ export function UnitLockOverlay({
 }: UnitLockOverlayProps): ReactNode {
   const router = useRouter();
   const { data: wallet } = useCoinWallet();
-  const { unlock, unlockTerm, redeem, unlocking, unlockingTerm, redeeming, cost, termCost } = useUnitUnlock(unitId, { termId });
+  const { unlock, unlockTerm, redeem, unlocking, unlockingTerm, redeeming, cost, termCost, termCredit } = useUnitUnlock(unitId, { termId });
   const [code, setCode] = useState("");
 
   const isControlled = controlledOpen !== undefined;
@@ -147,7 +147,7 @@ export function UnitLockOverlay({
             </div>
           )}
 
-          {termId && termCost > 0 && (
+          {termId && (termCost > 0 || termCredit > 0) && (
             <div className="flex flex-col gap-3 rounded-xl border border-primary-500/30 bg-primary-500/5 p-4 dark:border-primary-500/40">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-500/10">
@@ -160,11 +160,24 @@ export function UnitLockOverlay({
                     {termCost > 0 && (
                       <span className="text-primary-500"> — {termCost.toLocaleString()} عملة</span>
                     )}
+                    {termCredit > 0 && (
+                      <span className="text-success-500"> (وفّرت {termCredit.toLocaleString()} عملة من وحداتك المشتراة)</span>
+                    )}
                   </p>
                 </div>
               </div>
 
-              {insufficient ? (
+              {termCost === 0 ? (
+                <Button
+                  variant="primary"
+                  onClick={handleUnlockTerm}
+                  loading={unlockingTerm}
+                  className="w-full"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  فعّل الترم مجانًا
+                </Button>
+              ) : insufficient ? (
                 <Button variant="outline" onClick={handleBuyCoins} className="w-full">
                   <ShoppingCart className="h-4 w-4" />
                   اشحن رصيدك من المتجر

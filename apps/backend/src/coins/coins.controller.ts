@@ -102,6 +102,15 @@ export class CoinsController {
     return successResponse(data);
   }
 
+  @Get("term-price/:termId")
+  async getTermPrice(
+    @CurrentUser() userId: string,
+    @Param("termId") termId: string,
+  ): Promise<ISuccessResponse<{ cost: number; baseCost: number; credit: number }>> {
+    const data = await this.coins.getEffectiveTermCost(userId, termId);
+    return successResponse(data);
+  }
+
   @Post("unlock-cost")
   @Roles("ADMINISTRATOR", "TEACHER")
   async setUnlockCost(

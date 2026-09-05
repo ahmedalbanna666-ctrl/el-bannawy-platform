@@ -5,6 +5,7 @@ import {
   useSubmitUnlockRequest,
   useRedeemCode,
   useUnlockCost,
+  useTermPrice,
 } from "@/lib/coins/coins-api";
 
 export interface ContentAccess {
@@ -41,6 +42,8 @@ export interface UseUnitUnlockResult {
   redeeming: boolean;
   cost: number;
   termCost: number;
+  termCredit: number;
+  termBase: number;
   unlockTerm: (onDone?: (err?: unknown) => void) => void;
   unlockingTerm: boolean;
 }
@@ -52,19 +55,23 @@ interface UseUnitUnlockOptions {
 export function useUnitUnlock(unitId: string | undefined, options?: UseUnitUnlockOptions): UseUnitUnlockResult {
   const qc = useQueryClient();
   const access = useContentAccess("UNIT", unitId);
+  const termId = options?.termId;
   const { data: costData } = useUnlockCost("UNIT");
   const { data: termCostData } = useUnlockCost("TERM");
+  const { data: termPriceData } = useTermPrice(termId);
   const unlockMut = useUnlockContent();
   const requestMut = useSubmitUnlockRequest();
   const redeemMut = useRedeemCode();
 
   const cost = costData?.cost ?? 50;
-  const termCost = termCostData?.cost ?? 0;
-  const termId = options?.termId;
+  const termCost = termPriceData?.cost ?? termCostData?.cost ?? 0;
+  const termCredit = termPriceData?.credit ?? 0;
+  const termBase = termPriceData?.baseCost ?? termCostData?.cost ?? 0;
 
   const invalidate = (): void => {
     void qc.invalidateQueries({ queryKey: ["coins", "access", "UNIT", unitId] });
     void qc.invalidateQueries({ queryKey: ["coins", "access", "TERM", termId] });
+    void qc.invalidateQueries({ queryKey: ["coins", "term-price"] });
     void qc.invalidateQueries({ queryKey: ["curriculum"] });
     void qc.invalidateQueries({ queryKey: ["coins", "wallet"] });
   };
@@ -121,6 +128,8 @@ export function useUnitUnlock(unitId: string | undefined, options?: UseUnitUnloc
     redeeming: redeemMut.isPending,
     cost,
     termCost,
+    termCredit,
+    termBase,
     unlockTerm,
     unlockingTerm: unlockMut.isPending,
   };

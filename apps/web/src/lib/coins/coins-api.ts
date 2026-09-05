@@ -89,6 +89,25 @@ export function useUnlockCost(targetType: string): UseQueryResult<{ cost: number
   });
 }
 
+export interface TermPrice {
+  cost: number;
+  baseCost: number;
+  credit: number;
+}
+
+export function useTermPrice(termId: string | undefined): UseQueryResult<TermPrice> {
+  return useQuery({
+    queryKey: ["coins", "term-price", termId],
+    queryFn: async () => {
+      const res = await api.get<TermPrice>(`/coins/term-price/${termId ?? ""}`);
+      if (!res.data) throw new Error("Failed to fetch term price");
+      return res.data;
+    },
+    enabled: !!termId,
+    staleTime: 15_000,
+  });
+}
+
 export function useSetUnlockCost(): UseMutationResult<
   ApiResponse<{ cost: number }>,
   Error,
@@ -97,7 +116,10 @@ export function useSetUnlockCost(): UseMutationResult<
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto) => api.post("/coins/unlock-cost", dto),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["coins", "unlock-cost"] }); },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["coins", "unlock-cost"] });
+      void qc.invalidateQueries({ queryKey: ["coins", "term-price"] });
+    },
   });
 }
 
