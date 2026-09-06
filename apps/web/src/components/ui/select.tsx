@@ -47,7 +47,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             ref={ref}
             id={selectId}
             className={cn(
-              "w-full appearance-none rounded-xl border-2 border-neutral-300 bg-transparent pe-10 ps-4 text-neutral-900 transition-all duration-150 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600 dark:text-neutral-100 dark:focus:border-primary-400",
+              "w-full appearance-none rounded-xl border-2 border-neutral-300 bg-white pe-10 ps-4 text-neutral-900 transition-all duration-150 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:focus:border-primary-400 dark:[color-scheme:dark] [&>option]:bg-white dark:[&>option]:bg-neutral-800 dark:[&>option]:text-neutral-100",
               error &&
                 "border-danger-500 focus:border-danger-500 focus:ring-danger-500/20",
               sizeStyles[size],

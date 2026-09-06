@@ -583,11 +583,13 @@ export class AdminService {
     const where: Record<string, unknown> = { role: "STUDENT" };
 
     if (status) where.status = status;
-    if (gradeId) where.gradeId = gradeId;
     if (academicYearId) where.academicYearId = academicYearId;
     if (termId) where.termId = termId;
 
-    if (stageId) {
+    if (gradeId) {
+      // When a specific grade is selected, filter by that grade only — ignore stageId to avoid overwriting
+      where.gradeId = gradeId;
+    } else if (stageId) {
       const stageGrades = await this.prisma.grade.findMany({
         where: { stageId },
         select: { id: true },
