@@ -59,27 +59,42 @@ export class VocabularyTableV1Parser {
       return displayOrder;
     }
 
-    for (const row of dataRows) {
-      if (isSectionTitleRow(row)) {
-        continue;
-      }
+    const validRows = dataRows.filter((r) => !isSectionTitleRow(r) && r.cells.some((c) => c.text.trim().length > 0));
+    const maxPairs = validRows.length > 0 ? Math.max(...validRows.map((r) => Math.floor(r.cells.length / 2))) : 0;
 
-      const hasAnyContent = row.cells.some((c) => c.text.trim().length > 0);
-      if (!hasAnyContent) {
-        continue;
-      }
-
-      const cellCount = row.cells.length;
-
-      if (cellCount >= 2 && cellCount % 2 === 0) {
-        for (let col = 0; col < cellCount; col += 2) {
-          const pairIdx = Math.floor(col / 2);
-          displayOrder = this.processPair(row, table.tableIndex, col, col + 1, pairIdx, items, displayOrder, warnings, errors);
+    // For 3+ pairs per row (e.g. 6 cells → 3 columns) use column-major so mobile shows col1 then col2 then col3
+    // For 1-2 pairs keep row-major to preserve existing expectations and tests
+    if (maxPairs >= 3) {
+      for (let pairIdx = 0; pairIdx < maxPairs; pairIdx++) {
+        for (const row of validRows) {
+          const cellCount = row.cells.length;
+          const wordCol = pairIdx * 2;
+          const transCol = pairIdx * 2 + 1;
+          if (cellCount % 2 !== 0) {
+            if (pairIdx === 0) {
+              warnings.push(
+                `Table ${String(table.tableIndex)} row ${String(row.rowIndex)}: unsupported layout (${String(cellCount)} cells)`,
+              );
+            }
+            continue;
+          }
+          if (wordCol >= cellCount) continue;
+          displayOrder = this.processPair(row, table.tableIndex, wordCol, transCol, pairIdx, items, displayOrder, warnings, errors);
         }
-      } else {
-        warnings.push(
-          `Table ${String(table.tableIndex)} row ${String(row.rowIndex)}: unsupported layout (${String(cellCount)} cells)`,
-        );
+      }
+    } else {
+      for (const row of validRows) {
+        const cellCount = row.cells.length;
+        if (cellCount >= 2 && cellCount % 2 === 0) {
+          for (let col = 0; col < cellCount; col += 2) {
+            const pairIdx = Math.floor(col / 2);
+            displayOrder = this.processPair(row, table.tableIndex, col, col + 1, pairIdx, items, displayOrder, warnings, errors);
+          }
+        } else {
+          warnings.push(
+            `Table ${String(table.tableIndex)} row ${String(row.rowIndex)}: unsupported layout (${String(cellCount)} cells)`,
+          );
+        }
       }
     }
 

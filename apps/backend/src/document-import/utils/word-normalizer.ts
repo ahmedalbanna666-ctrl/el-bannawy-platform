@@ -3,7 +3,8 @@ export interface ParsedWord {
   readonly partOfSpeech: string | null;
 }
 
-const POS_PATTERN = /^(n|v|adj|adv|prep|pron|conj|det|phr v|phr|exp|idiom)$/i;
+const POS_PATTERN =
+  /^(n|v|adj|adv|prep|pron|conj|det|phr\.?\s*v|phr|exp|idiom)(\s*\/\s*(n|v|adj|adv|prep|pron|conj|det|phr\.?\s*v|phr|exp|idiom))*$/i;
 
 export function parseWord(raw: string): ParsedWord {
   const trimmed = raw.trim();
