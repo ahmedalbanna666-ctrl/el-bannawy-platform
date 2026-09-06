@@ -71,11 +71,11 @@ export class VocabularyTableV1Parser {
 
       const cellCount = row.cells.length;
 
-      if (cellCount === 2) {
-        displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
-      } else if (cellCount === 4) {
-        displayOrder = this.processPair(row, table.tableIndex, 0, 1, 0, items, displayOrder, warnings, errors);
-        displayOrder = this.processPair(row, table.tableIndex, 2, 3, 1, items, displayOrder, warnings, errors);
+      if (cellCount >= 2 && cellCount % 2 === 0) {
+        for (let col = 0; col < cellCount; col += 2) {
+          const pairIdx = Math.floor(col / 2);
+          displayOrder = this.processPair(row, table.tableIndex, col, col + 1, pairIdx, items, displayOrder, warnings, errors);
+        }
       } else {
         warnings.push(
           `Table ${String(table.tableIndex)} row ${String(row.rowIndex)}: unsupported layout (${String(cellCount)} cells)`,
@@ -130,7 +130,7 @@ export class VocabularyTableV1Parser {
     tableIndex: number,
     wordCol: number,
     transCol: number,
-    pairIndex: 0 | 1,
+    pairIndex: number,
     items: VocabularyPreviewItem[],
     displayOrder: number,
     warnings: string[],

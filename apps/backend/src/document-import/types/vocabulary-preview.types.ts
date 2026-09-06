@@ -4,7 +4,7 @@ export interface VocabularyPreviewItem {
   readonly clientDraftId: string;
   readonly sourceTableIndex: number;
   readonly sourceRowIndex: number;
-  readonly sourcePairIndex: 0 | 1;
+  readonly sourcePairIndex: number;
   readonly displayOrder: number;
   readonly word: string;
   readonly translation: string;

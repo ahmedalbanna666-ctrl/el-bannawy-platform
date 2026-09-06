@@ -23,7 +23,7 @@ export interface VocabularyStandardItemDraft {
   readonly displayOrder: number;
   readonly sourceTableIndex: number;
   readonly sourceRowIndex: number;
-  readonly sourcePairIndex: 0 | 1;
+  readonly sourcePairIndex: number;
   readonly status: VocabularyPreviewStatus;
   readonly warnings: readonly string[];
   readonly errors: readonly string[];

@@ -207,20 +207,14 @@ export class VocabularyTableV2Parser {
 
       const cellCount = row.cells.length;
 
-      if (cellCount === 2) {
-        displayOrder = this.processStandardPair(
-          row, table.tableIndex, 0, 1, 0,
-          currentSection.clientDraftId, items, displayOrder, warnings, errors,
-        );
-      } else if (cellCount === 4) {
-        displayOrder = this.processStandardPair(
-          row, table.tableIndex, 0, 1, 0,
-          currentSection.clientDraftId, items, displayOrder, warnings, errors,
-        );
-        displayOrder = this.processStandardPair(
-          row, table.tableIndex, 2, 3, 1,
-          currentSection.clientDraftId, items, displayOrder, warnings, errors,
-        );
+      if (cellCount >= 2 && cellCount % 2 === 0) {
+        for (let col = 0; col < cellCount; col += 2) {
+          const pairIdx = Math.floor(col / 2);
+          displayOrder = this.processStandardPair(
+            row, table.tableIndex, col, col + 1, pairIdx,
+            currentSection.clientDraftId, items, displayOrder, warnings, errors,
+          );
+        }
       } else {
         warnings.push(
           `Table ${String(table.tableIndex)} row ${String(row.rowIndex)}: unsupported layout (${String(cellCount)} cells)`,
@@ -358,7 +352,7 @@ export class VocabularyTableV2Parser {
     tableIndex: number,
     wordCol: number,
     transCol: number,
-    pairIndex: 0 | 1,
+    pairIndex: number,
     sectionClientDraftId: string,
     items: VocabularyItemDraft[],
     displayOrder: number,

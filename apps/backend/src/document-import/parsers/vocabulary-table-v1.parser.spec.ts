@@ -851,8 +851,8 @@ describe("VocabularyTableV1Parser", () => {
         ]),
       ]);
       const result = parser.parse(input);
-      expect(result.items.length).toBe(0);
-      expect(result.warnings.some((w) => w.includes("unsupported"))).toBe(true);
+      expect(result.items.length).toBe(3);
+      expect(result.warnings.some((w) => w.includes("unsupported"))).toBe(false);
       expect(result.warnings.some((w) => w.includes("Synonym"))).toBe(false);
     });
 
