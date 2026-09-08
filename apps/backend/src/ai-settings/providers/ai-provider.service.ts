@@ -637,6 +637,9 @@ export class AiProviderService {
   /**
    * Health probe: issues a minimal completion against the provider.
    * Used by the admin health dashboard and failover bookkeeping.
+   * Note: maxTokens is 64 (not 8) because reasoning models (e.g. gpt-oss)
+   * consume budget on thinking tokens; 8 leaves no room for content and
+   * falsely reports "Empty completion from provider".
    */
   async probeHealth(configId: string): Promise<{ ok: boolean; message: string; latencyMs: number }> {
     const config = await this.getProviderConfig(configId);
@@ -644,7 +647,7 @@ export class AiProviderService {
 
     const started = Date.now();
     try {
-      await this.callProvider(config, [{ role: "user", content: "ping" }], { maxTokens: 8 });
+      await this.callProvider(config, [{ role: "user", content: "ping" }], { maxTokens: 64 });
       const latencyMs = Date.now() - started;
       await this.markHealth(configId, true);
       return { ok: true, message: "OK", latencyMs };
