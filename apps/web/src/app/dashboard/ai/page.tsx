@@ -172,6 +172,13 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
   while (i < lines.length) {
     const line = lines[i];
 
+    // Simple middle divider ( --- or *** )
+    if (/^(\s*---+\s*|\s*\*\*\*+\s*)$/.test(line)) {
+      blocks.push(<hr key={key++} className="my-3 border-0 border-t border-neutral-200 dark:border-neutral-700" />);
+      i++;
+      continue;
+    }
+
     if (line.startsWith("```")) {
       const codeLines: string[] = [];
       i++;
@@ -225,7 +232,7 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
         i++;
       }
       blocks.push(
-        <ul key={key++} className="mt-1 list-inside list-disc space-y-0.5">
+        <ul key={key++} className="mt-1 list-inside list-disc space-y-0.5" dir={getTextDirection(listItems[0] ?? "")}>
           {listItems.map((item, idx) => (
             <li key={idx} dir={getTextDirection(item)}>
               {renderInline(item)}
@@ -243,7 +250,12 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
         i++;
       }
       blocks.push(
-        <ol key={key++} className="mt-1 list-inside list-decimal space-y-0.5">
+        <ol
+          key={key++}
+          className="mt-1 list-inside list-decimal space-y-0.5"
+          dir={getTextDirection(listItems[0] ?? "")}
+          style={{ textAlign: getTextDirection(listItems[0] ?? "") === "rtl" ? "right" : "left" }}
+        >
           {listItems.map((item, idx) => (
             <li key={idx} dir={getTextDirection(item)}>
               {renderInline(item)}
@@ -255,6 +267,18 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
     }
 
     if (line.trim() === "") {
+      i++;
+      continue;
+    }
+
+    // Arabic translation in parentheses on its own line (e.g. "(المضارع التام)") — render as small subtitle under English heading
+    const trimmedLine = line.trim();
+    if (/^\(.*[\u0600-\u06FF].*\)$/.test(trimmedLine) && trimmedLine.length < 60) {
+      blocks.push(
+        <p key={key++} dir="rtl" className="-mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+          {renderInline(trimmedLine)}
+        </p>,
+      );
       i++;
       continue;
     }
@@ -347,25 +371,16 @@ export default function AiChatPage(): ReactNode {
     }
 
     try {
-      const rec = new SR() as unknown as {
-        lang: string;
-        interimResults: boolean;
-        continuous: boolean;
-        start: () => void;
-        stop: () => void;
-        onresult: ((e: { results: { 0: { transcript: string } }[] }) => void) | null;
-        onend: (() => void) | null;
-        onerror: (() => void) | null;
-      };
+      const rec = new SR();
       rec.lang = "ar-EG";
       rec.interimResults = true;
       rec.continuous = false;
-      rec.onresult = (e: { results: { 0: { transcript: string } }[] }) => {
+      rec.onresult = (e: { results: { 0: { transcript: string } }[] }): void => {
         const transcript = e.results[0]?.[0]?.transcript ?? "";
         if (transcript) setInput(transcript);
       };
-      rec.onend = () => { setIsListening(false); };
-      rec.onerror = () => { setIsListening(false); };
+      rec.onend = (): void => { setIsListening(false); };
+      rec.onerror = (): void => { setIsListening(false); };
       recognitionRef.current = rec;
       rec.start();
       setIsListening(true);
