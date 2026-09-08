@@ -523,11 +523,30 @@ export function PronunciationChallenge({
               </p>
 
               {recorder.error && (
-                <p className="text-xs text-danger-500">{recorder.error}</p>
+                <div className="flex w-full flex-col items-center gap-2 rounded-xl bg-danger-500/10 p-3">
+                  <p className="text-center text-xs font-medium text-danger-600 dark:text-danger-400">{recorder.error}</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => { recorder.reset(); void recorder.start(); }}>
+                      <Mic className="h-3.5 w-3.5" />
+                      إعادة المحاولة
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { recorder.reset(); setAssessError(null); }}>
+                      إغلاق
+                    </Button>
+                  </div>
+                  <p className="text-center text-[11px] text-neutral-500">
+                    إذا استمر الرفض: اضغط على رمز القفل 🔒 بجانب عنوان الموقع ← إعدادات الموقع ← الميكروفون ← اختر “سماح” ثم أعد تحميل الصفحة.
+                  </p>
+                </div>
               )}
 
               {assessError && (
-                <p className="text-xs text-danger-500">{assessError}</p>
+                <div className="flex w-full flex-col items-center gap-2 rounded-xl bg-danger-500/10 p-3">
+                  <p className="text-center text-xs font-medium text-danger-600 dark:text-danger-400">{assessError}</p>
+                  <Button variant="outline" size="sm" onClick={() => { setAssessError(null); recorder.reset(); }}>
+                    حاول مرة أخرى
+                  </Button>
+                </div>
               )}
 
               {recorder.recording && (

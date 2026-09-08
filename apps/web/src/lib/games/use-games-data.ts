@@ -29,6 +29,8 @@ interface CurriculumStage {
 export function useCurriculumUnits(): UseQueryResult<GameUnitOption[]> {
   return useQuery({
     queryKey: ["games", "curriculum-units"],
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     queryFn: async (): Promise<GameUnitOption[]> => {
       const res = await api.get<CurriculumStage[]>("/curriculum");
       const stages = res.data ?? [];
@@ -65,22 +67,29 @@ export function useUnitVocabulary(
   return useQuery({
     queryKey: ["games", "unit-vocabulary", unitId],
     enabled: lessonIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     queryFn: async (): Promise<GameWord[]> => {
-      const collected: GameWord[] = [];
-
-      for (const lessonId of lessonIds) {
-        try {
-          const res = await api.get<VocabularyApiItem[]>(
-            `/lessons/${lessonId}/vocabulary`,
-          );
-          for (const item of res.data ?? []) {
-            if (item.word && item.translation) {
-              collected.push({ word: item.word, translation: item.translation });
-            }
+      const results = await Promise.all(
+        lessonIds.map(async (lessonId) => {
+          try {
+            const res = await api.get<VocabularyApiItem[]>(
+              `/lessons/${lessonId}/vocabulary`,
+            );
+            return res.data ?? [];
+          } catch {
+            // Skip lessons the student cannot access instead of failing the whole pool.
+            return [];
           }
-        } catch {
-          // Skip lessons the student cannot access instead of failing the whole pool.
-          continue;
+        }),
+      );
+
+      const collected: GameWord[] = [];
+      for (const items of results) {
+        for (const item of items) {
+          if (item.word && item.translation) {
+            collected.push({ word: item.word, translation: item.translation });
+          }
         }
       }
 

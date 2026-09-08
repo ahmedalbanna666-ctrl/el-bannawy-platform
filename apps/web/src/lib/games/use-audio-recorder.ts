@@ -62,8 +62,21 @@ export function useAudioRecorder(): UseAudioRecorder {
     setError(null);
     setResult(null);
     setDurationMs(0);
+
+    // Pre-check secure context
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      setError("التسجيل يتطلب اتصال آمن (HTTPS). يرجى فتح الموقع عبر https://");
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       streamRef.current = stream;
       const mimeType = pickMimeType();
       const recorder = new MediaRecorder(stream, { mimeType });
@@ -89,11 +102,36 @@ export function useAudioRecorder(): UseAudioRecorder {
       }, 100);
     } catch (err) {
       setRecording(false);
-      setError(
-        err instanceof DOMException && err.name === "NotAllowedError"
-          ? "تم رفض الوصول للميكروفون"
-          : "تعذر تشغيل التسجيل، تحقق من الميكروفون",
-      );
+      let message = "تعذر تشغيل التسجيل، تحقق من الميكروفون";
+      if (err instanceof DOMException) {
+        switch (err.name) {
+          case "NotAllowedError":
+            message =
+              "تم رفض الوصول للميكروفون. يرجى السماح للتطبيق باستخدام الميكروفون من إعدادات المتصفح (رمز القفل بجانب العنوان ← إعدادات الموقع ← الميكروفون ← سماح) ثم اضغط إعادة المحاولة.";
+            break;
+          case "NotFoundError":
+            message = "لم يتم العثور على ميكروفون. تأكد من توصيل ميكروفون يعمل.";
+            break;
+          case "NotReadableError":
+            message = "الميكروفون قيد الاستخدام من تطبيق آخر. أغلق التطبيقات الأخرى وحاول مرة أخرى.";
+            break;
+          case "OverconstrainedError":
+            message = "الميكروفون لا يدعم الإعدادات المطلوبة.";
+            break;
+          case "SecurityError":
+            message = "التسجيل يتطلب اتصال آمن (HTTPS) وإذن الميكروفون.";
+            break;
+          case "AbortError":
+            message = "تم إلغاء طلب الميكروفون. حاول مرة أخرى.";
+            break;
+          default:
+            message = `تعذر تشغيل التسجيل: ${err.message || err.name}`;
+            break;
+        }
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setError(message);
     }
   }, []);
 
