@@ -27,6 +27,8 @@ import {
   Check,
   ThumbsUp,
   ThumbsDown,
+  Mic,
+  MicOff,
 } from "lucide-react";
 
 interface Conversation {
@@ -99,10 +101,20 @@ function extractFirstName(fullName?: string): string {
   return parts.length > 0 ? parts[0] : "";
 }
 
-/** Lightweight markdown renderer (headings, bold, italic, code, lists, links). */
+function getTextDirection(text: string): "rtl" | "ltr" {
+  const arabicRegex = /[\u0600-\u06FF]/;
+  const trimmed = text.trim();
+  for (const char of trimmed) {
+    if (arabicRegex.test(char)) return "rtl";
+    if (/[a-zA-Z]/.test(char)) return "ltr";
+  }
+  return "rtl";
+}
+
+/** Lightweight markdown renderer (headings, bold, italic, code, lists, links, highlights). */
 function renderInline(text: string): ReactNode {
   const elements: ReactNode[] = [];
-  const regex = /(`[^`]+`|\*\*[^*]+\*\*|_[^_]+_|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
+  const regex = /(`[^`]+`|\*\*[^*]+\*\*|==[^=]+==|_[^_]+_|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -118,7 +130,17 @@ function renderInline(text: string): ReactNode {
         </code>,
       );
     } else if (token.startsWith("**") && token.endsWith("**")) {
-      elements.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
+      elements.push(
+        <mark key={key++} className="rounded bg-amber-100 px-1 py-0.5 font-semibold text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
+          {token.slice(2, -2)}
+        </mark>,
+      );
+    } else if (token.startsWith("==") && token.endsWith("==")) {
+      elements.push(
+        <mark key={key++} className="rounded bg-red-50 px-1 py-0.5 font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
+          {token.slice(2, -2)}
+        </mark>,
+      );
     } else if (token.startsWith("_") && token.endsWith("_")) {
       elements.push(<em key={key++}>{token.slice(1, -1)}</em>);
     } else if (token.startsWith("*") && token.endsWith("*")) {
@@ -170,11 +192,28 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
     if (headingMatch) {
       const level = headingMatch[1].length;
       const Tag = `h${String(level)}` as "h1" | "h2" | "h3" | "h4";
-      blocks.push(
-        <Tag key={key++} className="mt-2 font-semibold text-neutral-900 dark:text-neutral-100">
-          {renderInline(headingMatch[2])}
-        </Tag>,
-      );
+      const headingText = headingMatch[2];
+      const dir = getTextDirection(headingText);
+      // If heading contains both Arabic and English separated by " - " or "/", stack them
+      const hasBothLanguages = /[\u0600-\u06FF].*[a-zA-Z]|[a-zA-Z].*[\u0600-\u06FF]/.test(headingText);
+      if (hasBothLanguages && headingText.includes(" - ")) {
+        const parts = headingText.split(" - ");
+        blocks.push(
+          <Tag key={key++} className="mt-2 flex flex-col gap-0.5 font-semibold text-neutral-900 dark:text-neutral-100" dir={dir}>
+            {parts.map((part, idx) => (
+              <span key={idx} dir={getTextDirection(part)}>
+                {renderInline(part)}
+              </span>
+            ))}
+          </Tag>,
+        );
+      } else {
+        blocks.push(
+          <Tag key={key++} className="mt-2 font-semibold text-neutral-900 dark:text-neutral-100" dir={dir}>
+            {renderInline(headingText)}
+          </Tag>,
+        );
+      }
       i++;
       continue;
     }
@@ -188,7 +227,9 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
       blocks.push(
         <ul key={key++} className="mt-1 list-inside list-disc space-y-0.5">
           {listItems.map((item, idx) => (
-            <li key={idx}>{renderInline(item)}</li>
+            <li key={idx} dir={getTextDirection(item)}>
+              {renderInline(item)}
+            </li>
           ))}
         </ul>,
       );
@@ -204,7 +245,9 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
       blocks.push(
         <ol key={key++} className="mt-1 list-inside list-decimal space-y-0.5">
           {listItems.map((item, idx) => (
-            <li key={idx}>{renderInline(item)}</li>
+            <li key={idx} dir={getTextDirection(item)}>
+              {renderInline(item)}
+            </li>
           ))}
         </ol>,
       );
@@ -216,11 +259,15 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
       continue;
     }
 
-    blocks.push(<p key={key++}>{renderInline(line)}</p>);
+    blocks.push(
+      <p key={key++} dir={getTextDirection(line)}>
+        {renderInline(line)}
+      </p>,
+    );
     i++;
   }
 
-  return <div className="space-y-1 whitespace-pre-wrap">{blocks}</div>;
+  return <div className="space-y-2 whitespace-pre-wrap leading-relaxed">{blocks}</div>;
 }
 
 export default function AiChatPage(): ReactNode {
@@ -244,12 +291,88 @@ export default function AiChatPage(): ReactNode {
   const [buyError, setBuyError] = useState("");
   const [buySuccess, setBuySuccess] = useState(false);
   const [buying, setBuying] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [micSupported, setMicSupported] = useState(false);
+  const recognitionRef = useRef<unknown>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const studentFirstName = extractFirstName(userProfile?.fullName ?? userProfile?.englishName);
   const gradeName = userProfile?.roleProfile?.grade?.name ?? userProfile?.roleProfile?.stage?.name;
   const termName = userProfile?.roleProfile?.currentTerm?.name;
   const greetingTitle = studentFirstName ? `أهلاً يا ${studentFirstName}! 👋` : "اسأل البنا AI";
+
+  useEffect(() => {
+    const w = window as unknown as {
+      SpeechRecognition?: new () => unknown;
+      webkitSpeechRecognition?: new () => unknown;
+    };
+    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    setMicSupported(!!SR);
+  }, []);
+
+  const toggleMic = useCallback((): void => {
+    if (sending) return;
+    const w = window as unknown as {
+      SpeechRecognition?: new () => {
+        lang: string;
+        interimResults: boolean;
+        continuous: boolean;
+        start: () => void;
+        stop: () => void;
+        onresult: ((e: { results: { 0: { transcript: string } }[] }) => void) | null;
+        onend: (() => void) | null;
+        onerror: (() => void) | null;
+      };
+      webkitSpeechRecognition?: new () => {
+        lang: string;
+        interimResults: boolean;
+        continuous: boolean;
+        start: () => void;
+        stop: () => void;
+        onresult: ((e: { results: { 0: { transcript: string } }[] }) => void) | null;
+        onend: (() => void) | null;
+        onerror: (() => void) | null;
+      };
+    };
+    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!SR) return;
+
+    if (isListening) {
+      const rec = recognitionRef.current as {
+        stop: () => void;
+      } | null;
+      rec?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const rec = new SR() as unknown as {
+        lang: string;
+        interimResults: boolean;
+        continuous: boolean;
+        start: () => void;
+        stop: () => void;
+        onresult: ((e: { results: { 0: { transcript: string } }[] }) => void) | null;
+        onend: (() => void) | null;
+        onerror: (() => void) | null;
+      };
+      rec.lang = "ar-EG";
+      rec.interimResults = true;
+      rec.continuous = false;
+      rec.onresult = (e: { results: { 0: { transcript: string } }[] }) => {
+        const transcript = e.results[0]?.[0]?.transcript ?? "";
+        if (transcript) setInput(transcript);
+      };
+      rec.onend = () => { setIsListening(false); };
+      rec.onerror = () => { setIsListening(false); };
+      recognitionRef.current = rec;
+      rec.start();
+      setIsListening(true);
+    } catch {
+      setIsListening(false);
+    }
+  }, [isListening, sending]);
 
   useEffect(() => {
     async function fetchInitial(): Promise<void> {
@@ -752,9 +875,22 @@ export default function AiChatPage(): ReactNode {
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
                 <div className="flex items-center gap-2 rounded-xl bg-primary-500/5 px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400">
                   <BadgeInfo className="h-4 w-4 shrink-0 text-primary-500" />
-                  <span>
-                    {gradeName ? `${gradeName}${termName ? ` - ${termName}` : ""}` : (studentFirstName ? `أهلاً يا ${studentFirstName}! جاهز أساعدك في تعلم الإنجليزية` : "مرحباً بك في مساعد البنا AI")}
-                  </span>
+                  <div className="flex flex-col">
+                    {gradeName ? (
+                      <>
+                        <span className="font-medium" dir="auto">
+                          {gradeName}
+                        </span>
+                        {termName && (
+                          <span className="text-xs opacity-80" dir="auto">
+                            {termName}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span>{studentFirstName ? `أهلاً يا ${studentFirstName}! جاهز أساعدك في تعلم الإنجليزية` : "مرحباً بك في مساعد البنا AI"}</span>
+                    )}
+                  </div>
                 </div>
                 {messages.length === 0 && (
                   <div className="flex h-full items-center justify-center">
@@ -764,13 +900,16 @@ export default function AiChatPage(): ReactNode {
                 {messages.map((msg) => (
                   <div key={msg.id}>
                     <div className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <div className={`rounded-2xl px-4 py-3 text-sm ${
+                      <div
+                      dir="auto"
+                      className={`rounded-2xl px-4 py-3 text-sm ${
                         msg.role === "user"
                           ? "max-w-[80%] bg-primary-500 text-white"
                           : msg.isError
                             ? "flex-1 bg-danger-500/10 text-danger-600 dark:text-danger-400"
                             : "flex-1 bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
-                      }`}>
+                      }`}
+                    >
                         {msg.isStreaming && msg.content === "" ? (
                           <div className="flex gap-1">
                             <span className="h-2 w-2 animate-bounce rounded-full bg-neutral-400" style={{ animationDelay: "0ms" }} />
@@ -889,14 +1028,33 @@ export default function AiChatPage(): ReactNode {
               )}
 
               <form onSubmit={(e): void => { void handleSend(e); }} className="flex gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-700">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e): void => { setInput(e.target.value); }}
-                  placeholder="اسأل عن القواعد أو المفردات أو احصل على مساعدة في الواجبات..."
-                  className="flex-1 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                  disabled={sending}
-                />
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e): void => { setInput(e.target.value); }}
+                    placeholder="اسأل عن القواعد أو المفردات أو احصل على مساعدة في الواجبات..."
+                    className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 pe-12 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                    disabled={sending}
+                    dir="auto"
+                  />
+                  {micSupported && (
+                    <button
+                      type="button"
+                      onClick={toggleMic}
+                      disabled={sending}
+                      className={`absolute end-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg transition-all ${
+                        isListening
+                          ? "animate-pulse bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400"
+                          : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200 hover:text-primary-500 dark:bg-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-600"
+                      }`}
+                      aria-label={isListening ? "إيقاف التسجيل" : "تحدث بالمايك"}
+                      title={isListening ? "إيقاف التسجيل" : "اضغط للتحدث"}
+                    >
+                      {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </button>
+                  )}
+                </div>
                 <Button type="submit" variant="primary" size="icon" disabled={!input.trim() || sending} loading={sending}>
                   <Send className="h-5 w-5" />
                 </Button>
