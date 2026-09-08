@@ -69,14 +69,30 @@ export function useAudioRecorder(): UseAudioRecorder {
       return;
     }
 
+    // Check for basic support first
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("المتصفح لا يدعم الوصول للميكروفون. جرب متصفح حديث مثل Chrome أو Firefox.");
+      return;
+    }
+
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (e) {
+        // Fallback for devices that don't support advanced constraints (e.g. some iOS versions)
+        if (e instanceof DOMException && e.name === "OverconstrainedError") {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } else {
+          throw e;
+        }
+      }
       streamRef.current = stream;
       const mimeType = pickMimeType();
       const recorder = new MediaRecorder(stream, { mimeType });
@@ -103,32 +119,25 @@ export function useAudioRecorder(): UseAudioRecorder {
     } catch (err) {
       setRecording(false);
       let message = "تعذر تشغيل التسجيل، تحقق من الميكروفون";
-      if (err instanceof DOMException) {
-        switch (err.name) {
-          case "NotAllowedError":
-            message =
-              "تم رفض الوصول للميكروفون. يرجى السماح للتطبيق باستخدام الميكروفون من إعدادات المتصفح (رمز القفل بجانب العنوان ← إعدادات الموقع ← الميكروفون ← سماح) ثم اضغط إعادة المحاولة.";
-            break;
-          case "NotFoundError":
-            message = "لم يتم العثور على ميكروفون. تأكد من توصيل ميكروفون يعمل.";
-            break;
-          case "NotReadableError":
-            message = "الميكروفون قيد الاستخدام من تطبيق آخر. أغلق التطبيقات الأخرى وحاول مرة أخرى.";
-            break;
-          case "OverconstrainedError":
-            message = "الميكروفون لا يدعم الإعدادات المطلوبة.";
-            break;
-          case "SecurityError":
-            message = "التسجيل يتطلب اتصال آمن (HTTPS) وإذن الميكروفون.";
-            break;
-          case "AbortError":
-            message = "تم إلغاء طلب الميكروفون. حاول مرة أخرى.";
-            break;
-          default:
-            message = `تعذر تشغيل التسجيل: ${err.message || err.name}`;
-            break;
-        }
-      } else if (err instanceof Error) {
+      const errName = err instanceof DOMException ? err.name : (err as { name?: string })?.name ?? "";
+      const errMsg = err instanceof Error ? err.message : String(err ?? "");
+      // Handle permission and other errors robustly even when err is not a DOMException
+      if (errName === "NotAllowedError" || errMsg.includes("Permission denied") || errMsg.includes("NotAllowed")) {
+        message =
+          "تم رفض الوصول للميكروفون. يرجى السماح للتطبيق باستخدام الميكروفون من إعدادات المتصفح (رمز القفل بجانب العنوان ← إعدادات الموقع ← الميكروفون ← سماح) ثم اضغط إعادة المحاولة. على الهاتف: إعدادات المتصفح ← الخصوصية ← الميكروفون.";
+      } else if (errName === "NotFoundError" || errMsg.includes("NotFound")) {
+        message = "لم يتم العثور على ميكروفون. تأكد من توصيل ميكروفون يعمل وأنه غير معطل من إعدادات النظام.";
+      } else if (errName === "NotReadableError" || errMsg.includes("NotReadable")) {
+        message = "الميكروفون قيد الاستخدام من تطبيق آخر (مثل Zoom أو Meet). أغلق التطبيقات الأخرى وحاول مرة أخرى.";
+      } else if (errName === "OverconstrainedError") {
+        message = "الميكروفون لا يدعم الإعدادات المطلوبة. سيتم المحاولة بإعدادات أبسط.";
+      } else if (errName === "SecurityError" || errMsg.includes("Secure")) {
+        message = "التسجيل يتطلب اتصال آمن (HTTPS) وإذن الميكروفون. تأكد من فتح الموقع عبر https://";
+      } else if (errName === "AbortError") {
+        message = "تم إلغاء طلب الميكروفون. حاول مرة أخرى.";
+      } else if (err instanceof DOMException) {
+        message = `تعذر تشغيل التسجيل: ${err.message || err.name}`;
+      } else if (err instanceof Error && err.message) {
         message = err.message;
       }
       setError(message);
