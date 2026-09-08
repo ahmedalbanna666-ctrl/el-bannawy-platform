@@ -64,7 +64,7 @@ export function useAudioRecorder(): UseAudioRecorder {
     setDurationMs(0);
 
     // Pre-check secure context
-    if (typeof window !== "undefined" && window.isSecureContext === false) {
+    if (typeof window !== "undefined" && !window.isSecureContext) {
       setError("التسجيل يتطلب اتصال آمن (HTTPS). يرجى فتح الموقع عبر https://");
       return;
     }
