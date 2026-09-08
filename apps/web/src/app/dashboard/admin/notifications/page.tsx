@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, type ReactNode } from "react";
+import { useEffect, useState, useCallback, useMemo, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { normalizeEgyptMobile } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,11 +40,71 @@ interface WhatsAppConfigData {
 interface WhatsAppMessage {
   id: string;
   to: string;
+  senderPhone: string | null;
   message: string;
   status: string;
   error: string | null;
   createdAt: string;
 }
+
+interface WaGrade {
+  readonly id: string;
+  readonly name: string;
+}
+
+interface WaStage {
+  readonly id: string;
+  readonly name: string;
+  readonly grades: WaGrade[];
+}
+
+interface WaBulkStudent {
+  readonly id: string;
+  readonly fullName: string;
+  readonly mobileNumber: string | null;
+  readonly parentMobile: string | null;
+}
+
+interface WaSender {
+  readonly id: string;
+  readonly gradeId: string;
+  readonly gradeName: string | null;
+  readonly label: string;
+  readonly phoneNumber: string;
+  readonly isEnabled: boolean;
+  readonly apiUrl: string | null;
+  readonly hasApiKey: boolean;
+}
+
+const QUICK_JOBS = [
+  {
+    key: "lesson",
+    label: "تذكير بحصة منشورة",
+    title: "حصة جديدة منشورة",
+    message: "تم نشر حصة جديدة: [اسم الحصة] — شاهدها الآن من صفحة الدروس",
+    audience: "grade",
+    recipient: "student",
+    mode: "auto",
+  },
+  {
+    key: "live",
+    label: "تذكير بحصة أونلاين",
+    title: "حصة مباشرة",
+    message: "تذكير: حصة مباشرة [المادة / الموعد] — ادخل من صفحة البث المباشر في موعدك",
+    audience: "grade",
+    recipient: "student",
+    mode: "auto",
+  },
+  {
+    key: "report",
+    label: "تقرير ولي الأمر",
+    title: "تقرير مستوى الطالب",
+    message: "تقرير مستوى الطالب [اسم الطالب] أصبح متاحًا — للاستفسار تواصل معنا",
+    audience: "grade",
+    recipient: "parent",
+    mode: "manual",
+  },
+] as const;
 
 // ── Page ──────────────────────────────────────────────────────────────
 
@@ -225,6 +287,470 @@ function PushNotificationsSection(): ReactNode {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// ── أرقام الواتساب المخصصة لكل صف ───────────────────────────────────────
+
+function SendersCard(): ReactNode {
+  const [senders, setSenders] = useState<WaSender[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, { phone?: string; label?: string; enabled?: boolean }>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [testingGrade, setTestingGrade] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const { data: stages } = useQuery<WaStage[]>({
+    queryKey: ["wa-bulk-stages"],
+    queryFn: async () => {
+      const res = await api.get<WaStage[]>("/admin/stages");
+      return res.data ?? [];
+    },
+    staleTime: 60_000,
+  });
+  const grades = useMemo(
+    () => (stages ?? []).flatMap((s) => s.grades.map((g) => ({ ...g, stageName: s.name }))),
+    [stages],
+  );
+
+  const fetchSenders = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    try {
+      const res = await api.get<WaSender[]>("/notifications/admin/whatsapp/senders");
+      setSenders(res.data ?? []);
+    } catch {
+      setSenders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchSenders();
+  }, [fetchSenders]);
+
+  const rowFor = (gradeId: string): { phone: string; label: string; enabled: boolean } => {
+    const existing = senders.find((s) => s.gradeId === gradeId);
+    const o = overrides[gradeId] ?? {};
+    return {
+      phone: o.phone ?? existing?.phoneNumber ?? "",
+      label: o.label ?? existing?.label ?? "",
+      enabled: o.enabled ?? existing?.isEnabled ?? true,
+    };
+  };
+
+  const setDraft = (gradeId: string, patch: { phone?: string; label?: string; enabled?: boolean }): void => {
+    setOverrides((prev) => ({ ...prev, [gradeId]: { ...prev[gradeId], ...patch } }));
+  };
+
+  const saveAll = async (): Promise<void> => {
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const rows = grades.map((g) => {
+        const r = rowFor(g.id);
+        return { gradeId: g.id, phoneNumber: r.phone.trim(), label: r.label.trim(), isEnabled: r.enabled };
+      });
+      const res = await api.put<WaSender[]>("/notifications/admin/whatsapp/senders", { senders: rows });
+      setSenders(res.data ?? []);
+      setOverrides({});
+      setFeedback("تم حفظ الأرقام بنجاح");
+    } catch (err) {
+      setFeedback(`خطأ: ${err instanceof Error ? err.message : "فشل الحفظ"}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const testSender = async (gradeId: string): Promise<void> => {
+    if (!testTo.trim()) {
+      setFeedback("أدخل رقم الاختبار أولًا");
+      return;
+    }
+    setTestingGrade(gradeId);
+    setFeedback(null);
+    try {
+      const res = await api.post<{ success: boolean; error?: string; senderPhone?: string | null }>(
+        "/notifications/admin/whatsapp/test",
+        { to: testTo.trim(), message: "رسالة اختبار رقم الإرسال", gradeId },
+      );
+      const d = res.data;
+      setFeedback(d?.success ? `تم الإرسال عبر ${d.senderPhone ?? "الرقم"}` : `فشل: ${d?.error ?? "خطأ"}`);
+    } catch (err) {
+      setFeedback(`خطأ: ${err instanceof Error ? err.message : "فشل"}`);
+    } finally {
+      setTestingGrade(null);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800/30">
+      <div className="flex items-center gap-2">
+        <Smartphone className="h-4 w-4 text-neutral-500" />
+        <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">أرقام الواتساب للصفوف</h3>
+      </div>
+      <p className="mt-1 text-xs text-neutral-500">
+        خصص رقمًا مختلفًا لكل صف لتوزيع الإرسال وتقليل خطر الحظر. الصف بدون رقم يستخدم الرقم الافتراضي من إعدادات الاتصال.
+      </p>
+
+      <div className="mt-3 flex flex-col gap-3">
+        <div className="flex gap-3">
+          <Input
+            placeholder="رقم الاختبار (مثال: 201001234567)"
+            value={testTo}
+            onChange={(e): void => { setTestTo(e.target.value); }}
+            className="flex-1"
+          />
+        </div>
+
+        {loading ? (
+          <p className="text-xs text-neutral-500">جاري التحميل...</p>
+        ) : grades.length === 0 ? (
+          <p className="text-xs text-neutral-500">لا توجد صفوف دراسية.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {grades.map((g) => {
+              const r = rowFor(g.id);
+              const saved = senders.some((s) => s.gradeId === g.id);
+              return (
+                <div key={g.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-3 dark:bg-neutral-900">
+                  <div className="min-w-32 flex-1">
+                    <p className="text-sm font-medium">{g.name}</p>
+                    <p className="text-[10px] text-neutral-400">{g.stageName}{saved ? " · رقم مخصص" : ""}</p>
+                  </div>
+                  <Input
+                    placeholder="+201..."
+                    value={r.phone}
+                    onChange={(e): void => { setDraft(g.id, { phone: e.target.value }); }}
+                    className="w-40 dir-ltr"
+                  />
+                  <Input
+                    placeholder="اسم مميز (اختياري)"
+                    value={r.label}
+                    onChange={(e): void => { setDraft(g.id, { label: e.target.value }); }}
+                    className="w-36"
+                  />
+                  <label className="flex items-center gap-1 text-xs text-neutral-500">
+                    <input
+                      type="checkbox"
+                      checked={r.enabled}
+                      onChange={(e): void => { setDraft(g.id, { enabled: e.target.checked }); }}
+                      className="rounded border-neutral-300"
+                    />
+                    مفعل
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(): void => { void testSender(g.id); }}
+                    disabled={testingGrade === g.id || !testTo.trim()}
+                  >
+                    {testingGrade === g.id ? "..." : "اختبار"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex items-center gap-3">
+          <Button size="sm" variant="primary" onClick={(): void => { void saveAll(); }} disabled={saving}>
+            <Save className="ml-1 h-4 w-4" />
+            حفظ الأرقام
+          </Button>
+          {feedback && (
+            <p className={`text-sm ${feedback.includes("تم") ? "text-emerald-600" : "text-red-500"}`}>{feedback}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── الإرسال الجماعي لصف كامل (تلقائي Twilio / يدوي مجاني) ───────────────
+
+function BulkWhatsAppSection({ whatsappEnabled }: { whatsappEnabled: boolean }): ReactNode {
+  const [mode, setMode] = useState<"auto" | "manual">("auto");
+  const [title, setTitle] = useState("إعلان هام");
+  const [message, setMessage] = useState("");
+  const [audience, setAudience] = useState<"all" | "grade">("grade");
+  const [recipient, setRecipient] = useState<"student" | "parent">("student");
+  const [gradeId, setGradeId] = useState("");
+  const [timing, setTiming] = useState<"now" | "scheduled">("now");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const { data: stages } = useQuery<WaStage[]>({
+    queryKey: ["wa-bulk-stages"],
+    queryFn: async () => {
+      const res = await api.get<WaStage[]>("/admin/stages");
+      return res.data ?? [];
+    },
+    staleTime: 60_000,
+  });
+
+  const grades = useMemo(
+    () => (stages ?? []).flatMap((s) => s.grades.map((g) => ({ ...g, stageName: s.name }))),
+    [stages],
+  );
+
+  const needList = mode === "manual" || audience === "grade";
+  const { data: listedStudents, isLoading: studentsLoading } = useQuery<WaBulkStudent[]>({
+    queryKey: ["wa-bulk-students", audience, gradeId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: "500" });
+      if (audience === "grade" && gradeId) params.set("gradeId", gradeId);
+      const res = await api.get<{ students: WaBulkStudent[] }>(`/admin/students?${params.toString()}`);
+      return res.data?.students ?? [];
+    },
+    enabled: needList && (audience === "all" || gradeId.length > 0),
+    staleTime: 30_000,
+  });
+
+  const effectiveRecipient = mode === "manual" ? recipient : "student";
+  const numbers = useMemo(
+    () =>
+      (listedStudents ?? [])
+        .map((s) => ({
+          id: s.id,
+          name: s.fullName,
+          number: normalizeEgyptMobile((effectiveRecipient === "parent" ? s.parentMobile : s.mobileNumber) ?? ""),
+        }))
+        .filter((s) => s.number.length > 0),
+    [listedStudents, effectiveRecipient],
+  );
+  const missingCount = (listedStudents ?? []).length - numbers.length;
+
+  const waLink = (number: string): string => {
+    const digits = number.replace(/^\+/, "");
+    const text = message.trim();
+    return text ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : `https://wa.me/${digits}`;
+  };
+
+  const copyNumbers = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(numbers.map((n) => n.number).join("\n"));
+      setCopied(true);
+      window.setTimeout(() => { setCopied(false); }, 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const sendBulk = async (): Promise<void> => {
+    if (!message.trim()) {
+      setResult("اكتب نص الرسالة أولًا");
+      return;
+    }
+    if (audience === "grade" && !gradeId) {
+      setResult("اختر الصف الدراسي أولًا");
+      return;
+    }
+    setSending(true);
+    setResult(null);
+    try {
+      const payload = {
+        type: "teacher_announcement",
+        title: title.trim() || "إعلان هام",
+        message: message.trim(),
+        channel: "WHATSAPP",
+        targetType: audience === "grade" ? "grade" : "all_students",
+        ...(audience === "grade" ? { targetId: gradeId } : {}),
+      };
+      if (timing === "scheduled") {
+        if (!scheduledAt) {
+          setResult("حدد تاريخ ووقت الإرسال");
+          setSending(false);
+          return;
+        }
+        const res = await api.post<{ scheduled: boolean; reason?: string }>("/notifications/schedule", {
+          ...payload,
+          scheduledAt: new Date(scheduledAt).toISOString(),
+        });
+        setResult(res.data?.scheduled ? "تمت جدولة الإرسال بنجاح" : `تعذرت الجدولة: ${res.data?.reason ?? "لا يوجد مستلمون"}`);
+      } else {
+        const res = await api.post<{ sent: number; whatsappSent: number; pushSent: number; skipped?: boolean; reason?: string }>(
+          "/notifications/send",
+          payload,
+        );
+        const d = res.data;
+        if (!d) setResult("تعذر قراءة النتيجة");
+        else if (d.skipped) setResult(`لا يوجد مستلمون (${d.reason ?? ""})`);
+        else setResult(`تم الإرسال: واتساب ${String(d.whatsappSent)} — داخل المنصة ${String(d.sent)}`);
+      }
+    } catch (err) {
+      setResult(`خطأ: ${err instanceof Error ? err.message : "فشل الإرسال"}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800/30">
+      <div className="flex items-center gap-2">
+        <MessageSquare className="h-4 w-4 text-neutral-500" />
+        <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">إرسال جماعي لصف كامل</h3>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {QUICK_JOBS.map((job) => (
+          <Button
+            key={job.key}
+            size="sm"
+            variant="outline"
+            onClick={(): void => {
+              setTitle(job.title);
+              setMessage(job.message);
+              setAudience(job.audience);
+              setRecipient(job.recipient);
+              setMode(job.mode);
+              setResult(null);
+            }}
+          >
+            {job.label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <Button size="sm" variant={mode === "auto" ? "primary" : "outline"} onClick={(): void => { setMode("auto"); setResult(null); }}>
+          تلقائي (Twilio)
+        </Button>
+        <Button size="sm" variant={mode === "manual" ? "primary" : "outline"} onClick={(): void => { setMode("manual"); setResult(null); }}>
+          يدوي مجاني (رقمي الخاص)
+        </Button>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3">
+        <Input
+          placeholder="العنوان (يظهر داخل المنصة)"
+          value={title}
+          onChange={(e): void => { setTitle(e.target.value); }}
+        />
+        <textarea
+          className="w-full rounded-lg border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+          rows={3}
+          placeholder="نص الرسالة التي ستصل للطلاب..."
+          value={message}
+          onChange={(e): void => { setMessage(e.target.value); }}
+        />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant={audience === "all" ? "primary" : "outline"} onClick={(): void => { setAudience("all"); }}>
+            كل الطلاب
+          </Button>
+          <Button size="sm" variant={audience === "grade" ? "primary" : "outline"} onClick={(): void => { setAudience("grade"); }}>
+            صف محدد
+          </Button>
+          {audience === "grade" && (
+            <select
+              className="rounded-lg border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+              value={gradeId}
+              onChange={(e): void => { setGradeId(e.target.value); }}
+            >
+              <option value="">اختر الصف...</option>
+              {grades.map((g) => (
+                <option key={g.id} value={g.id}>{g.stageName} — {g.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {mode === "auto" ? (
+          <div className="flex flex-col gap-3">
+            {!whatsappEnabled && (
+              <p className="rounded-lg bg-amber-100 p-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                الواتساب غير مفعل — ستصل الرسالة داخل المنصة فقط. فعّله من إعدادات الاتصال بالأعلى للإرسال عبر واتساب.
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant={timing === "now" ? "primary" : "outline"} onClick={(): void => { setTiming("now"); }}>
+                إرسال فوري
+              </Button>
+              <Button size="sm" variant={timing === "scheduled" ? "primary" : "outline"} onClick={(): void => { setTiming("scheduled"); }}>
+                جدولة لوقت لاحق
+              </Button>
+              {timing === "scheduled" && (
+                <input
+                  type="datetime-local"
+                  className="rounded-lg border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                  value={scheduledAt}
+                  onChange={(e): void => { setScheduledAt(e.target.value); }}
+                />
+              )}
+            </div>
+            {audience === "grade" && gradeId && (
+              <p className="text-xs text-neutral-500">
+                {studentsLoading ? "جاري عدّ الطلاب..." : `سيتم الإرسال إلى ${String(numbers.length)} رقم${missingCount > 0 ? ` (${String(missingCount)} بدون رقم مسجل)` : ""}`}
+              </p>
+            )}
+            <div className="flex items-center gap-3">
+              <Button size="sm" variant="primary" onClick={(): void => { void sendBulk(); }} disabled={sending}>
+                {sending ? "جارٍ الإرسال..." : timing === "scheduled" ? "تأكيد الجدولة" : "إرسال للصف كامل"}
+              </Button>
+              {result && (
+                <p className={`text-sm ${result.includes("تم") ? "text-emerald-600" : "text-red-500"}`}>{result}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-neutral-500">
+              انسخ الأرقام وأضفها لقائمة Broadcast في واتساب أعمال من هاتفك برقمك الخاص (مجانًا)، أو راسل كل مستلم بزر المراسلة.
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-neutral-500">إرسال إلى:</span>
+              <Button size="sm" variant={recipient === "student" ? "primary" : "outline"} onClick={(): void => { setRecipient("student"); }}>
+                الطالب
+              </Button>
+              <Button size="sm" variant={recipient === "parent" ? "primary" : "outline"} onClick={(): void => { setRecipient("parent"); }}>
+                ولي الأمر
+              </Button>
+            </div>
+            {audience === "grade" && !gradeId ? (
+              <p className="text-xs text-neutral-500">اختر الصف لعرض الأرقام.</p>
+            ) : studentsLoading ? (
+              <p className="text-xs text-neutral-500">جاري تحميل الأرقام...</p>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  <Button size="sm" variant="outline" onClick={(): void => { void copyNumbers(); }} disabled={numbers.length === 0}>
+                    {copied ? "تم النسخ ✓" : `نسخ الأرقام (${String(numbers.length)})`}
+                  </Button>
+                  {missingCount > 0 && (
+                    <span className="text-xs text-amber-600">{missingCount} طالب بدون رقم مسجل</span>
+                  )}
+                </div>
+                <div className="max-h-64 overflow-y-auto rounded-lg bg-white dark:bg-neutral-900">
+                  {numbers.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between border-b border-neutral-100 px-3 py-2 last:border-0 dark:border-neutral-800">
+                      <div>
+                        <p className="text-sm font-medium">{s.name}</p>
+                        <p className="text-xs text-neutral-500 dir-ltr">{s.number}</p>
+                      </div>
+                      <a
+                        href={waLink(s.number)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                      >
+                        مراسلة
+                      </a>
+                    </div>
+                  ))}
+                  {numbers.length === 0 && (
+                    <p className="p-3 text-xs text-neutral-500">لا توجد أرقام مسجلة لهذا الاختيار.</p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // القسم الثاني: التحكم في نظام واتس آب
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -478,6 +1004,10 @@ function WhatsAppSection(): ReactNode {
         </div>
       </div>
 
+      <BulkWhatsAppSection whatsappEnabled={config?.isEnabled ?? false} />
+
+      <SendersCard />
+
       {/* ── الإرسال التلقائي ── */}
       <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800/30">
         <div className="flex items-center gap-2">
@@ -522,7 +1052,10 @@ function WhatsAppSection(): ReactNode {
               <div key={msg.id} className="flex items-start gap-3 rounded-lg bg-white p-3 dark:bg-neutral-900">
                 <div className="mt-0.5 shrink-0">{statusIcon(msg.status)}</div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{msg.to}</p>
+                    <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                      <span className="dir-ltr">{msg.to}</span>
+                      {msg.senderPhone ? ` · من ${msg.senderPhone}` : ""}
+                    </p>
                   <p className="mt-0.5 text-xs text-neutral-500 line-clamp-2">{msg.message}</p>
                   <p className="mt-1 text-[10px] text-neutral-400">
                     {msg.status === "FAILED" ? `فشل: ${msg.error ?? "غير معروف"}` : msg.status}
