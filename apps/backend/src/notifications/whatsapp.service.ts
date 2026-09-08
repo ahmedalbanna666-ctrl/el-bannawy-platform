@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { EncryptionService } from "../common/services/encryption.service";
 
@@ -7,6 +7,22 @@ export interface WhatsAppSendResult {
   readonly error?: string;
   readonly id: string;
   readonly externalId?: string;
+  readonly senderPhone?: string | null;
+}
+
+export interface WhatsAppSendOptions {
+  readonly gradeId?: string;
+}
+
+export interface WhatsAppSenderInfo {
+  readonly id: string;
+  readonly gradeId: string;
+  readonly gradeName: string | null;
+  readonly label: string;
+  readonly phoneNumber: string;
+  readonly isEnabled: boolean;
+  readonly apiUrl: string | null;
+  readonly hasApiKey: boolean;
 }
 
 export interface WhatsAppPublicConfig {
@@ -89,12 +105,14 @@ export class WhatsAppService {
     return { data, meta: { page, limit: take, total, totalPages: Math.ceil(total / take) } };
   }
 
-  async sendTestMessage(to: string, message: string): Promise<WhatsAppSendResult> {
+  async sendTestMessage(to: string, message: string, opts?: WhatsAppSendOptions): Promise<WhatsAppSendResult> {
     const normalizedTo = this.normalizePhoneNumber(to);
     const config = await this.prisma.whatsAppConfig.findFirst();
+    const sender = await this.resolveSender(opts?.gradeId, config);
     const logEntry = await this.prisma.whatsAppMessage.create({
       data: {
         to: normalizedTo,
+        senderPhone: sender.fromNumber,
         message,
         status: "PENDING",
       },
@@ -105,24 +123,82 @@ export class WhatsAppService {
         where: { id: logEntry.id },
         data: { status: "FAILED", error: "WhatsApp is not enabled" },
       });
-      return { success: false, error: "واتس آب غير مفعل", id: logEntry.id };
+      return { success: false, error: "واتس آب غير مفعل", id: logEntry.id, senderPhone: sender.fromNumber };
     }
 
     try {
-      const result = await this.sendViaProvider(config, normalizedTo, message);
+      const result = await this.sendViaProvider(config, normalizedTo, message, sender);
       await this.prisma.whatsAppMessage.update({
         where: { id: logEntry.id },
         data: { status: "SENT", externalId: result.externalId, sentAt: new Date() },
       });
-      return { success: true, id: logEntry.id, externalId: result.externalId };
+      return { success: true, id: logEntry.id, externalId: result.externalId, senderPhone: sender.fromNumber };
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
       await this.prisma.whatsAppMessage.update({
         where: { id: logEntry.id },
         data: { status: "FAILED", error: errorMsg },
       });
-      return { success: false, error: errorMsg, id: logEntry.id };
+      return { success: false, error: errorMsg, id: logEntry.id, senderPhone: sender.fromNumber };
     }
+  }
+
+  async getSenders(): Promise<WhatsAppSenderInfo[]> {
+    const rows = await this.prisma.whatsAppSender.findMany({
+      include: { grade: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      gradeId: r.gradeId,
+      gradeName: r.grade.name,
+      label: r.label,
+      phoneNumber: r.phoneNumber,
+      isEnabled: r.isEnabled,
+      apiUrl: r.apiUrl,
+      hasApiKey: r.apiKey !== null,
+    }));
+  }
+
+  async upsertSenders(dto: Record<string, unknown>): Promise<WhatsAppSenderInfo[]> {
+    const rows = dto["senders"];
+    if (!Array.isArray(rows)) throw new BadRequestException("senders must be an array");
+    for (const row of rows) {
+      if (typeof row !== "object" || row === null) throw new BadRequestException("Each sender must be an object");
+      const item = row as Record<string, unknown>;
+      const gradeId = item["gradeId"];
+      if (typeof gradeId !== "string" || gradeId.length === 0) throw new BadRequestException("Each sender requires gradeId");
+      const grade = await this.prisma.grade.findUnique({ where: { id: gradeId }, select: { id: true } });
+      if (!grade) throw new BadRequestException(`Grade not found: ${gradeId}`);
+
+      const rawPhone = typeof item["phoneNumber"] === "string" ? item["phoneNumber"] : "";
+      if (rawPhone.trim().length === 0) {
+        await this.prisma.whatsAppSender.deleteMany({ where: { gradeId } });
+        continue;
+      }
+      const phoneNumber = this.normalizePhoneNumber(rawPhone);
+      if (!/^\+\d{7,15}$/.test(phoneNumber)) {
+        throw new BadRequestException(`Invalid sender phone number for grade ${gradeId}`);
+      }
+
+      const label = typeof item["label"] === "string" ? item["label"].slice(0, 120) : "";
+      const isEnabled = typeof item["isEnabled"] === "boolean" ? item["isEnabled"] : true;
+      const apiUrlRaw = item["apiUrl"];
+      const apiUrl = typeof apiUrlRaw === "string" && apiUrlRaw.trim().length > 0 ? apiUrlRaw.trim() : null;
+      const apiKeyRaw = item["apiKey"];
+      const data: Record<string, unknown> = { gradeId, label, phoneNumber, isEnabled, apiUrl };
+      if (apiKeyRaw === null) {
+        data["apiKey"] = null;
+      } else if (typeof apiKeyRaw === "string" && apiKeyRaw.length > 0) {
+        data["apiKey"] = this.encryption.encrypt(apiKeyRaw);
+      }
+      await this.prisma.whatsAppSender.upsert({
+        where: { gradeId },
+        create: data as never,
+        update: data as never,
+      });
+    }
+    return this.getSenders();
   }
 
   /**
@@ -161,25 +237,63 @@ export class WhatsAppService {
     };
   }
 
+  /**
+   * Resolves the effective sender for a grade: its dedicated number (and
+   * optional provider override), falling back to the default config.
+   */
+  private async resolveSender(
+    gradeId: string | undefined,
+    config: WhatsAppConfigRow | null,
+  ): Promise<{
+    fromNumber: string | null;
+    apiUrl: string | null;
+    apiKey: string | null | undefined;
+  }> {
+    let sender: {
+      phoneNumber: string;
+      isEnabled: boolean;
+      apiUrl: string | null;
+      apiKey: string | null;
+    } | null = null;
+    if (gradeId) {
+      sender = await this.prisma.whatsAppSender.findUnique({ where: { gradeId } });
+    }
+    const activeSender = sender && sender.isEnabled ? sender : null;
+    // Stored numbers may carry the UI placeholder prefix ("whatsapp:+...") —
+    // strip it so the provider never receives a doubled "whatsapp:whatsapp:".
+    const rawFrom = activeSender?.phoneNumber ?? config?.phoneNumber ?? null;
+    return {
+      fromNumber: rawFrom ? rawFrom.replace(/^whatsapp:/i, "") : null,
+      apiUrl: activeSender?.apiUrl ?? config?.apiUrl ?? null,
+      apiKey:
+        activeSender && activeSender.apiKey
+          ? this.decryptSecret(activeSender.apiKey)
+          : this.decryptSecret(config?.apiKey),
+    };
+  }
+
   private async sendViaProvider(
     config: WhatsAppConfigRow,
     to: string,
     message: string,
+    sender: { fromNumber: string | null; apiUrl: string | null; apiKey: string | null | undefined },
   ): Promise<{ externalId: string }> {
     const accountSid = this.decryptSecret(config.accountSid);
     const authToken = this.decryptSecret(config.authToken);
-    const apiKey = this.decryptSecret(config.apiKey);
+    const apiKey = sender.apiKey;
+    const apiUrl = sender.apiUrl;
+    const fromNumber = sender.fromNumber ?? config.phoneNumber;
 
-    if (config.apiUrl) {
+    if (apiUrl) {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
       if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
       const bodyObj: Record<string, unknown> = { to, message };
-      if (config.phoneNumber) bodyObj.phoneNumber = config.phoneNumber;
+      if (fromNumber) bodyObj.phoneNumber = fromNumber;
 
-      const response = await fetch(config.apiUrl, {
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers,
         body: JSON.stringify(bodyObj),
@@ -195,10 +309,10 @@ export class WhatsAppService {
     }
 
     // Twilio via REST API (no Twilio package needed)
-    if (config.provider === "twilio" && accountSid && authToken && config.phoneNumber) {
+    if (config.provider === "twilio" && accountSid && authToken && fromNumber) {
       const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
       const twilioBody = new URLSearchParams({
-        From: `whatsapp:${config.phoneNumber}`,
+        From: `whatsapp:${fromNumber}`,
         To: `whatsapp:${to}`,
         Body: message,
       });

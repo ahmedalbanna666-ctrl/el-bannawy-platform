@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, ParseUUIDPipe, Body, Query, UseGuards, Headers } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Put, Delete, Param, ParseUUIDPipe, Body, Query, UseGuards, Headers } from "@nestjs/common";
 import { NotificationsService } from "./notifications.service";
 import { WhatsAppService } from "./whatsapp.service";
 import { FcmService } from "./fcm.service";
@@ -100,8 +100,24 @@ export class NotificationsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("ADMINISTRATOR")
   async sendTestWhatsApp(@Body() dto: SendTestWhatsAppDto): Promise<ISuccessResponse<unknown>> {
-    const data = await this.whatsAppService.sendTestMessage(dto.to, dto.message);
+    const data = await this.whatsAppService.sendTestMessage(dto.to, dto.message, { gradeId: dto.gradeId });
     return successResponse(data, "Test message sent");
+  }
+
+  @Get("admin/whatsapp/senders")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async getWhatsAppSenders(): Promise<ISuccessResponse<unknown>> {
+    const data = await this.whatsAppService.getSenders();
+    return successResponse(data, "WhatsApp senders retrieved");
+  }
+
+  @Put("admin/whatsapp/senders")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("ADMINISTRATOR")
+  async upsertWhatsAppSenders(@Body() dto: Record<string, unknown>): Promise<ISuccessResponse<unknown>> {
+    const data = await this.whatsAppService.upsertSenders(dto);
+    return successResponse(data, "WhatsApp senders updated");
   }
 
   @Post("admin/push/test")

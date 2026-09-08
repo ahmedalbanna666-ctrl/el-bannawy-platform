@@ -260,12 +260,14 @@ export class NotificationsService implements OnModuleInit {
     if (channel === NotificationChannel.WHATSAPP) {
       const users = await this.prisma.user.findMany({
         where: { id: { in: filteredUserIds }, deletedAt: null },
-        select: { id: true, mobileNumber: true },
+        select: { id: true, mobileNumber: true, gradeId: true },
       });
       for (const user of users) {
         if (user.mobileNumber) {
           try {
-            const sendResult = await this.whatsAppService.sendTestMessage(user.mobileNumber, dto.message);
+            const sendResult = await this.whatsAppService.sendTestMessage(user.mobileNumber, dto.message, {
+              gradeId: user.gradeId ?? undefined,
+            });
             if (sendResult.success) whatsappSent++;
           } catch (err) {
             Logger.error(`WhatsApp send failed for user ${user.id}: ${err instanceof Error ? err.message : "Unknown"}`, "NotificationsService");
@@ -468,11 +470,13 @@ export class NotificationsService implements OnModuleInit {
       if (ch === NotificationChannel.WHATSAPP) {
         const user = await this.prisma.user.findUnique({
           where: { id: notification.userId },
-          select: { mobileNumber: true },
+          select: { mobileNumber: true, gradeId: true },
         });
         if (user?.mobileNumber) {
           try {
-            await this.whatsAppService.sendTestMessage(user.mobileNumber, notification.message);
+            await this.whatsAppService.sendTestMessage(user.mobileNumber, notification.message, {
+              gradeId: user.gradeId ?? undefined,
+            });
           } catch (err) {
             Logger.error(
               `Scheduled WhatsApp send failed for user ${notification.userId}: ${err instanceof Error ? err.message : "Unknown"}`,

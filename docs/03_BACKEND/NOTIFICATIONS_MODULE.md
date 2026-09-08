@@ -90,6 +90,18 @@ The `WhatsAppService` supports:
 
 All sent messages are logged in `WhatsAppMessage` with delivery status tracking.
 
+## Multi-Number Senders (per Grade)
+
+To distribute outbound traffic and reduce WhatsApp ban risk, each grade can have
+its own dedicated sender number (`WhatsAppSender`, one row per `gradeId`):
+
+- `GET /notifications/admin/whatsapp/senders` — list grade senders (never exposes secrets, only `hasApiKey`)
+- `PUT /notifications/admin/whatsapp/senders` — bulk upsert `{ senders: [{ gradeId, phoneNumber, label?, isEnabled?, apiUrl?, apiKey? }] }`; empty `phoneNumber` removes the mapping; `apiKey` is encrypted at rest
+- Resolution order per message: enabled grade sender → default `WhatsAppConfig`. A grade sender may override `apiUrl`/`apiKey` (separate gateway instance); Twilio `accountSid`/`authToken` always come from the default config
+- Sender phone numbers are normalized to E.164 (Egyptian `01…` → `+20…`, leading `whatsapp:` stripped) and validated (`/^\+\d{7,15}$/`)
+- Every log row records `senderPhone` so traffic per number is auditable
+- The test endpoint accepts an optional `gradeId` to verify a specific grade's number: `POST /notifications/admin/whatsapp/test { to, message, gradeId? }`
+
 ## Default Configs
 
 The module seeds 7 default `NotificationConfig` entries on startup:

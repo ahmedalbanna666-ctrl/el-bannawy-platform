@@ -57,6 +57,10 @@ export class SendTestWhatsAppDto {
 
   @IsString()
   message!: string;
+
+  @IsOptional()
+  @IsString()
+  gradeId?: string;
 }
 
 export class SendTestPushDto {

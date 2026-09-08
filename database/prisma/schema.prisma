@@ -129,6 +129,8 @@ model User {
   @@index([termId])
   @@index([gradeId])
   @@index([deletedAt])
+  @@index([role, gradeId, academicYearId, termId, deletedAt])
+  @@index([gradeId, academicYearId, termId])
   @@map("users")
 }
 
@@ -529,6 +531,8 @@ model LessonProgress {
   @@unique([userId, lessonId])
   @@index([userId])
   @@index([lessonId])
+  @@index([userId, completed])
+  @@index([userId, completed, lessonId])
   @@map("lesson_progress")
 }
 
@@ -577,6 +581,7 @@ model Grade {
   teacherAvailabilities TeacherAvailability[]
   aiKnowledgeSources    AiKnowledgeSource[]
   gradeSchedule         GradeSchedule?
+  whatsappSenders       WhatsAppSender[]
 
   @@index([stageId])
   @@index([displayOrder])
@@ -1837,6 +1842,7 @@ model AuditLog {
   @@index([entity])
   @@index([entityId])
   @@index([createdAt])
+  @@index([entity, createdAt])
   @@map("audit_logs")
 }
 
@@ -2620,6 +2626,24 @@ model NotificationTemplate {
   @@map("notification_templates")
 }
 
+/// Per-grade WhatsApp sender numbers (multi-number support for ban avoidance).
+/// When a grade has an enabled sender, outbound messages to its students use
+/// that number (and optional provider override) instead of the default config.
+model WhatsAppSender {
+  id          String   @id @default(uuid()) @db.Uuid
+  gradeId     String   @unique @db.Uuid
+  label       String   @default("")
+  phoneNumber String
+  isEnabled   Boolean  @default(true)
+  apiUrl      String?
+  apiKey      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  grade       Grade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_senders")
+}
+
 /// WhatsApp API configuration (singleton row)
 model WhatsAppConfig {
   id            String   @id @default(uuid()) @db.Uuid
@@ -2640,6 +2664,7 @@ model WhatsAppConfig {
 model WhatsAppMessage {
   id          String    @id @default(uuid()) @db.Uuid
   to          String
+  senderPhone String?
   message     String
   templateKey String?
   status      String    @default("PENDING")
