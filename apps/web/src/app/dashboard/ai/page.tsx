@@ -763,25 +763,26 @@ export default function AiChatPage(): ReactNode {
   return (
     <div className="fixed inset-0 z-40 flex flex-col gap-4 overflow-hidden bg-white p-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] dark:bg-neutral-950 md:static md:z-auto md:flex md:gap-4 md:overflow-visible md:bg-transparent md:p-0 md:pt-0 md:pb-0 md:dark:bg-transparent">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <button
+          onClick={(): void => { setShowMobileConv(true); }}
+          className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:text-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 md:hidden"
+          aria-label="المحادثات"
+        >
+          <MessageSquare className="h-4 w-4" />
+          المحادثات
+        </button>
+        {credits ? (
           <button
-            onClick={(): void => { router.push("/dashboard"); }}
-            className="flex w-fit items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
+            onClick={(): void => {
+              setBuyAmount(5);
+              setBuyError("");
+              setBuySuccess(false);
+              setBuyCreditsOpen(true);
+            }}
+            className="mx-auto flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 transition-colors hover:border-amber-300 hover:bg-amber-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:border-amber-700 dark:hover:bg-amber-900/20"
+            aria-label="رصيد التوكن - اضغط للشحن"
+            title="اضغط لشحن التوكن"
           >
-            <ArrowLeft className="h-4 w-4" />
-            العودة للرئيسية
-          </button>
-          <button
-            onClick={(): void => { setShowMobileConv(true); }}
-            className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:text-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 md:hidden"
-            aria-label="المحادثات"
-          >
-            <MessageSquare className="h-4 w-4" />
-            المحادثات
-          </button>
-        </div>
-        {credits && (
-          <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-1.5 dark:border-neutral-700 dark:bg-neutral-800">
             <Coins className="h-4 w-4 text-amber-500" />
             <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
               {credits.plan === "unlimited" ? "غير محدود" : credits.remaining}
@@ -791,8 +792,17 @@ export default function AiChatPage(): ReactNode {
                 <div className="h-full rounded-full bg-amber-500 transition-all" style={{ width: credits.total > 0 ? `${((credits.remaining / credits.total) * 100).toString()}%` : "0%" }} />
               </div>
             )}
-          </div>
+          </button>
+        ) : (
+          <div className="mx-auto" />
         )}
+        <button
+          onClick={(): void => { router.push("/dashboard"); }}
+          className="flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600"
+        >
+          الرئيسية
+          <ArrowLeft className="h-4 w-4 rotate-180" />
+        </button>
       </div>
       <div className="flex min-h-0 flex-1 gap-6 md:min-h-[calc(100vh-180px)] md:flex-none">
 
@@ -837,11 +847,11 @@ export default function AiChatPage(): ReactNode {
           </div>
         </div>
 
-        {/* Mobile conversation drawer */}
+        {/* Mobile conversation drawer - on the left */}
         {showMobileConv && (
           <div className="fixed inset-0 z-50 md:hidden">
             <div className="absolute inset-0 bg-black/50" onClick={(): void => { setShowMobileConv(false); }} />
-            <div className="absolute inset-y-0 end-0 z-10 flex w-72 flex-col gap-3 bg-white p-4 shadow-2xl dark:bg-neutral-900">
+            <div className="absolute inset-y-0 left-0 z-10 flex w-72 flex-col gap-3 bg-white p-4 shadow-2xl dark:bg-neutral-900">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold">المحادثات</h2>
                 <button onClick={(): void => { setShowMobileConv(false); }} className="rounded-lg p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800">
