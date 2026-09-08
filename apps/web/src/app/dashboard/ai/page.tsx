@@ -187,11 +187,30 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
         i++;
       }
       i++;
-      blocks.push(
-        <pre key={key++} className="overflow-auto rounded-lg bg-neutral-900 p-3 text-xs text-neutral-100 dark:bg-neutral-950">
-          <code>{codeLines.join("\n")}</code>
-        </pre>,
-      );
+      const codeText = codeLines.join("\n");
+      const isRuleBox =
+        /formation|structure|القاعدة|التكوين|الصيغة/i.test(codeText) ||
+        /Subject\s*\+|الفاعل\s*\+|[\w]+\s*\+\s*[\w]+/.test(codeText);
+      if (isRuleBox) {
+        blocks.push(
+          <div
+            key={key++}
+            dir="auto"
+            className="my-3 rounded-xl border-2 border-red-200 bg-red-50 p-4 text-center dark:border-red-800 dark:bg-red-900/20"
+          >
+            <div className="text-xs font-bold uppercase tracking-widest text-red-600 dark:text-red-400">القاعدة • Formation</div>
+            <div className="mt-1 font-mono text-sm font-bold text-red-800 dark:text-red-200" dir="ltr">
+              {codeText}
+            </div>
+          </div>,
+        );
+      } else {
+        blocks.push(
+          <pre key={key++} className="overflow-auto rounded-lg bg-neutral-900 p-3 text-xs text-neutral-100 dark:bg-neutral-950" dir="ltr">
+            <code>{codeText}</code>
+          </pre>,
+        );
+      }
       continue;
     }
 
@@ -206,7 +225,7 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
       if (hasBothLanguages && headingText.includes(" - ")) {
         const parts = headingText.split(" - ");
         blocks.push(
-          <Tag key={key++} className="mt-2 flex flex-col gap-0.5 font-semibold text-neutral-900 dark:text-neutral-100" dir={dir}>
+          <Tag key={key++} className="mt-3 flex flex-col gap-0.5 text-center font-bold text-neutral-900 dark:text-neutral-100" dir={dir}>
             {parts.map((part, idx) => (
               <span key={idx} dir={getTextDirection(part)}>
                 {renderInline(part)}
@@ -216,7 +235,7 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
         );
       } else {
         blocks.push(
-          <Tag key={key++} className="mt-2 font-semibold text-neutral-900 dark:text-neutral-100" dir={dir}>
+          <Tag key={key++} className="mt-3 text-center font-bold text-neutral-900 dark:text-neutral-100" dir={dir}>
             {renderInline(headingText)}
           </Tag>,
         );
@@ -250,17 +269,18 @@ function MarkdownContent({ content }: { content: string }): ReactNode {
         i++;
       }
       blocks.push(
-        <ol
-          key={key++}
-          className="mt-1 list-inside list-decimal space-y-0.5"
-          dir={getTextDirection(listItems[0] ?? "")}
-          style={{ textAlign: getTextDirection(listItems[0] ?? "") === "rtl" ? "right" : "left" }}
-        >
-          {listItems.map((item, idx) => (
-            <li key={idx} dir={getTextDirection(item)}>
-              {renderInline(item)}
-            </li>
-          ))}
+        <ol key={key++} className="mt-2 space-y-2" dir={getTextDirection(listItems[0] ?? "")}>
+          {listItems.map((item, idx) => {
+            const dir = getTextDirection(item);
+            return (
+              <li key={idx} dir={dir} className={`flex gap-2.5 ${dir === "rtl" ? "flex-row-reverse" : ""}`}>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-red-50 text-xs font-bold text-red-600 ring-1 ring-red-200 dark:bg-red-900/20 dark:text-red-400 dark:ring-red-800">
+                  {idx + 1}
+                </span>
+                <span className="flex-1 pt-0.5 leading-relaxed">{renderInline(item)}</span>
+              </li>
+            );
+          })}
         </ol>,
       );
       continue;
