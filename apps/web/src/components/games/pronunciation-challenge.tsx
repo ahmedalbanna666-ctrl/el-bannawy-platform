@@ -6,11 +6,13 @@ import { useGameSettings } from "@/lib/games/settings";
 import { pickWordPairs } from "@/lib/games/question-engine";
 import type { GameWord, PronunciationQuestion } from "@/lib/games/types";
 import { useAudioRecorder } from "@/lib/games/use-audio-recorder";
+import { useSpeechRecognition } from "@/lib/games/use-speech-recognition";
 import { assessPronunciation } from "@/lib/games/pronunciation-api";
 import type {
   PronunciationAssessmentResult,
   WordAssessment,
 } from "@/lib/games/pronunciation-types";
+import { pronunciationScore } from "@/lib/games/question-engine";
 import { UnitMapSelect } from "@/components/games/unit-map-select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,6 +79,7 @@ export function PronunciationChallenge({
 }: PronunciationChallengeProps): ReactNode {
   const { settings } = useGameSettings();
   const recorder = useAudioRecorder();
+  const speechRec = useSpeechRecognition();
   const speak = useSpeak();
 
   const { data: units, isLoading, isError, refetch } = useCurriculumUnits();
@@ -160,7 +163,24 @@ export function PronunciationChallenge({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setAssessError(err instanceof Error ? err.message : "حدث خطأ أثناء التقييم");
+        const msg = err instanceof Error ? err.message : "حدث خطأ أثناء التقييم";
+        // If server is unavailable, automatically fallback to browser engine if supported
+        if (
+          msg.includes("تعذر الاتصال") ||
+          msg.includes("فشل في خدمة") ||
+          msg.includes("503") ||
+          msg.includes("502")
+        ) {
+          if (speechRec.supported) {
+            setAssessError(`${msg} — سيتم المحاولة بالتعرف المحلي في المتصفح.`);
+            // Trigger browser engine as fallback
+            setTimeout(() => {
+              if (!cancelled && current) speechRec.start(current.word);
+            }, 800);
+            return;
+          }
+        }
+        setAssessError(msg);
       })
       .finally(() => {
         if (!cancelled) setUploading(false);
@@ -168,15 +188,68 @@ export function PronunciationChallenge({
     return (): void => {
       cancelled = true;
     };
-  }, [recorder.result, attemptResult, current, config]);
+  }, [recorder.result, attemptResult, current, config, speechRec]);
+
+  // Fallback: browser's Web Speech API — used when server is down or microphone permission for MediaRecorder is denied
+  useEffect(() => {
+    if (!speechRec.transcript || attemptResult || !current) return;
+    const spoken = speechRec.transcript;
+    const score = pronunciationScore(current.word, spoken);
+    const isPass = score >= config.threshold;
+    // Build a local assessment result compatible with the server's shape
+    const localResult: PronunciationAssessmentResult = {
+      overallScore: score,
+      accuracy: score,
+      fluency: score >= 80 ? 85 : score >= 60 ? 70 : 50,
+      prosody: score >= 80 ? 85 : score >= 60 ? 70 : 50,
+      completeness: spoken.trim() ? 100 : 0,
+      transcript: spoken,
+      engine: "browser" as unknown as PronunciationAssessmentResult["engine"],
+      words: [
+        {
+          word: current.word,
+          score,
+          accuracy: score,
+          fluency: score,
+          errorType: (isPass ? "none" : "mispronunciation"),
+          feedback: isPass ? "نطق ممتاز" : score >= 60 ? "جيد، حاول مرة أخرى" : "حاول مرة أخرى",
+          phonemes: [],
+        },
+      ],
+      phonemes: [],
+    };
+    setAttemptResult(localResult);
+    setAnswered(true);
+    setTotalScore((prev) => prev + score);
+    setResolvedCount((prev) => prev + 1);
+    if (isPass) {
+      setRewardsXp((prev) => prev + config.xpReward);
+      setRewardsCoins((prev) => prev + config.coinReward);
+    }
+    // Clear browser transcript after handling
+    speechRec.reset();
+  }, [speechRec.transcript, attemptResult, current, config, speechRec]);
 
   const handleSpeak = useCallback((): void => {
     recorder.reset();
+    speechRec.reset();
     setAttemptResult(null);
     setAssessError(null);
     setAnswered(false);
+    // Prefer the high-accuracy server engine (MediaRecorder). If it was previously
+    // denied, the error UI already offers a one-click fallback to the browser engine.
     void recorder.start();
-  }, [recorder]);
+  }, [recorder, speechRec]);
+
+  const handleBrowserSpeak = useCallback((): void => {
+    if (!current) return;
+    recorder.reset();
+    speechRec.reset();
+    setAttemptResult(null);
+    setAssessError(null);
+    setAnswered(false);
+    speechRec.start(current.word);
+  }, [current, recorder, speechRec]);
 
   const handleSkip = useCallback((): void => {
     recorder.reset();
@@ -525,27 +598,67 @@ export function PronunciationChallenge({
               {recorder.error && (
                 <div className="flex w-full flex-col items-center gap-2 rounded-xl bg-danger-500/10 p-3">
                   <p className="text-center text-xs font-medium text-danger-600 dark:text-danger-400">{recorder.error}</p>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap justify-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => { recorder.reset(); void recorder.start(); }}>
                       <Mic className="h-3.5 w-3.5" />
                       إعادة المحاولة
                     </Button>
+                    {speechRec.supported && (
+                      <Button variant="outline" size="sm" onClick={handleBrowserSpeak}>
+                        <Volume2 className="h-3.5 w-3.5" />
+                        جرّب التعرف المحلي
+                      </Button>
+                    )}
                     <Button variant="ghost" size="sm" onClick={() => { recorder.reset(); setAssessError(null); }}>
                       إغلاق
                     </Button>
                   </div>
                   <p className="text-center text-[11px] text-neutral-500">
                     إذا استمر الرفض: اضغط على رمز القفل 🔒 بجانب عنوان الموقع ← إعدادات الموقع ← الميكروفون ← اختر “سماح” ثم أعد تحميل الصفحة.
+                    {speechRec.supported && " أو جرّب التعرف المحلي كبديل سريع."}
                   </p>
+                </div>
+              )}
+
+              {speechRec.listening && (
+                <div className="flex w-full flex-col items-center gap-2 rounded-xl bg-primary-500/10 p-3">
+                  <p className="flex items-center gap-2 text-sm font-medium text-primary-600 dark:text-primary-400">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    يستمع الآن... انطق الكلمة بوضوح
+                  </p>
+                  <Button variant="ghost" size="sm" onClick={() => { speechRec.stop(); }}>
+                    إيقاف
+                  </Button>
+                </div>
+              )}
+
+              {speechRec.error && (
+                <div className="flex w-full flex-col items-center gap-2 rounded-xl bg-danger-500/10 p-3">
+                  <p className="text-center text-xs font-medium text-danger-600 dark:text-danger-400">{speechRec.error}</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={handleBrowserSpeak}>
+                      حاول مرة أخرى
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { speechRec.reset(); }}>
+                      إغلاق
+                    </Button>
+                  </div>
                 </div>
               )}
 
               {assessError && (
                 <div className="flex w-full flex-col items-center gap-2 rounded-xl bg-danger-500/10 p-3">
                   <p className="text-center text-xs font-medium text-danger-600 dark:text-danger-400">{assessError}</p>
-                  <Button variant="outline" size="sm" onClick={() => { setAssessError(null); recorder.reset(); }}>
-                    حاول مرة أخرى
-                  </Button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => { setAssessError(null); recorder.reset(); }}>
+                      حاول مرة أخرى
+                    </Button>
+                    {speechRec.supported && (
+                      <Button variant="outline" size="sm" onClick={handleBrowserSpeak}>
+                        جرّب التعرف المحلي
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -559,6 +672,23 @@ export function PronunciationChallenge({
                 </button>
               )}
             </>
+          ) : speechRec.supported ? (
+            <div className="flex w-full flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={handleBrowserSpeak}
+                disabled={speechRec.listening}
+                className="flex h-20 w-20 items-center justify-center rounded-full bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 disabled:opacity-50"
+              >
+                {speechRec.listening ? <Loader2 className="h-9 w-9 animate-spin" /> : <Mic className="h-9 w-9" />}
+              </button>
+              <p className="text-sm text-neutral-500">
+                {speechRec.listening ? "يستمع الآن..." : "جرّب التعرف المحلي (يعمل بدون خادم)"}
+              </p>
+              <p className="rounded-xl bg-neutral-100 p-3 text-sm font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                المعنى: {current.translation}
+              </p>
+            </div>
           ) : (
             <div className="flex w-full flex-col items-center gap-3">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-warning-500/10 text-warning-500">
