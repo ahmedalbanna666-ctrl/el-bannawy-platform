@@ -20,12 +20,7 @@ export function CardBorderScope({ children }: { children: ReactNode }): ReactNod
   const groupKey = isAuthPage ? "auth" : role && STAFF_ROLES.has(role) ? "staff" : "student";
   const group = config.cardBorder.groups[groupKey];
 
-  // "الدروس" and "دروس الوحدة" should be interchangeable for the student unit-lessons page
-  const isUnitLessonsPage = pageKey === "unit-lessons" || pageKey === "lessons";
-  const active =
-    pageKey !== null &&
-    group.enabled &&
-    (group.pages.includes(pageKey) || (isUnitLessonsPage && (group.pages.includes("unit-lessons") || group.pages.includes("lessons"))));
+  const active = pageKey !== null && group.enabled && group.pages.includes(pageKey);
 
   const vars = active
     ? ({

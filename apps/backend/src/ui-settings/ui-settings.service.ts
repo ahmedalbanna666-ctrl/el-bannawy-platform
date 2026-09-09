@@ -48,7 +48,7 @@ const DEFAULT_CONFIG = {
         colorDark: "rgba(34,211,238,0.35)",
         width: 4,
         side: "left",
-        pages: ["dashboard", "units", "unit-lessons", "lessons", "lesson-detail", "quiz"],
+        pages: ["dashboard", "units", "unit-lessons", "lesson-detail", "quiz"],
       },
       auth: {
         enabled: true,
