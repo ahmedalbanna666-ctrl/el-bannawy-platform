@@ -74,12 +74,12 @@ export async function assessPronunciation(
         ? "ogg"
         : "webm");
   formData.append("audio", audio, `pronunciation.${ext}`);
-  formData.append("expected_text", expectedText);
+  formData.append("expectedText", expectedText);
   if (options.provider) formData.append("provider", options.provider);
   if (options.referencePhonemes) {
-    formData.append("reference_phonemes", JSON.stringify(options.referencePhonemes));
+    formData.append("referencePhonemes", JSON.stringify(options.referencePhonemes));
   }
-  if (options.sampleRate) formData.append("sample_rate", String(options.sampleRate));
+  if (options.sampleRate) formData.append("sampleRate", String(options.sampleRate));
   if (options.language) formData.append("language", options.language);
 
   return postForm(formData, true);
