@@ -74,7 +74,7 @@ export function VocabCell({
               {displayWord}
             </span>
             {displayPos && (
-              <span className="text-xs text-neutral-400 max-md:text-[10px]">({displayPos})</span>
+              <sup className="text-xs font-semibold text-neutral-400 max-md:text-[10px]">({displayPos})</sup>
             )}
           </div>
           {hasDetails && (

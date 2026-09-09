@@ -1,5 +1,5 @@
 const POS_PATTERN =
-  /^(n|v|adj|adv|prep|pron|conj|det|phr\.?\s*v|phr|exp|idiom)(\s*\/\s*(n|v|adj|adv|prep|pron|conj|det|phr\.?\s*v|phr|exp|idiom))*$/i;
+  /^(n|v|vt|vi|adj|adv|prep|pron|conj|interj|det|art|aux|num|phr v|phr|exp|idiom)(\s*\/\s*(n|v|vt|vi|adj|adv|prep|pron|conj|interj|det|art|aux|num|phr v|phr|exp|idiom))*$/;
 
 export interface DisplayWord {
   readonly displayWord: string;
@@ -16,7 +16,7 @@ export function parseDisplayWord(raw: string): DisplayWord {
   }
 
   const wordPart = match[1].trim();
-  const posCandidate = match[2].trim().toLowerCase();
+  const posCandidate = match[2].replace(/\./g, "").replace(/\s+/g, " ").trim().toLowerCase();
 
   if (POS_PATTERN.test(posCandidate)) {
     return { displayWord: wordPart, pronunciationText: wordPart, partOfSpeech: posCandidate };

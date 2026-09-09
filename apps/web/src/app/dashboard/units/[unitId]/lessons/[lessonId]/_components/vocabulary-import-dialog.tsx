@@ -541,9 +541,9 @@ export function VocabularyImportDialog({
                             <span className="text-sm font-bold text-primary-500">
                               {item.word}
                               {item.partOfSpeech && (
-                                <span className="ml-1 text-xs font-normal text-neutral-400">
+                                <sup className="ml-1 text-xs font-semibold text-neutral-400">
                                   ({item.partOfSpeech})
-                                </span>
+                                </sup>
                               )}
                             </span>
                             <span className="text-sm text-neutral-500">—</span>

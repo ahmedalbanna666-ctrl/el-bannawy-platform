@@ -106,5 +106,36 @@ describe("word-normalizer", () => {
       const result = parseWord("test (ADJ)");
       expect(result.partOfSpeech).toBe("adj");
     });
+
+    it("extracts dotted Word variants like (v.) and (n.)", () => {
+      expect(parseWord("play (v.)")).toEqual({ word: "play", partOfSpeech: "v" });
+      expect(parseWord("book (n.)")).toEqual({ word: "book", partOfSpeech: "n" });
+      expect(parseWord("quick (adj.)")).toEqual({ word: "quick", partOfSpeech: "adj" });
+    });
+
+    it("extracts slash combinations like (v/n) and (n/adj)", () => {
+      expect(parseWord("beep(v/n)")).toEqual({ word: "beep", partOfSpeech: "v/n" });
+      expect(parseWord("patient (n/adj)")).toEqual({ word: "patient", partOfSpeech: "n/adj" });
+    });
+
+    it("extracts phrasal variants like (phr. v)", () => {
+      expect(parseWord("kick off(phr. v)")).toEqual({ word: "kick off", partOfSpeech: "phr v" });
+    });
+
+    it("extracts extended tags like (vt), (vi) and (interj)", () => {
+      expect(parseWord("raise (vt)")).toEqual({ word: "raise", partOfSpeech: "vt" });
+      expect(parseWord("rise (vi)")).toEqual({ word: "rise", partOfSpeech: "vi" });
+      expect(parseWord("wow (interj)")).toEqual({ word: "wow", partOfSpeech: "interj" });
+    });
+
+    it("strips newlines inside the annotation", () => {
+      expect(parseWord("play (v\n)")).toEqual({ word: "play", partOfSpeech: "v" });
+    });
+
+    it("does not extract gloss parentheticals", () => {
+      expect(parseWord("give a reason why (for)").partOfSpeech).toBeNull();
+      expect(parseWord("focus (concentrate) on").partOfSpeech).toBeNull();
+      expect(parseWord("perform (do) CPR").partOfSpeech).toBeNull();
+    });
   });
 });
