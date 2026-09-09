@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { parseDisplayWord } from "@/lib/word-display";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -181,7 +182,14 @@ export default function LessonGamesPage(): ReactNode {
   const wordsPerGame = firstGame.wordsPerGame ?? DEFAULT_WORDS_PER_GAME;
 
   const words: GameWord[] = useMemo(() => {
-    const all = (vocabData ?? []).map((v) => ({ word: v.word, translation: v.translation }));
+    const seen = new Set<string>();
+    const all: GameWord[] = [];
+    for (const v of vocabData ?? []) {
+      const { displayWord } = parseDisplayWord(v.word);
+      if (seen.has(displayWord)) continue;
+      seen.add(displayWord);
+      all.push({ word: displayWord, translation: v.translation });
+    }
     return shuffleArray(all).slice(0, Math.min(wordsPerGame, all.length));
   }, [vocabData, wordsPerGame]);
 

@@ -1,5 +1,6 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { parseDisplayWord } from "@/lib/word-display";
 import type { GameUnitOption, GameWord } from "./types";
 
 interface CurriculumLesson {
@@ -88,7 +89,8 @@ export function useUnitVocabulary(
       for (const items of results) {
         for (const item of items) {
           if (item.word && item.translation) {
-            collected.push({ word: item.word, translation: item.translation });
+            const { displayWord } = parseDisplayWord(item.word);
+            collected.push({ word: displayWord, translation: item.translation });
           }
         }
       }
