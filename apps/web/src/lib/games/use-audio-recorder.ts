@@ -70,7 +70,12 @@ export function useAudioRecorder(): UseAudioRecorder {
     }
 
     // Check for basic support first
-    if (!navigator.mediaDevices?.getUserMedia) {
+    if (
+      typeof navigator === "undefined" ||
+      typeof navigator.mediaDevices === "undefined" ||
+      typeof (navigator.mediaDevices as unknown as { getUserMedia?: unknown }).getUserMedia !==
+        "function"
+    ) {
       setError("المتصفح لا يدعم الوصول للميكروفون. جرب متصفح حديث مثل Chrome أو Firefox.");
       return;
     }
@@ -119,8 +124,13 @@ export function useAudioRecorder(): UseAudioRecorder {
     } catch (err) {
       setRecording(false);
       let message = "تعذر تشغيل التسجيل، تحقق من الميكروفون";
-      const errName = err instanceof DOMException ? err.name : (err as { name?: string })?.name ?? "";
-      const errMsg = err instanceof Error ? err.message : String(err ?? "");
+      const errName = err instanceof DOMException ? err.name : ((err as { name?: string }).name ?? "");
+      const errMsg =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : ((err as { message?: string }).message ?? "");
       // Handle permission and other errors robustly even when err is not a DOMException
       if (errName === "NotAllowedError" || errMsg.includes("Permission denied") || errMsg.includes("NotAllowed")) {
         message =
