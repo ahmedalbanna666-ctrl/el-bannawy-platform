@@ -13,6 +13,7 @@ export const CARD_BORDER_PAGE_OPTIONS: CardBorderPageOption[] = [
   { key: "stories", label: "قصص المنهج", groups: ["staff", "student"], match: (p) => p.startsWith("/dashboard/stories") },
   { key: "final-reviews", label: "المراجعات النهائية", groups: ["staff", "student"], match: (p) => p.startsWith("/dashboard/final-reviews") },
   { key: "lesson-detail", label: "تفاصيل الدرس", groups: ["staff", "student"], match: (p) => p.startsWith("/dashboard/lessons/detail") },
+  { key: "unit-lessons", label: "دروس الوحدة", groups: ["student"], match: (p) => /^\/dashboard\/lessons\/[^/]+$/.test(p) },
   { key: "lessons", label: "الدروس", groups: ["staff", "student"], match: (p) => p.startsWith("/dashboard/lessons") },
   { key: "quiz", label: "الاختبارات", groups: ["staff", "student"], match: (p) => p.startsWith("/dashboard/quiz") },
   { key: "homework", label: "الواجبات", groups: ["staff", "student"], match: (p) => p.startsWith("/dashboard/homework") },
