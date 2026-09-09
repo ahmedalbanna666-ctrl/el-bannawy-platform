@@ -51,7 +51,7 @@ describe("assessPronunciation", () => {
     expect(opts.method).toBe("POST");
     expect(opts.body).toBeInstanceOf(FormData);
     const form = opts.body as FormData;
-    expect(form.get("expected_text")).toBe("hello");
+    expect(form.get("expectedText")).toBe("hello");
     expect(form.has("audio")).toBe(true);
   });
 
