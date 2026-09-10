@@ -143,7 +143,22 @@ export function PronunciationChallenge({ unitId: forcedUnitId, words: lessonWord
         {!isLoading && !isError && safeUnits.length > 0 && (
           <>
             <UnitMapSelect units={safeUnits} selectedId={selectedUnitId} onSelect={(id) => { setSelectedUnitId(id); void refetchPool(); }} />
-            {selectedUnit && poolLoading && <p className="text-sm text-neutral-500">جاري تحميل كلمات الوحدة...</p>}
+            {selectedUnit && poolLoading && (
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-500/10 via-primary-500/5 to-transparent p-6 dark:border-primary-800/30 dark:from-primary-900/20 dark:via-primary-900/10">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-500/15">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-primary-700 dark:text-primary-300">جاري تحميل كلمات الوحدة...</p>
+                  <p className="mt-1 text-xs text-neutral-500">يتم تجهيز الكلمات للعبة، لحظات قليلة</p>
+                </div>
+                <div className="flex gap-1.5">
+                  <span className="h-1.5 w-8 animate-pulse rounded-full bg-primary-500/30" style={{ animationDelay: "0ms" }} />
+                  <span className="h-1.5 w-8 animate-pulse rounded-full bg-primary-500/30" style={{ animationDelay: "150ms" }} />
+                  <span className="h-1.5 w-8 animate-pulse rounded-full bg-primary-500/30" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            )}
             {selectedUnit && poolError && <ErrorState title="تعذر تحميل الكلمات" onRetry={() => void refetchPool()} />}
             {selectedUnit && pool && !canStart && <div className="flex items-center gap-2 rounded-xl bg-warning-500/10 p-3 text-sm text-warning-600"><AlertTriangle className="h-4 w-4" /> هذه الوحدة لا تحتوي على كلمات كافية.</div>}
             {!recorder.supported && <div className="flex items-center gap-2 rounded-xl bg-warning-500/10 p-3 text-sm text-warning-600"><AlertTriangle className="h-4 w-4" /> متصفحك لا يدعم التسجيل</div>}

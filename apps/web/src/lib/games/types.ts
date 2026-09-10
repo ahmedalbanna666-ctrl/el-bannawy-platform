@@ -8,6 +8,7 @@ export interface GameUnitOption {
   readonly title: string;
   readonly gradeName: string;
   readonly isPremium: boolean;
+  readonly unlocked: boolean;
   readonly lessonIds: string[];
 }
 

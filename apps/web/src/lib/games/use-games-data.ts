@@ -12,6 +12,7 @@ interface CurriculumUnit {
   id: string;
   title: string;
   isPremium: boolean;
+  unlocked: boolean;
   lessons: CurriculumLesson[];
 }
 
@@ -45,6 +46,7 @@ export function useCurriculumUnits(): UseQueryResult<GameUnitOption[]> {
               title: unit.title,
               gradeName: grade.name,
               isPremium: unit.isPremium,
+              unlocked: (unit as unknown as { unlocked?: boolean }).unlocked ?? true,
               lessonIds: unit.lessons.map((lesson) => lesson.id),
             });
           }

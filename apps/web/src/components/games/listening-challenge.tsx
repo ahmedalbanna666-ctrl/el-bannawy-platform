@@ -30,6 +30,7 @@ import {
   BookOpen,
   AlertTriangle,
   VolumeX,
+  Loader2,
 } from "lucide-react";
 
 type Phase = "select" | "playing" | "result";
@@ -259,7 +260,20 @@ export function ListeningChallenge({
             />
 
             {selectedUnit && poolLoading && (
-              <p className="text-sm text-neutral-500">جاري تحميل كلمات الوحدة...</p>
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-500/10 via-primary-500/5 to-transparent p-6 dark:border-primary-800/30 dark:from-primary-900/20 dark:via-primary-900/10">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-500/15">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-primary-700 dark:text-primary-300">جاري تحميل كلمات الوحدة...</p>
+                  <p className="mt-1 text-xs text-neutral-500">يتم تجهيز الكلمات للعبة، لحظات قليلة</p>
+                </div>
+                <div className="flex gap-1.5">
+                  <span className="h-1.5 w-8 animate-pulse rounded-full bg-primary-500/30" style={{ animationDelay: "0ms" }} />
+                  <span className="h-1.5 w-8 animate-pulse rounded-full bg-primary-500/30" style={{ animationDelay: "150ms" }} />
+                  <span className="h-1.5 w-8 animate-pulse rounded-full bg-primary-500/30" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
             )}
 
             {selectedUnit && poolError && (
