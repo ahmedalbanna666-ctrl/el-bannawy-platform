@@ -42,6 +42,10 @@ export function useAudioRecorder(): UseAudioRecorder {
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<number>(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const silenceRef = useRef<{ silentMs: number; hasSpoken: boolean }>({ silentMs: 0, hasSpoken: false });
+  const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     /* eslint-disable @typescript-eslint/no-unnecessary-condition */
@@ -55,6 +59,14 @@ export function useAudioRecorder(): UseAudioRecorder {
     return (): void => {
       streamRef.current?.getTracks().forEach((t) => { t.stop(); });
       if (timerRef.current) clearInterval(timerRef.current);
+      if (autoStopRef.current) clearTimeout(autoStopRef.current);
+      try {
+        audioContextRef.current?.close();
+      } catch {
+        // ignore
+      }
+      const chk = (recorderRef as unknown as { _silenceCheck?: ReturnType<typeof setInterval> })._silenceCheck;
+      if (chk) clearInterval(chk);
     };
   }, []);
 
@@ -113,6 +125,16 @@ export function useAudioRecorder(): UseAudioRecorder {
         streamRef.current = null;
         setRecording(false);
         if (timerRef.current) clearInterval(timerRef.current);
+        if (autoStopRef.current) clearTimeout(autoStopRef.current);
+        try {
+          audioContextRef.current?.close();
+        } catch {
+          // ignore
+        }
+        audioContextRef.current = null;
+        analyserRef.current = null;
+        const chk = (recorderRef as unknown as { _silenceCheck?: ReturnType<typeof setInterval> })._silenceCheck;
+        if (chk) clearInterval(chk);
       };
       recorderRef.current = recorder;
       startedAtRef.current = Date.now();
@@ -121,6 +143,61 @@ export function useAudioRecorder(): UseAudioRecorder {
       timerRef.current = setInterval(() => {
         setDurationMs(Date.now() - startedAtRef.current);
       }, 100);
+
+      // Auto-stop after max 5s
+      autoStopRef.current = setTimeout(() => {
+        if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+      }, 5000);
+
+      // Silence detection: stop 1.2s after user stops speaking
+      try {
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 512;
+          const source = ctx.createMediaStreamSource(stream);
+          source.connect(analyser);
+          audioContextRef.current = ctx;
+          analyserRef.current = analyser;
+          silenceRef.current = { silentMs: 0, hasSpoken: false };
+          const data = new Uint8Array(analyser.frequencyBinCount);
+          const check = setInterval(() => {
+            if (!recorderRef.current || recorderRef.current.state !== "recording") {
+              clearInterval(check);
+              return;
+            }
+            analyser.getByteFrequencyData(data);
+            const avg = data.reduce((s, v) => s + v, 0) / data.length;
+            const speaking = avg > 12; // threshold
+            if (speaking) {
+              silenceRef.current.hasSpoken = true;
+              silenceRef.current.silentMs = 0;
+            } else if (silenceRef.current.hasSpoken) {
+              silenceRef.current.silentMs += 100;
+              if (silenceRef.current.silentMs >= 1200) {
+                clearInterval(check);
+                if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+              }
+            }
+            // If no speech at all for 3s, still stop to avoid endless wait
+            const elapsed = Date.now() - startedAtRef.current;
+            if (!silenceRef.current.hasSpoken && elapsed > 3000) {
+              const avg2 = data.reduce((s, v) => s + v, 0) / data.length;
+              if (avg2 < 8) {
+                clearInterval(check);
+                if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+              }
+            }
+          }, 100);
+          // Store check interval to clear on stop
+          (timerRef as unknown as { current: ReturnType<typeof setInterval> | null }).current = timerRef.current;
+          // Keep reference to silence check to clear later
+          (recorderRef as unknown as { _silenceCheck?: ReturnType<typeof setInterval> })._silenceCheck = check;
+        }
+      } catch {
+        // ignore VAD errors, fallback to manual stop
+      }
     } catch (err) {
       setRecording(false);
       let message = "تعذر تشغيل التسجيل، تحقق من الميكروفون";
@@ -158,6 +235,9 @@ export function useAudioRecorder(): UseAudioRecorder {
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
       recorderRef.current.stop();
       setProcessing(true);
+      if (autoStopRef.current) clearTimeout(autoStopRef.current);
+      const chk = (recorderRef as unknown as { _silenceCheck?: ReturnType<typeof setInterval> })._silenceCheck;
+      if (chk) clearInterval(chk);
     }
   }, []);
 
@@ -166,6 +246,13 @@ export function useAudioRecorder(): UseAudioRecorder {
     setError(null);
     setDurationMs(0);
     setProcessing(false);
+    if (autoStopRef.current) clearTimeout(autoStopRef.current);
+    try {
+      audioContextRef.current?.close();
+    } catch {
+      // ignore
+    }
+    audioContextRef.current = null;
   }, []);
 
   // Clear processing flag once a blob result is available.

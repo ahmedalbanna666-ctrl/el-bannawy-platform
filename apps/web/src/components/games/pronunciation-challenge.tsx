@@ -589,10 +589,12 @@ export function PronunciationChallenge({
 
               <p className="text-sm text-neutral-500">
                 {recorder.recording
-                  ? `يُسجّل... ${(recorder.durationMs / 1000).toFixed(1)}s`
+                  ? `يُسجّل... ${(recorder.durationMs / 1000).toFixed(1)}s — سيتوقف تلقائياً`
                   : uploading
                     ? "جاري التقييم..."
-                    : "اضغط وانطق الكلمة بوضوح"}
+                    : speechRec.listening
+                      ? "يستمع الآن..."
+                      : "اضغط وانطق الكلمة بوضوح (يتوقف تلقائياً بعد السكوت)"}
               </p>
 
               {recorder.error && (
