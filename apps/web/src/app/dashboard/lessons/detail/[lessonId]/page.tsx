@@ -1,10 +1,10 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
 import { usePermissions } from "@/lib/use-permissions";
 import { useContentAccess } from "@/lib/coins/coins-access";
@@ -113,6 +113,31 @@ interface VideoProgressData {
   watchedSeconds: number;
   completed: boolean;
   lastPosition: number;
+}
+
+const ARABIC_ORDINALS: readonly string[] = [
+  "الأول",
+  "الثاني",
+  "الثالث",
+  "الرابع",
+  "الخامس",
+  "السادس",
+  "السابع",
+  "الثامن",
+  "التاسع",
+  "العاشر",
+];
+
+function partLabel(index: number): string {
+  const ordinal = ARABIC_ORDINALS[index] ?? `رقم ${String(index + 1)}`;
+  return `الجزء ${ordinal}`;
+}
+
+function formatDuration(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "";
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return `${String(m)}:${String(s).padStart(2, "0")}`;
 }
 
 interface QuizData {
@@ -349,6 +374,56 @@ function VideoProgressBar({
       <span className="text-sm text-neutral-400 whitespace-nowrap">
         مشاهدة
       </span>
+    </div>
+  );
+}
+
+function VideoPartsBar({
+  videos,
+  activeId,
+  completedMap,
+  onSelect,
+}: {
+  videos: readonly LessonVideo[];
+  activeId: string | null;
+  completedMap: Readonly<Record<string, boolean>>;
+  onSelect: (videoId: string) => void;
+}): ReactNode {
+  // Single-video lessons keep the classic layout with no tabs.
+  if (videos.length <= 1) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2.5" role="tablist" aria-label="أجزاء الدرس">
+      {videos.map((v, i) => {
+        const active = v.id === activeId;
+        const done = completedMap[v.id] === true;
+        const duration = formatDuration(v.duration);
+        return (
+          <button
+            key={v.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={(): void => { onSelect(v.id); }}
+            className={`flex items-center gap-2.5 rounded-2xl border-2 px-5 py-3 text-sm font-bold transition-all ${
+              active
+                ? "border-primary-500 bg-primary-500 text-white shadow-lg shadow-primary-500/30"
+                : "border-neutral-200 bg-white text-neutral-600 hover:border-primary-500/50 hover:text-primary-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:text-primary-400"
+            }`}
+          >
+            {done ? (
+              <CheckCircle className="h-5 w-5 shrink-0" />
+            ) : (
+              <Play className="h-5 w-5 shrink-0" />
+            )}
+            <span>{partLabel(i)}</span>
+            {duration && (
+              <span className={`text-xs tabular-nums ${active ? "text-white/80" : "text-neutral-400"}`} dir="ltr">
+                {duration}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -723,9 +798,53 @@ export default function LessonDetailPage(): ReactNode {
     error: lessonErr,
   } = useLesson(lessonId);
 
-  const firstVideoId: string | null =
-    lesson && lesson.videos.length > 0 ? lesson.videos[0].id : null;
-  const { data: videoProgress } = useVideoProgress(firstVideoId);
+  // All lesson videos sorted as parts (part 1, part 2, …). The teacher orders
+  // them from the dashboard via displayOrder.
+  const sortedVideos = useMemo<readonly LessonVideo[]>(
+    () => [...(lesson?.videos ?? [])].sort((a, b) => a.displayOrder - b.displayOrder),
+    [lesson],
+  );
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  // Reset to part 1 whenever the student opens a different lesson.
+  useEffect(() => { setActiveVideoId(null); }, [lessonId]);
+  const activeVideo: LessonVideo | null =
+    sortedVideos.find((v) => v.id === activeVideoId) ?? sortedVideos[0] ?? null;
+  const { data: videoProgress } = useVideoProgress(activeVideo?.id ?? null);
+
+  // Completion flag per part (shares the same ["video-progress", id] cache
+  // entries, so no extra network traffic beyond the active part's query).
+  const partsCompletion = useQueries({
+    queries: sortedVideos.map((v) => ({
+      queryKey: ["video-progress", v.id],
+      queryFn: async (): Promise<boolean> => {
+        const res = await api.get<VideoProgressData>(`/videos/${v.id}/progress`);
+        return res.data?.completed ?? false;
+      },
+      enabled: sortedVideos.length > 1,
+      staleTime: 30_000,
+    })),
+  });
+  const completedMap = useMemo<Readonly<Record<string, boolean>>>(() => {
+    const map: Record<string, boolean> = {};
+    sortedVideos.forEach((v, i) => { map[v.id] = partsCompletion[i]?.data === true; });
+    return map;
+  }, [sortedVideos, partsCompletion]);
+
+  // Reports the player's real duration once per video, and only when the
+  // stored duration is missing (the upload-time YouTube scrape often yields 0
+  // from datacenter IPs) — this is what fills the part tabs' durations.
+  const durationReportedRef = useRef<Set<string>>(new Set());
+  const handleDurationReady = useCallback((seconds: number): void => {
+    const v = activeVideo;
+    if (!v || v.duration > 0 || !Number.isFinite(seconds) || seconds <= 0) return;
+    if (durationReportedRef.current.has(v.id)) return;
+    durationReportedRef.current.add(v.id);
+    api.patch(`/videos/${v.id}/known-duration`, { duration: Math.round(seconds) })
+      .then(() => {
+        void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      })
+      .catch(() => undefined);
+  }, [activeVideo, lessonId, queryClient]);
 
   const { data: stages } = useCurriculum();
 
@@ -824,9 +943,6 @@ export default function LessonDetailPage(): ReactNode {
   }
 
   // ── Derived values requiring guaranteed non-null lesson ──
-  const activeVideo: LessonVideo | null =
-    lesson.videos.length > 0 ? lesson.videos[0] : null;
-
   const videoWatchedPct =
     activeVideo && videoProgress && activeVideo.duration > 0
       ? Math.min(100, Math.round((videoProgress.watchedSeconds / activeVideo.duration) * 100))
@@ -862,6 +978,7 @@ export default function LessonDetailPage(): ReactNode {
         {activeVideo ? (
           <div className="mx-auto max-w-3xl space-y-1">
             <VideoPlayer
+              key={activeVideo.id}
               providerVideoId={activeVideo.providerVideoId}
               videoId={activeVideo.id}
               startAt={videoProgress?.lastPosition ?? 0}
@@ -869,6 +986,7 @@ export default function LessonDetailPage(): ReactNode {
               enableLessonCompleted
               completedActions={lessonCompletedActions}
               showThumbnail={activeVideo.showThumbnail}
+              onDurationReady={handleDurationReady}
             />
           </div>
         ) : (
@@ -888,6 +1006,22 @@ export default function LessonDetailPage(): ReactNode {
         percentage={videoWatchedPct}
         isCompleted={videoProgress?.completed ?? false}
       />
+
+      {/* Video Parts — every video the teacher added appears as its own part
+          below the progress bar; switching remounts the player fresh. */}
+      {activeVideo && sortedVideos.length > 1 && (
+        <section aria-label="أجزاء الدرس" className="flex flex-col items-center gap-1.5">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            {activeVideo.title}
+          </p>
+          <VideoPartsBar
+            videos={sortedVideos}
+            activeId={activeVideo.id}
+            completedMap={completedMap}
+            onSelect={setActiveVideoId}
+          />
+        </section>
+      )}
 
       {/* Live Sessions */}
       {lessonLiveLoading ? (
