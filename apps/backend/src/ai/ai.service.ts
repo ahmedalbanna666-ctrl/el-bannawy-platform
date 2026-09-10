@@ -848,6 +848,10 @@ export class AiService {
 
     try {
       const result = await this.providerService.chat(messages, { maxTokens });
+      Logger.log(
+        `[AI Debug] Q="${message.slice(0, 40)}" result=${result ? `ok len=${String(result.content.length)} CoT=${String(isCoTDump(result.content))} provider=${result.provider}` : "null"}`,
+        "AiService",
+      );
       if (result?.content && !isCoTDump(result.content)) {
         return {
           content: this.redactOutput(result.content),
