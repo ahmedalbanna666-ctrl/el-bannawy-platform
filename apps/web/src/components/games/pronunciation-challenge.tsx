@@ -149,11 +149,14 @@ export function PronunciationChallenge({ unitId: forcedUnitId, words: lessonWord
 
   if (phase === "result") {
     const accuracy = resolvedCount > 0 ? Math.round(totalScore / resolvedCount) : 0;
+    const allCorrect = resolvedCount > 0 && totalScore / resolvedCount >= 85;
+    const hasWeak = accuracy < 60;
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
         <Card variant="elevated" padding="lg"><CardContent className="flex flex-col items-center gap-4 text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-warning-500/10 text-warning-500"><Trophy className="h-10 w-10" /></div>
-          <h2 className="text-2xl font-bold">أحسنت!</h2><p className="text-sm text-neutral-500">أكملت تحدي النطق</p>
+          <div className={`flex h-20 w-20 items-center justify-center rounded-full ${allCorrect ? "bg-emerald-500/10 text-emerald-500" : hasWeak ? "bg-amber-500/10 text-amber-500" : "bg-warning-500/10 text-warning-500"}`}>{allCorrect ? <CheckCircle2 className="h-10 w-10" /> : hasWeak ? <AlertTriangle className="h-10 w-10" /> : <Trophy className="h-10 w-10" />}</div>
+          <h2 className="text-2xl font-bold">{allCorrect ? "ممتاز! أحسنت" : hasWeak ? "حاول مرة أخرى" : "أحسنت!"}</h2>
+          <p className="text-sm text-neutral-500">{allCorrect ? "أتممت نطق جميع الكلمات بشكل صحيح" : hasWeak ? "لديك ضعف بسيط في النطق، استمر في التدريب وستتحسن" : "أكملت تحدي النطق"}</p>
           <div className="grid w-full grid-cols-3 gap-3">
             <div className="rounded-xl bg-neutral-100 p-3 dark:bg-neutral-700/50"><p className="text-2xl font-black text-primary-500">{resolvedCount}</p><p className="text-[11px] text-neutral-500">كلمات مكتملة</p></div>
             <div className="rounded-xl bg-neutral-100 p-3 dark:bg-neutral-700/50"><p className="text-2xl font-black text-success-500">{accuracy}%</p><p className="text-[11px] text-neutral-500">متوسط الدقة</p></div>
@@ -202,7 +205,7 @@ export function PronunciationChallenge({ unitId: forcedUnitId, words: lessonWord
           {recorder.recording && <span className="absolute inset-0 animate-ping rounded-full bg-red-400/30" />}
         </button>
         <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-          {recorder.recording ? `يُسجّل... ${(recorder.durationMs / 1000).toFixed(1)}s — سيتوقف تلقائياً` : uploading ? "جاري التقييم الدقيق..." : "اضغط وانطق بوضوح"}
+          {recorder.recording ? `... ${(recorder.durationMs / 1000).toFixed(1)}s` : uploading ? "جاري التقييم..." : "اضغط على المايك وانطق الكلمة"}
         </p>
 
         {recorder.error && (
