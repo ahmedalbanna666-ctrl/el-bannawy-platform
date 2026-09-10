@@ -18,6 +18,8 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+# Local Railway env backups (never commit secrets)
+NEW_RAILWAY_ENV*.txt
 
 # IDE
 .vscode/settings.json
