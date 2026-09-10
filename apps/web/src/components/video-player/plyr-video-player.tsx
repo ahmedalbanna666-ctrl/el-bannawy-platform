@@ -16,6 +16,7 @@ interface PlyrVideoPlayerProps {
   readonly completedActions?: LessonCompletedActions;
   /** Show the YouTube thumbnail as the video poster (per-video teacher control). */
   readonly showThumbnail?: boolean;
+  readonly onDurationReady?: (seconds: number) => void;
 }
 
 const SAVE_INTERVAL_MS = 90_000;
@@ -72,6 +73,7 @@ export function PlyrVideoPlayer({
   enableLessonCompleted = false,
   completedActions,
   showThumbnail = true,
+  onDurationReady,
 }: PlyrVideoPlayerProps): ReactNode {
   const playerId = `yt-player-${providerVideoId}`;
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -568,7 +570,10 @@ export function PlyrVideoPlayer({
         const prevDuration = durationRef.current;
         durationRef.current = player.duration;
         if (!isScrubbing) setCustomTime(player.currentTime);
-        if (player.duration > 0 && prevDuration <= 0) setCustomDuration(player.duration);
+        if (player.duration > 0 && prevDuration <= 0) {
+          setCustomDuration(player.duration);
+          onDurationReady?.(player.duration);
+        }
         if (prevDuration <= 0 && player.duration > 0) {
           renderQuestionMarkers();
         }
