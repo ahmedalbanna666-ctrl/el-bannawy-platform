@@ -61,6 +61,13 @@ export function PronunciationChallenge({ unitId: forcedUnitId, words: lessonWord
     setRewardsXp(0); setRewardsCoins(0); setTotalScore(0); setResolvedCount(0); setSkippedCount(0); setPhase("playing");
   }, [pool, canStart, config]);
 
+  // Auto-start when a unit is selected and its pool is ready (like memory game - no "Start" button)
+  useEffect(() => {
+    if (selectedUnitId && pool && canStart && !poolLoading && phase === "select") {
+      startGame();
+    }
+  }, [selectedUnitId, pool, canStart, poolLoading, phase, startGame]);
+
   const current = questions[currentIndex];
   const isLast = currentIndex === questions.length - 1;
   const attemptScore = attemptResult?.overallScore ?? null;
@@ -140,7 +147,6 @@ export function PronunciationChallenge({ unitId: forcedUnitId, words: lessonWord
             {selectedUnit && poolError && <ErrorState title="تعذر تحميل الكلمات" onRetry={() => void refetchPool()} />}
             {selectedUnit && pool && !canStart && <div className="flex items-center gap-2 rounded-xl bg-warning-500/10 p-3 text-sm text-warning-600"><AlertTriangle className="h-4 w-4" /> هذه الوحدة لا تحتوي على كلمات كافية.</div>}
             {!recorder.supported && <div className="flex items-center gap-2 rounded-xl bg-warning-500/10 p-3 text-sm text-warning-600"><AlertTriangle className="h-4 w-4" /> متصفحك لا يدعم التسجيل</div>}
-            <Button variant="primary" size="lg" fullWidth disabled={!canStart || poolLoading} onClick={startGame}><Sparkles className="h-5 w-5" /> ابدأ التحدي</Button>
           </>
         )}
       </div>

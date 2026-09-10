@@ -26,7 +26,7 @@ export function UnitMapSelect({
         </span>
       </div>
 
-      <div className="flex w-full gap-2 overflow-x-auto pb-2 [scrollbar-width:thin]">
+      <div className="grid w-full grid-cols-2 gap-3">
         {units.map((unit, idx) => {
           const active = selectedId === unit.id;
           return (
@@ -37,7 +37,7 @@ export function UnitMapSelect({
                 onSelect(unit.id);
               }}
               aria-pressed={active}
-              className={`flex shrink-0 flex-col items-center gap-1.5 rounded-2xl border-2 px-3 py-3 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
+              className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 px-3 py-3 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
                 active
                   ? "border-primary-500 bg-primary-500/10"
                   : "border-neutral-200 bg-white hover:border-primary-500/40 dark:border-neutral-700 dark:bg-neutral-900/40"

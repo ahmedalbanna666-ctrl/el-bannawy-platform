@@ -93,6 +93,13 @@ export function ListeningChallenge({
     setPhase("playing");
   }, [pool, canStart, settings]);
 
+  // Auto-start like memory game
+  useEffect(() => {
+    if (selectedUnitId && pool && canStart && !poolLoading && phase === "select") {
+      startGame();
+    }
+  }, [selectedUnitId, pool, canStart, poolLoading, phase, startGame]);
+
   const current = questions[currentIndex] as ListeningQuestion | undefined;
   const isLast = currentIndex === questions.length - 1;
 
@@ -276,17 +283,6 @@ export function ListeningChallenge({
                 متصفحك لا يدعم تشغيل الصوت، سيتم عرض الكلمة نصياً.
               </div>
             )}
-
-            <Button
-              variant="primary"
-              size="lg"
-              fullWidth
-              disabled={!canStart || poolLoading}
-              onClick={startGame}
-            >
-              <Sparkles className="h-5 w-5" />
-              ابدأ التحدي
-            </Button>
           </>
         )}
       </div>
