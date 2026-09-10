@@ -31,6 +31,7 @@ import {
   Target,
   Layers,
   Play,
+  ClipboardList,
 } from "lucide-react";
 
 interface QuizData {
@@ -122,6 +123,16 @@ function translatePrereqReason(reason: string | null): string | null {
     return "لقد استنفدت جميع محاولاتك لهذا الاختبار";
   }
   return reason;
+}
+
+type PrereqKind = "videos" | "homework" | "attempts" | "other";
+
+function classifyPrereq(message: string | null): PrereqKind {
+  if (!message) return "other";
+  if (message.includes("فيديوهات") || message.includes("videos must be completed")) return "videos";
+  if (message.includes("واجب") || message.includes("Homework must be submitted")) return "homework";
+  if (message.includes("محاولات") || message.includes("Maximum attempts")) return "attempts";
+  return "other";
 }
 
 export default function QuizPage(): ReactNode {
@@ -303,7 +314,7 @@ export default function QuizPage(): ReactNode {
       void queryClient.invalidateQueries({ queryKey: ["quiz-history", lessonId] });
     } catch (err) {
       if (err instanceof Error && err.message.includes("403")) {
-        setPrereqError(err.message);
+        setPrereqError(translatePrereqReason(err.message));
       } else {
         setError(err instanceof Error ? err.message : "فشل بدء المحاولة");
       }
@@ -393,17 +404,48 @@ export default function QuizPage(): ReactNode {
   }
 
   if (prereqError) {
+    const prereqKind = classifyPrereq(prereqError);
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-20">
-        <Lock className="h-16 w-16 text-warning-500" />
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">الاختبار مقفل</h2>
-        <p className="text-sm text-neutral-500">{prereqError}</p>
-        <Link href={`/dashboard/lessons/${lessonId}`}>
-          <Button variant="outline" size="sm">
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            العودة للدرس
-          </Button>
-        </Link>
+      <div className="flex flex-col gap-4">
+        <Card variant="elevated" padding="lg">
+          <CardContent>
+            <div className="flex flex-col items-center gap-4 py-8 text-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-amber-500/10 ring-1 ring-amber-500/20">
+                <Lock className="h-10 w-10 text-amber-500" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-neutral-900 dark:text-neutral-100">
+                  الاختبار مقفل
+                </h2>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+                  {prereqError}
+                </p>
+              </div>
+              {prereqKind === "videos" && (
+                <Link href={`/dashboard/lessons/detail/${lessonId}`} className="w-full max-w-sm">
+                  <Button variant="primary" className="w-full">
+                    <Play className="mr-2 h-4 w-4" />
+                    أكمل فيديوهات الدرس
+                  </Button>
+                </Link>
+              )}
+              {prereqKind === "homework" && (
+                <Link href={`/dashboard/homework/${lessonId}`} className="w-full max-w-sm">
+                  <Button variant="primary" className="w-full">
+                    <ClipboardList className="mr-2 h-4 w-4" />
+                    الذهاب إلى الواجب
+                  </Button>
+                </Link>
+              )}
+              <Link href={`/dashboard/lessons/detail/${lessonId}`}>
+                <Button variant="outline" size="sm">
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  العودة للدرس
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
