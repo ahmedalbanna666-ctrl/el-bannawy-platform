@@ -2,163 +2,146 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
-from providers import (
-    AsrPronunciationProvider,
-    BasePronunciationProvider,
-    ForcedAlignmentPronunciationProvider,
-    GoptPronunciationProvider,
-    LocalPronunciationProvider,
-)
-from schemas import EngineName, HealthResponse
+import librosa
+import soundfile as sf
+
+from scoring import score_pronunciation
+from schemas import HealthResponse
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pronunciation-engine")
 
-DEFAULT_PROVIDER: EngineName = "gopt"
-ENGINE_TOKEN = os.getenv("PRONUNCIATION_ENGINE_TOKEN") or ""
+app = FastAPI(title="El-bannawy Pronunciation Engine - Accurate", version="2.0.0")
 
-app = FastAPI(title="El-bannawy Pronunciation Engine", version="1.0.0")
+# CORS for local and production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+# Warm up whisper model on startup
+_whisper_model = None
 
-def _build_providers() -> dict[str, BasePronunciationProvider]:
-    gopt_path = os.getenv("GOPT_MODEL_PATH") or None
-    device = os.getenv("PRONUNCIATION_DEVICE", "cpu")
-    return {
-        "gopt": GoptPronunciationProvider(model_path=gopt_path, device=device),
-        "forced-alignment": ForcedAlignmentPronunciationProvider(device=device),
-        "asr": AsrPronunciationProvider(model_size=os.getenv("LOCAL_MODEL_SIZE", "base"), device=device),
-        "local": LocalPronunciationProvider(model_size=os.getenv("LOCAL_MODEL_SIZE", "base"), device=device),
-    }
-
-
-PROVIDERS = _build_providers()
-
-
-def _log_provider_diagnostics() -> None:
-    """Log availability of every provider dependency at startup."""
-    import importlib
-
-    for module in (
-        "numpy",
-        "soundfile",
-        "resampy",
-        "faster_whisper",
-        "torch",
-        "transformers",
-    ):
-        try:
-            importlib.import_module(module)
-            logger.info("provider-dep OK: %s", module)
-        except Exception as exc:
-            logger.error("provider-dep FAIL: %s -> %r", module, exc)
-    available = [name for name, p in PROVIDERS.items() if p.available()]
-    logger.info("available providers: %s", available or "NONE")
-
-
-_log_provider_diagnostics()
-
+def get_whisper():
+    global _whisper_model
+    if _whisper_model is None:
+        from faster_whisper import WhisperModel
+        # Use tiny for speed, base for accuracy - base is good balance for CPU
+        # Model will be downloaded on first use if not cached
+        size = os.getenv("WHISPER_SIZE", "base")
+        device = os.getenv("WHISPER_DEVICE", "cpu")
+        compute = "int8" if device == "cpu" else "float16"
+        logger.info(f"Loading whisper model {size} on {device} ({compute})")
+        _whisper_model = WhisperModel(size, device=device, compute_type=compute)
+        logger.info("Whisper model loaded")
+    return _whisper_model
 
 @app.on_event("startup")
-async def _warmup_local_model() -> None:
-    """Pre-load the whisper weights so the first assessment is fast."""
-    import asyncio
-
-    provider = PROVIDERS.get("local")
-    if provider is None or not provider.available():
-        return
-    loader = getattr(provider, "_load", None)
-    if loader is None:
-        return
+async def warmup():
     try:
-        await asyncio.get_running_loop().run_in_executor(None, loader)
-        logger.info("local whisper model warmed up")
-    except Exception as exc:  # pragma: no cover - network/model issues
-        logger.error("local model warm-up failed -> %r", exc)
-
-
-def _select_provider(name: Optional[str]) -> BasePronunciationProvider:
-    requested = name or DEFAULT_PROVIDER
-    provider = PROVIDERS.get(requested)
-    if provider is not None and provider.available():
-        return provider
-    # Fall back to any available provider.
-    for cand in PROVIDERS.values():
-        if cand.available():
-            logger.warning("Provider %s unavailable; using %s", requested, cand.name)
-            return cand
-    raise HTTPException(
-        status_code=503,
-        detail=(
-            "لا يتوفر محرك تقييم النطق. ثبّت نموذج GOPT أو Montreal Forced Aligner "
-            "أو faster-whisper (المزوّد المحلي) حسب توثيق النشر."
-        ),
-    )
-
+        # Pre-load in background thread to avoid blocking startup
+        import asyncio
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, get_whisper)
+        logger.info("Engine warmed up")
+    except Exception as e:
+        logger.warning(f"Warmup failed (will load on first request): {e}")
 
 @app.get("/internal/health", response_model=HealthResponse)
-async def health() -> HealthResponse:
-    available = [name for name, p in PROVIDERS.items() if p.available()]
-    default = DEFAULT_PROVIDER if PROVIDERS[DEFAULT_PROVIDER].available() else (available[0] if available else DEFAULT_PROVIDER)
-    return HealthResponse(providers=available, defaultProvider=default)  # type: ignore[arg-type]
-
+async def health():
+    # Check if whisper can be loaded
+    try:
+        import faster_whisper
+        import epitran
+        available = ["local-accurate"]
+        default = "local-accurate"
+    except ImportError:
+        available = []
+        default = "local-accurate"
+    return HealthResponse(status="ok", providers=available, defaultProvider=default)
 
 @app.post("/internal/pronunciation/assess")
 async def assess(
     audio: UploadFile = File(...),
-    expected_text: str = Form(...),
-    provider: Optional[str] = Form(None),
-    reference_phonemes: Optional[str] = Form(None),
-    sample_rate: Optional[int] = Form(None),
+    expected_text: str = Form(..., alias="expectedText"),
+    expected_text_snake: Optional[str] = Form(None, alias="expected_text"),
     language: str = Form("en-US"),
-    authorization: Optional[str] = None,
 ):
-    if ENGINE_TOKEN:
-        token = (authorization or "").replace("Bearer ", "")
-        if token != ENGINE_TOKEN:
-            raise HTTPException(status_code=401, detail="غير مصرح")
-
-    if not expected_text or not expected_text.strip():
+    # Support both camelCase and snake_case
+    expected = (expected_text or expected_text_snake or "").strip()
+    if not expected:
+        # Try to get from form directly via alias handling
+        expected = expected_text.strip() if expected_text else (expected_text_snake.strip() if expected_text_snake else "")
+    if not expected:
         raise HTTPException(status_code=400, detail="النص المتوقع مطلوب")
 
-    provider_instance = _select_provider(provider)
-    audio_bytes = await audio.read()
-    if not audio_bytes:
-        raise HTTPException(status_code=400, detail="الملف الصوتي فارغ")
-
-    ref_phon: Optional[list[str]] = None
-    if reference_phonemes:
-        import json
-
-        try:
-            parsed = json.loads(reference_phonemes)
-            if isinstance(parsed, list):
-                ref_phon = [str(p) for p in parsed]
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="صيغة الرموز الصوتية غير صحيحة")
-
+    # Read audio
     try:
-        result = await provider_instance.assess(
-            audio_bytes=audio_bytes,
-            expected_text=expected_text,
-            reference_phonemes=ref_phon,
-            sample_rate=sample_rate,
-            language=language,
-        )
+        data = await audio.read()
+        if len(data) == 0:
+            raise HTTPException(status_code=400, detail="الملف الصوتي فارغ")
+        if len(data) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="حجم الملف كبير جداً")
     except HTTPException:
         raise
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"فشل قراءة الملف: {e}")
+
+    # Save to temp file for librosa/soundfile
+    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
+        tmp.write(data)
+        tmp_path = tmp.name
+
+    try:
+        # Load audio with librosa (handles webm, mp4, wav, etc.)
+        y, sr = librosa.load(tmp_path, sr=16000, mono=True)
+        if len(y) == 0:
+            raise HTTPException(status_code=400, detail="الملف الصوتي فارغ أو تالف")
+        # Trim silence at start/end for better scoring
+        y_trim, _ = librosa.effects.trim(y, top_db=30)
+        if len(y_trim) > 0:
+            y = y_trim
+        duration = len(y) / 16000
+        if duration < 0.3:
+            raise HTTPException(status_code=400, detail="التسجيل قصير جداً، حاول مرة أخرى بصوت أوضح")
+        if duration > 10:
+            # Trim to 10s max
+            y = y[:16000*10]
+
+        # Transcribe with faster-whisper
+        model = get_whisper()
+        segments, _ = model.transcribe(
+            y,
+            language="en" if language.startswith("en") else None,
+            beam_size=5,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=300),
+        )
+        transcript = " ".join(seg.text.strip() for seg in segments).strip()
+        if not transcript:
+            transcript = ""
+
+        # Score with phonetic accurate method
+        result = score_pronunciation(expected, transcript, y, 16000)
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
         logger.exception("Assessment failed")
-        raise HTTPException(status_code=500, detail=f"فشل التقييم: {exc}")
-
-    return JSONResponse(content=result.model_dump())
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+        raise HTTPException(status_code=500, detail=f"فشل التقييم: {e}")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass

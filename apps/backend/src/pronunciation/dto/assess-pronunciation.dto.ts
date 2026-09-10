@@ -13,14 +13,11 @@ export class AssessPronunciationDto {
 
   @IsOptional()
   @IsIn([...PRONUNCIATION_PROVIDERS])
-  provider?: "gopt" | "forced-alignment" | "asr" | "local";
+  provider?: string;
 
-  /// Optional reference ARPABET phonemes, JSON-encoded array (e.g. ["HH","AH","L","OW"]).
   @IsOptional()
   @IsString()
-  @Transform(({ obj }: { obj: Record<string, unknown> }) =>
-    (obj.referencePhonemes as string) ?? (obj.reference_phonemes as string),
-  )
+  @Transform(({ obj }: { obj: Record<string, unknown> }) => (obj.referencePhonemes as string) ?? (obj.reference_phonemes as string))
   referencePhonemes?: string;
 
   @IsOptional()

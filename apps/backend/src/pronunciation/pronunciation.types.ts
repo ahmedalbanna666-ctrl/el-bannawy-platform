@@ -1,14 +1,15 @@
-export type PronunciationEngineName = "gopt" | "forced-alignment" | "asr" | "local";
+export type PronunciationEngineName = "local-accurate" | "browser";
 
-export type PhonemeErrorType = "none" | "substitution" | "deletion" | "insertion";
-export type WordErrorType = "none" | "mispronunciation" | "omission" | "insertion" | "repetition";
-
-export interface PhonemeAssessment {
-  symbol: string;
-  score: number;
-  errorType: PhonemeErrorType;
-  start?: number;
-  end?: number;
+export interface PronunciationAssessInput {
+  userId: string;
+  expectedText: string;
+  audioBuffer: Buffer;
+  audioFormat: string;
+  fileName: string;
+  provider?: string;
+  referencePhonemes?: string[];
+  sampleRate?: number;
+  language?: string;
 }
 
 export interface WordAssessment {
@@ -16,11 +17,9 @@ export interface WordAssessment {
   score: number;
   accuracy: number;
   fluency: number;
-  start?: number;
-  end?: number;
-  errorType: WordErrorType;
-  feedback?: string;
-  phonemes: PhonemeAssessment[];
+  errorType: string;
+  feedback: string;
+  phonemes: { symbol: string; score: number; errorType: string }[];
 }
 
 export interface PronunciationAssessmentResult {
@@ -32,25 +31,7 @@ export interface PronunciationAssessmentResult {
   transcript: string;
   engine: PronunciationEngineName;
   words: WordAssessment[];
-  phonemes: PhonemeAssessment[];
-  raw?: Record<string, unknown>;
+  phonemes: { symbol: string; score: number; errorType: string }[];
 }
 
-export interface PronunciationAssessInput {
-  userId: string;
-  expectedText: string;
-  audioBuffer: Buffer;
-  audioFormat: string;
-  fileName: string;
-  provider?: PronunciationEngineName;
-  referencePhonemes?: string[];
-  sampleRate?: number;
-  language?: string;
-}
-
-export const PRONUNCIATION_PROVIDERS: readonly PronunciationEngineName[] = [
-  "gopt",
-  "forced-alignment",
-  "asr",
-  "local",
-];
+export const PRONUNCIATION_PROVIDERS = ["local-accurate", "browser"] as const;

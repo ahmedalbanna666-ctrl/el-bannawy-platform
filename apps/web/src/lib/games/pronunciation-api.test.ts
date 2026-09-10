@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { assessPronunciation } from "./pronunciation-api";
-import type { PronunciationAssessResponse } from "./pronunciation-types";
+import type { PronunciationAssessmentResult } from "./pronunciation-types";
 
 function mockFetchOnce(body: unknown, status = 200): void {
   vi.stubGlobal(
@@ -25,15 +25,14 @@ describe("assessPronunciation", () => {
   });
 
   it("posts a multipart form and returns the parsed assessment", async () => {
-    const assessment: PronunciationAssessResponse = {
-      id: "attempt-1",
+    const assessment: PronunciationAssessmentResult = {
       overallScore: 88,
       accuracy: 90,
       fluency: 80,
       prosody: 85,
       completeness: 100,
       transcript: "hello",
-      engine: "gopt",
+      engine: "local-accurate",
       words: [],
       phonemes: [],
     };
@@ -42,7 +41,6 @@ describe("assessPronunciation", () => {
     const blob = new Blob(["RIFF"], { type: "audio/wav" });
     const result = await assessPronunciation(blob, "hello");
 
-    expect(result.id).toBe("attempt-1");
     expect(result.overallScore).toBe(88);
 
     const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;

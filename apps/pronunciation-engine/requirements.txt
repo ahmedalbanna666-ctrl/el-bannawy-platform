@@ -1,26 +1,24 @@
-# ── API ───────────────────────────────────────────────────────────────
+# API
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-multipart==0.0.12
 pydantic==2.9.2
 pydantic-settings==2.5.2
 
-# ── Audio I/O (required by every provider) ───────────────────────────
+# Audio
 numpy==1.26.4
 soundfile==0.12.1
-resampy==0.4.3
+librosa==0.10.1
 
-# ── Primary engine: GOPT (multi-aspect, multi-granularity) ────────────
-# Install GOPT + Montreal Forced Aligner per their READMEs:
-#   pip install montreal-forced-aligner
-#   git clone https://github.com/YuanGongND/gopt && cd gopt && pip install -e .
-# Then set GOPT_MODEL_PATH to a downloaded checkpoint.
-
-# ── Local fallback (self-hosted, CPU-only): faster-whisper ASR ───────
+# ASR - fast and accurate, CPU-friendly
 faster-whisper==1.0.3
-# faster-whisper 1.0.x imports `requests` without declaring it.
 requests==2.32.3
 
-# ── Tests ─────────────────────────────────────────────────────────────
+# Phonetic - for accurate pronunciation scoring
+epitran==1.26
+panphon==0.22.1
+distance==0.1.3
+
+# Tests
 pytest==8.3.2
 httpx==0.27.0
