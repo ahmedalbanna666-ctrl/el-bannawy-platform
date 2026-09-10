@@ -844,7 +844,9 @@ export class AiService {
     currency?: string;
   }> {
     const messages = await this.buildChatMessages(message, history, lessonContext, ragResults, studentName, quickRef);
-    const maxTokens = quickRef ? 200 : 500;
+    // gpt-oss is a reasoning model that needs more tokens for its internal thinking
+    const isGptOss = _activeModelConfig?.modelName?.includes("gpt-oss") ?? false;
+    const maxTokens = quickRef ? 200 : isGptOss ? 1500 : 500;
 
     try {
       const result = await this.providerService.chat(messages, { maxTokens });
