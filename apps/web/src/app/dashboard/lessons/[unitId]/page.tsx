@@ -133,7 +133,7 @@ export default function LessonListPage(): ReactNode {
                 isLocked
                   ? "cursor-not-allowed opacity-70"
                   : "cursor-pointer hover:-translate-y-0.5 hover:shadow-md"
-              } border-neutral-200 dark:border-neutral-700`}
+              }`}
               onClick={(): void => {
                 if (isLocked) {
                   if (canBuy) setBuyOpen(true);
