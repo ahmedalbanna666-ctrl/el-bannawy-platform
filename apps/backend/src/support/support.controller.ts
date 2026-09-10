@@ -64,6 +64,7 @@ export class SupportController {
   }
 
   @Patch("tickets/:ticketId")
+  @Roles("ADMINISTRATOR", "SUPPORT", "STAFF")
   async updateTicket(
     @Param("ticketId", ParseUUIDPipe) ticketId: string,
     @CurrentUser() userId: string,

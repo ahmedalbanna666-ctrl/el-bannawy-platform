@@ -49,11 +49,14 @@ export class SupportService {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!user) throw new NotFoundException("User not found");
 
+    const isAgent = user.role === "SUPPORT" || user.role === "ADMINISTRATOR" || user.role === "STAFF";
+
     const ticket = await this.prisma.supportTicket.findUnique({
       where: { id: ticketId },
       include: {
         user: { select: { id: true, fullName: true, email: true } },
         messages: {
+          where: isAgent ? undefined : { internal: false },
           orderBy: { createdAt: "asc" },
           select: { id: true, ticketId: true, senderId: true, senderRole: true, body: true, internal: true, createdAt: true },
         },
@@ -104,12 +107,16 @@ export class SupportService {
         senderId: userId,
         senderRole: isAgent ? "AGENT" : "USER",
         body: dto.body,
-        internal: dto.internal ?? false,
+        internal: isAgent ? (dto.internal ?? false) : false,
       },
     });
   }
 
   async updateTicket(ticketId: string, userId: string, dto: { status?: string; priority?: string; assignedAgentId?: string | null }) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const isAgent = user?.role === "SUPPORT" || user?.role === "ADMINISTRATOR" || user?.role === "STAFF";
+    if (!isAgent) throw new ForbiddenException("Only support agents can update tickets");
+
     const ticket = await this.prisma.supportTicket.findUnique({ where: { id: ticketId } });
     if (!ticket) throw new NotFoundException("Ticket not found");
 
