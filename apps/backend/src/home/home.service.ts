@@ -362,20 +362,17 @@ export class HomeService {
     } | null,
     currentProgress: { lessonId: string; progress: number } | null,
   ): Promise<DashboardData["nextAction"]> {
-    // 1) The student has an unfinished lesson → resume it (only if they've
-    //    actually started it, i.e. made some progress). A record with
-    //    progress 0 means the lesson was merely opened → show "start".
-    if (currentProgress) {
-      const started = currentProgress.progress > 0;
-      return {
-        type: "continue",
-        label: started ? "استكمل الدرس" : "ابدأ الدرس",
-        href: `/dashboard/lessons/detail/${currentProgress.lessonId}`,
-      };
-    }
-
     // Without an academic context we cannot resolve the ordered curriculum.
+    // An unfinished lesson still takes precedence when there is one.
     if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) {
+      if (currentProgress) {
+        const started = currentProgress.progress > 0;
+        return {
+          type: "continue",
+          label: started ? "استكمل الدرس" : "ابدأ الدرس",
+          href: `/dashboard/lessons/detail/${currentProgress.lessonId}`,
+        };
+      }
       return { type: "start", label: "ابدأ الآن", href: "/dashboard/units" };
     }
 
@@ -426,18 +423,34 @@ export class HomeService {
     // 4) First lesson that is not fully completed yet.
     const next = orderedLessons.find((item) => !completion.get(item.id)) ?? null;
 
-    // 5) Entire curriculum completed → final review.
+    // 5) The student has an unfinished lesson AND it is the actual next one
+    //    → resume it (only if they've actually started it, i.e. made some
+    //    progress). A record with progress 0 means the lesson was merely
+    //    opened → show "start". Progress rows with 0 are also created for
+    //    purchased-but-unopened lessons, so only the true next lesson counts
+    //    as "in progress" here — anything else falls through to the
+    //    curriculum-based states below.
+    if (currentProgress && next && currentProgress.lessonId === next.id) {
+      const started = currentProgress.progress > 0;
+      return {
+        type: "continue",
+        label: started ? "استكمل الدرس" : "ابدأ الدرس",
+        href: `/dashboard/lessons/detail/${currentProgress.lessonId}`,
+      };
+    }
+
+    // 6) Entire curriculum completed → final review.
     if (!next) {
       return { type: "final_review", label: "ابدأ المراجعة النهائية", href: "/dashboard/final-reviews" };
     }
 
-    // 6) Nothing completed yet → start with the first available lesson.
+    // 7) Nothing completed yet → start with the first available lesson.
     const anyCompleted = orderedLessons.some((item) => completion.get(item.id) === true);
     if (!anyCompleted) {
-      return { type: "start", label: "ابدأ الدرس", href: `/dashboard/lessons/detail/${next.id}` };
+      return { type: "start", label: "ابدأ أول درس", href: `/dashboard/lessons/detail/${next.id}` };
     }
 
-    // 7) The student has some progress on the next lesson already → resume it.
+    // 8) The student has some progress on the next lesson already → resume it.
     const nextProgress = await this.prisma.lessonProgress.findFirst({
       where: { userId, lessonId: next.id },
       select: { progress: true },
@@ -446,14 +459,14 @@ export class HomeService {
       return { type: "continue", label: "استكمل الدرس", href: `/dashboard/lessons/detail/${next.id}` };
     }
 
-    // 8) Next lesson belongs to a new unit → announce the unit.
+    // 9) Next lesson belongs to a new unit → announce the unit.
     const lastCompletedIndex = orderedLessons.map((item) => completion.get(item.id) === true).lastIndexOf(true);
     const lastCompleted = lastCompletedIndex >= 0 ? orderedLessons[lastCompletedIndex] : null;
     if (lastCompleted && lastCompleted.unitId !== next.unitId) {
       return { type: "next_unit", label: "ابدأ الوحدة التالية", href: `/dashboard/lessons/detail/${next.id}` };
     }
 
-    // 9) Next lesson is in the same unit as the last completed one.
+    // 10) Next lesson is in the same unit as the last completed one.
     return { type: "next_lesson", label: "ابدأ الدرس التالي", href: `/dashboard/lessons/detail/${next.id}` };
   }
 
@@ -607,53 +620,110 @@ export class HomeService {
       where.educationalSystem = ctx.educationalSystem;
     }
 
-    const students = await this.prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        fullName: true,
-        avatarUrl: true,
-        gradeId: true,
-      },
-    });
+    // Optimized: push ordering/limiting to DB via parameterized queries.
+    // All scope values are UUIDs or controlled enums from AcademicContext (not free-form user input),
+    // but we still use Prisma.sql parameterization to avoid any interpolation risk.
+    let top: { id: string; fullName: string; avatarUrl: string | null; xp: number; level: number; coins: number; rank: number }[] = [];
+    let me: ({ id: string; fullName: string; avatarUrl: string | null; xp: number; level: number; coins: number; rank: number } & { total: number }) | null = null;
+    let total = 0;
+    try {
+      const { Prisma } = await import("@prisma/client");
+      const conditions: ReturnType<typeof Prisma.sql>[] = [Prisma.sql`u."deletedAt" IS NULL AND u.role = 'STUDENT'`];
+      if (ctx?.gradeId) conditions.push(Prisma.sql`AND u."gradeId" = ${ctx.gradeId}::uuid`);
+      if (ctx?.academicYearId) conditions.push(Prisma.sql`AND u."academicYearId" = ${ctx.academicYearId}::uuid`);
+      if (ctx?.termId) conditions.push(Prisma.sql`AND u."termId" = ${ctx.termId}::uuid`);
+      if (ctx?.educationalSystem) conditions.push(Prisma.sql`AND u."educationalSystem" = ${ctx.educationalSystem}`);
+      const whereSql = Prisma.join(conditions, " ");
 
-    const xpByUser = await this.prisma.xPTransaction.groupBy({
-      by: ["userId"],
-      where: { userId: { in: students.map((s) => s.id) } },
-      _sum: { amount: true },
-    });
+      const rawTop = await this.prisma.$queryRaw<{ id: string; fullName: string; avatarUrl: string | null; xp: number; balance: number }[]>(
+        Prisma.sql`SELECT u.id, u."fullName", u."avatarUrl", COALESCE(SUM(x.amount),0)::int as xp, COALESCE(c.balance,0)::int as balance
+         FROM users u
+         LEFT JOIN xp_transactions x ON x."userId" = u.id
+         LEFT JOIN coin_wallets c ON c."userId" = u.id
+         WHERE ${whereSql}
+         GROUP BY u.id, c.balance
+         ORDER BY xp DESC, u.id ASC
+         LIMIT 50`,
+      );
+      top = rawTop.map((r, idx) => ({
+        id: r.id,
+        fullName: r.fullName,
+        avatarUrl: r.avatarUrl,
+        xp: r.xp,
+        level: Math.floor(r.xp / 1000) + 1,
+        coins: r.balance,
+        rank: idx + 1,
+      }));
+      const countRes = await this.prisma.$queryRaw<{ count: number }[]>(
+        Prisma.sql`SELECT COUNT(*)::int as count FROM users u WHERE ${whereSql}`,
+      );
+      total = Number(countRes[0]?.count ?? 0);
+      if (top.some((t) => t.id === userId)) {
+        const found = top.find((t) => t.id === userId)!;
+        me = { ...found, total };
+      } else {
+        const meRaw = await this.prisma.$queryRaw<{ id: string; fullName: string; avatarUrl: string | null; xp: number; balance: number; rank: number }[]>(
+          Prisma.sql`SELECT * FROM (
+            SELECT u.id, u."fullName", u."avatarUrl", COALESCE(SUM(x.amount),0)::int as xp, COALESCE(c.balance,0)::int as balance,
+                   RANK() OVER (ORDER BY COALESCE(SUM(x.amount),0) DESC, u.id ASC) as rank
+            FROM users u
+            LEFT JOIN xp_transactions x ON x."userId" = u.id
+            LEFT JOIN coin_wallets c ON c."userId" = u.id
+            WHERE ${whereSql}
+            GROUP BY u.id, c.balance
+          ) ranked WHERE id = ${userId}::uuid`,
+        );
+        if (meRaw[0]) {
+          me = {
+            id: meRaw[0].id,
+            fullName: meRaw[0].fullName,
+            avatarUrl: meRaw[0].avatarUrl,
+            xp: meRaw[0].xp,
+            level: Math.floor(meRaw[0].xp / 1000) + 1,
+            coins: meRaw[0].balance,
+            rank: Number(meRaw[0].rank),
+            total,
+          };
+        }
+      }
+    } catch {
+      // Fallback: bounded fetch (max 1000) with DB-side aggregation
+      const students = await this.prisma.user.findMany({
+        where,
+        select: { id: true, fullName: true, avatarUrl: true },
+        take: 1000,
+        orderBy: { createdAt: "asc" },
+      });
+      total = await this.prisma.user.count({ where });
+      const ids = students.map((s) => s.id);
+      const [xpByUser, coinsByUser] = await Promise.all([
+        this.prisma.xPTransaction.groupBy({ by: ["userId"], where: { userId: { in: ids } }, _sum: { amount: true } }),
+        this.prisma.coinWallet.findMany({ where: { userId: { in: ids } }, select: { userId: true, balance: true } }),
+      ]);
+      const xpMap = new Map(xpByUser.map((x) => [x.userId, x._sum.amount ?? 0]));
+      const coinsMap = new Map(coinsByUser.map((c) => [c.userId, c.balance]));
+      const ranked = students
+        .map((s) => ({ id: s.id, fullName: s.fullName, avatarUrl: s.avatarUrl, xp: xpMap.get(s.id) ?? 0, level: Math.floor((xpMap.get(s.id) ?? 0) / 1000) + 1, coins: coinsMap.get(s.id) ?? 0, rank: 0 }))
+        .sort((a, b) => b.xp - a.xp || a.id.localeCompare(b.id))
+        .map((e, idx) => ({ ...e, rank: idx + 1 }));
+      top = ranked.slice(0, 50);
+      const found = ranked.find((r) => r.id === userId);
+      me = found ? { ...found, total } : null;
+      // If requester not in first 1000, fetch their XP individually
+      if (!me) {
+        const [myXp, myCoins, myUser] = await Promise.all([
+          this.prisma.xPTransaction.aggregate({ where: { userId }, _sum: { amount: true } }),
+          this.prisma.coinWallet.findUnique({ where: { userId }, select: { balance: true } }),
+          this.prisma.user.findUnique({ where: { id: userId }, select: { fullName: true, avatarUrl: true } }),
+        ]);
+        if (myUser) {
+          const xp = myXp._sum.amount ?? 0;
+          const approxRank = ranked.filter((r) => r.xp > xp).length + 1;
+          me = { id: userId, fullName: myUser.fullName, avatarUrl: myUser.avatarUrl, xp, level: Math.floor(xp / 1000) + 1, coins: myCoins?.balance ?? 0, rank: approxRank, total };
+        }
+      }
+    }
 
-    const coinsByUser = await this.prisma.coinWallet.findMany({
-      where: { userId: { in: students.map((s) => s.id) } },
-      select: { userId: true, balance: true },
-    });
-
-    const xpMap = new Map(xpByUser.map((x) => [x.userId, x._sum.amount ?? 0]));
-    const coinsMap = new Map(coinsByUser.map((c) => [c.userId, c.balance]));
-
-    const ranked = students
-      .map((s) => {
-        const xp = xpMap.get(s.id) ?? 0;
-        return {
-          id: s.id,
-          fullName: s.fullName,
-          avatarUrl: s.avatarUrl,
-          xp,
-          level: Math.floor(xp / 1000) + 1,
-          coins: coinsMap.get(s.id) ?? 0,
-          rank: 0,
-        };
-      })
-      .sort((a, b) => b.xp - a.xp || a.id.localeCompare(b.id))
-      .map((entry, idx) => ({ ...entry, rank: idx + 1 }));
-
-    const top = ranked.slice(0, 50);
-    const me = ranked.find((r) => r.id === userId) ?? null;
-
-    return {
-      scope,
-      top,
-      me: me ? { ...me, total: ranked.length } : null,
-    };
+    return { scope, top, me };
   }
 }
