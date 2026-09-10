@@ -137,6 +137,17 @@ export class VideoService {
     return { completed: true, eventId, resumeVideo: true };
   }
 
+  async reportKnownDuration(videoId: string, userId: string, duration: number): Promise<{ filled: boolean }> {
+    const lessonRef = await this.repo.findLessonId(videoId);
+    if (!lessonRef) throw new NotFoundException("Video not found");
+    const video = await this.repo.findByIdBasic(videoId);
+    if (!video) throw new NotFoundException("Video not found");
+    await this.academicContext.verifyStudentLessonAccess(userId, lessonRef.lessonId);
+    if (video.duration > 0) return { filled: false };
+    const filled = await this.repo.fillMissingDuration(videoId, lessonRef.lessonId, duration);
+    return { filled };
+  }
+
   private async updateLessonProgress(lessonId: string, userId: string): Promise<void> {
     const [videos, totalActivities] = await Promise.all([
       this.repo.findLessonVideos(lessonId),

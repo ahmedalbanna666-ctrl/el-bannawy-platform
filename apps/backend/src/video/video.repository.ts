@@ -174,4 +174,12 @@ export class VideoRepository {
       create: { userId, lessonId, ...data },
     });
   }
+
+  async fillMissingDuration(videoId: string, lessonId: string, duration: number): Promise<boolean> {
+    const result = await this.prisma.lessonVideo.updateMany({
+      where: { id: videoId, lessonId, duration: 0 },
+      data: { duration },
+    });
+    return result.count > 0;
+  }
 }

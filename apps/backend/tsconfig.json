@@ -24,5 +24,6 @@
       "@el-bannawy/shared/*": ["../../packages/shared/*"]
     }
   },
-  "include": ["src/**/*", "test/**/*"]
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["**/*.spec.ts", "**/*.test.ts", "test", "dist", "node_modules"]
 }

@@ -6,17 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useGameSettings } from "@/lib/games/settings";
-import {
-  Volume2,
-  Gamepad2,
-  Mic,
-  Lock,
-  ArrowLeft,
-  Brain,
-} from "lucide-react";
+import { Volume2, Gamepad2, Lock, ArrowLeft, Brain } from "lucide-react";
 
 interface GameCardData {
-  key: "listening" | "pronunciation" | "memory";
+  key: "listening" | "memory";
   title: string;
   description: string;
   icon: ReactNode;
@@ -45,20 +38,6 @@ const GAMES: GameCardData[] = [
     stat: "10 أسئلة",
   },
   {
-    key: "pronunciation",
-    title: "تحدي النطق",
-    description:
-      "انطق الكلمة الظاهرة أمامك وليكشف النظام دقة نطقك ويحفّزك بمكافآت XP وعملات.",
-    icon: <Mic className="h-7 w-7 sm:h-8 sm:w-8" />,
-    href: "/dashboard/games/pronunciation-challenge",
-    soon: false,
-    accent: "from-warning-500 to-rose-500",
-    iconBg: "bg-warning-500/15 text-warning-500",
-    tag: "نطق وتحدث",
-    tagVariant: "warning",
-    stat: "+XP وعملات",
-  },
-  {
     key: "memory",
     title: "لعبة الذاكرة",
     description: "قلّب البطاقات وطابق كل كلمة إنجليزية مع معناها. قوّي ذاكرتك ووسّع مفرداتك.",
@@ -78,7 +57,6 @@ export default function GamesHubPage(): ReactNode {
 
   const disabledGames = GAMES.filter((g) => {
     if (g.key === "listening") return !settings.listeningChallenge.enabled;
-    if (g.key === "pronunciation") return !settings.pronunciationChallenge.enabled;
     return !settings.memoryGame.enabled;
   });
 
