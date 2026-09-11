@@ -11,6 +11,8 @@ import {
   ParseUUIDPipe,
 } from "@nestjs/common";
 import { AdminService } from "./admin.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { AcademicContextService } from "../common/services/academic-context.service";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
@@ -38,7 +40,11 @@ import { XpAdjustDto } from "./dto/xp-adjust.dto";
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMINISTRATOR")
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly prisma: PrismaService,
+    private readonly academicContext: AcademicContextService,
+  ) {}
 
   @Get("stages")
   async listStages(
@@ -233,6 +239,28 @@ export class AdminController {
   ): Promise<ISuccessResponse<unknown>> {
     const data = await this.adminService.listStudents(query);
     return successResponse(data);
+  }
+
+  @Get("grade-students")
+  @Roles("TEACHER", "ADMINISTRATOR")
+  async listGradeStudents(
+    @Query("gradeId") gradeId: string,
+    @CurrentUser() userId: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    if (!gradeId) {
+      return successResponse({ students: [] });
+    }
+    await this.academicContext.verifyTeacherGradeAccess(userId, gradeId);
+    const students = await this.prisma.user.findMany({
+      where: { role: "STUDENT", gradeId, deletedAt: null },
+      select: {
+        id: true,
+        fullName: true,
+        mobileNumber: true,
+      },
+      orderBy: { fullName: "asc" },
+    });
+    return successResponse({ students });
   }
 
   @Get("students/:id")

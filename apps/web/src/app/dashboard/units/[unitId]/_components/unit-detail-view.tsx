@@ -144,7 +144,7 @@ export function UnitDetailView({
     queryFn: async () => {
       const res = await api.get<{
         students: { id: string; fullName: string; mobileNumber: string | null }[];
-      }>(`/admin/students?gradeId=${gradeId}&limit=500`);
+      }>(`/admin/grade-students?gradeId=${gradeId}`);
       return res.data?.students ?? [];
     },
     enabled: !!gradeId && waDialog.open,
