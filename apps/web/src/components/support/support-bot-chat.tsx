@@ -28,9 +28,10 @@ const LIMIT_MESSAGE = "وصلت للحد الأقصى من الرسائل. حا�
 const ERROR_MESSAGE = "تعذر الاتصال بالمساعد الآن. حاول مرة أخرى أو أرسل شكوى.";
 
 const QUICK_PROMPTS = [
-  "ما هي مفردات الوحدة الحالية؟",
-  "كيف أحل واجب الدرس؟",
-  "ما هو تقدمي في المنهج؟",
+  "نسيت كلمة المرور، ماذا أفعل؟",
+  "كيف أتواصل مع الدعم الفني؟",
+  "كيف أسجل في درس جديد؟",
+  "عندي مشكلة في الدفع، ساعدني",
 ];
 
 function formatTime(date: Date): string {
@@ -124,7 +125,7 @@ export function SupportBotChat({ limit = DEFAULT_LIMIT }: SupportBotChatProps): 
   };
 
   return (
-    <div className="flex h-[calc(100vh-14rem)] min-h-[500px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900 md:h-[600px]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-neutral-200 bg-gradient-to-r from-violet-500/5 via-indigo-500/5 to-primary-500/5 px-4 py-3 dark:border-neutral-700">
         <div className="flex items-center gap-3">
@@ -167,7 +168,7 @@ export function SupportBotChat({ limit = DEFAULT_LIMIT }: SupportBotChatProps): 
             <div>
               <h4 className="text-base font-bold text-neutral-900 dark:text-neutral-100">مرحباً {user?.fullName?.split(" ")[0] ?? "بك"}! 👋</h4>
               <p className="mt-1 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
-                أنا مساعدك الذكي، أسألني عن دروسك، واجباتك، أو أي استفسار وسأجيبك فوراً
+                أنا مساعدك الذكي، اسألني عن المنصة، الدروس، الدفع، أو أي استفسار وسأساعدك
               </p>
             </div>
             <div className="flex w-full flex-col gap-2">
@@ -254,7 +255,7 @@ export function SupportBotChat({ limit = DEFAULT_LIMIT }: SupportBotChatProps): 
           </Button>
         </div>
         <p className="mt-2 text-center text-xs text-neutral-400">
-          المساعد يجيب حسب محتوى دروسك فقط • <span className="text-neutral-500">{remaining} رسائل متبقية</span>
+          المساعد يجيب على استفساراتك العامة • <span className="text-neutral-500">{remaining} رسائل متبقية</span>
         </p>
       </div>
     </div>
