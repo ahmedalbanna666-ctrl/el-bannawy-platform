@@ -30,6 +30,7 @@ import {
   Clock,
   CalendarDays,
   CreditCard,
+  MessageCircle,
 } from "lucide-react";
 
 interface GradeItem {
@@ -98,6 +99,23 @@ const STATUS_OPTIONS = [
   { value: "BANNED", label: "محظور" },
   { value: "DELETED", label: "محذوف" },
 ];
+
+function normalizeWaNumber(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  // Egyptian 01xxxxxxxxx → 201xxxxxxxxx
+  if (digits.startsWith("01") && digits.length === 11) return `20${digits.slice(1)}`;
+  if (digits.startsWith("20") && digits.length === 12) return digits;
+  if (digits.length >= 10) return digits;
+  return null;
+}
+
+function buildWaLink(phone: string | null | undefined, message: string): string | null {
+  const normalized = normalizeWaNumber(phone);
+  if (!normalized) return null;
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+}
 
 function useStudents(params: Record<string, string>): UseQueryResult<ListResponse> {
   const searchParams = new URLSearchParams(params);
@@ -225,6 +243,13 @@ export default function StudentsPage(): ReactNode {
   const [dialog, setDialog] = useState<{
     type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "status" | "delete" | null;
   }>({ type: null });
+
+  const [waDialog, setWaDialog] = useState<{
+    open: boolean;
+    student: Student | null;
+    target: "student" | "parent";
+    message: string;
+  }>({ open: false, student: null, target: "student", message: "مرحباً، " });
 
   const students: Student[] = listData?.students ?? [];
   const meta = listData?.meta ?? { total: 0, page: 1, limit: 20, totalPages: 0 };
@@ -402,6 +427,31 @@ export default function StudentsPage(): ReactNode {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-amber-500">{s.coins} عملة</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-green-600 border-green-200 hover:bg-green-50"
+                        onClick={() => {
+                          const hasStudent = !!normalizeWaNumber(s.mobileNumber);
+                          const hasParent = !!normalizeWaNumber(s.parentMobile);
+                          if (!hasStudent && !hasParent) return;
+                          setWaDialog({
+                            open: true,
+                            student: s,
+                            target: hasStudent ? "student" : "parent",
+                            message: `مرحباً ${s.fullName}، `,
+                          });
+                        }}
+                        disabled={!normalizeWaNumber(s.mobileNumber) && !normalizeWaNumber(s.parentMobile)}
+                        title={
+                          !normalizeWaNumber(s.mobileNumber) && !normalizeWaNumber(s.parentMobile)
+                            ? "لا يوجد رقم واتساب"
+                            : "إرسال واتساب"
+                        }
+                      >
+                        <MessageCircle className="h-4 w-4 ml-1" />
+                        واتساب
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => { setSelectedStudentId(s.id); }}>
                         <Eye className="h-4 w-4 ml-1" />
                         عرض
@@ -438,6 +488,67 @@ export default function StudentsPage(): ReactNode {
           )}
         </>
       )}
+      <Dialog
+        open={waDialog.open}
+        onClose={() => { setWaDialog((p) => ({ ...p, open: false })); }}
+        title={`إرسال واتساب — ${waDialog.student?.fullName ?? ""}`}
+      >
+        <DialogContent className="space-y-4">
+          {waDialog.student && (
+            <>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setWaDialog((p) => ({ ...p, target: "student" })); }}
+                  disabled={!normalizeWaNumber(waDialog.student?.mobileNumber)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm ${waDialog.target === "student" ? "border-green-500 bg-green-50 text-green-700 dark:bg-green-950" : "border-neutral-200 dark:border-neutral-700"} disabled:opacity-50`}
+                >
+                  الطالب {waDialog.student?.mobileNumber ?? "—"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setWaDialog((p) => ({ ...p, target: "parent" })); }}
+                  disabled={!normalizeWaNumber(waDialog.student?.parentMobile)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm ${waDialog.target === "parent" ? "border-green-500 bg-green-50 text-green-700 dark:bg-green-950" : "border-neutral-200 dark:border-neutral-700"} disabled:opacity-50`}
+                >
+                  ولي الأمر {waDialog.student?.parentMobile ?? "—"}
+                </button>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">نص الرسالة</label>
+                <textarea
+                  value={waDialog.message}
+                  onChange={(e) => { setWaDialog((p) => ({ ...p, message: e.target.value })); }}
+                  rows={4}
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+                  placeholder="اكتب رسالتك..."
+                />
+              </div>
+              <p className="text-xs text-neutral-500">سيُفتح واتساب مع الرسالة جاهزة — اضغط إرسال في واتساب</p>
+            </>
+          )}
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { setWaDialog((p) => ({ ...p, open: false })); }}>
+            إلغاء
+          </Button>
+          <Button
+            variant="primary"
+            className="bg-green-600 hover:bg-green-700"
+            disabled={!waDialog.message.trim() || !buildWaLink(waDialog.target === "student" ? waDialog.student?.mobileNumber : waDialog.student?.parentMobile, waDialog.message)}
+            onClick={() => {
+              const phone = waDialog.target === "student" ? waDialog.student?.mobileNumber : waDialog.student?.parentMobile;
+              const link = buildWaLink(phone, waDialog.message);
+              if (!link) return;
+              window.open(link, "_blank", "noopener,noreferrer");
+              setWaDialog((p) => ({ ...p, open: false }));
+            }}
+          >
+            <MessageCircle className="h-4 w-4 ml-1" />
+            فتح في واتساب
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 }
