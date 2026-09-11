@@ -37,7 +37,7 @@ function LiveAnalyticsWidget(): ReactNode {
   const [open, setOpen] = useState(false);
 
   return (
-    <Card variant="gradient" padding="none" className="overflow-hidden">
+    <Card variant="elevated" padding="none" className="overflow-hidden">
       <CardContent className="p-5">
         <div className="flex items-center justify-between gap-3">
           <button
@@ -46,18 +46,18 @@ function LiveAnalyticsWidget(): ReactNode {
             aria-expanded={open}
             className="flex min-w-0 flex-1 items-center gap-2 text-start"
           >
-            <Video className="h-5 w-5 shrink-0 text-white" />
-            <h2 className="text-sm font-bold text-white">الحصص المباشرة</h2>
+            <Video className="h-5 w-5 shrink-0 text-primary-500" />
+            <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">الحصص المباشرة</h2>
             {open ? (
-              <ChevronUp className="h-4 w-4 shrink-0 text-white/70" />
+              <ChevronUp className="h-4 w-4 shrink-0 text-neutral-400" />
             ) : (
-              <ChevronDown className="h-4 w-4 shrink-0 text-white/70" />
+              <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400" />
             )}
           </button>
           <Button
             variant="outline"
             size="sm"
-            className="shrink-0 border-white/30 bg-white/10 text-white hover:bg-white/20"
+            className="shrink-0"
             onClick={(): void => { router.push("/dashboard/live"); }}
           >
             إدارة الحصص
@@ -69,13 +69,13 @@ function LiveAnalyticsWidget(): ReactNode {
             {isLoading && (
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} className="h-20 rounded-xl bg-white/15" />
+                  <Skeleton key={i} className="h-20 rounded-xl" />
                 ))}
               </div>
             )}
 
             {isError && (
-              <p className="mt-4 text-sm text-white/60">
+              <p className="mt-4 text-sm text-neutral-500 dark:text-neutral-400">
                 تعذر تحميل مؤشرات الحصص المباشرة.
               </p>
             )}
@@ -109,12 +109,12 @@ function LiveMetric({
   value: number | string;
 }): ReactNode {
   return (
-    <div className="flex flex-col gap-1 rounded-xl bg-white/10 p-3">
-      <div className="flex items-center gap-1.5 text-white/60">
+    <div className="flex flex-col gap-1 rounded-xl bg-neutral-100 p-3 dark:bg-neutral-800/60">
+      <div className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
         {icon}
         <span className="text-[11px] font-medium">{label}</span>
       </div>
-      <span className="text-xl font-bold text-white">{value}</span>
+      <span className="text-xl font-bold text-neutral-900 dark:text-neutral-100">{value}</span>
     </div>
   );
 }
