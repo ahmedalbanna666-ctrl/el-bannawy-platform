@@ -268,9 +268,48 @@ export class LessonService {
 
     await this.prisma.lessonVideo.update({
       where: { id: videoId },
-      data: { showThumbnail: dto.showThumbnail },
+      data: {
+        ...(dto.showThumbnail !== undefined ? { showThumbnail: dto.showThumbnail } : {}),
+        ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+        ...(dto.duration !== undefined ? { duration: dto.duration } : {}),
+      },
     });
 
+    if (dto.duration !== undefined) {
+      await this.recalculateLessonDuration(lessonId);
+    }
+
+    return this.prisma.lessonVideo.findUnique({ where: { id: videoId } });
+  }
+
+  async moveVideo(
+    lessonId: string,
+    videoId: string,
+    direction: "up" | "down",
+    userId: string,
+  ): Promise<unknown> {
+    const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId }, select: { id: true } });
+    if (!lesson) throw new NotFoundException("Lesson not found");
+    await this.academicContext.verifyTeacherLessonAccess(userId, lessonId);
+
+    const videos = await this.prisma.lessonVideo.findMany({
+      where: { lessonId },
+      select: { id: true, displayOrder: true },
+      orderBy: { displayOrder: "asc" },
+    });
+    const idx = videos.findIndex((v) => v.id === videoId);
+    if (idx === -1) throw new NotFoundException("Video not found");
+    const neighborIdx = direction === "up" ? idx - 1 : idx + 1;
+    // Already first/last — nothing to swap, still a success.
+    if (neighborIdx < 0 || neighborIdx >= videos.length) {
+      return this.prisma.lessonVideo.findUnique({ where: { id: videoId } });
+    }
+    const current = videos[idx];
+    const neighbor = videos[neighborIdx];
+    await this.prisma.$transaction([
+      this.prisma.lessonVideo.update({ where: { id: current.id }, data: { displayOrder: neighbor.displayOrder } }),
+      this.prisma.lessonVideo.update({ where: { id: neighbor.id }, data: { displayOrder: current.displayOrder } }),
+    ]);
     return this.prisma.lessonVideo.findUnique({ where: { id: videoId } });
   }
 

@@ -219,11 +219,34 @@ function VideoBlock({
     },
   });
 
+  const moveMutation = useMutation({
+    mutationFn: async ({ videoId, direction }: { videoId: string; direction: "up" | "down" }) =>
+      api.patch(`/lessons/${lessonId}/videos/${videoId}/move`, { direction }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+    },
+  });
+
+  const orderedVideos = [...videos].sort((a, b) => a.displayOrder - b.displayOrder);
+
   const toggleThumbnailMutation = useMutation({
     mutationFn: async ({ videoId, showThumbnail }: { videoId: string; showThumbnail: boolean }) =>
       api.patch(`/lessons/${lessonId}/videos/${videoId}`, { showThumbnail }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+    },
+  });
+
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameText, setRenameText] = useState("");
+
+  const renameMutation = useMutation({
+    mutationFn: async ({ videoId, title }: { videoId: string; title: string }) =>
+      api.patch(`/lessons/${lessonId}/videos/${videoId}`, { title }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["lesson", lessonId] });
+      setRenamingId(null);
+      setRenameText("");
     },
   });
 
@@ -248,20 +271,87 @@ function VideoBlock({
             لا يوجد فيديو لهذا الدرس
           </p>
         ) : (
-          videos.map((video) => (
+          orderedVideos.map((video, idx) => (
             <div
               key={video.id}
               className="flex items-center gap-3 rounded-xl bg-neutral-50 p-3 dark:bg-neutral-800/50"
             >
               <Film className="h-5 w-5 shrink-0 text-red-500" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {video.title}
-                </p>
+                {renamingId === video.id ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      value={renameText}
+                      onChange={(e): void => { setRenameText(e.target.value); }}
+                      placeholder="اسم الفيديو"
+                      className="h-8 text-sm"
+                      autoFocus
+                    />
+                    <Button
+                      variant="primary"
+                      size="icon-sm"
+                      aria-label="حفظ الاسم"
+                      disabled={!renameText.trim() || renameMutation.isPending}
+                      onClick={(): void => {
+                        renameMutation.mutate({ videoId: video.id, title: renameText.trim() });
+                      }}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="إلغاء التسمية"
+                      onClick={(): void => { setRenamingId(null); setRenameText(""); }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                    {video.title}
+                  </p>
+                )}
                 <p className="truncate text-xs text-neutral-400">
                   {video.providerName} • {video.providerVideoId}
+                  {video.duration > 0 ? ` • ${formatTimestamp(video.duration)}` : ""}
                 </p>
               </div>
+              {renamingId !== video.id && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="إعادة تسمية الفيديو"
+                  className="shrink-0 text-neutral-400 hover:text-primary-500"
+                  onClick={(): void => { setRenamingId(video.id); setRenameText(video.title); }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+              {orderedVideos.length > 1 && (
+                <div className="flex shrink-0 flex-col">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="تحريك الفيديو لأعلى"
+                    className="h-6 w-6 text-neutral-400 hover:text-primary-500 disabled:opacity-30"
+                    disabled={idx === 0 || moveMutation.isPending}
+                    onClick={(): void => { moveMutation.mutate({ videoId: video.id, direction: "up" }); }}
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="تحريك الفيديو لأسفل"
+                    className="h-6 w-6 text-neutral-400 hover:text-primary-500 disabled:opacity-30"
+                    disabled={idx === orderedVideos.length - 1 || moveMutation.isPending}
+                    onClick={(): void => { moveMutation.mutate({ videoId: video.id, direction: "down" }); }}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
               <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-neutral-100 px-2 py-1.5 dark:bg-neutral-800">
                 <input
                   type="checkbox"
