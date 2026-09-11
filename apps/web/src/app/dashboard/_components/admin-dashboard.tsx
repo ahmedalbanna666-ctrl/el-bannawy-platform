@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuthStore } from "@/lib/auth-store";
@@ -9,7 +9,7 @@ import { useLiveAnalyticsOverview } from "@/lib/live-api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, Video, Users, Activity, Star, Bell } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronUp, Video, Users, Activity, Star, Bell } from "lucide-react";
 
 function useLiveWindow(): { from: string; to: string } {
   return useMemo(() => {
@@ -34,41 +34,54 @@ function LiveAnalyticsWidget(): ReactNode {
   const router = useRouter();
   const { from, to } = useLiveWindow();
   const { data, isLoading, isError } = useLiveAnalyticsOverview(from, to);
+  const [open, setOpen] = useState(false);
 
   return (
     <Card variant="gradient" padding="none" className="overflow-hidden">
       <CardContent className="p-5">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Video className="h-5 w-5 text-white" />
+          <button
+            type="button"
+            onClick={(): void => { setOpen((v) => !v); }}
+            aria-expanded={open}
+            className="flex min-w-0 flex-1 items-center gap-2 text-start"
+          >
+            <Video className="h-5 w-5 shrink-0 text-white" />
             <h2 className="text-sm font-bold text-white">الحصص المباشرة</h2>
-          </div>
+            {open ? (
+              <ChevronUp className="h-4 w-4 shrink-0 text-white/70" />
+            ) : (
+              <ChevronDown className="h-4 w-4 shrink-0 text-white/70" />
+            )}
+          </button>
           <Button
             variant="outline"
             size="sm"
-            className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+            className="shrink-0 border-white/30 bg-white/10 text-white hover:bg-white/20"
             onClick={(): void => { router.push("/dashboard/live"); }}
           >
             إدارة الحصص
           </Button>
         </div>
 
-        {isLoading && (
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-20 rounded-xl bg-white/15" />
-            ))}
-          </div>
-        )}
+        {open && (
+          <>
+            {isLoading && (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-20 rounded-xl bg-white/15" />
+                ))}
+              </div>
+            )}
 
-        {isError && (
-          <p className="mt-4 text-sm text-white/60">
-            تعذر تحميل مؤشرات الحصص المباشرة.
-          </p>
-        )}
+            {isError && (
+              <p className="mt-4 text-sm text-white/60">
+                تعذر تحميل مؤشرات الحصص المباشرة.
+              </p>
+            )}
 
-        {data && (
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {data && (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <LiveMetric icon={<Video className="h-4 w-4" />} label="حصص مباشرة الآن" value={data.liveNowSessions} />
             <LiveMetric icon={<Users className="h-4 w-4" />} label="إجمالي الحجوزات" value={data.totalBookings} />
             <LiveMetric icon={<Star className="h-4 w-4" />} label="اشتراكات نشطة" value={data.activeSubscriptions} />
@@ -77,7 +90,9 @@ function LiveAnalyticsWidget(): ReactNode {
             <LiveMetric icon={<Video className="h-4 w-4" />} label="حصص مكتملة" value={data.completedSessions} />
             <LiveMetric icon={<Users className="h-4 w-4" />} label="طلاب" value={data.totalStudents} />
             <LiveMetric icon={<Activity className="h-4 w-4" />} label="استغلال السعة" value={`${String(data.capacityUtilization)}%`} />
-          </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -130,8 +145,6 @@ export function AdminDashboard(): ReactNode {
           {today}
         </p>
       </div>
-
-      <LiveAnalyticsWidget />
 
       {primaryModules.length > 0 && (
         <div>
@@ -208,6 +221,8 @@ export function AdminDashboard(): ReactNode {
           </div>
         </div>
       )}
+
+      <LiveAnalyticsWidget />
     </div>
   );
 }

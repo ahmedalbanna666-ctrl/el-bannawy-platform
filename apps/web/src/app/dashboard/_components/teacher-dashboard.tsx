@@ -1,16 +1,17 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuthStore } from "@/lib/auth-store";
 import { getDashboardModules } from "@/lib/nav-registry";
 import { useLiveSessions } from "@/lib/live-api";
-import { GraduationCap, ChevronLeft, Clock, Calendar } from "lucide-react";
+import { GraduationCap, ChevronLeft, ChevronDown, ChevronUp, Clock, Calendar, Video } from "lucide-react";
 
 function formatTodayArabic(): string {
   return new Date().toLocaleDateString("ar-EG", {
@@ -68,6 +69,8 @@ export function TeacherDashboard(): ReactNode {
   });
 
   const hasAssignedGrades = (myGrades?.grades.length ?? 0) > 0;
+
+  const [liveOpen, setLiveOpen] = useState(false);
 
   const modules = getDashboardModules(can, userRole);
   const primaryModules = modules.filter((m) => m.category === "content");
@@ -193,6 +196,71 @@ export function TeacherDashboard(): ReactNode {
           </div>
         </div>
       )}
+
+      {/* Live classes — end of page, collapsed by default */}
+      <div>
+        <Card variant="outline" padding="none">
+          <button
+            type="button"
+            onClick={(): void => { setLiveOpen((v) => !v); }}
+            aria-expanded={liveOpen}
+            className="flex w-full items-center gap-3 p-4 text-start"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10">
+              <Video className="h-5 w-5 text-primary-500" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                الحصص المباشرة
+              </h2>
+              <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                {mySessions.length} حصص قادمة · {todaySessionCount} اليوم
+              </p>
+            </div>
+            {liveOpen ? (
+              <ChevronUp className="h-4 w-4 shrink-0 text-neutral-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400" />
+            )}
+          </button>
+          {liveOpen && (
+            <div className="border-t border-neutral-200 px-4 py-3 dark:border-neutral-700">
+              {mySessions.length === 0 ? (
+                <p className="py-2 text-sm text-neutral-500">لا توجد حصص قادمة.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {mySessions.map((s) => {
+                    const start = new Date(s.startTime);
+                    return (
+                      <div
+                        key={s.id}
+                        className="flex items-center justify-between gap-3 rounded-xl bg-neutral-50 px-4 py-2.5 dark:bg-neutral-800/50"
+                      >
+                        <p className="min-w-0 truncate text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                          {s.title}
+                        </p>
+                        <p className="shrink-0 text-xs text-neutral-500">
+                          {start.toLocaleDateString("ar-EG", { weekday: "short", month: "short", day: "numeric" })}
+                          {" · "}
+                          {start.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    );
+                  })}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-1 w-full"
+                    onClick={(): void => { router.push("/dashboard/live"); }}
+                  >
+                    عرض الكل
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
