@@ -84,27 +84,36 @@ export class AuthController {
   @Get("google/callback")
   @UseGuards(GoogleAuthGuard)
   async googleAuthCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
-    const googleProfile = req.user as { email: string | null; googleId: string } | undefined;
+    try {
+      const googleProfile = req.user as { email: string | null; googleId: string } | undefined;
 
-    if (!googleProfile?.email) {
-      res.redirect(`${this.config.app.frontendUrl}/login?error=google_no_email`);
-      return;
-    }
+      if (!googleProfile?.email) {
+        res.redirect(`${this.config.app.frontendUrl}/login?error=google_no_email`);
+        return;
+      }
 
-    const result = await this.authService.oauthLogin({
-      email: googleProfile.email,
-      providerId: googleProfile.googleId,
-      provider: "google",
-    });
+      const result = await this.authService.oauthLogin({
+        email: googleProfile.email,
+        providerId: googleProfile.googleId,
+        provider: "google",
+      });
 
-    setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
+      setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
 
-    if (result.type === "existing") {
-      res.redirect(`${this.config.app.frontendUrl}/dashboard`);
-    } else {
-      res.redirect(
-        `${this.config.app.frontendUrl}/register?oauth=google&email=${encodeURIComponent(googleProfile.email)}`,
-      );
+      if (result.type === "existing") {
+        res.redirect(`${this.config.app.frontendUrl}/dashboard`);
+      } else {
+        res.redirect(
+          `${this.config.app.frontendUrl}/register?oauth=google&email=${encodeURIComponent(googleProfile.email)}`,
+        );
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "google_callback_failed";
+      // Avoid leaking internal details to the URL – use a safe error code
+      const safe = message.toLowerCase().includes("prisma") || message.toLowerCase().includes("database")
+        ? "google_callback_failed"
+        : "google_callback_failed";
+      res.redirect(`${this.config.app.frontendUrl}/login?error=${encodeURIComponent(safe)}`);
     }
   }
 
