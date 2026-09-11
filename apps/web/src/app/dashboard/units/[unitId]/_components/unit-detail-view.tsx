@@ -34,7 +34,19 @@ import {
   BookOpen,
   Layers,
   Clock,
+  MessageCircle,
+  User,
 } from "lucide-react";
+
+function normalizeWaNumber(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("01") && digits.length === 11) return `20${digits.slice(1)}`;
+  if (digits.startsWith("20") && digits.length === 12) return digits;
+  if (digits.length >= 10) return digits;
+  return null;
+}
 
 interface LessonManagement {
   readonly id: string;
@@ -109,6 +121,10 @@ export function UnitDetailView({
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<LessonEditData | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LessonManagement | null>(null);
+  const [waDialog, setWaDialog] = useState<{
+    open: boolean;
+    lesson: LessonManagement | null;
+  }>({ open: false, lesson: null });
 
   const { data: unit, isLoading, isError, error } = useQuery({
     queryKey: ["management-unit", unitType, unitId],
@@ -118,6 +134,20 @@ export function UnitDetailView({
       );
       return res.data ?? null;
     },
+    staleTime: 30_000,
+  });
+
+  const gradeId = unit?.grade?.id;
+
+  const { data: gradeStudents } = useQuery({
+    queryKey: ["grade-students", gradeId],
+    queryFn: async () => {
+      const res = await api.get<{
+        students: { id: string; fullName: string; mobileNumber: string | null }[];
+      }>(`/admin/students?gradeId=${gradeId}&limit=500`);
+      return res.data?.students ?? [];
+    },
+    enabled: !!gradeId && waDialog.open,
     staleTime: 30_000,
   });
 
@@ -302,6 +332,16 @@ export function UnitDetailView({
                         <ArrowRight className="h-4 w-4" />
                         فتح
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="إرسال واتساب"
+                        className="text-green-600 hover:bg-green-500/10"
+                        title="إرسال للطلاب via واتساب"
+                        onClick={(): void => { setWaDialog({ open: true, lesson }); }}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </Button>
                       {canEditLesson && (
                         <Button
                           variant="ghost"
@@ -399,6 +439,82 @@ export function UnitDetailView({
             <Trash2 className="h-4 w-4" />
             حذف
           </Button>
+        </DialogFooter>
+      </Dialog>
+
+      <Dialog
+        open={waDialog.open}
+        onClose={(): void => { setWaDialog({ open: false, lesson: null }); }}
+        title={`إرسال واتساب — ${waDialog.lesson?.title ?? ""}`}
+      >
+        <DialogContent className="space-y-3">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            اختر طالباً لإرسال رسالة واتساب بعنوان الدرس:
+          </p>
+          <div className="rounded-lg bg-green-50 dark:bg-green-950 p-3 text-sm text-green-700 dark:text-green-300">
+            <span className="font-bold">رسالة جاهزة:</span> مرحبًا، تم نشر درس جديد: «{waDialog.lesson?.title ?? ""}». يمكنك البدء في الحين!
+          </div>
+          {!gradeStudents || gradeStudents.length === 0 ? (
+            <p className="text-sm text-neutral-500">لا يوجد طلاب مسجلون في هذا الصف</p>
+          ) : (
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {gradeStudents.map((student) => {
+                const normalized = normalizeWaNumber(student.mobileNumber);
+                const message = `مرحبًا ${student.fullName}، تم نشر درس جديد: «${waDialog.lesson?.title ?? ""}». يمكنك البدء في الحين!`;
+                const waLink = normalized
+                  ? `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`
+                  : null;
+                return (
+                  <div key={student.id} className="flex items-center justify-between rounded bg-neutral-50 dark:bg-neutral-800 px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <User className="h-4 w-4 shrink-0 text-neutral-400" />
+                      <span className="truncate">{student.fullName}</span>
+                      <span className="shrink-0 text-xs text-neutral-400">{student.mobileNumber ?? "—"}</span>
+                    </div>
+                    {waLink ? (
+                      <a
+                        href={waLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                      >
+                        إرسال
+                      </a>
+                    ) : (
+                      <span className="shrink-0 text-xs text-neutral-400">لا رقم</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={(): void => { setWaDialog({ open: false, lesson: null }); }}
+          >
+            إغلاق
+          </Button>
+          {gradeStudents && gradeStudents.length > 0 && (
+            <Button
+              variant="primary"
+              className="bg-green-600 hover:bg-green-700"
+              onClick={(): void => {
+                const studentsWithPhone = gradeStudents.filter((s) => normalizeWaNumber(s.mobileNumber));
+                const waLesson = waDialog.lesson;
+                studentsWithPhone.forEach((student) => {
+                  const normalized = normalizeWaNumber(student.mobileNumber)!;
+                  const message = `مرحبًا ${student.fullName}، تم نشر درس جديد: «${waLesson?.title ?? ""}». يمكنك البدء في الحين!`;
+                  window.open(`https://wa.me/${normalized}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+                });
+                setWaDialog({ open: false, lesson: null });
+              }}
+            >
+              <MessageCircle className="h-4 w-4 ml-1" />
+              إرسال للكل
+            </Button>
+          )}
         </DialogFooter>
       </Dialog>
     </div>
