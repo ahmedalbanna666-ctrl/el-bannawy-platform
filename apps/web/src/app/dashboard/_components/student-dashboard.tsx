@@ -24,6 +24,7 @@ import {
 import { useMyBookings } from "@/lib/live-api";
 import { useAuthStore } from "@/lib/auth-store";
 import { useHomeData, type HomeData } from "@/lib/home-api";
+import { PushActivationBanner } from "@/components/notifications/push-activation-banner";
 
 export function StudentDashboard(): ReactNode {
   const router = useRouter();
@@ -58,6 +59,7 @@ export function StudentDashboard(): ReactNode {
 
   return (
     <div className="flex flex-col gap-4">
+      <PushActivationBanner />
 
       {/* 1 — Progress Card */}
       <Card variant="outline" padding="none">

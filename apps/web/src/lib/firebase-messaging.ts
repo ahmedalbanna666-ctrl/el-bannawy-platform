@@ -83,7 +83,61 @@ export async function onForegroundMessage(
 
 export function isPushSupported(): boolean {
   if (typeof window === "undefined") return false;
-  return "Notification" in window && "serviceWorker" in navigator;
+  // PushManager is the real gate: iOS Safari (non-installed), in-app
+  // browsers and old WebViews expose Notification/serviceWorker but cannot
+  // subscribe to push. Without this check enablement fails cryptically.
+  return "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
+}
+
+const IN_APP_BROWSER_PATTERNS = [
+  /FBAN|FBAV/i,
+  /Instagram/i,
+  /Line\//i,
+  /MicroMessenger/i,
+  /TikTok|musical_ly|musically/i,
+  /WhatsApp/i,
+  /Snapchat/i,
+  /Twitter/i,
+  /Telegram/i,
+  /; wv\)/,
+];
+
+export function isInAppBrowser(userAgent?: string): boolean {
+  const agent = userAgent ?? (typeof navigator !== "undefined" ? navigator.userAgent : "");
+  return IN_APP_BROWSER_PATTERNS.some((pattern) => pattern.test(agent));
+}
+
+export function isIOSDevice(): boolean {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  const agent = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(agent)) return true;
+  // iPadOS 13+ reports as Macintosh; touch points reveal it.
+  return /Macintosh/i.test(agent) && navigator.maxTouchPoints > 1;
+}
+
+export function isStandaloneDisplay(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.matchMedia("(display-mode: standalone)").matches) return true;
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  return nav.standalone === true;
+}
+
+export type PushEnvironment = "supported" | "ios-install-required" | "in-app-browser" | "unsupported";
+
+/**
+ * Classifies the current browsing context for push enablement:
+ * - ios-install-required: iPhone/iPad outside the installed PWA (Apple only
+ *   allows web push from home-screen apps on iOS 16.4+).
+ * - in-app-browser: Facebook/WhatsApp/TikTok… webviews that cannot subscribe.
+ * - unsupported: no push capability at all.
+ * - supported: normal browsers (desktop + Android Chrome + installed iOS PWA).
+ */
+export function getPushEnvironment(userAgent?: string): PushEnvironment {
+  if (typeof window === "undefined") return "unsupported";
+  if (isInAppBrowser(userAgent)) return "in-app-browser";
+  if (!isPushSupported()) return "unsupported";
+  if (isIOSDevice() && !isStandaloneDisplay()) return "ios-install-required";
+  return "supported";
 }
 
 export type PushPermission = "default" | "granted" | "denied" | "unsupported";
