@@ -28,6 +28,8 @@ import {
   type CoinPackageItem,
   useUnlockCost,
   useSetUnlockCost,
+  useUnlockPricings,
+  useDeletePricing,
   useUnlockCodes,
   useCreateUnlockCode,
   useToggleCodeActive,
@@ -261,9 +263,42 @@ function UnlockPricingTab(): ReactNode {
   const { data: unitCostData, isLoading: unitLoading, isError: unitError, error: unitErr } = useUnlockCost("UNIT");
   const { data: termCostData, isLoading: termLoading, isError: termError, error: termErr } = useUnlockCost("TERM");
   const setCostMut = useSetUnlockCost();
+  const { data: pricings, isLoading: pricingsLoading } = useUnlockPricings();
+  const deleteMut = useDeletePricing();
 
   const [unitCost, setUnitCost] = useState(50);
   const [termCost, setTermCost] = useState(300);
+  const [selectedStageId, setSelectedStageId] = useState("");
+  const [selectedGradeId, setSelectedGradeId] = useState("");
+  const [customUnitCost, setCustomUnitCost] = useState("");
+  const [customTermCost, setCustomTermCost] = useState("");
+
+  const { data: acOptions } = useQuery({
+    queryKey: ["academic-options-pricing"],
+    queryFn: async () => {
+      const res = await api.get<{ stages: { id: string; name: string; grades: { id: string; name: string }[] }[] }>("/academic-context/options");
+      return res.data ?? { stages: [] };
+    },
+    staleTime: 300_000,
+  });
+
+  const stageOptions = useMemo(() => (acOptions?.stages ?? []).map((s) => ({ value: s.id, label: s.name })), [acOptions]);
+  const gradeOptions = useMemo(() => {
+    const stage = (acOptions?.stages ?? []).find((s) => s.id === selectedStageId);
+    return (stage?.grades ?? []).map((g) => ({ value: g.id, label: g.name }));
+  }, [acOptions, selectedStageId]);
+
+  // Pre-fill custom costs when stage/grade changes
+  const { data: customUnitData } = useUnlockCost("UNIT", selectedStageId || undefined, selectedGradeId || undefined);
+  const { data: customTermData } = useUnlockCost("TERM", selectedStageId || undefined, selectedGradeId || undefined);
+  useEffect(() => {
+    if (customUnitData) setCustomUnitCost(String(customUnitData.cost));
+    else setCustomUnitCost("");
+  }, [customUnitData]);
+  useEffect(() => {
+    if (customTermData) setCustomTermCost(String(customTermData.cost));
+    else setCustomTermCost("");
+  }, [customTermData]);
 
   useEffect(() => {
     if (unitCostData) setUnitCost(unitCostData.cost);
@@ -295,15 +330,15 @@ function UnlockPricingTab(): ReactNode {
   const rows: PriceRow[] = [
     {
       targetType: "UNIT",
-      title: "سعر فتح الوحدة",
-      description: "تكلفة فتح وحدة واحدة بالعملات من جانب الطالب",
+      title: "سعر فتح الوحدة (افتراضي)",
+      description: "يُستخدم عند عدم وجود سعر مخصص للمرحلة/الصف",
       value: unitCost,
       onChange: setUnitCost,
     },
     {
       targetType: "TERM",
-      title: "سعر فتح الترم بالكامل",
-      description: "تكلفة فتح جميع وحدات الترم دفعة واحدة",
+      title: "سعر فتح الترم بالكامل (افتراضي)",
+      description: "يُستخدم كسعر افتراضي للترم",
       value: termCost,
       onChange: setTermCost,
     },
@@ -313,7 +348,7 @@ function UnlockPricingTab(): ReactNode {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">أسعار فتح المحتوى</h1>
-        <p className="mt-1 text-sm text-neutral-500">التحكم في تكلفة فتح الوحدات أو الترم كاملاً بالعملات</p>
+        <p className="mt-1 text-sm text-neutral-500">التحكم في تكلفة فتح الوحدات أو الترم — يمكن تحديد سعر افتراضي وسعر مخصص لكل مرحلة وصف</p>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -336,6 +371,90 @@ function UnlockPricingTab(): ReactNode {
             }}
           />
         ))}
+      </div>
+
+      <div className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
+        <h3 className="font-bold text-neutral-900 dark:text-neutral-100">أسعار مخصصة حسب المرحلة والصف</h3>
+        <p className="mt-1 text-xs text-neutral-500">عند فتح وحدة، سيتم استخدام السعر المخصص للصف أولاً، ثم للمرحلة، ثم الافتراضي</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Select label="المرحلة" value={selectedStageId} onChange={(e) => { setSelectedStageId(e.target.value); setSelectedGradeId(""); }} options={stageOptions} placeholder="اختر المرحلة (اختياري)" />
+          <Select label="الصف" value={selectedGradeId} onChange={(e) => setSelectedGradeId(e.target.value)} options={gradeOptions} placeholder={selectedStageId ? "اختر الصف" : "اختر المرحلة أولاً"} disabled={!selectedStageId} />
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-neutral-500">سعر الوحدة للاختيار الحالي</label>
+            <div className="flex gap-2">
+              <Input type="number" min={0} value={customUnitCost} onChange={(e) => setCustomUnitCost(e.target.value)} placeholder={String(unitCost)} className="flex-1" />
+              <Button
+                variant="primary"
+                loading={setCostMut.isPending}
+                onClick={() => {
+                  const v = customUnitCost.trim() === "" ? unitCost : Math.max(0, Math.floor(Number(customUnitCost)));
+                  setCostMut.mutate(
+                    { targetType: "UNIT", cost: v, stageId: selectedStageId || undefined, gradeId: selectedGradeId || undefined },
+                    {
+                      onSuccess: () => toast("تم حفظ السعر المخصص للوحدة"),
+                      onError: (e) => toast.error(e instanceof Error ? e.message : "فشل الحفظ"),
+                    },
+                  );
+                }}
+              >
+                حفظ
+              </Button>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-neutral-500">سعر الترم للاختيار الحالي</label>
+            <div className="flex gap-2">
+              <Input type="number" min={0} value={customTermCost} onChange={(e) => setCustomTermCost(e.target.value)} placeholder={String(termCost)} className="flex-1" />
+              <Button
+                variant="primary"
+                loading={setCostMut.isPending}
+                onClick={() => {
+                  const v = customTermCost.trim() === "" ? termCost : Math.max(0, Math.floor(Number(customTermCost)));
+                  setCostMut.mutate(
+                    { targetType: "TERM", cost: v, stageId: selectedStageId || undefined, gradeId: selectedGradeId || undefined },
+                    {
+                      onSuccess: () => toast("تم حفظ السعر المخصص للترم"),
+                      onError: (e) => toast.error(e instanceof Error ? e.message : "فشل الحفظ"),
+                    },
+                  );
+                }}
+              >
+                حفظ
+              </Button>
+            </div>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-neutral-400">اترك المرحلة فارغة للسعر الافتراضي. اختر مرحلة بدون صف لتحديد سعر لكل المرحلة.</p>
+      </div>
+
+      <div className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-neutral-900 dark:text-neutral-100">الأسعار المخصصة الحالية</h3>
+          <Badge variant="secondary">{pricings?.length ?? 0}</Badge>
+        </div>
+        {pricingsLoading ? (
+          <Skeleton className="mt-3 h-20 w-full rounded-xl" />
+        ) : !pricings || pricings.length === 0 ? (
+          <p className="mt-3 text-sm text-neutral-500">لا توجد أسعار مخصصة — سيتم استخدام الأسعار الافتراضية</p>
+        ) : (
+          <div className="mt-3 flex flex-col gap-2">
+            {pricings.map((pr) => (
+              <div key={pr.id} className="flex items-center justify-between rounded-xl border border-neutral-100 bg-neutral-50 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800/50">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                    {pr.targetType === "UNIT" ? "وحدة" : "ترم"} — {pr.grade?.name ?? pr.stage?.name ?? "افتراضي"} {pr.grade ? `(${pr.stage?.name ?? ""})` : ""}
+                  </p>
+                  <p className="text-xs text-neutral-500">{pr.cost} عملة</p>
+                </div>
+                <Button variant="ghost" size="sm" className="text-danger-500" onClick={() => deleteMut.mutate(pr.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

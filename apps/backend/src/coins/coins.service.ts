@@ -132,11 +132,39 @@ export class CoinsService {
     return { verified: true, status: "COMPLETED", coinsAdded: 0 };
   }
 
-  async getUnlockCost(targetType: string): Promise<{ cost: number }> {
+  async getUnlockCost(targetType: string, stageId?: string, gradeId?: string): Promise<{ cost: number }> {
+    // Try per-grade, then per-stage, then global fallback
+    if (targetType === "UNIT" || targetType === "TERM") {
+      if (gradeId) {
+        const pricing = await (this.prisma as unknown as { unlockPricing: { findFirst: (args: unknown) => Promise<{ cost: number } | null> } }).unlockPricing.findFirst({
+          where: { targetType, gradeId },
+        });
+        if (pricing) return { cost: pricing.cost };
+      }
+      if (stageId) {
+        const pricing = await (this.prisma as unknown as { unlockPricing: { findFirst: (args: unknown) => Promise<{ cost: number } | null> } }).unlockPricing.findFirst({
+          where: { targetType, stageId, gradeId: null },
+        });
+        if (pricing) return { cost: pricing.cost };
+      }
+    }
     const key = targetType === "UNIT" ? UNIT_COST_KEY : targetType === "TERM" ? TERM_COST_KEY : null;
     if (!key) return { cost: 0 };
     const setting = await this.prisma.systemSetting.findUnique({ where: { key } });
     return { cost: setting ? Number(setting.value) : targetType === "UNIT" ? 50 : 300 };
+  }
+
+  async getUnlockCostForUnit(unitId: string): Promise<{ cost: number }> {
+    const unit = await this.prisma.unit.findUnique({ where: { id: unitId }, select: { gradeId: true, grade: { select: { stageId: true } } } });
+    if (!unit) return this.getUnlockCost("UNIT");
+    return this.getUnlockCost("UNIT", unit.grade.stageId, unit.gradeId);
+  }
+
+  async getUnlockCostForTerm(termId: string): Promise<{ cost: number }> {
+    const term = await this.prisma.term.findUnique({ where: { id: termId }, select: { academicYearId: true } });
+    // For terms, we currently use global pricing; per-stage/grade for terms would require additional mapping
+    // For now, try to find a pricing for the first grade of that term's year? Simplified to global.
+    return this.getUnlockCost("TERM");
   }
 
   async getEffectiveTermCost(userId: string, termId: string): Promise<{ cost: number; baseCost: number; credit: number }> {
@@ -152,10 +180,29 @@ export class CoinsService {
     return { cost: Math.max(0, baseCost - paid), baseCost, credit };
   }
 
-  async setUnlockCost(userId: string, dto: { targetType: string; cost: number }): Promise<{ cost: number }> {
+  async setUnlockCost(userId: string, dto: { targetType: string; cost: number; stageId?: string; gradeId?: string }): Promise<{ cost: number }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!user || (user.role !== "ADMINISTRATOR" && user.role !== "TEACHER")) {
       throw new ForbiddenException("Only administrators and teachers can set unlock costs");
+    }
+    if (dto.stageId || dto.gradeId) {
+      const targetType = dto.targetType;
+      if (targetType !== "UNIT" && targetType !== "TERM") throw new BadRequestException("Invalid target type for per-grade pricing");
+      // Validate stage/grade existence if provided
+      if (dto.gradeId) {
+        const grade = await this.prisma.grade.findUnique({ where: { id: dto.gradeId }, select: { id: true, stageId: true } });
+        if (!grade) throw new NotFoundException("Grade not found");
+        if (dto.stageId && grade.stageId !== dto.stageId) throw new BadRequestException("Grade does not belong to the specified stage");
+      } else if (dto.stageId) {
+        const stage = await this.prisma.stage.findUnique({ where: { id: dto.stageId }, select: { id: true } });
+        if (!stage) throw new NotFoundException("Stage not found");
+      }
+      await (this.prisma as unknown as { unlockPricing: { upsert: (args: unknown) => Promise<unknown> } }).unlockPricing.upsert({
+        where: { stageId_gradeId_targetType: { stageId: dto.stageId ?? null, gradeId: dto.gradeId ?? null, targetType } } as unknown as Record<string, unknown>,
+        update: { cost: dto.cost },
+        create: { stageId: dto.stageId ?? null, gradeId: dto.gradeId ?? null, targetType, cost: dto.cost },
+      });
+      return { cost: dto.cost };
     }
     const key = dto.targetType === "UNIT" ? UNIT_COST_KEY : dto.targetType === "TERM" ? TERM_COST_KEY : null;
     if (!key) throw new BadRequestException("Invalid target type");
@@ -165,6 +212,17 @@ export class CoinsService {
       create: { key, value: String(dto.cost) },
     });
     return { cost: dto.cost };
+  }
+
+  async listUnlockPricings(): Promise<unknown[]> {
+    return (this.prisma as unknown as { unlockPricing: { findMany: (args: unknown) => Promise<unknown[]> } }).unlockPricing.findMany({
+      orderBy: [{ targetType: "asc" }, { stageId: "asc" }, { gradeId: "asc" }],
+      include: { stage: { select: { id: true, name: true } }, grade: { select: { id: true, name: true, stageId: true } } },
+    });
+  }
+
+  async deleteUnlockPricing(id: string): Promise<void> {
+    await (this.prisma as unknown as { unlockPricing: { delete: (args: unknown) => Promise<unknown> } }).unlockPricing.delete({ where: { id } });
   }
 
   async listCodes(_userId: string, page = 1, limit = 20): Promise<{ data: unknown[]; meta: { page: number; limit: number; total: number; totalPages: number } }> {
@@ -327,7 +385,9 @@ export class CoinsService {
 
     const { cost } = dto.targetType === "TERM"
       ? await this.getEffectiveTermCost(userId, dto.targetId)
-      : await this.getUnlockCost(dto.targetType);
+      : dto.targetType === "UNIT"
+        ? await this.getUnlockCostForUnit(dto.targetId)
+        : await this.getUnlockCost(dto.targetType);
 
     await this.prisma.$transaction(async (tx) => {
       if (cost > 0) {

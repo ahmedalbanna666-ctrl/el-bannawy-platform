@@ -97,9 +97,25 @@ export class CoinsController {
   @Get("unlock-cost/:targetType")
   async getUnlockCost(
     @Param("targetType") targetType: string,
+    @Query("stageId") stageId?: string,
+    @Query("gradeId") gradeId?: string,
   ): Promise<ISuccessResponse<{ cost: number }>> {
-    const data = await this.coins.getUnlockCost(targetType);
+    const data = await this.coins.getUnlockCost(targetType, stageId, gradeId);
     return successResponse(data);
+  }
+
+  @Get("unlock-pricings")
+  @Roles("ADMINISTRATOR")
+  async listPricings(): Promise<ISuccessResponse<unknown>> {
+    const data = await this.coins.listUnlockPricings();
+    return successResponse(data);
+  }
+
+  @Delete("unlock-pricings/:id")
+  @Roles("ADMINISTRATOR")
+  async deletePricing(@Param("id") id: string): Promise<ISuccessResponse<null>> {
+    await this.coins.deleteUnlockPricing(id);
+    return successResponse(null, "Pricing deleted");
   }
 
   @Get("term-price/:termId")
@@ -115,7 +131,7 @@ export class CoinsController {
   @Roles("ADMINISTRATOR", "TEACHER")
   async setUnlockCost(
     @CurrentUser() userId: string,
-    @Body() dto: { targetType: string; cost: number },
+    @Body() dto: { targetType: string; cost: number; stageId?: string; gradeId?: string },
   ): Promise<ISuccessResponse<{ cost: number }>> {
     const data = await this.coins.setUnlockCost(userId, dto);
     return successResponse(data, "Unlock cost updated");

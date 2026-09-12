@@ -77,15 +77,51 @@ export const COINS_KEYS = {
   myPurchases: ["coins", "my-purchases"] as const,
 };
 
-export function useUnlockCost(targetType: string): UseQueryResult<{ cost: number }> {
+export function useUnlockCost(targetType: string, stageId?: string, gradeId?: string): UseQueryResult<{ cost: number }> {
   return useQuery({
-    queryKey: ["coins", "unlock-cost", targetType],
+    queryKey: ["coins", "unlock-cost", targetType, stageId ?? "", gradeId ?? ""],
     queryFn: async () => {
-      const res = await api.get<{ cost: number }>(`/coins/unlock-cost/${targetType}`);
+      const params = new URLSearchParams();
+      if (stageId) params.set("stageId", stageId);
+      if (gradeId) params.set("gradeId", gradeId);
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      const res = await api.get<{ cost: number }>(`/coins/unlock-cost/${targetType}${qs}`);
       if (!res.data) throw new Error("Failed to fetch unlock cost");
       return res.data;
     },
     staleTime: 60_000,
+  });
+}
+
+export interface UnlockPricingItem {
+  id: string;
+  stageId: string | null;
+  gradeId: string | null;
+  targetType: string;
+  cost: number;
+  stage?: { id: string; name: string } | null;
+  grade?: { id: string; name: string } | null;
+}
+
+export function useUnlockPricings(): UseQueryResult<UnlockPricingItem[]> {
+  return useQuery({
+    queryKey: ["coins", "unlock-pricings"],
+    queryFn: async () => {
+      const res = await api.get<UnlockPricingItem[]>("/coins/unlock-pricings");
+      return res.data ?? [];
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useDeletePricing(): UseMutationResult<unknown, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.delete(`/coins/unlock-pricings/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["coins", "unlock-pricings"] });
+      void qc.invalidateQueries({ queryKey: ["coins", "unlock-cost"] });
+    },
   });
 }
 
@@ -111,13 +147,14 @@ export function useTermPrice(termId: string | undefined): UseQueryResult<TermPri
 export function useSetUnlockCost(): UseMutationResult<
   ApiResponse<{ cost: number }>,
   Error,
-  { targetType: string; cost: number }
+  { targetType: string; cost: number; stageId?: string | null; gradeId?: string | null }
 > {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto) => api.post("/coins/unlock-cost", dto),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["coins", "unlock-cost"] });
+      void qc.invalidateQueries({ queryKey: ["coins", "unlock-pricings"] });
       void qc.invalidateQueries({ queryKey: ["coins", "term-price"] });
     },
   });
