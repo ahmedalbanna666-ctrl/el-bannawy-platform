@@ -168,7 +168,8 @@ export class CoinsService {
   }
 
   async getEffectiveTermCost(userId: string, termId: string): Promise<{ cost: number; baseCost: number; credit: number }> {
-    const { cost: baseCost } = await this.getUnlockCost("TERM");
+    const ctx = await this.academicContext.getStudentContext(userId);
+    const { cost: baseCost } = await this.getUnlockCost("TERM", ctx?.stageId ?? undefined, ctx?.gradeId ?? undefined);
     const units = await this.prisma.unit.findMany({ where: { termId }, select: { id: true } });
     if (units.length === 0) return { cost: baseCost, baseCost, credit: 0 };
     const unlocks = await this.prisma.contentUnlock.findMany({

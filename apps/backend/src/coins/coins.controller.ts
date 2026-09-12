@@ -104,6 +104,14 @@ export class CoinsController {
     return successResponse(data);
   }
 
+  @Get("unit-price/:unitId")
+  async getUnitPrice(
+    @Param("unitId", ParseUUIDPipe) unitId: string,
+  ): Promise<ISuccessResponse<{ cost: number }>> {
+    const data = await this.coins.getUnlockCostForUnit(unitId);
+    return successResponse(data);
+  }
+
   @Get("unlock-pricings")
   @Roles("ADMINISTRATOR")
   async listPricings(): Promise<ISuccessResponse<unknown>> {

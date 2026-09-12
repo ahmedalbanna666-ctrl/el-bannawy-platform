@@ -5,6 +5,7 @@ import {
   useSubmitUnlockRequest,
   useRedeemCode,
   useUnlockCost,
+  useUnitPrice,
   useTermPrice,
 } from "@/lib/coins/coins-api";
 
@@ -57,13 +58,14 @@ export function useUnitUnlock(unitId: string | undefined, options?: UseUnitUnloc
   const access = useContentAccess("UNIT", unitId);
   const termId = options?.termId;
   const { data: costData } = useUnlockCost("UNIT");
+  const { data: unitPriceData } = useUnitPrice(unitId);
   const { data: termCostData } = useUnlockCost("TERM");
   const { data: termPriceData } = useTermPrice(termId);
   const unlockMut = useUnlockContent();
   const requestMut = useSubmitUnlockRequest();
   const redeemMut = useRedeemCode();
 
-  const cost = costData?.cost ?? 50;
+  const cost = unitPriceData?.cost ?? costData?.cost ?? 50;
   const termCost = termPriceData?.cost ?? termCostData?.cost ?? 0;
   const termCredit = termPriceData?.credit ?? 0;
   const termBase = termPriceData?.baseCost ?? termCostData?.cost ?? 0;

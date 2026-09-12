@@ -131,6 +131,19 @@ export interface TermPrice {
   credit: number;
 }
 
+export function useUnitPrice(unitId: string | undefined): UseQueryResult<{ cost: number }> {
+  return useQuery({
+    queryKey: ["coins", "unit-price", unitId ?? ""],
+    queryFn: async () => {
+      const res = await api.get<{ cost: number }>(`/coins/unit-price/${unitId ?? ""}`);
+      if (!res.data) throw new Error("Failed to fetch unit price");
+      return res.data;
+    },
+    enabled: !!unitId,
+    staleTime: 30_000,
+  });
+}
+
 export function useTermPrice(termId: string | undefined): UseQueryResult<TermPrice> {
   return useQuery({
     queryKey: ["coins", "term-price", termId],
