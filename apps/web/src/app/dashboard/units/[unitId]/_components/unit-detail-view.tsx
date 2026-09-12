@@ -36,6 +36,7 @@ import {
   Layers,
   Clock,
   MessageCircle,
+  Bell,
   User,
 } from "lucide-react";
 
@@ -126,6 +127,22 @@ export function UnitDetailView({
     open: boolean;
     lesson: LessonManagement | null;
   }>({ open: false, lesson: null });
+
+  const [notifDialog, setNotifDialog] = useState<{
+    open: boolean;
+    lesson: LessonManagement | null;
+    title: string;
+    message: string;
+  }>({ open: false, lesson: null, title: "", message: "" });
+
+  const sendNotifMutation = useMutation({
+    mutationFn: async (payload: { title: string; message: string; targetType: string; targetId?: string }) => {
+      return api.post("/notifications/send", payload);
+    },
+    onSuccess: () => {
+      setNotifDialog({ open: false, lesson: null, title: "", message: "" });
+    },
+  });
 
   const { data: unit, isLoading, isError, error } = useQuery({
     queryKey: ["management-unit", unitType, unitId],
@@ -343,6 +360,23 @@ export function UnitDetailView({
                       >
                         <MessageCircle className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="إرسال إشعار"
+                        className="text-blue-600 hover:bg-blue-500/10"
+                        title="إرسال إشعار للطلاب على الموقع"
+                        onClick={(): void => {
+                          setNotifDialog({
+                            open: true,
+                            lesson,
+                            title: `تنبيه: ${lesson.title}`,
+                            message: `مرحبًا، تم نشر درس جديد: «${lesson.title}». يمكنك البدء في الحين!`,
+                          });
+                        }}
+                      >
+                        <Bell className="h-4 w-4" />
+                      </Button>
                       {canEditLesson && (
                         <Button
                           variant="ghost"
@@ -518,6 +552,62 @@ export function UnitDetailView({
               إرسال للكل
             </Button>
           )}
+        </DialogFooter>
+      </Dialog>
+
+      <Dialog
+        open={notifDialog.open}
+        onClose={(): void => { setNotifDialog({ open: false, lesson: null, title: "", message: "" }); }}
+        title={`إرسال إشعار — ${notifDialog.lesson?.title ?? ""}`}
+      >
+        <DialogContent className="space-y-3">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            أرسل إشعاراً لكل طلاب الصف عبر المنصة:
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">عنوان الإشعار</label>
+            <input
+              type="text"
+              value={notifDialog.title}
+              onChange={(e): void => { setNotifDialog((p) => ({ ...p, title: e.target.value })); }}
+              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+              placeholder="عنوان الإشعار"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">نص الرسالة</label>
+            <textarea
+              value={notifDialog.message}
+              onChange={(e): void => { setNotifDialog((p) => ({ ...p, message: e.target.value })); }}
+              rows={4}
+              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+              placeholder="اكتب رسالة الإشعار..."
+            />
+          </div>
+          <p className="text-xs text-neutral-500">سيصل الإشعار كـ push notification على كل طلاب الصف</p>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="ghost" onClick={(): void => { setNotifDialog({ open: false, lesson: null, title: "", message: "" }); }}>
+            إغلاق
+          </Button>
+          <Button
+            variant="primary"
+            className="bg-blue-600 hover:bg-blue-700"
+            loading={sendNotifMutation.isPending}
+            disabled={!notifDialog.title.trim() || !notifDialog.message.trim()}
+            onClick={(): void => {
+              if (!notifDialog.lesson) return;
+              sendNotifMutation.mutate({
+                title: notifDialog.title,
+                message: notifDialog.message,
+                targetType: "grade",
+                targetId: unit?.grade?.id,
+              });
+            }}
+          >
+            <Bell className="h-4 w-4 ml-1" />
+            إرسال للطلاب
+          </Button>
         </DialogFooter>
       </Dialog>
     </div>

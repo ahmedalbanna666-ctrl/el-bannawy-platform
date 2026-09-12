@@ -32,6 +32,7 @@ import {
   CalendarDays,
   CreditCard,
   MessageCircle,
+  Bell,
 } from "lucide-react";
 
 interface GradeItem {
@@ -252,6 +253,22 @@ export default function StudentsPage(): ReactNode {
     message: string;
   }>({ open: false, student: null, target: "student", message: "مرحباً، " });
 
+  const [notifDialog, setNotifDialog] = useState<{
+    open: boolean;
+    student: Student | null;
+    title: string;
+    message: string;
+  }>({ open: false, student: null, title: "إشعار من المنصة", message: "" });
+
+  const sendNotifMutation = useMutation({
+    mutationFn: async (payload: { title: string; message: string; targetType: string; targetId?: string }) => {
+      return api.post("/notifications/send", payload);
+    },
+    onSuccess: () => {
+      setNotifDialog({ open: false, student: null, title: "إشعار من المنصة", message: "" });
+    },
+  });
+
   const students: Student[] = listData?.students ?? [];
   const meta = listData?.meta ?? { total: 0, page: 1, limit: 20, totalPages: 0 };
 
@@ -453,6 +470,23 @@ export default function StudentsPage(): ReactNode {
                         <MessageCircle className="h-4 w-4 ml-1" />
                         واتساب
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                        onClick={() => {
+                          setNotifDialog({
+                            open: true,
+                            student: s,
+                            title: `تنبيه لـ ${s.fullName}`,
+                            message: `مرحباً ${s.fullName}، `,
+                          });
+                        }}
+                        title="إرسال إشعار على الموقع"
+                      >
+                        <Bell className="h-4 w-4 ml-1" />
+                        إشعار
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => { setSelectedStudentId(s.id); }}>
                         <Eye className="h-4 w-4 ml-1" />
                         عرض
@@ -548,6 +582,61 @@ export default function StudentsPage(): ReactNode {
           >
             <MessageCircle className="h-4 w-4 ml-1" />
             فتح في واتساب
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      <Dialog
+        open={notifDialog.open}
+        onClose={() => { setNotifDialog({ open: false, student: null, title: "", message: "" }); }}
+        title={`إرسال إشعار — ${notifDialog.student?.fullName ?? ""}`}
+      >
+        <DialogContent className="space-y-4">
+          {notifDialog.student && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">عنوان الإشعار</label>
+                <Input
+                  value={notifDialog.title}
+                  onChange={(e) => { setNotifDialog((p) => ({ ...p, title: e.target.value })); }}
+                  placeholder="عنوان الإشعار"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">نص الرسالة</label>
+                <textarea
+                  value={notifDialog.message}
+                  onChange={(e) => { setNotifDialog((p) => ({ ...p, message: e.target.value })); }}
+                  rows={4}
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+                  placeholder="اكتب رسالة الإشعار..."
+                />
+              </div>
+              <p className="text-xs text-neutral-500">سيصل الإشعار كـ push notification على الجهاز والويب سايت</p>
+            </>
+          )}
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { setNotifDialog({ open: false, student: null, title: "", message: "" }); }}>
+            إلغاء
+          </Button>
+          <Button
+            variant="primary"
+            className="bg-blue-600 hover:bg-blue-700"
+            loading={sendNotifMutation.isPending}
+            disabled={!notifDialog.title.trim() || !notifDialog.message.trim()}
+            onClick={() => {
+              if (!notifDialog.student) return;
+              sendNotifMutation.mutate({
+                title: notifDialog.title,
+                message: notifDialog.message,
+                targetType: "individual",
+                targetId: notifDialog.student.id,
+              });
+            }}
+          >
+            <Bell className="h-4 w-4 ml-1" />
+            إرسال إشعار
           </Button>
         </DialogFooter>
       </Dialog>
