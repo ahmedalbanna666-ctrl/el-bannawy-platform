@@ -4,6 +4,7 @@ import { useState, useMemo, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { playSendSound } from "@/lib/use-send-sound";
 import { usePermissions } from "@/lib/use-permissions";
 import { PERMISSIONS } from "@el-bannawy/shared";
 import { Card, CardContent } from "@/components/ui/card";
@@ -476,6 +477,7 @@ export function UnitDetailView({
                         href={waLink}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(): void => { playSendSound(); }}
                         className="shrink-0 rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
                       >
                         إرسال
@@ -503,6 +505,7 @@ export function UnitDetailView({
               onClick={(): void => {
                 const studentsWithPhone = gradeStudents.filter((s) => normalizeWaNumber(s.mobileNumber));
                 const waLesson = waDialog.lesson;
+                playSendSound();
                 studentsWithPhone.forEach((student) => {
                   const normalized = normalizeWaNumber(student.mobileNumber)!;
                   const message = `مرحبًا ${student.fullName}، تم نشر درس جديد: «${waLesson?.title ?? ""}». يمكنك البدء في الحين!`;

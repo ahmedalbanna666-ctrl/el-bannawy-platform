@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { playSendSound } from "@/lib/use-send-sound";
 import { useAcademicContext } from "@/lib/academic-context-store";
 import { EDUCATIONAL_STAGES } from "@/lib/education-options";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -540,6 +541,7 @@ export default function StudentsPage(): ReactNode {
               const phone = waDialog.target === "student" ? waDialog.student?.mobileNumber : waDialog.student?.parentMobile;
               const link = buildWaLink(phone, waDialog.message);
               if (!link) return;
+              playSendSound();
               window.open(link, "_blank", "noopener,noreferrer");
               setWaDialog((p) => ({ ...p, open: false }));
             }}
