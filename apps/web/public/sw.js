@@ -1,7 +1,7 @@
 /* El-bannawy PWA Service Worker — Offline & Smart Cache Engine (v5) */
 /* eslint-disable */
-const CACHE_APP = "el-bannawy-app-v5";
-const CACHE_FILES = "el-bannawy-files-v5";
+const CACHE_APP = "el-bannawy-app-v6";
+const CACHE_FILES = "el-bannawy-files-v6";
 const OFFLINE_URL = "/offline";
 
 const APP_SHELL = [
@@ -153,6 +153,12 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname.startsWith("/api/")) {
+    // Never intercept auth callbacks — let the browser handle the 302 redirect
+    // and Set-Cookie headers natively (service-worker fetch follows redirects
+    // and would cache the HTML instead of the redirect).
+    if (/\/auth\//.test(url.pathname)) {
+      return;
+    }
     // Never intercept authenticated binary downloads (lesson documents) with
     // the cache — a stale/opaque cached response breaks PDF rendering.
     if (/\/lessons\/[^/]+\/document$/.test(url.pathname)) {
