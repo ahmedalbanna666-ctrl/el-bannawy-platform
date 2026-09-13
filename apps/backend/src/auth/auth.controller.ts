@@ -84,11 +84,12 @@ export class AuthController {
   @Get("google/callback")
   @UseGuards(GoogleAuthGuard)
   async googleAuthCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
+    if (res.headersSent) return;
     try {
       const googleProfile = req.user as { email: string | null; googleId: string } | undefined;
 
       if (!googleProfile?.email) {
-        res.redirect(`${this.config.app.frontendUrl}/login?error=google_no_email`);
+        if (!res.headersSent) res.redirect(`${this.config.app.frontendUrl}/login?error=google_no_email`);
         return;
       }
 
@@ -108,6 +109,7 @@ export class AuthController {
         );
       }
     } catch (err: unknown) {
+      if (res.headersSent) return;
       const message = err instanceof Error ? err.message : "google_callback_failed";
       // Avoid leaking internal details to the URL – use a safe error code
       const safe = message.toLowerCase().includes("prisma") || message.toLowerCase().includes("database")
