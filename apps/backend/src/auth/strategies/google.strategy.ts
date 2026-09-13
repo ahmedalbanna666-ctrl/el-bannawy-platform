@@ -21,6 +21,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
         clientSecret: "unconfigured",
         callbackURL: config.auth.googleCallbackUrl,
         scope: ["email", "profile"],
+        state: false,
+        proxy: true,
       });
       return;
     }
@@ -30,6 +32,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
       clientSecret: clientSecret,
       callbackURL: config.auth.googleCallbackUrl,
       scope: ["email", "profile"],
+      state: false,
+      proxy: true,
     });
   }
 

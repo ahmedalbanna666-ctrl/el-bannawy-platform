@@ -10,10 +10,21 @@ export class GoogleAuthGuard extends AuthGuard("google") {
     super();
   }
 
-  handleRequest<TUser>(err: unknown, user: TUser, _info: unknown, context: ExecutionContext): TUser {
+  handleRequest<TUser>(err: unknown, user: TUser, info: unknown, context: ExecutionContext): TUser {
     if (err || !user) {
-      const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Unknown";
-      this.logger.warn(`Google OAuth failed: ${message}`);
+      const infoMsg =
+        info instanceof Error
+          ? info.message
+          : typeof info === "string"
+            ? info
+            : info !== null &&
+                typeof info === "object" &&
+                "message" in (info as Record<string, unknown>)
+              ? String((info as { message: unknown }).message)
+              : "";
+      const errMsg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+      const message = errMsg || infoMsg || "Unknown";
+      this.logger.warn(`Google OAuth failed: ${message} | info=${JSON.stringify(info)} err=${String(err)}`);
       const ctx = context.switchToHttp();
       const res = ctx.getResponse<{ redirect: (url: string) => void }>();
       const frontendUrl = this.config.app.frontendUrl;

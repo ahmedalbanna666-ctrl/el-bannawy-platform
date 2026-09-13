@@ -33,6 +33,11 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
+  // Required when running behind Vercel/Railway proxy so secure cookies
+  // and OAuth callback URLs resolve to https correctly.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
+
   app.use(json({ limit: "25mb" }));
   app.use(urlencoded({ extended: true, limit: "25mb" }));
 
