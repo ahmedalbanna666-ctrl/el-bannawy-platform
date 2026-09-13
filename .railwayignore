@@ -17,7 +17,6 @@ uploads
 **/.env*
 .vercel
 **/.vercel
-docker
 *.yml
 .DS_Store
 .vscode
