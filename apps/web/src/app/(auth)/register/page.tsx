@@ -122,31 +122,45 @@ function VerifyEmailScreen({
   email: string;
   onVerified: () => void;
 }): ReactNode {
-  const { verifyEmail, resendVerification } = useAuth();
+  const { verifyEmail, resendVerification, correctPendingEmail } = useAuth();
+  const [editableEmail, setEditableEmail] = useState(email);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [sent, setSent] = useState(false);
 
+  useEffect(() => { setEditableEmail(email); }, [email]);
+
+  const normalizedEditable = editableEmail.trim().toLowerCase();
+  const originalNormalized = email.trim().toLowerCase();
+  const isEmailChanged = normalizedEditable !== originalNormalized;
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editableEmail.trim());
+
   const handleVerify = useCallback(async (): Promise<void> => {
     if (!/^\d{6}$/.test(code)) { setError("يرجى إدخال كود التأكيد المكون من 6 أرقام"); return; }
+    if (!isEmailValid) { setError("يرجى إدخال بريد إلكتروني صحيح"); return; }
     setLoading(true);
     setError(null);
     try {
-      await verifyEmail(email, code);
+      await verifyEmail(normalizedEditable, code);
       onVerified();
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر تأكيد البريد الإلكتروني");
       setLoading(false);
     }
-  }, [code, email, verifyEmail, onVerified]);
+  }, [code, normalizedEditable, isEmailValid, verifyEmail, onVerified]);
 
   const handleResend = useCallback(async (): Promise<void> => {
+    if (!isEmailValid) { setError("يرجى إدخال بريد إلكتروني صحيح أولاً"); return; }
     setResending(true);
     setError(null);
     try {
-      await resendVerification(email);
+      if (isEmailChanged) {
+        await correctPendingEmail(originalNormalized, normalizedEditable);
+      } else {
+        await resendVerification(normalizedEditable);
+      }
       setSent(true);
       setTimeout(() => { setSent(false); }, 4000);
     } catch (err) {
@@ -154,7 +168,7 @@ function VerifyEmailScreen({
     } finally {
       setResending(false);
     }
-  }, [email, resendVerification]);
+  }, [isEmailValid, isEmailChanged, originalNormalized, normalizedEditable, correctPendingEmail, resendVerification]);
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8">
@@ -168,17 +182,24 @@ function VerifyEmailScreen({
               <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
                 تأكيد البريد الإلكتروني
               </h1>
-              <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400" dir="ltr">
-                {email}
-              </p>
               <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
-                أرسلنا كود تأكيد من 6 أرقام إلى بريدك الإلكتروني. أدخل الكود لتفعيل حسابك.
+                {isEmailChanged
+                  ? "عدّلت بريدك؟ اضغط إرسال الكود لإرساله إلى البريد الجديد."
+                  : "أرسلنا كود تأكيد من 6 أرقام إلى بريدك الإلكتروني. أدخل الكود لتفعيل حسابك."}
               </p>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-5">
+            <Input
+              label="البريد الإلكتروني (يمكنك تعديله إذا كان خطأ)"
+              type="email"
+              dir="ltr"
+              placeholder="example@gmail.com"
+              value={editableEmail}
+              onChange={(e): void => { setEditableEmail(e.target.value); setError(null); }}
+            />
             <Input
               label="كود التأكيد"
               type="text"
@@ -197,11 +218,11 @@ function VerifyEmailScreen({
 
             {sent && (
               <p className="rounded-xl bg-success-500/10 px-4 py-3 text-sm text-success-600 dark:text-success-400">
-                تم إعادة إرسال الكود بنجاح
+                تم إرسال الكود بنجاح إلى {editableEmail}
               </p>
             )}
 
-            <Button variant="primary" size="md" fullWidth onClick={() => { void handleVerify(); }} loading={loading} disabled={code.length !== 6}>
+            <Button variant="primary" size="md" fullWidth onClick={() => { void handleVerify(); }} loading={loading} disabled={code.length !== 6 || !isEmailValid}>
               <MailCheck className="h-5 w-5" />
               تأكيد الحساب
             </Button>
@@ -209,10 +230,10 @@ function VerifyEmailScreen({
             <button
               type="button"
               onClick={() => { void handleResend(); }}
-              disabled={resending}
+              disabled={resending || !isEmailValid}
               className="text-center text-sm text-primary-600 hover:text-primary-500 dark:text-primary-400 disabled:opacity-40"
             >
-              {resending ? "جاري الإرسال..." : "لم يصلك الكود؟ أعد الإرسال"}
+              {resending ? "جاري الإرسال..." : isEmailChanged ? "تأكيد البريد الجديد وإرسال الكود" : "لم يصلك الكود؟ أعد الإرسال"}
             </button>
 
             <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">
@@ -439,7 +460,18 @@ function RegisterForm(): ReactNode {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      const msg = err instanceof Error ? err.message : "Registration failed";
+      if (msg.startsWith("PENDING_VERIFICATION:")) {
+        const pendingEmail = msg.slice("PENDING_VERIFICATION:".length).trim().toLowerCase();
+        if (pendingEmail) {
+          setEmail(pendingEmail);
+        }
+        setNeedsVerification(true);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+      setError(msg);
       setLoading(false);
     }
   }, [fullName, englishName, email, mobile, parentMobile, password, confirmPassword, governorate, school, educationalSystem, educationalStage, grade, referralCode, register, oauthRegister, isOAuth, verifiedEmail]);
@@ -488,9 +520,14 @@ function RegisterForm(): ReactNode {
                 </div>
               </div>
             )}
-            <Input label="الاسم بالعربية (ثلاثي)" placeholder="الاسم الأول - اسم الأب - اسم العائلة" value={fullName} onChange={(e): void => { setFullName(e.target.value); }} required />
-            <Input label="الاسم بالإنجليزية" placeholder="Ahmed Hassan Ali" value={englishName} onChange={(e): void => { setEnglishNameTouched(true); setEnglishName(e.target.value); }} leftIcon={<Globe className="h-5 w-5" />} />
+            <input type="text" name="prevent_autofill_username" autoComplete="username" tabIndex={-1} aria-hidden="true" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none" }} readOnly />
+            <input type="password" name="prevent_autofill_password" autoComplete="new-password" tabIndex={-1} aria-hidden="true" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none" }} readOnly />
+            <Input id="register-fullName" name="fullName" autoComplete="name" label="الاسم بالعربية (ثلاثي)" placeholder="الاسم الأول - اسم الأب - اسم العائلة" value={fullName} onChange={(e): void => { setFullName(e.target.value); }} required />
+            <Input id="register-englishName" name="englishName" autoComplete="off" label="الاسم بالإنجليزية" placeholder="Ahmed Hassan Ali" value={englishName} onChange={(e): void => { setEnglishNameTouched(true); setEnglishName(e.target.value); }} leftIcon={<Globe className="h-5 w-5" />} />
             <Input
+              id="register-email"
+              name="email"
+              autoComplete="email"
               label="البريد الإلكتروني"
               type="email"
               placeholder="example@gmail.com"
@@ -501,6 +538,9 @@ function RegisterForm(): ReactNode {
               required
             />
             <Input
+              id="register-mobile"
+              name="mobile"
+              autoComplete="tel"
               label="رقم الهاتف (اختياري)"
               type="tel"
               placeholder="01234567890"
@@ -510,6 +550,9 @@ function RegisterForm(): ReactNode {
               leftIcon={<Phone className="h-5 w-5" />}
             />
             <Input
+              id="register-parentMobile"
+              name="parentMobile"
+              autoComplete="off"
               label="رقم ولي الأمر"
               type="tel"
               placeholder="01234567890"
@@ -517,10 +560,15 @@ function RegisterForm(): ReactNode {
               onChange={(e): void => { setParentMobile(e.target.value); }}
               onBlur={(): void => { setParentMobile(parentMobile ? normalizeEgyptMobile(parentMobile) : ""); }}
               leftIcon={<Phone className="h-5 w-5" />}
+              data-lpignore="true"
+              data-form-type="other"
             />
             {!isOAuth && (
               <>
                 <Input
+                  id="register-password"
+                  name="new-password"
+                  autoComplete="new-password"
                   label="كلمة المرور"
                   type={showPassword ? "text" : "password"}
                   placeholder="8 أحرف على الأقل"
@@ -534,11 +582,11 @@ function RegisterForm(): ReactNode {
                   }
                   required
                 />
-                <Input label="تأكيد كلمة المرور" type={showPassword ? "text" : "password"} placeholder="أعد كتابة كلمة المرور" value={confirmPassword} onChange={(e): void => { setConfirmPassword(e.target.value); }} leftIcon={<Lock className="h-5 w-5" />} required />
+                <Input id="register-confirmPassword" name="confirm-password" autoComplete="new-password" label="تأكيد كلمة المرور" type={showPassword ? "text" : "password"} placeholder="أعد كتابة كلمة المرور" value={confirmPassword} onChange={(e): void => { setConfirmPassword(e.target.value); }} leftIcon={<Lock className="h-5 w-5" />} required />
               </>
             )}
             <GovernorateSelect value={governorate} onChange={setGovernorate} required />
-            <Input label="المدرسة" placeholder="اسم المدرسة" value={school} onChange={(e): void => { setSchool(e.target.value); }} leftIcon={<Building2 className="h-5 w-5" />} />
+            <Input id="register-school" name="organization" autoComplete="organization" label="المدرسة" placeholder="اسم المدرسة" value={school} onChange={(e): void => { setSchool(e.target.value); }} leftIcon={<Building2 className="h-5 w-5" />} />
           </div>
         );
 
