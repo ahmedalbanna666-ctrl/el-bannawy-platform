@@ -347,7 +347,7 @@ export class CurriculumService {
           ...(gradeId ? [{ gradeId }] : []),
           ...(academicYearId ? [{ academicYearId }] : []),
           ...(termId ? [{ termId }] : []),
-          ...(educationalSystem ? [{ educationalSystem }] : []),
+          ...(educationalSystem ? [buildEducationalSystemFilter(educationalSystem)] : []),
         ],
       },
       include: {
