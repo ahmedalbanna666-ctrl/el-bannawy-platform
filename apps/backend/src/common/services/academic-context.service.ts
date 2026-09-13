@@ -14,6 +14,23 @@ export interface ActiveAcademicContext {
   termId: string | null;
 }
 
+/**
+ * العام (GENERAL) هو الأساس — يظهر للعام وللخاص.
+ * الخاص (LANGUAGE / INTERNATIONAL ...) يظهر للخاص فقط.
+ * الخاص يرى العام + الخاص + المشترك (null)، العام يرى العام + المشترك فقط.
+ */
+export function buildEducationalSystemFilter(
+  educationalSystem: string | null | undefined,
+): Record<string, unknown> {
+  if (!educationalSystem) return {};
+  if (educationalSystem === "GENERAL") {
+    return { OR: [{ educationalSystem }, { educationalSystem: null }] };
+  }
+  return {
+    OR: [{ educationalSystem }, { educationalSystem: "GENERAL" }, { educationalSystem: null }],
+  };
+}
+
 @Injectable()
 export class AcademicContextService {
   constructor(private readonly prisma: PrismaService) {}
@@ -102,7 +119,10 @@ export class AcademicContextService {
       mismatches.push("term");
     }
     if (user.educationalSystem && lesson.unit.educationalSystem && user.educationalSystem !== lesson.unit.educationalSystem) {
-      mismatches.push("educational system");
+      // العام يظهر للخاص، لكن الخاص لا يظهر للعام
+      if (lesson.unit.educationalSystem !== "GENERAL") {
+        mismatches.push("educational system");
+      }
     }
 
     if (mismatches.length > 0) {
@@ -143,13 +163,13 @@ export class AcademicContextService {
   }
 
   buildAcademicFilter(ctx: StudentContext | null): Record<string, unknown> {
-    if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) return {};
+    if (!ctx?.gradeId || !ctx?.academicYearId || !ctx?.termId) return {};
     return {
       unit: {
         gradeId: ctx.gradeId,
         academicYearId: ctx.academicYearId,
         termId: ctx.termId,
-        ...(ctx.educationalSystem ? { educationalSystem: ctx.educationalSystem } : {}),
+        ...buildEducationalSystemFilter(ctx.educationalSystem),
       },
     };
   }

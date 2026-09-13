@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
-import { AcademicContextService } from "../common/services/academic-context.service";
+import { AcademicContextService, buildEducationalSystemFilter } from "../common/services/academic-context.service";
 import { FILE_STORAGE, type FileStorage } from "../common/storage/file-storage";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -98,14 +98,7 @@ export class CertificatesService {
         gradeId: ctx.gradeId,
         academicYearId: ctx.academicYearId,
         termId: ctx.termId,
-        ...(ctx.educationalSystem
-          ? {
-              OR: [
-                { educationalSystem: ctx.educationalSystem },
-                { educationalSystem: null },
-              ],
-            }
-          : {}),
+        ...buildEducationalSystemFilter(ctx.educationalSystem),
       },
       select: {
         id: true,

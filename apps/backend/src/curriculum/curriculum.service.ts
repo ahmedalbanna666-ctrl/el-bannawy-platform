@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { AcademicContextService } from "../common/services/academic-context.service";
+import { AcademicContextService, buildEducationalSystemFilter } from "../common/services/academic-context.service";
 import { CacheService } from "../common/services/cache.service";
 import { UnitProgressService, type UnitActivityProgress } from "../common/services/unit-progress.service";
 import type {
@@ -56,14 +56,7 @@ export class CurriculumService {
                   gradeId: ctx.gradeId,
                   academicYearId: ctx.academicYearId,
                   termId: ctx.termId,
-                  ...(ctx.educationalSystem
-                    ? {
-                        OR: [
-                          { educationalSystem: ctx.educationalSystem },
-                          { educationalSystem: null },
-                        ],
-                      }
-                    : {}),
+                  ...buildEducationalSystemFilter(ctx.educationalSystem),
                 },
                 include: {
                   lessons: {
@@ -147,7 +140,7 @@ export class CurriculumService {
                   gradeId: ctx.gradeId,
                   academicYearId: ctx.academicYearId,
                   termId: ctx.termId,
-                  ...(ctx.educationalSystem ? { educationalSystem: ctx.educationalSystem } : {}),
+                  ...buildEducationalSystemFilter(ctx.educationalSystem),
                 },
               },
             }
@@ -171,7 +164,7 @@ export class CurriculumService {
                   gradeId: ctx.gradeId,
                   academicYearId: ctx.academicYearId,
                   termId: ctx.termId,
-                  ...(ctx.educationalSystem ? { educationalSystem: ctx.educationalSystem } : {}),
+                  ...buildEducationalSystemFilter(ctx.educationalSystem),
                 },
               }
             : {}),
@@ -223,7 +216,7 @@ export class CurriculumService {
             gradeId: ctx.gradeId,
             academicYearId: ctx.academicYearId,
             termId: ctx.termId,
-            ...(ctx.educationalSystem ? { educationalSystem: ctx.educationalSystem } : {}),
+            ...buildEducationalSystemFilter(ctx.educationalSystem),
           },
         }
       : {};
