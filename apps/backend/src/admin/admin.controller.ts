@@ -403,4 +403,33 @@ export class AdminController {
     const data = await this.adminService.getStudentSubscription(id, Number(page) || 1, Number(limit) || 20);
     return successResponse(data);
   }
+
+  @Get("students/:id/google-auth-logs")
+  async getStudentGoogleAuthLogs(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() _userId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.adminService.getStudentGoogleAuthLogs(id, Number(page) || 1, Number(limit) || 20);
+    return successResponse(data);
+  }
+
+  @Get("google-auth-logs")
+  @Roles("ADMINISTRATOR")
+  async getAllGoogleAuthLogs(
+    @CurrentUser() _userId: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+    @Query("email") email?: string,
+    @Query("success") success?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const data = await this.adminService.getAllGoogleAuthLogs(
+      Number(page) || 1,
+      Number(limit) || 20,
+      email,
+      success === "true" ? true : success === "false" ? false : undefined,
+    );
+    return successResponse(data);
+  }
 }

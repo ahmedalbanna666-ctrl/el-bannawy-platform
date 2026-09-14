@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Delete, Body, Param, Query, ParseUUIDPipe, Req, UseGuards, HttpCode, HttpStatus, Res } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { AuthService, type IAuthTokens, type IRequiresConfirmation } from "./auth.service";
-import { LoginDto, RegisterDto, ForgotPasswordDto, ResetPasswordDto, CompleteOAuthRegistrationDto, VerifyEmailDto, ResendVerificationDto, FirebaseLoginDto } from "./dto/auth.dto";
+import { LoginDto, RegisterDto, ForgotPasswordDto, ResetPasswordDto, CompleteOAuthRegistrationDto, VerifyEmailDto, ResendVerificationDto, CorrectPendingEmailDto, FirebaseLoginDto } from "./dto/auth.dto";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { CsrfGuard } from "../common/guards/csrf.guard";
 import { GoogleAuthGuard } from "./guards/google-auth.guard";
@@ -37,6 +37,13 @@ export class AuthController {
   async resendVerification(@Body() dto: ResendVerificationDto): Promise<ISuccessResponse<{ sent: boolean }>> {
     const result = await this.authService.resendVerification(dto);
     return successResponse(result, result.sent ? "Verification code sent" : "No pending verification");
+  }
+
+  @Post("correct-pending-email")
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  async correctPendingEmail(@Body() dto: CorrectPendingEmailDto): Promise<ISuccessResponse<{ sent: boolean }>> {
+    const result = await this.authService.correctPendingEmail(dto);
+    return successResponse(result, "Verification code sent to corrected email");
   }
 
   @Post("firebase-login")
@@ -93,10 +100,15 @@ export class AuthController {
         return;
       }
 
+      const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? undefined;
+      const userAgent = req.headers["user-agent"] ?? undefined;
+
       const result = await this.authService.oauthLogin({
         email: googleProfile.email,
         providerId: googleProfile.googleId,
         provider: "google",
+        ipAddress,
+        userAgent,
       });
 
       setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
@@ -110,7 +122,12 @@ export class AuthController {
       }
     } catch (err: unknown) {
       if (res.headersSent) return;
+      const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? undefined;
+      const userAgent = req.headers["user-agent"] ?? undefined;
       const message = err instanceof Error ? err.message : "google_callback_failed";
+      // Log the failed Google auth attempt
+      const fallbackEmail = (req.user as Record<string, unknown>)?.email;
+      await this.authService.logGoogleAuthPublic(null, typeof fallbackEmail === "string" ? fallbackEmail : "unknown", "google", "unknown", false, "google_callback_failed", message, ipAddress, userAgent);
       // Avoid leaking internal details to the URL – use a safe error code
       const safe = message.toLowerCase().includes("prisma") || message.toLowerCase().includes("database")
         ? "google_callback_failed"

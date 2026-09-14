@@ -23,7 +23,9 @@ model User {
   appleId                     String?                  @unique
   /// Firebase Authentication UID for Firebase-backed accounts
   firebaseUid                 String?                  @unique
-  /// Set when the registered email has been confirmed
+  /// Set when the registered email has been confirmed (see auth.service — orphans
+  /// that are still PENDING_VERIFICATION with no confirmed email are recyclable,
+  /// while ACTIVE or soft-deleted addresses stay locked until hard deleted).
   emailVerifiedAt             DateTime?
   /// Values: "google", "apple", or null
   oauthProvider               String?
@@ -50,6 +52,7 @@ model User {
   conversations               Conversation[]
   lessonProgress              LessonProgress[]
   loginHistory                LoginHistory[]
+  googleAuthLogs              GoogleAuthLog[]
   notificationPreferences     NotificationPreference?
   notifications               Notification[]
   passwordResets              PasswordReset[]
@@ -179,6 +182,27 @@ model LoginHistory {
   @@index([createdAt])
   @@index([userId, createdAt])
   @@map("login_history")
+}
+
+model GoogleAuthLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @db.Uuid
+  email         String?
+  provider      String   @default("google")
+  providerId    String?
+  success       Boolean
+  errorCode     String?
+  errorMessage  String?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([email])
+  @@index([createdAt])
+  @@index([success])
+  @@map("google_auth_logs")
 }
 
 model PasswordReset {

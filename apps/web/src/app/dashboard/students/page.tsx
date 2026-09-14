@@ -33,6 +33,8 @@ import {
   CreditCard,
   MessageCircle,
   Bell,
+  Mail,
+  MailCheck,
 } from "lucide-react";
 
 interface GradeItem {
@@ -173,7 +175,7 @@ export default function StudentsPage(): ReactNode {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"profile" | "progress" | "attendance" | "login-history" | "subscription">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "progress" | "attendance" | "login-history" | "google-auth" | "subscription">("profile");
 
   useEffect(() => {
     const id = setTimeout((): void => {
@@ -233,6 +235,20 @@ export default function StudentsPage(): ReactNode {
 
   const { data: listData, isLoading, isError, error } = useStudents(filters);
   const { data: detail, isLoading: detailLoading } = useStudentDetail(selectedStudentId);
+
+  const { data: pendingMeta } = useQuery<{ meta: { total: number } }>({
+    queryKey: ["students-pending-count"],
+    queryFn: async () => {
+      const res = await api.get<{ meta: { total: number } }>("/admin/students?status=PENDING_VERIFICATION&limit=1");
+      return (res.data as { meta: { total: number } }) ?? { meta: { total: 0 } };
+    },
+    staleTime: 30_000,
+  });
+  const pendingCount = pendingMeta?.meta.total ?? 0;
+
+  const resendVerificationMutation = useMutation({
+    mutationFn: async (email: string) => api.post("/auth/resend-verification", { email }),
+  });
 
   const refreshList = async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: ["students"] });
@@ -331,6 +347,7 @@ export default function StudentsPage(): ReactNode {
             { key: "progress", label: "التقدم", icon: Eye },
             { key: "attendance", label: "الحضور", icon: CalendarDays },
             { key: "login-history", label: "سجل الدخول", icon: Clock },
+            { key: "google-auth", label: "سجل Google", icon: Clock },
             { key: "subscription", label: "الاشتراك", icon: CreditCard },
           ] as const).map((tab) => (
             <Button
@@ -357,6 +374,7 @@ export default function StudentsPage(): ReactNode {
         {activeTab === "progress" && <StudentProgressTab studentId={selectedStudentId} />}
         {activeTab === "attendance" && <StudentAttendanceTab studentId={selectedStudentId} />}
         {activeTab === "login-history" && <StudentLoginHistoryTab studentId={selectedStudentId} />}
+        {activeTab === "google-auth" && <StudentGoogleAuthTab studentId={selectedStudentId} />}
         {activeTab === "subscription" && <StudentSubscriptionTab studentId={selectedStudentId} />}
 
         <ActionDialogs
@@ -377,6 +395,29 @@ export default function StudentsPage(): ReactNode {
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">الطلاب</h1>
         <p className="mt-1 text-sm text-neutral-500">عرض وإدارة الطلاب المسجلين</p>
       </div>
+
+      {pendingCount > 0 && (
+        <Card variant="outline" padding="sm" className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+          <CardContent>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-amber-600" />
+                <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  {pendingCount} حسابات قيد التحقق (لم يتم تأكيد البريد)
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                onClick={() => { setStatusFilter("PENDING_VERIFICATION"); setPage(1); }}
+              >
+                عرض القائمة
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent>
@@ -443,8 +484,21 @@ export default function StudentsPage(): ReactNode {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm text-amber-500">{s.coins} عملة</span>
+                      {s.status === "PENDING_VERIFICATION" && s.email && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-amber-600 border-amber-200 hover:bg-amber-50"
+                          loading={resendVerificationMutation.isPending}
+                          onClick={() => { resendVerificationMutation.mutate(s.email as string); }}
+                          title="إعادة إرسال كود التفعيل"
+                        >
+                          <Mail className="h-4 w-4 ml-1" />
+                          إعادة إرسال الكود
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -865,6 +919,45 @@ function StudentLoginHistoryTab({ studentId }: { studentId: string }): ReactNode
               <div key={r.id} className="flex items-center justify-between rounded bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-sm">
                 <span>{new Date(r.createdAt).toLocaleString("ar-EG")}</span>
                 <Badge variant={r.success ? "success" : "danger"}>{r.success ? "ناجح" : `فاشل${r.failureReason ? ` (${r.failureReason})` : ""}`}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StudentGoogleAuthTab({ studentId }: { studentId: string }): ReactNode {
+  const { data, isLoading } = useQuery({
+    queryKey: ["student-google-auth", studentId],
+    queryFn: async () => {
+      const res = await api.get<{ data: { id: string; createdAt: string; success: boolean; errorCode: string | null; errorMessage: string | null; ipAddress: string | null; provider: string }[] }>(`/admin/students/${studentId}/google-auth-logs`);
+      return res.data?.data ?? [];
+    },
+    enabled: !!studentId,
+  });
+
+  if (isLoading) return <Skeleton className="h-48 rounded-xl" />;
+
+  return (
+    <Card>
+      <CardHeader><h3 className="font-semibold">سجل محاولات تسجيل الدخول بـ Google</h3></CardHeader>
+      <CardContent>
+        {!data || data.length === 0 ? (
+          <p className="text-sm text-neutral-500">لا توجد محاولات تسجيل دخول بـ Google</p>
+        ) : (
+          <div className="max-h-64 overflow-y-auto space-y-1">
+            {data.map((r) => (
+              <div key={r.id} className="flex items-center justify-between rounded bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-sm">
+                <div className="flex flex-col gap-0.5">
+                  <span>{new Date(r.createdAt).toLocaleString("ar-EG")}</span>
+                  {r.ipAddress && <span className="text-xs text-neutral-400">IP: {r.ipAddress}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {r.errorCode && <span className="text-xs text-neutral-500">{r.errorCode}</span>}
+                  <Badge variant={r.success ? "success" : "danger"}>{r.success ? "ناجح" : "فاشل"}</Badge>
+                </div>
               </div>
             ))}
           </div>

@@ -1143,4 +1143,106 @@ export class AdminService {
       meta: { page, limit: safeLimit, total, totalPages },
     };
   }
+
+  async getStudentGoogleAuthLogs(id: string, page = 1, limit = 20): Promise<unknown> {
+    const student = await this.prisma.user.findFirst({
+      where: { id, role: "STUDENT", deletedAt: null },
+    });
+    if (!student) {
+      throw new NotFoundException("Student not found");
+    }
+
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * safeLimit;
+
+    const [records, total] = await Promise.all([
+      this.prisma.googleAuthLog.findMany({
+        where: { userId: id },
+        take: safeLimit,
+        skip,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          createdAt: true,
+          success: true,
+          errorCode: true,
+          errorMessage: true,
+          ipAddress: true,
+          provider: true,
+        },
+      }),
+      this.prisma.googleAuthLog.count({ where: { userId: id } }),
+    ]);
+
+    const totalPages = Math.ceil(total / safeLimit);
+
+    return {
+      data: records.map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt.toISOString(),
+        success: r.success,
+        errorCode: r.errorCode,
+        errorMessage: r.errorMessage,
+        ipAddress: r.ipAddress,
+        provider: r.provider,
+      })),
+      meta: { page, limit: safeLimit, total, totalPages },
+    };
+  }
+
+  async getAllGoogleAuthLogs(
+    page = 1,
+    limit = 20,
+    email?: string,
+    success?: boolean,
+  ): Promise<unknown> {
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * safeLimit;
+
+    const where: Record<string, unknown> = {};
+    if (email) {
+      where.email = { contains: email, mode: "insensitive" };
+    }
+    if (success !== undefined) {
+      where.success = success;
+    }
+
+    const [records, total] = await Promise.all([
+      this.prisma.googleAuthLog.findMany({
+        where,
+        take: safeLimit,
+        skip,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          createdAt: true,
+          email: true,
+          success: true,
+          errorCode: true,
+          errorMessage: true,
+          ipAddress: true,
+          provider: true,
+          userId: true,
+        },
+      }),
+      this.prisma.googleAuthLog.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / safeLimit);
+
+    return {
+      data: records.map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt.toISOString(),
+        email: r.email,
+        success: r.success,
+        errorCode: r.errorCode,
+        errorMessage: r.errorMessage,
+        ipAddress: r.ipAddress,
+        provider: r.provider,
+        userId: r.userId,
+      })),
+      meta: { page, limit: safeLimit, total, totalPages },
+    };
+  }
 }

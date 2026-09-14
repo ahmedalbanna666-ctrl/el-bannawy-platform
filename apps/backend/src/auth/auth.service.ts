@@ -55,6 +55,7 @@ export interface PendingLoginData {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly pendingLogins = new Map<string, PendingLoginData>();
 
   constructor(
@@ -87,17 +88,32 @@ export class AuthService {
     const normalizedEmail = dto.email.trim().toLowerCase();
     const existingEmail = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existingEmail) {
-      throw new ConflictException("Email already registered");
+      if (existingEmail.deletedAt !== null) {
+        throw new ConflictException("Email is linked to a deleted account. Please contact support.");
+      }
+      if (existingEmail.status !== "PENDING_VERIFICATION" || existingEmail.emailVerifiedAt) {
+        throw new ConflictException("Email already registered");
+      }
+      // Orphan pending verification — do NOT auto-recycle. Tell the client to
+      // redirect to the verification page where the email is editable (user may
+      // have mistyped it). After confirming, the client will resend or correct.
+      throw new ConflictException(`PENDING_VERIFICATION:${normalizedEmail}`);
     }
 
     // Always store the canonical +201XXXXXXXXX form so phone login matches.
     const normalizedMobile = dto.mobile ? normalizeEgyptMobile(dto.mobile) : null;
     if (normalizedMobile) {
-      const existingMobile = await this.prisma.user.findFirst({
-        where: { mobileNumber: normalizedMobile, deletedAt: null },
-      });
+      const existingMobile = await this.prisma.user.findUnique({ where: { mobileNumber: normalizedMobile } });
       if (existingMobile) {
-        throw new ConflictException("Mobile number already registered");
+        if (existingMobile.deletedAt !== null) {
+          throw new ConflictException("Mobile number is linked to a deleted account. Please contact support.");
+        }
+        if (existingMobile.status !== "PENDING_VERIFICATION" || existingMobile.emailVerifiedAt) {
+          throw new ConflictException("Mobile number already registered");
+        }
+        // Phone belongs to a pending orphan — redirect to its email verification
+        const orphanEmail = existingMobile.email ?? normalizedEmail;
+        throw new ConflictException(`PENDING_VERIFICATION:${orphanEmail.toLowerCase()}`);
       }
     }
 
@@ -211,6 +227,28 @@ export class AuthService {
     return { sent: true };
   }
 
+  async correctPendingEmail(dto: import("./dto/auth.dto").CorrectPendingEmailDto): Promise<{ sent: boolean }> {
+    const current = dto.currentEmail.trim().toLowerCase();
+    const newEmail = dto.newEmail.trim().toLowerCase();
+    if (current === newEmail) {
+      return this.resendVerification({ email: current });
+    }
+    const user = await this.prisma.user.findUnique({ where: { email: current } });
+    if (!user || user.deletedAt !== null || user.status !== "PENDING_VERIFICATION" || user.emailVerifiedAt) {
+      throw new NotFoundException("No pending account found for this email");
+    }
+    const existingNew = await this.prisma.user.findUnique({ where: { email: newEmail } });
+    if (existingNew) {
+      if (existingNew.deletedAt === null) {
+        throw new ConflictException("New email already registered");
+      }
+      throw new ConflictException("New email is linked to a deleted account. Please contact support.");
+    }
+    await this.prisma.user.update({ where: { id: user.id }, data: { email: newEmail } });
+    await this.sendVerificationCode(user.id, newEmail);
+    return { sent: true };
+  }
+
   async firebaseLogin(dto: FirebaseLoginDto): Promise<IAuthTokens> {
     const verified = await this.firebaseAuth.verifyIdToken(dto.idToken);
     if (!verified.email) {
@@ -286,7 +324,7 @@ export class AuthService {
     if (user.status !== "ACTIVE") {
       await this.logLoginAttempt(user.id, ipAddress, userAgent, false, "Account not active");
       if (user.status === "PENDING_VERIFICATION" && user.email) {
-        throw new UnauthorizedException("Please verify your email before logging in");
+        throw new UnauthorizedException(`PENDING_VERIFICATION:${user.email.toLowerCase()}`);
       }
       if (user.status === "SUSPENDED") {
         throw new UnauthorizedException("حسابك موقوف مؤقتاً. يرجى التواصل مع الدعم الفني.");
@@ -648,8 +686,10 @@ export class AuthService {
     email: string;
     providerId: string;
     provider: string;
+    ipAddress?: string;
+    userAgent?: string;
   }): Promise<IAuthTokens & { type: "existing" | "new" }> {
-    const { email, providerId, provider } = params;
+    const { email, providerId, provider, ipAddress, userAgent } = params;
 
     const existingUser = await this.prisma.user.findFirst({
       where: { email, deletedAt: null },
@@ -662,6 +702,9 @@ export class AuthService {
 
       await this.linkOAuthProvider(existingUser.id, provider, providerId);
       const tokens = await this.generateTokens(existingUser.id, existingUser.role);
+
+      await this.logLoginAttempt(existingUser.id, ipAddress, userAgent, true, null);
+      await this.logGoogleAuth(existingUser.id, email, provider, providerId, true, null, null, ipAddress, userAgent);
 
       if (needsProfileCompletion) {
         return { ...tokens, type: "new" };
@@ -683,8 +726,25 @@ export class AuthService {
 
     await this.bootstrapService.bootstrapNewStudent(user.id);
 
+    await this.logLoginAttempt(user.id, ipAddress, userAgent, true, null);
+    await this.logGoogleAuth(user.id, email, provider, providerId, true, null, null, ipAddress, userAgent);
+
     const tokens = await this.generateTokens(user.id, user.role);
     return { ...tokens, type: "new" };
+  }
+
+  async logGoogleAuthPublic(
+    userId: string | null,
+    email: string,
+    provider: string,
+    providerId: string,
+    success: boolean,
+    errorCode: string | null,
+    errorMessage: string | null,
+    ipAddress: string | undefined,
+    userAgent: string | undefined,
+  ): Promise<void> {
+    await this.logGoogleAuth(userId, email, provider, providerId, success, errorCode, errorMessage, ipAddress, userAgent);
   }
 
   isAppleConfigured(): boolean {
@@ -922,6 +982,36 @@ export class AuthService {
         failureReason,
       },
     });
+  }
+
+  private async logGoogleAuth(
+    userId: string | null,
+    email: string,
+    provider: string,
+    providerId: string,
+    success: boolean,
+    errorCode: string | null,
+    errorMessage: string | null,
+    ipAddress: string | undefined,
+    userAgent: string | undefined,
+  ): Promise<void> {
+    try {
+      await this.prisma.googleAuthLog.create({
+        data: {
+          userId,
+          email,
+          provider,
+          providerId,
+          success,
+          errorCode,
+          errorMessage,
+          ipAddress: ipAddress ?? null,
+          userAgent: userAgent ?? null,
+        },
+      });
+    } catch (err) {
+      this.logger.error(`Failed to log Google auth: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private async resolveAcademicContext(
