@@ -111,11 +111,13 @@ export class AuthController {
         userAgent,
       });
 
-      setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
-
       if (result.type === "existing") {
+        setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
         res.redirect(`${this.config.app.frontendUrl}/dashboard`);
       } else {
+        // Don't set auth cookies yet – the student hasn't completed registration.
+        // Cookies will be set by POST /auth/complete-oauth-registration after the
+        // student fills in their profile and academic data.
         res.redirect(
           `${this.config.app.frontendUrl}/register?oauth=google&email=${encodeURIComponent(googleProfile.email)}`,
         );
@@ -173,11 +175,11 @@ export class AuthController {
         provider: "apple",
       });
 
-      setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
-
       if (result.type === "existing") {
+        setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
         res.redirect(`${frontendUrl}/dashboard`);
       } else {
+        // Don't set auth cookies yet – registration incomplete.
         res.redirect(
           `${frontendUrl}/register?oauth=apple&email=${encodeURIComponent(profile.email)}`,
         );

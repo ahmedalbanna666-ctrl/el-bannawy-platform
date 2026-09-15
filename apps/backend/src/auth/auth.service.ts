@@ -101,20 +101,26 @@ export class AuthService {
     }
 
     // Always store the canonical +201XXXXXXXXX form so phone login matches.
-    const normalizedMobile = dto.mobile ? normalizeEgyptMobile(dto.mobile) : null;
-    if (normalizedMobile) {
-      const existingMobile = await this.prisma.user.findUnique({ where: { mobileNumber: normalizedMobile } });
-      if (existingMobile) {
-        if (existingMobile.deletedAt !== null) {
-          throw new ConflictException("Mobile number is linked to a deleted account. Please contact support.");
-        }
-        if (existingMobile.status !== "PENDING_VERIFICATION" || existingMobile.emailVerifiedAt) {
-          throw new ConflictException("Mobile number already registered");
-        }
-        // Phone belongs to a pending orphan — redirect to its email verification
-        const orphanEmail = existingMobile.email ?? normalizedEmail;
-        throw new ConflictException(`PENDING_VERIFICATION:${orphanEmail.toLowerCase()}`);
+    // Both phones are required (enforced by RegisterDto) and must differ.
+    const normalizedMobile = normalizeEgyptMobile(dto.mobile);
+    const normalizedParent = normalizeEgyptMobile(dto.parentMobile);
+    if (!normalizedMobile || !normalizedParent) {
+      throw new ConflictException("Student and parent mobile numbers are required");
+    }
+    if (normalizedMobile === normalizedParent) {
+      throw new ConflictException("Parent mobile must differ from student mobile");
+    }
+    const existingMobile = await this.prisma.user.findUnique({ where: { mobileNumber: normalizedMobile } });
+    if (existingMobile) {
+      if (existingMobile.deletedAt !== null) {
+        throw new ConflictException("Mobile number is linked to a deleted account. Please contact support.");
       }
+      if (existingMobile.status !== "PENDING_VERIFICATION" || existingMobile.emailVerifiedAt) {
+        throw new ConflictException("Mobile number already registered");
+      }
+      // Phone belongs to a pending orphan — redirect to its email verification
+      const orphanEmail = existingMobile.email ?? normalizedEmail;
+      throw new ConflictException(`PENDING_VERIFICATION:${orphanEmail.toLowerCase()}`);
     }
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
@@ -139,7 +145,7 @@ export class AuthService {
         englishName: dto.englishName ?? null,
         email: normalizedEmail,
         mobileNumber: normalizedMobile,
-        parentMobile: dto.parentMobile ?? null,
+        parentMobile: normalizedParent,
         passwordHash,
         firebaseUid,
         role: "STUDENT",
@@ -259,11 +265,15 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
 
     if (!user) {
-      throw new UnauthorizedException("No account found for this email. Please register first.");
+      throw new UnauthorizedException("لم يتم العثور على حساب بهذا البريد الإلكتروني. يرجى إنشاء حساب أولاً.");
+    }
+
+    if (user.deletedAt) {
+      throw new UnauthorizedException("تم حذف هذا الحساب. يرجى التواصل مع الدعم الفني.");
     }
 
     if (user.status !== "ACTIVE" || !user.emailVerifiedAt) {
-      throw new UnauthorizedException("Please verify your email before logging in");
+      throw new UnauthorizedException("يرجى إكمال إنشاء حسابك وتأكيد البريد الإلكتروني أولاً.");
     }
 
     if (user.firebaseUid && user.firebaseUid !== verified.uid) {
@@ -335,12 +345,12 @@ export class AuthService {
       if (user.status === "DELETED") {
         throw new UnauthorizedException("تم حذف هذا الحساب.");
       }
-      throw new UnauthorizedException("Account is not active");
+      throw new UnauthorizedException("الحساب غير نشط.");
     }
 
     if (!user.passwordHash) {
       await this.logLoginAttempt(user.id, ipAddress, userAgent, false, "No password set");
-      throw new UnauthorizedException("This account uses Google or Apple sign-in. Please sign in with that provider.");
+      throw new UnauthorizedException("هذا الحساب مسجل عبر Google أو Apple. يرجى تسجيل الدخول باستخدام تلك الطريقة.");
     }
 
     const recentFailedCount = await this.authRepo.findRecentLoginHistory(

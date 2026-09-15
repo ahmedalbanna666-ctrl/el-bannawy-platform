@@ -343,14 +343,20 @@ function RegisterForm(): ReactNode {
     if (mobile) {
       const mobileResult = validateEgyptMobile(mobile);
       if (!mobileResult.valid) { setError(mobileResult.message ?? "رقم هاتف غير صحيح"); return false; }
+    } else {
+      setError("رقم هاتف الطالب إجباري");
+      return false;
     }
 
     if (parentMobile) {
       const parentResult = validateEgyptMobile(parentMobile);
       if (!parentResult.valid) { setError(parentResult.message ?? "رقم ولي الأمر غير صحيح"); return false; }
+    } else {
+      setError("رقم هاتف ولي الأمر إجباري");
+      return false;
     }
 
-    if (mobile && parentMobile && normalizeEgyptMobile(mobile) === normalizeEgyptMobile(parentMobile)) {
+    if (normalizeEgyptMobile(mobile) === normalizeEgyptMobile(parentMobile)) {
       setError("رقم ولي الأمر لا يمكن أن يكون نفس رقم الطالب");
       return false;
     }
@@ -413,8 +419,8 @@ function RegisterForm(): ReactNode {
           email: verifiedEmail,
           fullName,
           englishName: englishName || undefined,
-          mobile: mobile ? normalizeEgyptMobile(mobile) : undefined,
-          parentMobile: parentMobile ? normalizeEgyptMobile(parentMobile) : undefined,
+          mobile: normalizeEgyptMobile(mobile),
+          parentMobile: normalizeEgyptMobile(parentMobile),
           password: undefined,
           governorate: governorate || undefined,
           school: school || undefined,
@@ -439,8 +445,8 @@ function RegisterForm(): ReactNode {
           fullName,
           englishName: englishName || undefined,
           email: email.trim().toLowerCase(),
-          mobile: mobile ? normalizeEgyptMobile(mobile) : undefined,
-          parentMobile: parentMobile ? normalizeEgyptMobile(parentMobile) : undefined,
+          mobile: normalizeEgyptMobile(mobile),
+          parentMobile: normalizeEgyptMobile(parentMobile),
           password,
           confirmPassword,
           governorate: governorate || undefined,
@@ -512,11 +518,6 @@ function RegisterForm(): ReactNode {
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium text-neutral-200 break-all">{verifiedEmail}</span>
-                  <span className="text-xs text-success-400">
-                    {oauthProvider === "google"
-                      ? "✓ تم تأكيد بريدك الإلكتروني عبر Google — لا تحتاج رمز تأكيد"
-                      : "✓ تم تأكيد بريدك الإلكتروني عبر Apple — لا تحتاج رمز تأكيد"}
-                  </span>
                 </div>
               </div>
             )}
@@ -541,19 +542,20 @@ function RegisterForm(): ReactNode {
               id="register-mobile"
               name="mobile"
               autoComplete="tel"
-              label="رقم الهاتف (اختياري)"
+              label="رقم هاتف الطالب"
               type="tel"
               placeholder="01234567890"
               value={mobile}
               onChange={(e): void => { setMobile(e.target.value); }}
               onBlur={(): void => { setMobile(mobile ? normalizeEgyptMobile(mobile) : ""); }}
               leftIcon={<Phone className="h-5 w-5" />}
+              required
             />
             <Input
               id="register-parentMobile"
               name="parentMobile"
               autoComplete="off"
-              label="رقم ولي الأمر"
+              label="رقم هاتف ولي الأمر"
               type="tel"
               placeholder="01234567890"
               value={parentMobile}
@@ -562,6 +564,7 @@ function RegisterForm(): ReactNode {
               leftIcon={<Phone className="h-5 w-5" />}
               data-lpignore="true"
               data-form-type="other"
+              required
             />
             {!isOAuth && (
               <>
