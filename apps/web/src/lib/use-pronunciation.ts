@@ -2,15 +2,32 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export type Accent = "en-US" | "en-GB";
+
+const ACCENT_KEY = "elb-pronunciation-accent";
+
+function getStoredAccent(): Accent {
+  if (typeof window === "undefined") return "en-US";
+  const stored = localStorage.getItem(ACCENT_KEY);
+  return stored === "en-GB" ? "en-GB" : "en-US";
+}
+
+export function setStoredAccent(accent: Accent): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(ACCENT_KEY, accent);
+}
+
 interface UsePronunciationReturn {
   speak: (text: string, itemId: string) => void;
   isSpeaking: (itemId: string) => boolean;
   isSupported: boolean;
   cancel: () => void;
+  accent: Accent;
 }
 
 export function usePronunciation(): UsePronunciationReturn {
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const [accent, setAccent] = useState<Accent>(getStoredAccent);
   const sequenceRef = useRef(0);
   const isSupported = typeof window !== "undefined" && "speechSynthesis" in window;
 
@@ -29,16 +46,16 @@ export function usePronunciation(): UsePronunciationReturn {
       const seq = sequenceRef.current;
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-US";
+      utterance.lang = accent;
       utterance.rate = 0.75;
 
       const voices = window.speechSynthesis.getVoices();
-      const enVoice = voices.find((v) => v.lang.startsWith("en-US"));
-      const anyEn = voices.find((v) => v.lang.startsWith("en-"));
-      if (enVoice) {
-        utterance.voice = enVoice;
-      } else if (anyEn) {
-        utterance.voice = anyEn;
+      const targetVoice = voices.find((v) => v.lang === accent);
+      const anyTarget = voices.find((v) => v.lang.startsWith(accent.split("-")[0]));
+      if (targetVoice) {
+        utterance.voice = targetVoice;
+      } else if (anyTarget) {
+        utterance.voice = anyTarget;
       }
 
       utterance.onstart = (): void => {
@@ -61,7 +78,7 @@ export function usePronunciation(): UsePronunciationReturn {
 
       window.speechSynthesis.speak(utterance);
     },
-    [isSupported],
+    [isSupported, accent],
   );
 
   const isSpeaking = useCallback(
@@ -77,5 +94,5 @@ export function usePronunciation(): UsePronunciationReturn {
     };
   }, [isSupported]);
 
-  return { speak, isSpeaking, isSupported, cancel };
+  return { speak, isSpeaking, isSupported, cancel, accent };
 }

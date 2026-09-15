@@ -13,8 +13,9 @@ import {
   Languages,
   ChevronLeft,
   BookX,
+  Globe,
 } from "lucide-react";
-import { usePronunciation } from "@/lib/use-pronunciation";
+import { usePronunciation, setStoredAccent, type Accent } from "@/lib/use-pronunciation";
 import { VocabCell } from "@/components/vocabulary/vocabulary-cell";
 import { VocabularyGroupHeader } from "@/components/vocabulary/vocabulary-group-header";
 import { RelationVocabularyTable } from "@/components/vocabulary/relation-vocabulary-table";
@@ -56,9 +57,18 @@ interface VocabApiResponse {
   };
 }
 
-function StandardVocabTable({ items }: { items: readonly VocabWord[] }): ReactNode {
+function StandardVocabTable({
+  items,
+  speak,
+  isSpeaking,
+  isSupported,
+}: {
+  items: readonly VocabWord[];
+  speak: (text: string, id: string) => void;
+  isSpeaking: (id: string) => boolean;
+  isSupported: boolean;
+}): ReactNode {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const { speak, isSpeaking, isSupported } = usePronunciation();
 
   const buildPairs = (items: readonly VocabWord[]): (readonly [VocabWord | null, VocabWord | null])[] => {
     const result: (readonly [VocabWord | null, VocabWord | null])[] = [];
@@ -172,6 +182,8 @@ export default function StudentVocabularyPage(): ReactNode {
   const params = useParams();
   const router = useRouter();
   const lessonId = params.lessonId as string;
+  const { speak, isSpeaking, isSupported, accent } = usePronunciation();
+  const [showAccentMenu, setShowAccentMenu] = useState(false);
 
   const {
     data: lesson,
@@ -249,6 +261,64 @@ export default function StudentVocabularyPage(): ReactNode {
             )}
           </div>
         </div>
+
+        {/* Accent toggle */}
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={(): void => { setShowAccentMenu((p) => !p); }}
+            className="flex items-center gap-2 rounded-xl border-2 border-neutral-200 bg-white px-3 py-2 text-xs font-bold transition-all hover:border-primary-500/50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:border-primary-400/50"
+          >
+            <Globe className="h-4 w-4 text-primary-500" />
+            <span className="text-neutral-700 dark:text-neutral-300">
+              {accent === "en-US" ? "أمريكي" : "بريطاني"}
+            </span>
+          </button>
+          {showAccentMenu && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={(): void => { setShowAccentMenu(false); }}
+              />
+              <div className="absolute left-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-800">
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setStoredAccent("en-US");
+                    setShowAccentMenu(false);
+                    window.location.reload();
+                  }}
+                  className={`flex w-full items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors hover:bg-primary-50 dark:hover:bg-primary-500/10 ${
+                    accent === "en-US"
+                      ? "text-primary-600 dark:text-primary-400"
+                      : "text-neutral-700 dark:text-neutral-300"
+                  }`}
+                >
+                  <span className="text-lg">🇺🇸</span>
+                  <span>النطق الأمريكي</span>
+                  {accent === "en-US" && <span className="mr-auto text-primary-500">✓</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    setStoredAccent("en-GB");
+                    setShowAccentMenu(false);
+                    window.location.reload();
+                  }}
+                  className={`flex w-full items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors hover:bg-primary-50 dark:hover:bg-primary-500/10 ${
+                    accent === "en-GB"
+                      ? "text-primary-600 dark:text-primary-400"
+                      : "text-neutral-700 dark:text-neutral-300"
+                  }`}
+                >
+                  <span className="text-lg">🇬🇧</span>
+                  <span>النطق البريطاني</span>
+                  {accent === "en-GB" && <span className="mr-auto text-primary-500">✓</span>}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {totalCount === 0 ? (
@@ -282,7 +352,12 @@ export default function StudentVocabularyPage(): ReactNode {
                 {isRelation ? (
                   <RelationVocabularyTable items={group.items} />
                 ) : (
-                  <StandardVocabTable items={group.items} />
+                  <StandardVocabTable
+                    items={group.items}
+                    speak={speak}
+                    isSpeaking={isSpeaking}
+                    isSupported={isSupported}
+                  />
                 )}
               </div>
             );
