@@ -59,6 +59,14 @@ function LoginForm(): ReactNode {
         setConfirmToken(err.confirmToken);
         setShowConfirmDialog(true);
       } else {
+        // If the error is PENDING_VERIFICATION:email, redirect to the
+        // registration page's email verification screen.
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.startsWith("PENDING_VERIFICATION:")) {
+          const pendingEmail = msg.slice("PENDING_VERIFICATION:".length).trim().toLowerCase();
+          router.push(`/register?verify=true&email=${encodeURIComponent(pendingEmail)}`);
+          return;
+        }
         // If the account is suspended/banned/deleted, show the dedicated
         // screen with the grade's support WhatsApp instead of a plain error.
         try {
@@ -75,7 +83,7 @@ function LoginForm(): ReactNode {
         } catch {
           // ignore — fall through to the generic error
         }
-        setError(err instanceof Error ? err.message : "Login failed");
+        setError(msg || "Login failed");
       }
     } finally {
       setLoading(false);
