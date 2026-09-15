@@ -373,7 +373,7 @@ export class HomeService {
           href: `/dashboard/lessons/detail/${currentProgress.lessonId}`,
         };
       }
-      return { type: "start", label: "ابدأ الآن", href: "/dashboard/units" };
+      return { type: "start", label: "ابدأ رحلتك الدراسية", href: "/dashboard/units" };
     }
 
     // 2) Ordered curriculum (units → lessons) for the student's context.
