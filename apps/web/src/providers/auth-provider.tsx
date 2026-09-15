@@ -40,6 +40,7 @@ interface AuthContextValue {
   register: (payload: RegisterPayload) => Promise<{ userId: string; requiresEmailVerification: boolean }>;
   verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
+  correctPendingEmail: (currentEmail: string, newEmail: string) => Promise<void>;
   firebaseLogin: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   oauthRegister: (payload: OAuthRegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
@@ -258,6 +259,20 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
     [],
   );
 
+  const correctPendingEmail = useCallback(
+    async (currentEmail: string, newEmail: string): Promise<void> => {
+      const response = await api.post<{ sent: boolean }>(
+        "/auth/correct-pending-email",
+        { currentEmail, newEmail },
+        { skipAuthRetry: true },
+      );
+      if (!response.data?.sent) {
+        throw new Error("Failed to update email");
+      }
+    },
+    [],
+  );
+
   const firebaseLogin = useCallback(
     async (email: string, password: string, rememberMe = false): Promise<void> => {
       const { signInFirebaseUser } = await import("@/lib/firebase-auth");
@@ -275,12 +290,22 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         if (!response.data) {
           throw new Error("Login failed");
         }
-      } catch {
-        // The backend rejected the Firebase ID token (e.g. Firebase Admin is
-        // not configured server-side, or the account was not linked). Fall
-        // back to the platform's own credentials so email login still works.
-        await login(email, password, rememberMe);
-        return;
+      } catch (err) {
+        // Only fall back to platform login for Firebase-specific errors
+        // (e.g. Firebase Admin not configured server-side). Let real
+        // business errors (account not found, deleted, suspended, etc.)
+        // propagate so the user sees the Arabic message from the backend.
+        const msg = err instanceof Error ? err.message : "";
+        if (
+          msg.includes("Firebase") ||
+          msg.includes("firebase") ||
+          msg.includes("id_token") ||
+          msg.includes("not configured")
+        ) {
+          await login(email, password, rememberMe);
+          return;
+        }
+        throw err;
       }
       await fetchUser();
       queryClient.removeQueries({ queryKey: ["profile"] });
@@ -328,6 +353,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
         register,
         verifyEmail,
         resendVerification,
+        correctPendingEmail,
         firebaseLogin,
         oauthRegister,
         logout,
