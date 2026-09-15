@@ -698,7 +698,7 @@ export class AuthService {
     provider: string;
     ipAddress?: string;
     userAgent?: string;
-  }): Promise<IAuthTokens & { type: "existing" | "new" }> {
+  }): Promise<IAuthTokens & { type: "existing" | "new" | "verify" }> {
     const { email, providerId, provider, ipAddress, userAgent } = params;
 
     const existingUser = await this.prisma.user.findFirst({
@@ -706,6 +706,15 @@ export class AuthService {
     });
 
     if (existingUser) {
+      // If the user was created manually (not via OAuth) and hasn't verified
+      // their email yet, redirect them to the verification screen.
+      if (existingUser.status === "PENDING_VERIFICATION" && !existingUser.emailVerifiedAt) {
+        await this.linkOAuthProvider(existingUser.id, provider, providerId);
+        await this.sendVerificationCode(existingUser.id, email);
+        const tokens = await this.generateTokens(existingUser.id, existingUser.role);
+        return { ...tokens, type: "verify" };
+      }
+
       const needsProfileCompletion =
         existingUser.status === "PENDING_VERIFICATION" ||
         !existingUser.fullName.trim();

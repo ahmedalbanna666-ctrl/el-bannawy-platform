@@ -285,6 +285,7 @@ function RegisterForm(): ReactNode {
   const oauthProvider = searchParams.get("oauth");
   const verifiedEmail = searchParams.get("email");
   const isOAuth = oauthProvider === "google" || oauthProvider === "apple";
+  const forceVerify = searchParams.get("verify") === "true";
 
   // Referral code prefill from ?ref=CODE
   const refParam = searchParams.get("ref");
@@ -301,7 +302,7 @@ function RegisterForm(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
-  const [needsVerification, setNeedsVerification] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(() => forceVerify);
 
   // Step 1 fields
   const [fullName, setFullName] = useState("");
@@ -494,7 +495,15 @@ function RegisterForm(): ReactNode {
     return (
       <VerifyEmailScreen
         email={email.trim().toLowerCase()}
-        onVerified={() => { setNeedsVerification(false); setRegistered(true); }}
+        onVerified={() => {
+          setNeedsVerification(false);
+          if (isOAuth && forceVerify) {
+            // OAuth user came back to verify email — now show the registration form
+            setRegistered(false);
+          } else {
+            setRegistered(true);
+          }
+        }}
       />
     );
   }

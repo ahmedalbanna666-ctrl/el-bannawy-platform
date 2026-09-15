@@ -114,6 +114,13 @@ export class AuthController {
       if (result.type === "existing") {
         setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
         res.redirect(`${this.config.app.frontendUrl}/dashboard`);
+      } else if (result.type === "verify") {
+        // User has an incomplete registration with unverified email.
+        // Redirect to the registration page with verify=true so it shows
+        // the email verification screen directly.
+        res.redirect(
+          `${this.config.app.frontendUrl}/register?oauth=google&email=${encodeURIComponent(googleProfile.email)}&verify=true`,
+        );
       } else {
         // Don't set auth cookies yet – the student hasn't completed registration.
         // Cookies will be set by POST /auth/complete-oauth-registration after the
@@ -178,6 +185,10 @@ export class AuthController {
       if (result.type === "existing") {
         setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
         res.redirect(`${frontendUrl}/dashboard`);
+      } else if (result.type === "verify") {
+        res.redirect(
+          `${frontendUrl}/register?oauth=apple&email=${encodeURIComponent(profile.email)}&verify=true`,
+        );
       } else {
         // Don't set auth cookies yet – registration incomplete.
         res.redirect(
