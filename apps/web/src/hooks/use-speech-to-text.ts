@@ -12,14 +12,15 @@ interface UseSpeechToTextReturn {
 
 /**
  * Hook for browser-native speech-to-text (Web Speech API).
- * Returns transcript via `onResult` callback.
+ * Calls onResult with ONLY the new text (not the full accumulated transcript).
  */
 export function useSpeechToText(
-  onResult: (transcript: string) => void,
+  onResult: (newText: string) => void,
 ): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const lastSentRef = useRef("");
 
   const isSupported =
     typeof window !== "undefined" &&
@@ -31,6 +32,7 @@ export function useSpeechToText(
       recognitionRef.current = null;
     }
     setIsListening(false);
+    lastSentRef.current = "";
   }, []);
 
   const start = useCallback((): void => {
@@ -40,26 +42,24 @@ export function useSpeechToText(
     }
 
     setError(null);
+    lastSentRef.current = "";
 
     const SpeechRecognitionCtor =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognitionCtor();
 
-    recognition.lang = "en-US"; // English for English learning platform
+    recognition.lang = "en-US";
     recognition.continuous = true;
-    recognition.interimResults = true;
-
-    let finalTranscript = "";
+    recognition.interimResults = false; // Only send final results
 
     recognition.onresult = (event: SpeechRecognitionEvent): void => {
-      let interimTranscript = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalTranscript += transcript + " ";
-          onResult(finalTranscript.trim());
-        } else {
-          interimTranscript += transcript;
+          const transcript = event.results[i][0].transcript.trim();
+          if (transcript) {
+            lastSentRef.current += transcript + " ";
+            onResult(transcript);
+          }
         }
       }
     };
