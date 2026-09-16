@@ -426,6 +426,7 @@ export default function StudentsPage(): ReactNode {
           confirmAction={confirmAction}
           studentName={detail?.fullName ?? ""}
           currentStatus={detail?.status}
+          sendNotifMutation={sendNotifMutation}
         />
       </div>
     );
@@ -780,6 +781,7 @@ export default function StudentsPage(): ReactNode {
         studentId={selectedStudentId ?? undefined}
         studentName={selectedStudentId ? (detail?.fullName ?? "") : ""}
         currentStatus={selectedStudentId ? detail?.status : undefined}
+        sendNotifMutation={sendNotifMutation}
       />
     </div>
   );
@@ -1113,6 +1115,7 @@ function ActionDialogs({
   confirmAction,
   studentName,
   currentStatus,
+  sendNotifMutation,
 }: {
   dialog: { type: string | null };
   setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "suspend" | "ban" | "delete" | "inactive-list" | "inactive-reminder" | null; students?: { id: string; fullName: string; email: string; mobileNumber?: string; registeredAt?: string; grade?: string | null; coins?: number }[] }) => void;
@@ -1120,6 +1123,7 @@ function ActionDialogs({
   confirmAction: { mutate: (p: { method: string; endpoint: string; body?: unknown }) => void; isPending?: boolean };
   studentName?: string;
   currentStatus?: string;
+  sendNotifMutation?: { mutate: (p: { title: string; message: string; targetType: string; targetId?: string }) => void; isPending?: boolean };
 }): ReactNode {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
 
@@ -1132,22 +1136,58 @@ function ActionDialogs({
 
   // Special dialogs that don't use the standard field form
   if (dialog.type === "inactive-list") {
+    const grouped = (dialog.students ?? []).reduce<Record<string, typeof dialog.students>>((acc, s) => {
+      const g = s.grade ?? "غير محدد";
+      acc[g] = acc[g] ?? [];
+      acc[g].push(s);
+      return acc;
+    }, {});
+
     return (
       <Dialog open onClose={close} title="الطلاب غير النشطين (15 يوم بدون شراء)">
-        <DialogContent className="space-y-3 max-h-96 overflow-y-auto">
-          {(!dialog.students || dialog.students.length === 0) ? (
+        <DialogContent className="space-y-4 max-h-[32rem] overflow-y-auto">
+          {Object.keys(grouped).length === 0 ? (
             <p className="text-sm text-neutral-500 text-center py-4">لا يوجد طلاب غير نشطين</p>
           ) : (
-            dialog.students.map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
-                <div>
-                  <p className="font-semibold text-neutral-900 dark:text-neutral-100">{s.fullName}</p>
-                  <p className="text-xs text-neutral-500">{s.email} {s.grade ? `• ${s.grade}` : ""}</p>
+            Object.entries(grouped).map(([grade, students]) => (
+              <div key={grade}>
+                <div className="flex items-center gap-2 mb-2 sticky top-0 bg-white dark:bg-neutral-900 py-1 z-10">
+                  <GraduationCap className="h-4 w-4 text-primary-500" />
+                  <span className="text-sm font-bold text-primary-700 dark:text-primary-300">{grade}</span>
+                  <Badge variant="info">{students.length}</Badge>
                 </div>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="outline" className="text-amber-500 text-xs" onClick={() => { close(); setDialog({ type: "suspend" }); }}>إيقاف</Button>
-                  <Button size="sm" variant="outline" className="text-red-500 text-xs" onClick={() => { close(); setDialog({ type: "ban" }); }}>حظر</Button>
-                  <Button size="sm" variant="outline" className="text-red-500 text-xs" onClick={() => { close(); setDialog({ type: "delete" }); }}>حذف</Button>
+                <div className="flex flex-col gap-2">
+                  {students.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
+                      <div>
+                        <p className="font-semibold text-neutral-900 dark:text-neutral-100">{s.fullName}</p>
+                        <p className="text-xs text-neutral-500">{s.email}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-500 text-xs border-blue-200 hover:bg-blue-50"
+                          loading={sendNotifMutation?.isPending}
+                          onClick={() => {
+                            const gradeText = s.grade ? ` (${s.grade})` : "";
+                            sendNotifMutation?.mutate({
+                              title: `تذكير بالاشتراك${gradeText}`,
+                              message: `مرحباً${s.fullName}${gradeText}،فى حال عدم الرغبة فى الاشتراك أو الاستفادة من المحتوى فستقوم المنصة بإيقاف الحساب لتوفير مكان للطلاب الذين يرغبون فى الاشتراك فى المنصة ولكنهم فى قائمة الانتظار.`,
+                              targetType: "individual",
+                              targetId: s.id,
+                            });
+                          }}
+                        >
+                          <Bell className="h-3 w-3 ml-0.5" />
+                          تذكير
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-amber-500 text-xs" onClick={() => { close(); setDialog({ type: "suspend" }); }}>إيقاف</Button>
+                        <Button size="sm" variant="outline" className="text-red-500 text-xs" onClick={() => { close(); setDialog({ type: "ban" }); }}>حظر</Button>
+                        <Button size="sm" variant="outline" className="text-red-500 text-xs" onClick={() => { close(); setDialog({ type: "delete" }); }}>حذف</Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))
@@ -1161,37 +1201,45 @@ function ActionDialogs({
   }
 
   if (dialog.type === "inactive-reminder") {
+    const grouped = (dialog.students ?? []).reduce<Record<string, typeof dialog.students>>((acc, s) => {
+      const g = s.grade ?? "غير محدد";
+      acc[g] = acc[g] ?? [];
+      acc[g].push(s);
+      return acc;
+    }, {});
+
     return (
       <Dialog open onClose={close} title="إرسال تذكير للطلاب غير النشطين">
-        <DialogContent className="space-y-3">
+        <DialogContent className="space-y-3 max-h-[32rem] overflow-y-auto">
+          {Object.entries(grouped).map(([grade, students]) => (
+            <div key={grade}>
+              <div className="flex items-center gap-2 mb-2">
+                <GraduationCap className="h-4 w-4 text-primary-500" />
+                <span className="text-sm font-bold text-primary-700 dark:text-primary-300">{grade}</span>
+                <Badge variant="info">{students.length}</Badge>
+              </div>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
+                سيتم إرسال رسالة تذكير لـ {students.length} طالب من هذا الصف
+              </p>
+            </div>
+          ))}
           <div className="rounded-xl bg-amber-50 p-4 dark:bg-amber-900/20">
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              سيتم إرسال رسالة تذكير إلى <span className="font-bold">{dialog.students?.length ?? 0}</span> طالب
-              لم يشتروا أي محتوى أو يدخلوا رموز فتح منذ 10 أيام.
-            </p>
-            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
               الرسالة: "فى حال عدم الرغبة فى الاشتراك أو الاستفادة من المحتوى فستقوم المنصة بإيقاف الحساب لتوفير مكان للطلاب الذين يرغبون فى الاشتراك فى المنصة ولكنهم فى قائمة الانتظار"
             </p>
           </div>
         </DialogContent>
         <DialogFooter>
           <Button variant="outline" onClick={close}>إلغاء</Button>
-          <Button onClick={() => {
-            // Send reminder to each student
-            if (dialog.students) {
+          <Button loading={sendNotifMutation?.isPending} onClick={() => {
+            if (dialog.students && sendNotifMutation) {
               for (const s of dialog.students) {
-                confirmAction.mutate({
-                  method: "post",
-                  endpoint: "/notifications/send",
-                  body: {
-                    type: "inactivity_reminder",
-                    title: "تذكير belang重要",
-                    message: "فى حال عدم الرغبة فى الاشتراك أو الاستفادة من المحتوى فستقوم المنصة بإيقاف الحساب لتوفير مكان للطلاب الذين يرغبون فى الاشتراك فى المنصة ولكنهم فى قائمة الانتظار",
-                    priority: "HIGH",
-                    channel: "IN_APP",
-                    targetType: "individual",
-                    targetId: s.id,
-                  },
+                const gradeText = s.grade ? ` (${s.grade})` : "";
+                sendNotifMutation.mutate({
+                  title: `تذكير بالاشتراك${gradeText}`,
+                  message: `مرحباً${s.fullName}${gradeText}،فى حال عدم الرغبة فى الاشتراك أو الاستفادة من المحتوى فستقوم المنصة بإيقاف الحساب لتوفير مكان للطلاب الذين يرغبون فى الاشتراك فى المنصة ولكنهم فى قائمة الانتظار.`,
+                  targetType: "individual",
+                  targetId: s.id,
                 });
               }
             }
