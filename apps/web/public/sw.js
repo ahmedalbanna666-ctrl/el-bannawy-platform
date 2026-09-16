@@ -282,13 +282,16 @@ self.addEventListener("push", (event) => {
   const data = event.data?.json();
   if (!data) return;
   const title = data.notification?.title ?? data.title ?? "إشعار جديد";
+  const icon = data.notification?.icon ?? data.webpush?.notification?.icon ?? "/logo.jpeg";
+  const badge = data.webpush?.notification?.badge ?? "/icons/icon-96.png";
+  const image = data.notification?.image ?? data.webpush?.notification?.image ?? "/logo.jpeg";
   const options = {
     body: data.notification?.body ?? data.body ?? "",
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-48.png",
+    icon,
+    badge,
+    image,
     vibrate: [200, 100, 200],
     data: data.data ?? {},
-    ...(data.notification?.image ? { image: data.notification.image } : {}),
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });

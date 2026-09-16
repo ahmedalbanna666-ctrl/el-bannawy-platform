@@ -42,14 +42,31 @@ export class FcmService implements OnModuleInit {
       const tokens = await this.getUserTokens(userId);
       if (tokens.length === 0) return { success: false, error: "No device tokens" };
 
+      const FRONTEND_URL = process.env.FRONTEND_URL || process.env.CORS_ORIGINS?.split(",")[0] || "https://www.elbannawy.online";
+      const LOGO_URL = `${FRONTEND_URL}/logo.jpeg`;
+
       // eslint-disable-next-line @typescript-eslint/no-deprecated -- MulticastMessage with tokens is the standard FCM web push API
       const payload: MulticastMessage = {
         tokens,
-        notification: { title, body: message },
+        notification: { title, body: message, image: LOGO_URL } as MulticastMessage["notification"],
         data: data ?? {},
-        android: { priority: "high" },
+        android: {
+          priority: "high",
+          notification: {
+            icon: "icon-192",
+            color: "#06b6d4",
+            image: LOGO_URL,
+          },
+        } as never,
         apns: { payload: { aps: { sound: "default", badge: 1 } } },
-        webpush: { headers: { Urgency: "high" } },
+        webpush: {
+          headers: { Urgency: "high" },
+          notification: {
+            icon: LOGO_URL,
+            badge: `${FRONTEND_URL}/icons/icon-96.png`,
+            image: LOGO_URL,
+          },
+        },
       };
 
       const messaging = getMessaging(fcmApp);
