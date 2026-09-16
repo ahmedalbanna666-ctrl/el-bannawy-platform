@@ -299,7 +299,19 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const urlToOpen = new URL("/dashboard/notifications", self.location.origin).href;
+  const type = event.notification.data?.type ?? "";
+  const urlMap = {
+    coin_credit: "/dashboard/shop",
+    achievement: "/dashboard/achievements",
+    teacher_announcement: "/dashboard/notifications",
+    lesson_reminder: "/dashboard/units",
+    homework_reminder: "/dashboard/units",
+    quiz_reminder: "/dashboard/units",
+    live_session_reminder: "/dashboard/live",
+    report_ready: "/dashboard/reports",
+    payment_receipt: "/dashboard/payments",
+  };
+  const urlToOpen = new URL(urlMap[type] ?? "/dashboard/notifications", self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {

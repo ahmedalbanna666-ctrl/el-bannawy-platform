@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bell, BellOff, CheckCheck } from "lucide-react";
+import { ArrowLeft, Bell, BellOff, CheckCheck, Loader2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,6 +30,24 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("ar-EG");
 }
 
+function getNotificationUrl(type: string, message?: string): string {
+  const urlMatch = message?.match(/https?:\/\/[^\s]+/);
+  if (urlMatch) return urlMatch[0];
+
+  const mapping: Record<string, string> = {
+    coin_credit: "/dashboard/shop",
+    achievement: "/dashboard/achievements",
+    teacher_announcement: "/dashboard/notifications",
+    lesson_reminder: "/dashboard/units",
+    homework_reminder: "/dashboard/units",
+    quiz_reminder: "/dashboard/units",
+    live_session_reminder: "/dashboard/live",
+    report_ready: "/dashboard/reports",
+    payment_receipt: "/dashboard/payments",
+  };
+  return mapping[type] ?? "/dashboard/notifications";
+}
+
 export function NotificationsDropdown(): ReactNode {
   const router = useRouter();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -37,18 +55,35 @@ export function NotificationsDropdown(): ReactNode {
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [error, setError] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [viewMode, setViewMode] = useState<"unread" | "all">("unread");
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(false);
     try {
       const [listRes, countRes] = await Promise.all([
-        api.get<NotificationItem[]>("/notifications?limit=5"),
+        api.get<NotificationItem[]>("/notifications?filter=unread&limit=5"),
         api.get<{ count: number }>("/notifications/unread-count"),
       ]);
       if (listRes.data) setItems(listRes.data);
       if (countRes.data) setUnreadCount(countRes.data.count);
     } catch {
       setError(true);
+    }
+  }, []);
+
+  const loadAll = useCallback(async (): Promise<void> => {
+    setLoadingMore(true);
+    try {
+      const res = await api.get<NotificationItem[]>("/notifications?limit=20");
+      if (res.data) {
+        setItems(res.data);
+        setViewMode("all");
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoadingMore(false);
     }
   }, []);
 
@@ -59,6 +94,7 @@ export function NotificationsDropdown(): ReactNode {
   useEffect(() => {
     if (!open) return;
     void refresh();
+    setViewMode("unread");
 
     function handleKeyDown(e: KeyboardEvent): void {
       if (e.key === "Escape") setOpen(false);
@@ -80,6 +116,10 @@ export function NotificationsDropdown(): ReactNode {
 
   const handleRead = useCallback(
     async (item: NotificationItem): Promise<void> => {
+      const url = getNotificationUrl(item.type, item.message);
+      setOpen(false);
+      router.push(url);
+
       if (item.isRead) return;
       const previous = items;
       setItems((current) =>
@@ -93,7 +133,7 @@ export function NotificationsDropdown(): ReactNode {
         setUnreadCount((count) => Math.max(0, count + 1));
       }
     },
-    [items],
+    [items, router],
   );
 
   const handleMarkAllRead = useCallback(async (): Promise<void> => {
@@ -113,7 +153,7 @@ export function NotificationsDropdown(): ReactNode {
     router.push("/dashboard/notifications");
   }, [router]);
 
-  const unreadItems = items?.filter((n) => !n.isRead).length ?? 0;
+  const hasUnread = items?.some((n) => !n.isRead) ?? false;
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -145,7 +185,7 @@ export function NotificationsDropdown(): ReactNode {
                 </span>
               ) : null}
             </h2>
-            {unreadItems > 0 && (
+            {hasUnread && (
               <Button
                 variant="ghost"
                 size="xs"
@@ -189,7 +229,7 @@ export function NotificationsDropdown(): ReactNode {
               <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
                 <BellOff className="h-8 w-8 text-neutral-400" />
                 <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                  لا توجد إشعارات
+                  {viewMode === "unread" ? "لا توجد إشعارات غير مقرؤه" : "لا توجد إشعارات"}
                 </p>
               </div>
             ) : (
@@ -235,15 +275,32 @@ export function NotificationsDropdown(): ReactNode {
           </div>
 
           <div className="border-t border-neutral-200 p-2 dark:border-neutral-700">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full text-sm"
-              onClick={handleViewAll}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              عرض كل الإشعارات
-            </Button>
+            {viewMode === "unread" && items && items.length > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-sm"
+                onClick={(): void => { void loadAll(); }}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowLeft className="h-4 w-4" />
+                )}
+                المزيد
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-sm"
+                onClick={handleViewAll}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                عرض كل الإشعارات
+              </Button>
+            )}
           </div>
         </div>
       )}
