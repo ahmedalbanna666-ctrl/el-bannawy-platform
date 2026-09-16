@@ -371,7 +371,7 @@ function processMCQSection(
   sectionTables: NormalizedTable[],
   groupId: string,
   startOrder: number,
-  answerKey: Map<string, string>,
+  answerKey: Map<string, ParsedAnswerEntry>,
 ): { items: QuestionPreviewItem[]; usedTables: number } {
   const items: QuestionPreviewItem[] = [];
   let tableCursor = 0;
@@ -442,14 +442,19 @@ function processMCQSection(
     const prompt = cleanPromptFromOptions(questionLine, options);
     if (!prompt && options.length === 0) continue;
 
-    const answerFromKey = answerKey.get(effectiveNum);
+    const answerEntry = answerKey.get(effectiveNum);
+    const answerFromKey = answerEntry?.value ?? null;
+    const correctionMode = answerEntry?.correctionMode;
     items.push(createMcqItem(
       prompt || `Question ${String(startOrder + items.length + 1)}`,
       options,
-      answerFromKey ?? null,
+      answerFromKey,
       groupId,
       startOrder + items.length,
       null,
+      undefined,
+      undefined,
+      correctionMode,
     ));
 
     qNum++;
@@ -501,7 +506,7 @@ function processTrueFalseSection(
   lines: string[],
   groupId: string,
   startOrder: number,
-  answerKey: Map<string, string>,
+  answerKey: Map<string, ParsedAnswerEntry>,
 ): QuestionPreviewItem[] {
   const items: QuestionPreviewItem[] = [];
   const questionBlocks = splitQuestionBlocks(lines);
@@ -513,7 +518,8 @@ function processTrueFalseSection(
     const prompt = stripQuestionPrefix(joined).replace(/\s*\([^)]*\)\s*$/, "").trim();
     if (!prompt) continue;
 
-    const answer = answerKey.get(qNum);
+    const answerEntry = answerKey.get(qNum);
+    const answer = answerEntry?.value;
     const isTrue = answer?.toLowerCase() === "t" || answer?.toLowerCase() === "true";
     items.push(createTrueFalseItem(prompt, isTrue, groupId, startOrder + items.length));
   }
@@ -525,7 +531,7 @@ function processDialogueSection(
   lines: string[],
   groupId: string,
   startOrder: number,
-  answerKey: Map<string, string>,
+  answerKey: Map<string, ParsedAnswerEntry>,
   sectionTables: NormalizedTable[] = [],
 ): QuestionPreviewItem[] {
   const items: QuestionPreviewItem[] = [];
@@ -561,7 +567,7 @@ function processDialogueSection(
         if (!blankMatch) return { speaker: dl.speaker, text: dl.text, hasBlank: false };
         if (!blankPattern.test(dl.text)) return { speaker: dl.speaker, text: dl.text, hasBlank: false };
         blankCount++;
-        blankAnswers.push(answerKey.get(blankMatch[1]) ?? "");
+        blankAnswers.push(answerKey.get(blankMatch[1])?.value ?? "");
         return {
           speaker: dl.speaker,
           text: dl.text.replace(blankPattern, "___"),
@@ -617,8 +623,8 @@ function processDialogueSection(
     const prompt = stripQuestionPrefix(line).replace(/^Student\s+[AB]\s*/i, "").trim();
     if (!prompt) continue;
 
-    const answer = answerKey.get(qNum);
-    items.push(createQuestionItem("DIALOGUE", prompt, answer ?? null, groupId, startOrder + items.length));
+    const answerEntry = answerKey.get(qNum);
+    items.push(createQuestionItem("DIALOGUE", prompt, answerEntry?.value ?? null, groupId, startOrder + items.length));
   }
 
   return items;
@@ -628,7 +634,7 @@ function processGrammarSection(
   lines: string[],
   groupId: string,
   startOrder: number,
-  answerKey: Map<string, string>,
+  answerKey: Map<string, ParsedAnswerEntry>,
 ): QuestionPreviewItem[] {
   const items: QuestionPreviewItem[] = [];
   const questionBlocks = splitQuestionBlocks(lines);
@@ -640,7 +646,8 @@ function processGrammarSection(
     const prompt = stripQuestionPrefix(joined);
     if (!prompt) continue;
 
-    const answer = answerKey.get(qNum);
+    const answerEntry = answerKey.get(qNum);
+    const answer = answerEntry?.value;
     if (!answer) continue;
 
     // Grammar must generate valid MCQ with correct + 3 wrong options
@@ -721,6 +728,7 @@ function createMcqItem(
   instruction: string | null,
   passageText?: string | null,
   questionType?: QuestionPreviewType,
+  correctionMode?: string,
 ): QuestionPreviewItem {
   // Handle multi-letter correct answers (e.g. "ab" means options a and b are correct)
   const correctLabels = new Set<string>();
@@ -767,6 +775,7 @@ function createMcqItem(
     warnings,
     errors,
     groupId,
+    ...(correctionMode ? { correctionMode } : {}),
   };
 }
 
@@ -806,6 +815,7 @@ function createQuestionItem(
   groupId: string,
   displayOrder: number,
   passageText?: string | null,
+  correctionMode?: string,
 ): QuestionPreviewItem {
   const warnings: string[] = [];
   if (!prompt) warnings.push("Question prompt is empty");
@@ -827,6 +837,7 @@ function createQuestionItem(
     warnings,
     errors: [],
     groupId,
+    ...(correctionMode ? { correctionMode } : {}),
   };
 }
 
@@ -866,6 +877,25 @@ const ARABIC_TO_LATIN_KEY: Record<string, string> = {
   و: "f",
 };
 
+export interface ParsedAnswerEntry {
+  value: string;
+  correctionMode?: string;
+}
+
+function isAiAnswer(raw: string): { isAi: boolean; aiAnswer: string | null } {
+  const trimmed = raw.trim();
+  // "Ai" alone → AI mode with no reference answer
+  if (/^ai$/i.test(trimmed)) {
+    return { isAi: true, aiAnswer: null };
+  }
+  // "Ai = answer" → AI mode with reference answer
+  const aiMatch = trimmed.match(/^ai\s*=\s*(.+)$/i);
+  if (aiMatch) {
+    return { isAi: true, aiAnswer: aiMatch[1].trim() };
+  }
+  return { isAi: false, aiAnswer: null };
+}
+
 function normalizeAnswerValue(raw: string): string {
   let v = raw.trim().replace(/^[,\s;]+/, "").replace(/[,;\s]+$/, "").replace(/^["'\(\[]+/, "").replace(/["'\)\]]+$/, "").trim();
   if (!v) return v;
@@ -885,8 +915,8 @@ function normalizeAnswerValue(raw: string): string {
   return v;
 }
 
-function parseAnswerKey(lines: string[], tables: readonly NormalizedTable[] = []): Map<string, string> {
-  const key = new Map<string, string>();
+function parseAnswerKey(lines: string[], tables: readonly NormalizedTable[] = []): Map<string, ParsedAnswerEntry> {
+  const key = new Map<string, ParsedAnswerEntry>();
 
   // 1) Table-based answer keys (each row = number + answer)
   for (const tbl of tables) {
@@ -896,7 +926,12 @@ function parseAnswerKey(lines: string[], tables: readonly NormalizedTable[] = []
         const second = row.cells[1].text.trim();
         const numMatch = first.match(/^(\d+)\.?$/);
         if (numMatch && second) {
-          key.set(numMatch[1], normalizeAnswerValue(second));
+          const aiCheck = isAiAnswer(second);
+          if (aiCheck.isAi) {
+            key.set(numMatch[1], { value: aiCheck.aiAnswer ?? "", correctionMode: "AI" });
+          } else {
+            key.set(numMatch[1], { value: normalizeAnswerValue(second) });
+          }
           continue;
         }
       }
@@ -909,7 +944,14 @@ function parseAnswerKey(lines: string[], tables: readonly NormalizedTable[] = []
         while ((m = reCell.exec(cellCombined)) !== null) {
           const num = m[1];
           let val = m[2].trim().replace(/^[,\s;]+/, "").replace(/[,;\s]+$/, "");
-          if (val) key.set(num, normalizeAnswerValue(val));
+          if (val) {
+            const aiCheck = isAiAnswer(val);
+            if (aiCheck.isAi) {
+              key.set(num, { value: aiCheck.aiAnswer ?? "", correctionMode: "AI" });
+            } else {
+              key.set(num, { value: normalizeAnswerValue(val) });
+            }
+          }
         }
       }
     }
@@ -931,7 +973,14 @@ function parseAnswerKey(lines: string[], tables: readonly NormalizedTable[] = []
     // Fallback for other separators (e.g. "1 - a", "1. a", "1) a") when only one entry per line
     for (const line of lines) {
       const mm = line.match(/(\d+)\s*[:=\-.)\]]+\s*(.+)/);
-      if (mm) key.set(mm[1], normalizeAnswerValue(mm[2]));
+      if (mm) {
+        const aiCheck = isAiAnswer(mm[2]);
+        if (aiCheck.isAi) {
+          key.set(mm[1], { value: aiCheck.aiAnswer ?? "", correctionMode: "AI" });
+        } else {
+          key.set(mm[1], { value: normalizeAnswerValue(mm[2]) });
+        }
+      }
     }
     return key;
   }
@@ -944,7 +993,12 @@ function parseAnswerKey(lines: string[], tables: readonly NormalizedTable[] = []
     // Remove surrounding quotes/brackets that may have been left
     value = value.replace(/^["'\(\[]+/, "").replace(/["'\)\]]+$/, "").trim();
     if (!value) continue;
-    key.set(cur.num, normalizeAnswerValue(value));
+    const aiCheck = isAiAnswer(value);
+    if (aiCheck.isAi) {
+      key.set(cur.num, { value: aiCheck.aiAnswer ?? "", correctionMode: "AI" });
+    } else {
+      key.set(cur.num, { value: normalizeAnswerValue(value) });
+    }
   }
 
   return key;
@@ -1226,7 +1280,7 @@ export class QuestionsTableV1Parser {
     let validCount = 0;
     let warningCount = 0;
     let invalidCount = 0;
-    const answerKeys = new Map<string, Map<string, string>>();
+    const answerKeys = new Map<string, Map<string, ParsedAnswerEntry>>();
 
     // First pass: collect answer keys
     for (let si = 0; si < sections.length; si++) {
@@ -1244,7 +1298,7 @@ export class QuestionsTableV1Parser {
     for (const section of sections) {
       if (section.state === ParserState.NONE || section.state === ParserState.ANSWER_KEY) continue;
 
-      const sectionAnswerKey = answerKeys.get(section.state) ?? new Map<string, string>();
+      const sectionAnswerKey = answerKeys.get(section.state) ?? new Map<string, ParsedAnswerEntry>();
       const groupId = generateId();
       const groupTitle = `${section.state} Questions`;
       let groupItems: QuestionPreviewItem[] = [];
@@ -1329,7 +1383,7 @@ export class QuestionsTableV1Parser {
     type: QuestionPreviewType,
     groupId: string,
     startOrder: number,
-    answerKey: Map<string, string>,
+    answerKey: Map<string, ParsedAnswerEntry>,
   ): QuestionPreviewItem[] {
     const items: QuestionPreviewItem[] = [];
     const questionBlocks = splitQuestionBlocks(lines);
@@ -1349,11 +1403,11 @@ export class QuestionsTableV1Parser {
       if (!prompt) continue;
 
       // Try numbered lookup first, then positional (1-based)
-      let answer = answerKey.get(qNum);
-      if (!answer && !hasNumbers) {
-        answer = answerKey.get(String(qi + 1));
+      let answerEntry = answerKey.get(qNum);
+      if (!answerEntry && !hasNumbers) {
+        answerEntry = answerKey.get(String(qi + 1));
       }
-      items.push(createQuestionItem(type, prompt, answer ?? null, groupId, startOrder + items.length));
+      items.push(createQuestionItem(type, prompt, answerEntry?.value ?? null, groupId, startOrder + items.length, undefined, answerEntry?.correctionMode));
     }
 
     return items;

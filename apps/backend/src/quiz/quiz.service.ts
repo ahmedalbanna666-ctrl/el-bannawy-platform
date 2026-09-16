@@ -287,11 +287,29 @@ export class QuizService {
           const result = evaluateShortAnswer(rawAnswer.trim(), question.correctAnswer ?? "", acceptable);
           isCorrect = result.isCorrect;
         } else if (mode === "AI") {
-          const aiResult = await this.essayEvaluation.evaluateAI(question.question, rawAnswer.trim());
-          aiScore = aiResult.score;
-          aiFeedback = aiResult.feedback;
-          aiDetails = aiResult;
-          isCorrect = aiResult.score >= 50;
+          // AI mode: first check if student answer matches the reference answer (if provided)
+          const hasReferenceAnswer = question.correctAnswer && question.correctAnswer.trim().length > 0;
+          if (hasReferenceAnswer) {
+            const checkResult = evaluateShortAnswer(rawAnswer.trim(), question.correctAnswer ?? "");
+            if (checkResult.isCorrect) {
+              // Student answer matches reference answer exactly/fuzzy
+              isCorrect = true;
+            } else {
+              // No match → send to AI for evaluation
+              const aiResult = await this.essayEvaluation.evaluateAI(question.question, rawAnswer.trim());
+              aiScore = aiResult.score;
+              aiFeedback = aiResult.feedback;
+              aiDetails = aiResult;
+              isCorrect = aiResult.score >= 50;
+            }
+          } else {
+            // No reference answer → pure AI evaluation
+            const aiResult = await this.essayEvaluation.evaluateAI(question.question, rawAnswer.trim());
+            aiScore = aiResult.score;
+            aiFeedback = aiResult.feedback;
+            aiDetails = aiResult;
+            isCorrect = aiResult.score >= 50;
+          }
         } else if (mode === "MANUAL") {
           isCorrect = false;
           teacherReviewed = false;

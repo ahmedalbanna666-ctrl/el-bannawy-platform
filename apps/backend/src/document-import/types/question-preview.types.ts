@@ -29,6 +29,7 @@ export interface QuestionPreviewItem {
   readonly warnings: readonly string[];
   readonly errors: readonly string[];
   readonly groupId: string;
+  readonly correctionMode?: string;
 }
 
 export interface QuestionPreviewGroup {

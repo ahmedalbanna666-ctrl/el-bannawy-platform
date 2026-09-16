@@ -718,6 +718,7 @@ export class LessonService {
         if (item.status === "INVALID") continue;
         const mappedType = this.mapQuestionType(item.questionType);
         const isDialogue = mappedType === "DIALOGUE";
+        const itemCorrectionMode = item.correctionMode;
         quizQuestionData.push({
           quizId: quiz.id,
           type: mappedType,
@@ -727,7 +728,7 @@ export class LessonService {
             : (item.options.length > 0 ? JSON.stringify(item.options.map((o) => ({ label: o.label, text: o.text }))) : null),
           correctAnswer: item.correctAnswer,
           explanation: item.explanation,
-          correctionMode: isDialogue ? "AI" : undefined,
+          correctionMode: isDialogue ? "AI" : (itemCorrectionMode ?? undefined),
           displayOrder,
         });
         displayOrder++;
@@ -780,6 +781,7 @@ export class LessonService {
         if (item.status === "INVALID") continue;
         const mappedType = this.mapQuestionType(item.questionType);
         const isDialogue = mappedType === "DIALOGUE";
+        const itemCorrectionMode = item.correctionMode;
         homeworkQuestionData.push({
           homeworkId: homework.id,
           type: mappedType,
@@ -789,7 +791,7 @@ export class LessonService {
             : (item.options.length > 0 ? JSON.stringify(item.options.map((o) => ({ label: o.label, text: o.text }))) : null),
           correctAnswer: item.correctAnswer,
           explanation: item.explanation,
-          correctionMode: isDialogue ? "AI" : undefined,
+          correctionMode: isDialogue ? "AI" : (itemCorrectionMode ?? undefined),
           displayOrder,
         });
         displayOrder++;
