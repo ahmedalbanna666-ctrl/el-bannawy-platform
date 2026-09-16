@@ -241,6 +241,16 @@ export class AdminController {
     return successResponse(data);
   }
 
+  @Get("students/inactive")
+  async getInactiveStudents(
+    @Query("days") days?: string,
+    @CurrentUser() _userId?: string,
+  ): Promise<ISuccessResponse<unknown>> {
+    const inactiveDays = parseInt(days ?? "15", 10) || 15;
+    const data = await this.adminService.getInactiveStudents(inactiveDays);
+    return successResponse(data);
+  }
+
   @Get("grade-students")
   @Roles("TEACHER", "ADMINISTRATOR")
   async listGradeStudents(

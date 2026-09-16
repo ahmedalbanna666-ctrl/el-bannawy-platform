@@ -687,6 +687,58 @@ export class AdminService {
     };
   }
 
+  /**
+   * Find students who have not made any purchase, redeemed any code,
+   * or unlocked any content in the given number of days.
+   */
+  async getInactiveStudents(days: number): Promise<unknown[]> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+
+    const students = await this.prisma.user.findMany({
+      where: {
+        role: "STUDENT",
+        status: "ACTIVE",
+        deletedAt: null,
+        createdAt: { lte: cutoff },
+        // No purchases in the last N days
+        coinPurchases: {
+          none: { createdAt: { gte: cutoff } },
+        },
+        // No code redemptions in the last N days
+        codeRedemptions: {
+          none: { redeemedAt: { gte: cutoff } },
+        },
+        // No content unlocks in the last N days
+        contentUnlocks: {
+          none: { createdAt: { gte: cutoff } },
+        },
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        mobileNumber: true,
+        createdAt: true,
+        assignedGrade: {
+          select: { name: true, stage: { select: { name: true } } },
+        },
+        coinWallet: { select: { balance: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return students.map((s) => ({
+      id: s.id,
+      fullName: s.fullName,
+      email: s.email,
+      mobileNumber: s.mobileNumber,
+      registeredAt: s.createdAt.toISOString(),
+      grade: s.assignedGrade ? `${s.assignedGrade.stage.name} - ${s.assignedGrade.name}` : null,
+      coins: s.coinWallet?.balance ?? 0,
+    }));
+  }
+
   async getStudent(id: string): Promise<unknown> {
     const s = await this.prisma.user.findFirst({
       where: { id, role: "STUDENT" },
@@ -934,11 +986,11 @@ export class AdminService {
       throw new NotFoundException(role === "TEACHER" ? "Teacher not found" : "Student not found");
     }
 
-    // Delete rows whose FK to users is required and has NO onDelete: Cascade.
-    // Prisma defaults those to Restrict, which would block user.delete().
-    // Every other relation referencing User uses Cascade or SetNull, so a single
-    // user.delete() afterwards cleans up the rest transactionally.
+    // Delete rows whose FK to users has NO onDelete: Cascade.
+    // Prisma defaults those to Restrict / NO ACTION, which blocks user.delete().
+    // Every other relation uses Cascade or SetNull, so user.delete() handles the rest.
     await this.prisma.$transaction(async (tx) => {
+      // --- Hard-delete rows owned by this user ---
       const unlockCodes = await tx.unlockCode.findMany({
         where: { createdById: id },
         select: { id: true },
@@ -960,10 +1012,36 @@ export class AdminService {
       await tx.liveAnnouncement.deleteMany({ where: { senderId: id } });
       await tx.liveSessionControlLog.deleteMany({ where: { actorId: id } });
       await tx.liveSession.deleteMany({ where: { teacherId: id } });
-      // Remove the user's own bookings/subscriptions before user.delete() so the
-      // Restrict FK LiveBooking.subscriptionId -> LiveSubscription cannot block the cascade.
       await tx.liveBooking.deleteMany({ where: { studentId: id } });
       await tx.liveSubscription.deleteMany({ where: { userId: id } });
+
+      // --- Nullify nullable Restrict-FK references (other entities reference this user) ---
+      await tx.unlockRequest.updateMany({
+        where: { resolvedById: id },
+        data: { resolvedById: null },
+      });
+      await tx.supportTicket.updateMany({
+        where: { assignedAgentId: id },
+        data: { assignedAgentId: null },
+      });
+      await tx.liveAttendance.updateMany({
+        where: { markedById: id },
+        data: { markedById: null },
+      });
+      await tx.aiPromptTemplate.updateMany({
+        where: { createdById: id },
+        data: { createdById: null },
+      });
+      await tx.manualPaymentOrder.updateMany({
+        where: { reviewedById: id },
+        data: { reviewedById: null },
+      });
+      // Nullify self-reference: other users managed by this user
+      await tx.user.updateMany({
+        where: { managedByTeacherId: id },
+        data: { managedByTeacherId: null },
+      });
+
       await tx.user.delete({ where: { id } });
     });
 
