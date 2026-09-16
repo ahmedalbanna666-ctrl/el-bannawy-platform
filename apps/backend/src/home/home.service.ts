@@ -303,7 +303,7 @@ export class HomeService {
       ? Math.round((attendancePresent / attendanceTotal) * 100)
       : 0;
 
-    const nextAction = await this.resolveNextAction(userId, ctx, currentProgress);
+    const nextAction = await this.resolveNextAction(userId, ctx, currentProgress, completedLessons);
 
     // Current unit progress based on video + homework + quiz activities.
     const unitProgress = await this.resolveUnitActivityProgress(userId, ctx, currentProgress);
@@ -361,6 +361,7 @@ export class HomeService {
       educationalSystem: string | null;
     } | null,
     currentProgress: { lessonId: string; progress: number } | null,
+    completedLessons: number,
   ): Promise<DashboardData["nextAction"]> {
     // Without an academic context we cannot resolve the ordered curriculum.
     // An unfinished lesson still takes precedence when there is one.
@@ -373,6 +374,16 @@ export class HomeService {
           href: `/dashboard/lessons/detail/${currentProgress.lessonId}`,
         };
       }
+      return { type: "start", label: "ابدأ رحلتك الدراسية", href: "/dashboard/units" };
+    }
+
+    // ── Truly new student: no completed lessons and no real progress ──
+    // Avoids auto-completed empty lessons (no video/homework/quiz) from
+    // making the student appear to have "started" the curriculum.
+    const isNewStudent =
+      completedLessons === 0 &&
+      (!currentProgress || currentProgress.progress === 0);
+    if (isNewStudent) {
       return { type: "start", label: "ابدأ رحلتك الدراسية", href: "/dashboard/units" };
     }
 

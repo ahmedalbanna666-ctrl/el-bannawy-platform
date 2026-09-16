@@ -94,7 +94,7 @@ export function StudentDashboard(): ReactNode {
               }}
             >
               <Play className="h-3.5 w-3.5 ml-1" />
-              {data.nextAction?.label ?? "ابدأ الآن"}
+              {data.nextAction?.label ?? "ابدأ رحلتك الدراسية"}
             </Button>
           </div>
           <div className="px-4 pb-4">
