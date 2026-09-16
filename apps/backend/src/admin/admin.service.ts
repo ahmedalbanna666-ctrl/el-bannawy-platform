@@ -7,6 +7,8 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { DelegatedPermissionService } from "../auth/delegated/delegated-permission.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationChannel, NotificationTargetType } from "../notifications/dto/notification.dto";
 import type { Permission } from "@el-bannawy/shared";
 import { QueryTeachersDto } from "./dto/query-teachers.dto";
 import { CreateTeacherDto } from "./dto/create-teacher.dto";
@@ -33,6 +35,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly delegatedPermissionService: DelegatedPermissionService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async getTeacherPermissions(teacherId: string): Promise<string[]> {
@@ -909,6 +912,16 @@ export class AdminService {
       create: { userId: id, balance: dto.amount },
       update: { balance: { increment: dto.amount } },
     });
+
+    const reason = dto.reason ? ` - ${dto.reason}` : "";
+    this.notifications.sendNotification(id, {
+      type: "achievement",
+      title: "تم إضافة عملات",
+      message: `تم إضافة ${String(dto.amount)} عملة ذهبية لمحفظتك${reason}`,
+      channel: NotificationChannel.PUSH,
+      targetType: NotificationTargetType.INDIVIDUAL,
+      targetId: id,
+    }).catch(() => {});
 
     return { id };
   }

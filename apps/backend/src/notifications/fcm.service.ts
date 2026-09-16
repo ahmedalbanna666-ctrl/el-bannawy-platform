@@ -48,12 +48,11 @@ export class FcmService implements OnModuleInit {
       // eslint-disable-next-line @typescript-eslint/no-deprecated -- MulticastMessage with tokens is the standard FCM web push API
       const payload: MulticastMessage = {
         tokens,
-        notification: { title, body: message, image: LOGO_URL } as MulticastMessage["notification"],
+        notification: { title, body: message } as MulticastMessage["notification"],
         data: data ?? {},
         android: {
           priority: "high",
           notification: {
-            icon: "icon-192",
             color: "#06b6d4",
             image: LOGO_URL,
           },
@@ -63,7 +62,7 @@ export class FcmService implements OnModuleInit {
           headers: { Urgency: "high" },
           notification: {
             icon: LOGO_URL,
-            badge: `${FRONTEND_URL}/icons/icon-96.png`,
+            badge: LOGO_URL,
             image: LOGO_URL,
           },
         },
