@@ -27,6 +27,7 @@ import {
   Zap,
   AlertTriangle,
   Trash2,
+  Ban,
   Eye,
   Clock,
   CalendarDays,
@@ -236,10 +237,20 @@ export default function StudentsPage(): ReactNode {
   const { data: listData, isLoading, isError, error } = useStudents(filters);
   const { data: detail, isLoading: detailLoading } = useStudentDetail(selectedStudentId);
 
+  // The banner count must use the EXACT same filters as the list below
+  // (status + academic context) — otherwise the number won't match what
+  // "عرض القائمة" actually shows.
+  const pendingParams: Record<string, string> = { status: "PENDING_VERIFICATION", limit: "1" };
+  if (academicFilterIds.stageId) pendingParams.stageId = academicFilterIds.stageId;
+  if (academicFilterIds.gradeId) pendingParams.gradeId = academicFilterIds.gradeId;
+  if (academicFilterIds.academicYearId) pendingParams.academicYearId = academicFilterIds.academicYearId;
+  if (academicFilterIds.termId) pendingParams.termId = academicFilterIds.termId;
+
   const { data: pendingMeta } = useQuery<{ meta: { total: number } }>({
-    queryKey: ["students-pending-count"],
+    queryKey: ["students-pending-count", pendingParams],
     queryFn: async () => {
-      const res = await api.get<{ meta: { total: number } }>("/admin/students?status=PENDING_VERIFICATION&limit=1");
+      const params = new URLSearchParams(pendingParams);
+      const res = await api.get<{ meta: { total: number } }>(`/admin/students?${params.toString()}`);
       return (res.data as { meta: { total: number } }) ?? { meta: { total: 0 } };
     },
     staleTime: 30_000,
@@ -706,7 +717,7 @@ function StudentProfileTab({
 }: {
   detail: StudentDetail | undefined;
   detailLoading: boolean;
-  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "status" | "delete" }) => void;
+  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "suspend" | "ban" | "delete" }) => void;
   confirmAction: { mutate: (p: { method: string; endpoint: string; body?: unknown }) => void; isPending?: boolean };
 }): ReactNode {
   if (detailLoading) return <Skeleton className="h-64 rounded-xl" />;
@@ -788,10 +799,23 @@ function StudentProfileTab({
             </Button>
             {detail.status !== "DELETED" && (
               <>
-                <Button size="sm" variant="outline" className="text-amber-500" onClick={() => { setDialog({ type: "status" }); }}>
-                  <AlertTriangle className="h-4 w-4 ml-1" />
-                  {detail.status === "SUSPENSED" || detail.status === "BANNED" ? "إعادة تنشيط" : detail.status === "ACTIVE" ? "تعليق" : "تغيير الحالة"}
-                </Button>
+                {detail.status === "ACTIVE" ? (
+                  <>
+                    <Button size="sm" variant="outline" className="text-amber-500" onClick={() => { setDialog({ type: "suspend" }); }}>
+                      <AlertTriangle className="h-4 w-4 ml-1" />
+                      أيقاف موقت
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-red-500" onClick={() => { setDialog({ type: "ban" }); }}>
+                      <Ban className="h-4 w-4 ml-1" />
+                      حظر الحساب
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="outline" className="text-green-500" onClick={() => { confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${detail.id}/status`, body: { status: "ACTIVE" } }); }}>
+                    <Zap className="h-4 w-4 ml-1" />
+                    إعادة تنشيط
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" className="text-red-500" onClick={() => { setDialog({ type: "delete" }); }}>
                   <Trash2 className="h-4 w-4 ml-1" />
                   حذف الحساب
@@ -1015,7 +1039,7 @@ function ActionDialogs({
   currentStatus,
 }: {
   dialog: { type: string | null };
-  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "status" | "delete" | null }) => void;
+  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "suspend" | "ban" | "delete" | null }) => void;
   studentId: string;
   confirmAction: { mutate: (p: { method: string; endpoint: string; body?: unknown }) => void; isPending?: boolean };
   studentName: string;
@@ -1103,15 +1127,21 @@ function ActionDialogs({
           requiredKey: "amount",
           action: (): void => { confirmAction.mutate({ method: "post", endpoint: `/admin/students/${studentId}/xp/adjust`, body: { amount: Number(fieldValues.amount), reason: fieldValues.reason || undefined } }); },
         };
-      case "status":
+      case "suspend":
         return {
-          title: "تغيير حالة الطالب",
-          fields: [{ label: "السبب (اختياري)", placeholder: "سبب تغيير الحالة", key: "reason" }],
+          title: "أيقاف الحساب مؤقتاً",
+          fields: [{ label: "سبب الإيقاف", placeholder: "مثال: تقصير في الدراسة وعدم التزام", key: "reason" }],
           action: (): void => {
-            let status = "ACTIVE";
-            if (currentStatus === "ACTIVE") status = "SUSPENDED";
-            else if (currentStatus === "SUSPENDED" || currentStatus === "BANNED") status = "ACTIVE";
-            confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/status`, body: { status, reason: fieldValues.reason || undefined } });
+            confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/status`, body: { status: "SUSPENDED", reason: fieldValues.reason || undefined } });
+          },
+        };
+      case "ban":
+        return {
+          title: "حظر الحساب",
+          fields: [{ label: "سبب الحظر", placeholder: "سبب الحظر (إلزامي)", key: "reason" }],
+          requiredKey: "reason",
+          action: (): void => {
+            confirmAction.mutate({ method: "patch", endpoint: `/admin/students/${studentId}/status`, body: { status: "BANNED", reason: fieldValues.reason || undefined } });
           },
         };
       case "delete":
@@ -1131,11 +1161,13 @@ function ActionDialogs({
 
   const requiredKey = dialogConfig.requiredKey;
   const disableSave =
-    dialog.type === "status" || dialog.type === "delete"
+    dialog.type === "suspend" || dialog.type === "delete"
       ? false
-      : requiredKey
-        ? !(fieldValues[requiredKey] ?? "").trim()
-        : false;
+      : dialog.type === "ban"
+        ? !(fieldValues.reason ?? "").trim()
+        : requiredKey
+          ? !(fieldValues[requiredKey] ?? "").trim()
+          : false;
 
   return (
     <Dialog open={!!dialog.type} onClose={close} title={dialogConfig.title}>
@@ -1151,6 +1183,12 @@ function ActionDialogs({
             />
           </div>
         ))}
+        {dialog.type === "suspend" && (
+          <p className="text-sm text-amber-500">سيتم إيقاف حساب {studentName} مؤقتاً. لن يتمكن الطالب من تسجيل الدخول حتى إعادة التنشيط.</p>
+        )}
+        {dialog.type === "ban" && (
+          <p className="text-sm text-red-500">سيتم حظر حساب {studentName} بشكل دائم. لن يتمكن الطالب من تسجيل الدخول إلا بعد رفع الحظر من الإدارة.</p>
+        )}
         {dialog.type === "delete" && (
           <p className="text-sm text-red-500">سيتم حذف حساب {studentName} نهائياً. لا يمكن التراجع عن هذا الإجراء.</p>
         )}
@@ -1160,7 +1198,7 @@ function ActionDialogs({
         <Button
           onClick={dialogConfig.action}
           disabled={disableSave}
-          variant={dialog.type === "delete" ? "danger" : "primary"}
+          variant={dialog.type === "delete" || dialog.type === "ban" ? "danger" : dialog.type === "suspend" ? "primary" : "primary"}
         >
           تأكيد
         </Button>
