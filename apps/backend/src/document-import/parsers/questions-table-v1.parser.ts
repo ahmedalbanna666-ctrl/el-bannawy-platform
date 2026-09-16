@@ -348,24 +348,69 @@ function processMCQSection(
   let tableCursor = 0;
   let qNum = 1;
 
-  for (const line of lines) {
-    if (items.length + startOrder >= MAX_QUESTIONS) break;
-    const hasInlineOptions = extractInlineOptions(line).length >= 2;
-    // Skip headings/instructions that are not questions (e.g. "Exercise on Language Level 1")
-    // Unnumbered questions with inline options (e.g. "What is 2+2? a. 3 b. 4") have hasInlineOptions true, so they are not skipped
-    if (!isQuestionStart(line) && !hasInlineOptions) continue;
+  // First, try to group lines into question blocks (question + option lines)
+  const questionBlocks: string[][] = [];
+  let currentBlock: string[] = [];
 
-    const qn = extractQuestionNumber(line);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (currentBlock.length > 0) {
+        questionBlocks.push(currentBlock);
+        currentBlock = [];
+      }
+      continue;
+    }
+
+    const hasInlineOptions = extractInlineOptions(trimmed).length >= 2;
+    const isOptionLine = /^\s*[a-fA-Fأ-ب-ج-د-ه-و][.)]\s/.test(trimmed);
+
+    if (isQuestionStart(trimmed) || hasInlineOptions) {
+      // New question starts
+      if (currentBlock.length > 0) {
+        questionBlocks.push(currentBlock);
+      }
+      currentBlock = [trimmed];
+    } else if (isOptionLine || (currentBlock.length > 0 && currentBlock.length < 6)) {
+      // Option line or continuation of current question
+      currentBlock.push(trimmed);
+    } else {
+      // Standalone line - might be a question without number
+      if (currentBlock.length > 0) {
+        questionBlocks.push(currentBlock);
+      }
+      currentBlock = [trimmed];
+    }
+  }
+  if (currentBlock.length > 0) {
+    questionBlocks.push(currentBlock);
+  }
+
+  // Process each question block
+  for (const block of questionBlocks) {
+    if (items.length + startOrder >= MAX_QUESTIONS) break;
+
+    // Find the question line (first non-option line)
+    const questionLine = block.find((l) => !/^\s*[a-fA-Fأ-ب-ج-د-ه-و][.)]\s/.test(l)) ?? block[0];
+    const qn = extractQuestionNumber(questionLine);
     const effectiveNum = qn || String(qNum);
 
-    let options = extractInlineOptions(line);
+    // Extract inline options from all lines in the block
+    let options: QuestionPreviewOption[] = [];
+    for (const l of block) {
+      const inlineOpts = extractInlineOptions(l);
+      if (inlineOpts.length > 0) {
+        options = inlineOpts;
+        break;
+      }
+    }
 
-    // Try table options if inline not found and line looks like a question
-    if (options.length === 0 && isQuestionStart(line) && tableCursor < sectionTables.length) {
+    // Try table options if inline not found
+    if (options.length === 0 && tableCursor < sectionTables.length) {
       options = extractOptionsFromTable(sectionTables[tableCursor++]);
     }
 
-    const prompt = cleanPromptFromOptions(line, options);
+    const prompt = cleanPromptFromOptions(questionLine, options);
     if (!prompt && options.length === 0) continue;
 
     const answerFromKey = answerKey.get(effectiveNum);
@@ -378,9 +423,7 @@ function processMCQSection(
       null,
     ));
 
-    // Increment for next question: numbered questions advance by their number, unnumbered advance sequentially
-    if (isQuestionStart(line) || hasInlineOptions) qNum++;
-    else qNum++;
+    qNum++;
   }
 
   return { items, usedTables: tableCursor };
@@ -1262,14 +1305,25 @@ export class QuestionsTableV1Parser {
     const items: QuestionPreviewItem[] = [];
     const questionBlocks = splitQuestionBlocks(lines);
 
-    for (const qBlock of questionBlocks) {
+    // Check if questions have numbers
+    const hasNumbers = questionBlocks.some((block) => {
+      const joined = block.join(" ").trim();
+      return extractQuestionNumber(joined) !== "";
+    });
+
+    for (let qi = 0; qi < questionBlocks.length; qi++) {
       if (items.length + startOrder >= MAX_QUESTIONS) break;
+      const qBlock = questionBlocks[qi];
       const joined = qBlock.join(" ").trim();
       const qNum = extractQuestionNumber(joined);
       const prompt = stripQuestionPrefix(joined);
       if (!prompt) continue;
 
-      const answer = answerKey.get(qNum);
+      // Try numbered lookup first, then positional (1-based)
+      let answer = answerKey.get(qNum);
+      if (!answer && !hasNumbers) {
+        answer = answerKey.get(String(qi + 1));
+      }
       items.push(createQuestionItem(type, prompt, answer ?? null, groupId, startOrder + items.length));
     }
 
