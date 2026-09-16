@@ -13,6 +13,7 @@ import {
   isMultipleChoice,
   isMcqAnswerCorrect,
   formatMcqStudentAnswer,
+  evaluateShortAnswer,
 } from "../common/utils/answer-evaluation";
 
 interface HomeworkSummary {
@@ -193,6 +194,7 @@ export class HomeworkService {
 
     const TEXT_QUESTION_TYPES = new Set(["FILL_IN_BLANKS", "SHORT_ANSWER", "ESSAY", "WRITING"]);
     const ESSAY_TYPES = new Set(["ESSAY", "WRITING"]);
+    const SHORT_ANSWER_TYPES = new Set(["SHORT_ANSWER"]);
 
     for (let i = 0; i < homework.questions.length; i++) {
       const question = homework.questions[i];
@@ -208,6 +210,28 @@ export class HomeworkService {
       let grammarScore: number | undefined;
       let grammarErrors: unknown = undefined;
       let teacherReviewed: boolean | undefined;
+
+      // SHORT_ANSWER evaluation based on correction mode
+      if (SHORT_ANSWER_TYPES.has(question.type) && rawAnswer.trim()) {
+        const mode = question.correctionMode ?? "EXACT_MATCH";
+        if (mode === "CODE_FUZZY") {
+          const acceptable = question.options ? (() => {
+            try { return JSON.parse(question.options) as string[]; } catch { return undefined; }
+          })() : undefined;
+          const result = evaluateShortAnswer(rawAnswer.trim(), question.correctAnswer ?? "", acceptable);
+          isCorrect = result.isCorrect;
+        } else if (mode === "AI") {
+          const aiResult = await this.essayEvaluation.evaluateAI(question.question, rawAnswer.trim());
+          aiScore = aiResult.score;
+          aiFeedback = aiResult.feedback;
+          aiDetails = aiResult;
+          isCorrect = aiResult.score >= 50;
+        } else if (mode === "MANUAL") {
+          isCorrect = false;
+          teacherReviewed = false;
+        }
+        // EXACT_MATCH falls through to the default isCorrect above
+      }
 
       // Run essay evaluation based on correction mode
       if (ESSAY_TYPES.has(question.type) && rawAnswer.trim()) {

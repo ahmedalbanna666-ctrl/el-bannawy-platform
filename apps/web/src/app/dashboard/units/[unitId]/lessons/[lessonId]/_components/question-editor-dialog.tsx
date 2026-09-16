@@ -107,6 +107,8 @@ export function QuestionEditorDialog({
   useEffect(() => {
     if (type === "DIALOGUE") {
       setCorrectionMode("AI");
+    } else if (type === "SHORT_ANSWER") {
+      setCorrectionMode("EXACT_MATCH");
     }
   }, [type]);
 
@@ -139,7 +141,7 @@ export function QuestionEditorDialog({
       options: optionsStr,
       correctAnswer: type === "TRUE_FALSE" ? (correctIndex === 0 ? "true" : "false") : correctAnswer.trim(),
       explanation: explanation.trim(),
-      correctionMode: (type === "ESSAY" || type === "WRITING" || type === "DIALOGUE") ? correctionMode : undefined,
+      correctionMode: (type === "ESSAY" || type === "WRITING" || type === "DIALOGUE" || type === "SHORT_ANSWER") ? correctionMode : undefined,
     });
     resetForm();
   };
@@ -355,7 +357,7 @@ export function QuestionEditorDialog({
             />
           </div>
 
-          {(type === "ESSAY" || type === "WRITING" || type === "DIALOGUE") && (
+          {(type === "ESSAY" || type === "WRITING" || type === "DIALOGUE" || type === "SHORT_ANSWER") && (
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-500">طريقة التصحيح</label>
               <select
@@ -363,7 +365,13 @@ export function QuestionEditorDialog({
                 onChange={(e): void => { setCorrectionMode(e.target.value); }}
                 className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
               >
-                {type === "DIALOGUE" ? (
+                {type === "SHORT_ANSWER" ? (
+                  <>
+                    <option value="EXACT_MATCH">مطابقة تامة (نص)</option>
+                    <option value="CODE_FUZZY">تصحيح كودي (ي容忍 الأخطاء الإملائية البسيطة)</option>
+                    <option value="AI">ذكاء اصطناعي (تقييم تلقائي)</option>
+                  </>
+                ) : type === "DIALOGUE" ? (
                   <>
                     <option value="MANUAL">تصحيح يدوي + اقتراحات ذكاء اصطناعي</option>
                     <option value="AI">ذكاء اصطناعي (تقييم تلقائي)</option>
@@ -378,10 +386,12 @@ export function QuestionEditorDialog({
                 )}
               </select>
               <p className="mt-1 text-xs text-neutral-400">
+                {type === "SHORT_ANSWER" && correctionMode === "EXACT_MATCH" && "مقارنة النص حرفياً مع الإجابة الصحيحة"}
+                {type === "SHORT_ANSWER" && correctionMode === "CODE_FUZZY" && "ي容忍 الأخطاء الإملائية البسيطة وعلامات الترقيم والأحرف الزائدة/الناقصة"}
+                {type === "SHORT_ANSWER" && correctionMode === "AI" && "يُقيّم الإجابة بالذكاء الاصطناعي في حال عدم التطابق"}
                 {correctionMode === "MANUAL" && "يُظهر للمدرس اقتراحات الذكاء الاصطناعي ويحدد الدرجة بنفسه"}
-                {correctionMode === "AI" && (type === "DIALOGUE" ? "يُصحح تلقائياً بالذكاء الاصطناعي مع تقييم دقة الإجابة" : "يُصحح تلقائياً بالذكاء الاصطناعي حسب معايير كتابة البرجراف")}
+                {correctionMode === "AI" && type !== "SHORT_ANSWER" && (type === "DIALOGUE" ? "يُصحح تلقائياً بالذكاء الاصطناعي مع تقييم دقة الإجابة" : "يُصحح تلقائياً بالذكاء الاصطناعي حسب معايير كتابة البرجراف")}
                 {correctionMode === "GRAMMAR_CHECK" && "يُصحح تلقائياً بالتدقيق الإملائي والنحوي مع تقييم بنسبة مئوية"}
-                {correctionMode === "EXACT_MATCH" && "مقارنة النص حرفياً مع الإجابة الصحيحة"}
               </p>
             </div>
           )}

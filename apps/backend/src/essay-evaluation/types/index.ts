@@ -26,4 +26,4 @@ export interface AiEvaluationResult {
   criterionScores: AiCriterionScore[];
 }
 
-export type CorrectionMode = "EXACT_MATCH" | "MANUAL" | "AI" | "GRAMMAR_CHECK";
+export type CorrectionMode = "EXACT_MATCH" | "MANUAL" | "AI" | "GRAMMAR_CHECK" | "CODE_FUZZY";
