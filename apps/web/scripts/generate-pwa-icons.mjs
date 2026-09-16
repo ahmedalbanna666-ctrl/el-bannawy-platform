@@ -39,6 +39,11 @@ async function main() {
     console.log("Created favicon.ico");
   }
 
+  // Chrome badge: monochrome white circle on transparent background
+  const badgeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="44" fill="white"/></svg>`;
+  await sharp(Buffer.from(badgeSvg)).resize(96, 96).png().toFile(resolve(ICONS, "badge-96.png"));
+  console.log("Created badge-96.png (monochrome)");
+
   console.log("Done!");
 }
 

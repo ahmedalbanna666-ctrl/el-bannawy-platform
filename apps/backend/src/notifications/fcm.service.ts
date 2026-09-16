@@ -44,6 +44,8 @@ export class FcmService implements OnModuleInit {
 
       const FRONTEND_URL = process.env.FRONTEND_URL || process.env.CORS_ORIGINS?.split(",")[0] || "https://www.elbannawy.online";
       const LOGO_URL = `${FRONTEND_URL}/logo.jpeg`;
+      const ICON_URL = `${FRONTEND_URL}/icons/icon-96.png`;
+      const BADGE_URL = `${FRONTEND_URL}/icons/badge-96.png`;
 
       // eslint-disable-next-line @typescript-eslint/no-deprecated -- MulticastMessage with tokens is the standard FCM web push API
       const payload: MulticastMessage = {
@@ -54,7 +56,7 @@ export class FcmService implements OnModuleInit {
           priority: "high",
           notification: {
             color: "#06b6d4",
-            image: LOGO_URL,
+            icon: ICON_URL,
           },
         } as never,
         apns: { payload: { aps: { sound: "default", badge: 1 } } },
@@ -62,8 +64,7 @@ export class FcmService implements OnModuleInit {
           headers: { Urgency: "high" },
           notification: {
             icon: LOGO_URL,
-            badge: LOGO_URL,
-            image: LOGO_URL,
+            badge: BADGE_URL,
           },
         },
       };

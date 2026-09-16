@@ -283,16 +283,15 @@ self.addEventListener("push", (event) => {
   if (!data) return;
   const title = data.notification?.title ?? data.title ?? "إشعار جديد";
   const icon = data.notification?.icon ?? data.webpush?.notification?.icon ?? "/logo.jpeg";
-  const badge = data.webpush?.notification?.badge ?? "/logo.jpeg";
-  const image = data.notification?.image ?? data.webpush?.notification?.image ?? "/logo.jpeg";
+  const badge = data.webpush?.notification?.badge ?? "/icons/badge-96.png";
   const options = {
     body: data.notification?.body ?? data.body ?? "",
     icon,
     badge,
-    image,
-    vibrate: [200, 100, 200],
+    vibrate: [100, 50, 100],
     tag: "el-bannawy-notification",
     renotify: true,
+    silent: false,
     data: data.data ?? {},
   };
   event.waitUntil(self.registration.showNotification(title, options));
