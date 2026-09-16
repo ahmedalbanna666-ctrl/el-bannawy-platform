@@ -96,6 +96,35 @@ function splitQuestionBlocks(lines: string[]): string[][] {
     }
   }
   if (current.length > 0) blocks.push(current);
+
+  // If no numbered questions were found (single block with many lines),
+  // try splitting by blank lines, then by individual lines
+  if (blocks.length === 1 && blocks[0].length > 1) {
+    const singleLines = blocks[0];
+
+    // Try splitting by blank lines first
+    const byBlankLines: string[][] = [];
+    let blankCurrent: string[] = [];
+    for (const line of singleLines) {
+      if (line.trim() === "" && blankCurrent.length > 0) {
+        byBlankLines.push(blankCurrent);
+        blankCurrent = [];
+      } else if (line.trim() !== "") {
+        blankCurrent.push(line);
+      }
+    }
+    if (blankCurrent.length > 0) byBlankLines.push(blankCurrent);
+
+    if (byBlankLines.length > 1) {
+      return byBlankLines;
+    }
+
+    // If no blank lines either, each non-empty line is a separate question
+    if (singleLines.some((l) => l.trim() !== "")) {
+      return singleLines.filter((l) => l.trim() !== "").map((l) => [l]);
+    }
+  }
+
   return blocks;
 }
 
