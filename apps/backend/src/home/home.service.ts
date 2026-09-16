@@ -124,7 +124,12 @@ export class HomeService {
       : {};
 
     const currentProgress = await this.prisma.lessonProgress.findFirst({
-      where: { userId, completed: false, ...academicFilter },
+      where: {
+        userId,
+        completed: false,
+        ...academicFilter,
+        progress: { gt: 0 },
+      },
       orderBy: { startedAt: "desc" },
       include: { lesson: { include: { unit: true } } },
     });
@@ -367,23 +372,17 @@ export class HomeService {
     // An unfinished lesson still takes precedence when there is one.
     if (!ctx?.gradeId || !ctx.academicYearId || !ctx.termId) {
       if (currentProgress) {
-        const started = currentProgress.progress > 0;
         return {
           type: "continue",
-          label: started ? "استكمل الدرس" : "ابدأ الدرس",
+          label: "استكمل الدرس",
           href: `/dashboard/lessons/detail/${currentProgress.lessonId}`,
         };
       }
       return { type: "start", label: "ابدأ رحلتك الدراسية", href: "/dashboard/units" };
     }
 
-    // ── Truly new student: no completed lessons and no real progress ──
-    // Avoids auto-completed empty lessons (no video/homework/quiz) from
-    // making the student appear to have "started" the curriculum.
-    const isNewStudent =
-      completedLessons === 0 &&
-      (!currentProgress || currentProgress.progress === 0);
-    if (isNewStudent) {
+    // ── Truly new student: no completed lessons and no in-progress lesson ──
+    if (completedLessons === 0 && !currentProgress) {
       return { type: "start", label: "ابدأ رحلتك الدراسية", href: "/dashboard/units" };
     }
 
