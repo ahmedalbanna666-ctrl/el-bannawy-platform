@@ -1,10 +1,5 @@
 import * as crypto from "node:crypto";
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-} from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { DelegatedPermissionService } from "../auth/delegated/delegated-permission.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -32,6 +27,7 @@ import { TEACHER_SELECT } from "./admin.constants";
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly delegatedPermissionService: DelegatedPermissionService,
@@ -914,14 +910,19 @@ export class AdminService {
     });
 
     const reason = dto.reason ? ` - ${dto.reason}` : "";
-    this.notifications.sendNotification(id, {
-      type: "achievement",
-      title: "تم إضافة عملات",
-      message: `تم إضافة ${String(dto.amount)} عملة ذهبية لمحفظتك${reason}`,
-      channel: NotificationChannel.PUSH,
-      targetType: NotificationTargetType.INDIVIDUAL,
-      targetId: id,
-    }).catch(() => {});
+    try {
+      await this.notifications.sendNotification(id, {
+        type: "coin_credit",
+        title: "تم إضافة عملات",
+        message: `تم إضافة ${String(dto.amount)} عملة ذهبية لمحفظتك${reason}`,
+        channel: NotificationChannel.PUSH,
+        targetType: NotificationTargetType.INDIVIDUAL,
+        targetId: id,
+      });
+      this.logger.log(`Coin notification sent to student ${id}`);
+    } catch (err) {
+      this.logger.error(`Failed to send coin notification to ${id}: ${err instanceof Error ? err.message : "Unknown"}`);
+    }
 
     return { id };
   }
