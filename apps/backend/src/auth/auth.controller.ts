@@ -135,9 +135,10 @@ export class AuthController {
       const userAgent = req.headers["user-agent"] ?? undefined;
       const message = err instanceof Error ? err.message : "google_callback_failed";
       // If the error is a status block (SUSPENDED/BANNED/DELETED), redirect
-      // to login with the status so the frontend can show the popup.
+      // to login with the status and email so the frontend can show the popup.
       if (message === "SUSPENDED" || message === "BANNED" || message === "DELETED") {
-        res.redirect(`${this.config.app.frontendUrl}/login?error=${message}`);
+        const email = (req.user as { email?: string } | undefined)?.email ?? "";
+        res.redirect(`${this.config.app.frontendUrl}/login?error=${message}&identifier=${encodeURIComponent(email)}`);
         return;
       }
       // Log the failed Google auth attempt

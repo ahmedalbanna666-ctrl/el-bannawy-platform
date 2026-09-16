@@ -40,11 +40,23 @@ function LoginForm(): ReactNode {
   const [accountStatus, setAccountStatus] = useState<AccountStatusData | null>(null);
 
   // If redirected from OAuth with a status error (SUSPENDED/BANNED/DELETED),
-  // show the account status popup.
+  // fetch the full account status (with WhatsApp number) and show the popup.
   useEffect(() => {
     const errParam = searchParams.get("error");
     if (errParam === "SUSPENDED" || errParam === "BANNED" || errParam === "DELETED") {
-      setAccountStatus({ status: errParam, whatsapp: null, message: null });
+      const identifier = searchParams.get("identifier") ?? "";
+      if (identifier) {
+        api.get<AccountStatusData>(`/auth/account-status?identifier=${encodeURIComponent(identifier)}`)
+          .then((res) => {
+            if (res.data) setAccountStatus({ status: errParam, whatsapp: res.data.whatsapp ?? null, message: res.data.message ?? null });
+            else setAccountStatus({ status: errParam, whatsapp: null, message: null });
+          })
+          .catch(() => {
+            setAccountStatus({ status: errParam, whatsapp: null, message: null });
+          });
+      } else {
+        setAccountStatus({ status: errParam, whatsapp: null, message: null });
+      }
     }
   }, [searchParams]);
 
