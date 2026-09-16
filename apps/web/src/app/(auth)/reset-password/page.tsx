@@ -69,6 +69,8 @@ function ResetPasswordForm(): ReactNode {
             value={verificationCode}
             onChange={(e): void => { setVerificationCode(e.target.value); }}
             leftIcon={<KeyRound className="h-5 w-5" />}
+            autoComplete="one-time-code"
+            inputMode="numeric"
             required
           />
 
@@ -79,6 +81,8 @@ function ResetPasswordForm(): ReactNode {
             value={newPassword}
             onChange={(e): void => { setNewPassword(e.target.value); }}
             leftIcon={<Lock className="h-5 w-5" />}
+            autoComplete="new-password"
+            data-lpignore="true"
             rightIcon={
               <button
                 type="button"
