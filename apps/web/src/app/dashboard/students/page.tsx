@@ -772,6 +772,15 @@ export default function StudentsPage(): ReactNode {
           </Button>
         </DialogFooter>
       </Dialog>
+
+      <ActionDialogs
+        dialog={dialog}
+        setDialog={setDialog}
+        confirmAction={confirmAction}
+        studentId={selectedStudentId ?? undefined}
+        studentName={selectedStudentId ? (detail?.fullName ?? "") : ""}
+        currentStatus={selectedStudentId ? detail?.status : undefined}
+      />
     </div>
   );
 }
@@ -1106,11 +1115,11 @@ function ActionDialogs({
   currentStatus,
 }: {
   dialog: { type: string | null };
-  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "suspend" | "ban" | "delete" | null }) => void;
-  studentId: string;
+  setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "suspend" | "ban" | "delete" | "inactive-list" | "inactive-reminder" | null; students?: { id: string; fullName: string; email: string; mobileNumber?: string; registeredAt?: string; grade?: string | null; coins?: number }[] }) => void;
+  studentId?: string;
   confirmAction: { mutate: (p: { method: string; endpoint: string; body?: unknown }) => void; isPending?: boolean };
-  studentName: string;
-  currentStatus: string | undefined;
+  studentName?: string;
+  currentStatus?: string;
 }): ReactNode {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
 
