@@ -113,7 +113,7 @@ export class AuthController {
 
       if (result.type === "existing") {
         setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
-        res.redirect(`${this.config.app.frontendUrl}/dashboard`);
+        res.redirect(`${this.config.app.frontendUrl}/dashboard?oauth=google`);
       } else if (result.type === "verify") {
         // User has an incomplete registration with unverified email.
         // Redirect to the registration page with verify=true so it shows

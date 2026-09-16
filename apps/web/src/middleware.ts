@@ -32,9 +32,12 @@ export function middleware(request: NextRequest): NextResponse {
 
   if (isProtected) {
     if (!accessToken || isTokenExpired(accessToken)) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
+      const isOAuthRedirect = request.nextUrl.searchParams.get("oauth") === "google";
+      if (!isOAuthRedirect) {
+        const loginUrl = new URL("/login", request.url);
+        loginUrl.searchParams.set("redirect", pathname);
+        return NextResponse.redirect(loginUrl);
+      }
     }
   }
 
