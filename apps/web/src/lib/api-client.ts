@@ -54,14 +54,39 @@ async function attemptTokenRefresh(): Promise<boolean> {
   isRefreshing = true;
   refreshPromise = (async (): Promise<boolean> => {
     try {
+      // Try cookie-based refresh first
       const res = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
         method: "POST",
         credentials: "include",
         headers: { "X-Requested-With": "XMLHttpRequest" },
       });
-      const success = res.ok;
-      processQueue(success);
-      return success;
+      if (res.ok) {
+        processQueue(true);
+        return true;
+      }
+      // Fallback: try OAuth refresh token from auth store
+      try {
+        const { useAuthStore } = await import("@/lib/auth-store");
+        const oauthTokens = useAuthStore.getState().oauthTokens;
+        if (oauthTokens?.refreshToken) {
+          const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+              "Authorization": `Bearer ${oauthTokens.refreshToken}`,
+            },
+          });
+          if (refreshRes.ok) {
+            processQueue(true);
+            return true;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      processQueue(false);
+      return false;
     } catch {
       processQueue(false);
       return false;
@@ -114,6 +139,21 @@ async function request<T>(
     "X-Requested-With": "XMLHttpRequest",
     ...(fetchOptions.headers as Record<string, string> | undefined),
   };
+
+  // If cross-domain cookies are blocked (e.g. Chrome third-party cookie
+  // phaseout), the Google OAuth flow stores tokens in the auth store.
+  // Send them as Authorization header as a fallback.
+  if (!headers["Authorization"]) {
+    try {
+      const { useAuthStore } = await import("@/lib/auth-store");
+      const oauthToken = useAuthStore.getState().getOAuthAccessToken();
+      if (oauthToken) {
+        headers["Authorization"] = `Bearer ${oauthToken}`;
+      }
+    } catch {
+      // ignore – auth store not available (SSR, etc.)
+    }
+  }
 
   const url = `${API_BASE_URL}${endpoint}`;
   const method = (fetchOptions.method ?? "GET").toUpperCase();

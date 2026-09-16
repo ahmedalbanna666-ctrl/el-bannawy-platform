@@ -94,7 +94,7 @@ function isPublicPath(pathname: string): boolean {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
-  const { user, isAuthenticated, isInitialized, setUser, setInitialized, logout: clearStore } = useAuthStore();
+  const { user, isAuthenticated, isInitialized, setUser, setInitialized, setOAuthTokens, logout: clearStore } = useAuthStore();
 
   const queryClient = useQueryClient();
 
@@ -183,6 +183,30 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
       setInitialized();
     }
   }, [user, fetchUser, isInitialized, setInitialized]);
+
+  // Google/Apple OAuth: extract tokens from URL params (passed by backend
+  // because cross-domain cookies are blocked by Chrome third-party phaseout).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    if (accessToken && refreshToken) {
+      const expiresInSeconds = Number(params.get("expires_in") ?? "3600");
+      const now = Math.floor(Date.now() / 1000);
+      setOAuthTokens({
+        accessToken,
+        refreshToken,
+        expiresAt: now + expiresInSeconds,
+      });
+      // Clean the URL to remove sensitive tokens
+      const url = new URL(window.location.href);
+      url.searchParams.delete("access_token");
+      url.searchParams.delete("refresh_token");
+      url.searchParams.delete("expires_in");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
 
   const login = useCallback(
     async (mobile: string, password: string, rememberMe = false): Promise<void> => {
