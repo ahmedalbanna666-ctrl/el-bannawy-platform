@@ -180,7 +180,7 @@ export class AuthService {
     return { userId: user.id, requiresEmailVerification: !firebaseEmailVerified };
   }
 
-  async verifyEmail(dto: VerifyEmailDto): Promise<{ verified: boolean; email: string }> {
+  async verifyEmail(dto: VerifyEmailDto): Promise<{ verified: boolean; email: string; hasProfile: boolean }> {
     const normalizedEmail = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user) {
@@ -201,6 +201,8 @@ export class AuthService {
       throw new UnauthorizedException("Invalid or expired verification code");
     }
 
+    const hasProfile = Boolean(user.fullName && user.fullName.trim());
+
     await this.prisma.$transaction([
       this.prisma.emailVerification.update({
         where: { id: record.id },
@@ -212,7 +214,7 @@ export class AuthService {
       }),
     ]);
 
-    return { verified: true, email: normalizedEmail };
+    return { verified: true, email: normalizedEmail, hasProfile };
   }
 
   async resendVerification(dto: ResendVerificationDto): Promise<{ sent: boolean }> {

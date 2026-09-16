@@ -120,7 +120,7 @@ function VerifyEmailScreen({
   onVerified,
 }: {
   email: string;
-  onVerified: () => void;
+  onVerified: (hasProfile: boolean) => void;
 }): ReactNode {
   const { verifyEmail, resendVerification, correctPendingEmail } = useAuth();
   const [editableEmail, setEditableEmail] = useState(email);
@@ -143,8 +143,8 @@ function VerifyEmailScreen({
     setLoading(true);
     setError(null);
     try {
-      await verifyEmail(normalizedEditable, code);
-      onVerified();
+      const result = await verifyEmail(normalizedEditable, code);
+      onVerified(result.hasProfile);
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر تأكيد البريد الإلكتروني");
       setLoading(false);
@@ -495,13 +495,14 @@ function RegisterForm(): ReactNode {
     return (
       <VerifyEmailScreen
         email={email.trim().toLowerCase()}
-        onVerified={() => {
+        onVerified={(hasProfile) => {
           setNeedsVerification(false);
-          if (isOAuth && forceVerify) {
-            // OAuth user came back to verify email — now show the registration form
-            setRegistered(false);
-          } else {
+          if (hasProfile) {
+            // User already completed registration — go to dashboard
             setRegistered(true);
+          } else {
+            // User needs to fill in the form — show registration steps
+            setRegistered(false);
           }
         }}
       />

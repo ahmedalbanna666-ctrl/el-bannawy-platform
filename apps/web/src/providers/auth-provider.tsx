@@ -38,7 +38,7 @@ interface AuthContextValue {
   login: (mobile: string, password: string, rememberMe?: boolean) => Promise<void>;
   confirmLogin: (confirmToken: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<{ userId: string; requiresEmailVerification: boolean }>;
-  verifyEmail: (email: string, code: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<{ hasProfile: boolean }>;
   resendVerification: (email: string) => Promise<void>;
   correctPendingEmail: (currentEmail: string, newEmail: string) => Promise<void>;
   firebaseLogin: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
@@ -240,11 +240,12 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
   );
 
   const verifyEmail = useCallback(
-    async (email: string, code: string): Promise<void> => {
-      const response = await api.post<{ verified: boolean }>("/auth/verify-email", { email, code }, { skipAuthRetry: true });
+    async (email: string, code: string): Promise<{ hasProfile: boolean }> => {
+      const response = await api.post<{ verified: boolean; hasProfile: boolean }>("/auth/verify-email", { email, code }, { skipAuthRetry: true });
       if (!response.data?.verified) {
         throw new Error("Verification failed");
       }
+      return { hasProfile: response.data.hasProfile };
     },
     [],
   );
