@@ -87,10 +87,8 @@ export class DeviceConfirmationError extends Error {
   }
 }
 
-const PUBLIC_PATHS = ["/certificates/verify", "/"];
-
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  return pathname === "/" || pathname.startsWith("/certificates/verify");
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
