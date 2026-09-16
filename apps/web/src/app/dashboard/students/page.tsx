@@ -20,6 +20,8 @@ import {
   GraduationCap,
   Search,
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
   User,
   Phone,
   KeyRound,
@@ -427,6 +429,7 @@ export default function StudentsPage(): ReactNode {
           studentName={detail?.fullName ?? ""}
           currentStatus={detail?.status}
           sendNotifMutation={sendNotifMutation}
+          onSelectStudent={(id) => { setSelectedStudentId(id); }}
         />
       </div>
     );
@@ -782,6 +785,7 @@ export default function StudentsPage(): ReactNode {
         studentName={selectedStudentId ? (detail?.fullName ?? "") : ""}
         currentStatus={selectedStudentId ? detail?.status : undefined}
         sendNotifMutation={sendNotifMutation}
+        onSelectStudent={(id) => { setSelectedStudentId(id); }}
       />
     </div>
   );
@@ -1116,6 +1120,7 @@ function ActionDialogs({
   studentName,
   currentStatus,
   sendNotifMutation,
+  onSelectStudent,
 }: {
   dialog: { type: string | null };
   setDialog: (d: { type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "suspend" | "ban" | "delete" | "inactive-list" | "inactive-reminder" | null; students?: { id: string; fullName: string; email: string; mobileNumber?: string; registeredAt?: string; grade?: string | null; coins?: number }[] }) => void;
@@ -1124,8 +1129,10 @@ function ActionDialogs({
   studentName?: string;
   currentStatus?: string;
   sendNotifMutation?: { mutate: (p: { title: string; message: string; targetType: string; targetId?: string }) => void; isPending?: boolean };
+  onSelectStudent?: (id: string) => void;
 }): ReactNode {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [collapsedGrades, setCollapsedGrades] = useState<Record<string, boolean>>({});
 
   const close = (): void => {
     setDialog({ type: null });
@@ -1143,54 +1150,78 @@ function ActionDialogs({
       return acc;
     }, {});
 
+    const toggleGrade = (grade: string): void => {
+      setCollapsedGrades((prev) => ({ ...prev, [grade]: !prev[grade] }));
+    };
+
     return (
       <Dialog open onClose={close} title="الطلاب غير النشطين (15 يوم بدون شراء)">
-        <DialogContent className="space-y-4 max-h-[32rem] overflow-y-auto">
+        <DialogContent className="space-y-2 max-h-[32rem] overflow-y-auto p-2">
           {Object.keys(grouped).length === 0 ? (
             <p className="text-sm text-neutral-500 text-center py-4">لا يوجد طلاب غير نشطين</p>
           ) : (
-            Object.entries(grouped).map(([grade, students]) => (
-              <div key={grade}>
-                <div className="flex items-center gap-2 mb-2 sticky top-0 bg-white dark:bg-neutral-900 py-1 z-10">
-                  <GraduationCap className="h-4 w-4 text-primary-500" />
-                  <span className="text-sm font-bold text-primary-700 dark:text-primary-300">{grade}</span>
-                  <Badge variant="info">{students.length}</Badge>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {students.map((s) => (
-                    <div key={s.id} className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
-                      <div>
-                        <p className="font-semibold text-neutral-900 dark:text-neutral-100">{s.fullName}</p>
-                        <p className="text-xs text-neutral-500">{s.email}</p>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-blue-500 text-xs border-blue-200 hover:bg-blue-50"
-                          loading={sendNotifMutation?.isPending}
-                          onClick={() => {
-                            const gradeText = s.grade ? ` (${s.grade})` : "";
-                            sendNotifMutation?.mutate({
-                              title: `تذكير بالاشتراك${gradeText}`,
-                              message: `مرحباً${s.fullName}${gradeText}،فى حال عدم الرغبة فى الاشتراك أو الاستفادة من المحتوى فستقوم المنصة بإيقاف الحساب لتوفير مكان للطلاب الذين يرغبون فى الاشتراك فى المنصة ولكنهم فى قائمة الانتظار.`,
-                              targetType: "individual",
-                              targetId: s.id,
-                            });
-                          }}
-                        >
-                          <Bell className="h-3 w-3 ml-0.5" />
-                          تذكير
-                        </Button>
-                        <Button size="sm" variant="outline" className="text-amber-500 text-xs" onClick={() => { close(); setDialog({ type: "suspend" }); }}>إيقاف</Button>
-                        <Button size="sm" variant="outline" className="text-red-500 text-xs" onClick={() => { close(); setDialog({ type: "ban" }); }}>حظر</Button>
-                        <Button size="sm" variant="outline" className="text-red-500 text-xs" onClick={() => { close(); setDialog({ type: "delete" }); }}>حذف</Button>
-                      </div>
+            Object.entries(grouped).map(([grade, students]) => {
+              const isCollapsed = collapsedGrades[grade] ?? false;
+              return (
+                <div key={grade} className="border border-neutral-200 dark:border-neutral-700 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-3 py-2.5 bg-neutral-50 hover:bg-neutral-100 dark:bg-neutral-800 dark:hover:bg-neutral-750 transition-colors"
+                    onClick={() => { toggleGrade(grade); }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="h-4 w-4 text-primary-500" />
+                      <span className="text-sm font-bold text-neutral-800 dark:text-neutral-200">{grade}</span>
+                      <Badge variant="info">{students.length}</Badge>
                     </div>
-                  ))}
+                    {isCollapsed ? <ChevronLeft className="h-4 w-4 text-neutral-400" /> : <ChevronDown className="h-4 w-4 text-neutral-400" />}
+                  </button>
+                  {!isCollapsed && (
+                    <div className="flex flex-col">
+                      {students.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between px-3 py-2 border-t border-neutral-100 dark:border-neutral-700/50 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors">
+                          <button
+                            type="button"
+                            className="flex items-center gap-2 text-right min-w-0"
+                            onClick={() => { close(); onSelectStudent?.(s.id); }}
+                          >
+                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-500/10 shrink-0">
+                              <User className="h-3.5 w-3.5 text-primary-500" />
+                            </div>
+                            <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate hover:text-primary-600 dark:hover:text-primary-400 transition-colors">{s.fullName}</span>
+                          </button>
+                          <div className="flex gap-1 shrink-0">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-blue-500 text-xs border-blue-200 hover:bg-blue-50 h-7 px-2"
+                              loading={sendNotifMutation?.isPending}
+                              onClick={() => {
+                                const gradeText = s.grade ? ` (${s.grade})` : "";
+                                sendNotifMutation?.mutate({
+                                  title: `تذكير بالاشتراك${gradeText}`,
+                                  message: `مرحباً ${s.fullName}${gradeText}،فى حال عدم الرغبة فى الاشتراك أو الاستفادة من المحتوى فستقوم المنصة بإيقاف الحساب لتوفير مكان للطلاب الذين يرغبون فى الاشتراك فى المنصة ولكنهم فى قائمة الانتظار.`,
+                                  targetType: "individual",
+                                  targetId: s.id,
+                                });
+                              }}
+                            >
+                              <Bell className="h-3 w-3" />
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-amber-500 text-xs h-7 px-2" onClick={() => { close(); setDialog({ type: "suspend" }); }}>
+                              <Ban className="h-3 w-3" />
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-red-500 text-xs h-7 px-2" onClick={() => { close(); setDialog({ type: "delete" }); }}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </DialogContent>
         <DialogFooter>
