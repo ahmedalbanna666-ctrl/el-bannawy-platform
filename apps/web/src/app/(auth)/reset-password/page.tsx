@@ -77,7 +77,7 @@ function ResetPasswordForm(): ReactNode {
           <Input
             label="كلمة المرور الجديدة"
             type={showPassword ? "text" : "password"}
-            placeholder="8 أحرف على الأقل"
+            placeholder="أرقام وحروف كبيرة وصغيرة"
             value={newPassword}
             onChange={(e): void => { setNewPassword(e.target.value); }}
             leftIcon={<Lock className="h-5 w-5" />}

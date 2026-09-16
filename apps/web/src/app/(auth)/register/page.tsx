@@ -589,7 +589,7 @@ function RegisterForm(): ReactNode {
                   autoComplete="new-password"
                   label="كلمة المرور"
                   type={showPassword ? "text" : "password"}
-                  placeholder="8 أحرف على الأقل"
+                  placeholder="أرقام وحروف كبيرة وصغيرة"
                   value={password}
                   onChange={(e): void => { setPassword(e.target.value); }}
                   leftIcon={<Lock className="h-5 w-5" />}
