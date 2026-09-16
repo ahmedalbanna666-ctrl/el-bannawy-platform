@@ -24,6 +24,7 @@ export function StudentProfileSection({ profile, onSave }: Props): ReactNode {
   const [editing, setEditing] = useState(false);
   const [gradeId, setGradeId] = useState(profile.grade?.id ?? "");
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const { data: gradeLock, isLoading: gradeLockLoading } = useQuery({
     queryKey: ["grade-lock-status"],
@@ -54,11 +55,15 @@ export function StudentProfileSection({ profile, onSave }: Props): ReactNode {
 
   const handleSave = useCallback(async (): Promise<void> => {
     setSaving(true);
+    setErrorMsg(null);
     try {
       if (gradeId !== (profile.grade?.id ?? "")) {
         await onSave("gradeId", gradeId);
       }
       setEditing(false);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "حدث خطأ أثناء الحفظ";
+      setErrorMsg(message);
     } finally {
       setSaving(false);
     }
@@ -140,6 +145,9 @@ export function StudentProfileSection({ profile, onSave }: Props): ReactNode {
                   </p>
                 )}
               </div>
+            )}
+            {errorMsg && (
+              <p className="rounded-lg bg-danger-500/10 px-3 py-2 text-xs text-danger-600 dark:text-danger-400">{errorMsg}</p>
             )}
             <div className="flex justify-end gap-2">
               <Button

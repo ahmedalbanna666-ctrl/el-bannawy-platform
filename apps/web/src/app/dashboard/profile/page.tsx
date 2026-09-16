@@ -184,15 +184,18 @@ function EditableField({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleEdit = useCallback(() => {
     setDraft(value);
     setEditing(true);
+    setErrorMsg(null);
   }, [value]);
 
   const handleCancel = useCallback(() => {
     setEditing(false);
     setDraft(value);
+    setErrorMsg(null);
   }, [value]);
 
   const handleSave = useCallback(async (): Promise<void> => {
@@ -202,11 +205,13 @@ function EditableField({
       return;
     }
     setSaving(true);
+    setErrorMsg(null);
     try {
       await onSave(fieldKey, finalValue);
       setEditing(false);
-    } catch {
-      // keep editing on error
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "حدث خطأ أثناء الحفظ";
+      setErrorMsg(message);
     } finally {
       setSaving(false);
     }
@@ -239,6 +244,9 @@ function EditableField({
             <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
               {value || <span className="font-normal text-neutral-400 dark:text-neutral-500">غير محدد</span>}
             </p>
+          )}
+          {errorMsg && (
+            <p className="mt-1 text-xs text-danger-500">{errorMsg}</p>
           )}
         </div>
       </div>
