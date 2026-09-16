@@ -346,90 +346,160 @@ function HistoryTab(): ReactNode {
   const { data: purchases, isLoading: purchasesLoading } = useMyPurchases();
   const { data: manualOrders, isLoading: ordersLoading } = useMyOrders();
   const { data: unlocks, isLoading: unlocksLoading } = useMyUnlocks();
+  const { data: wallet } = useCoinWallet();
   const isLoading = purchasesLoading || unlocksLoading || ordersLoading;
 
-  const allOrders = [
-    ...(manualOrders?.map((o) => ({
-      id: o.id, type: "manual" as const, coinAmount: o.coinAmount, amount: o.amount,
-      createdAt: o.createdAt, status: o.status, gateway: o.gateway,
-    })) ?? []),
-    ...(purchases?.map((p) => ({
-      id: p.id, type: "auto" as const, coinAmount: p.coinAmount, amount: p.price,
-      createdAt: p.createdAt, status: "COMPLETED" as const, gateway: "" as const,
-    })) ?? []),
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const totalPurchasedCoins = [
+    ...(purchases ?? []),
+    ...(manualOrders?.filter((o) => o.status === "APPROVED") ?? []),
+  ].reduce((sum, item) => sum + ("coinAmount" in item ? item.coinAmount : 0), 0);
+
+  const totalSpentCoins = (unlocks ?? []).reduce((sum, u) => sum + (u.coinAmount ?? 0), 0);
+
+  const totalSpentEGP = [
+    ...(purchases ?? []),
+    ...(manualOrders?.filter((o) => o.status === "APPROVED") ?? []),
+  ].reduce((sum, item) => sum + ("price" in item ? item.price : "amount" in item ? item.amount : 0), 0);
+
+  type TimelineItem = {
+    id: string;
+    icon: "purchase" | "manual" | "unlock";
+    title: string;
+    subtitle: string;
+    coins: number;
+    coinsDirection: "in" | "out";
+    amountEGP: number;
+    status: string;
+    date: string;
+    sortDate: number;
+  };
+
+  const timeline: TimelineItem[] = [
+    ...(purchases ?? []).map((p): TimelineItem => ({
+      id: `p-${p.id}`,
+      icon: "purchase" as const,
+      title: p.package?.name ?? "شراء عملات",
+      subtitle: `${p.coinAmount.toLocaleString()} عملة`,
+      coins: p.coinAmount,
+      coinsDirection: "in" as const,
+      amountEGP: p.price,
+      status: "COMPLETED",
+      date: p.createdAt,
+      sortDate: new Date(p.createdAt).getTime(),
+    })),
+    ...(manualOrders ?? []).map((o): TimelineItem => ({
+      id: `m-${o.id}`,
+      icon: "manual" as const,
+      title: o.package?.name ?? "تحويل يدوي",
+      subtitle: `${o.coinAmount.toLocaleString()} عملة — ${GATEWAY_LABELS[o.gateway] ?? o.gateway}`,
+      coins: o.coinAmount,
+      coinsDirection: "in" as const,
+      amountEGP: o.amount,
+      status: o.status,
+      date: o.createdAt,
+      sortDate: new Date(o.createdAt).getTime(),
+    })),
+    ...(unlocks ?? []).map((u): TimelineItem => ({
+      id: `u-${u.id}`,
+      icon: "unlock" as const,
+      title: u.targetType === "UNIT" ? "فتح وحدة" : "فتح درس",
+      subtitle: u.unlockMethod === "COINS" ? " عبر العملات" : u.unlockMethod === "CODE" ? "عبر رمز التفعيل" : "بواسطة الإدارة",
+      coins: u.coinAmount ?? 0,
+      coinsDirection: "out" as const,
+      amountEGP: 0,
+      status: "COMPLETED",
+      date: u.createdAt,
+      sortDate: new Date(u.createdAt).getTime(),
+    })),
+  ].sort((a, b) => b.sortDate - a.sortDate);
+
+  const groupedByDate = timeline.reduce<Record<string, TimelineItem[]>>((acc, item) => {
+    const key = new Date(item.date).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" });
+    (acc[key] ??= []).push(item);
+    return acc;
+  }, {});
+
+  const statusConfig: Record<string, { label: string; variant: "success" | "danger" | "warning" }> = {
+    COMPLETED: { label: "مكتمل", variant: "success" },
+    APPROVED: { label: "مقبول", variant: "success" },
+    PENDING: { label: "قيد المراجعة", variant: "warning" },
+    REJECTED: { label: "مرفوض", variant: "danger" },
+  };
+
+  const iconMap = {
+    purchase: <ShoppingCart className="h-4 w-4" />,
+    manual: <Send className="h-4 w-4" />,
+    unlock: <Gift className="h-4 w-4" />,
+  };
+
+  const iconBg = {
+    purchase: "bg-emerald-500/15 text-emerald-500",
+    manual: "bg-blue-500/15 text-blue-500",
+    unlock: "bg-purple-500/15 text-purple-500",
+  };
 
   return (
-    <div className="flex flex-col gap-6">
-      <section>
-        <h3 className="mb-3 text-sm font-bold text-neutral-700 dark:text-neutral-300">سجل الطلبات والمشتريات</h3>
-        {isLoading ? (
-          <div className="flex flex-col gap-2">
-            {[1, 2].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
-          </div>
-        ) : allOrders.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {allOrders.map((o) => (
-              <div key={`${o.type}-${o.id}`}
-                className="flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-3 dark:bg-neutral-800/50">
-                <div className="flex items-center gap-3">
-                  <Coins className="h-5 w-5 text-amber-500" />
-                  <div>
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                      {o.type === "manual" ? "تحويل يدوي" : "شراء مباشر"}
-                      {o.type === "manual" && (
-                        <Badge variant={o.status === "APPROVED" ? "success" : o.status === "REJECTED" ? "danger" : "warning"} className="mr-2">
-                          {o.status === "APPROVED" ? "مقبول" : o.status === "REJECTED" ? "مرفوض" : "قيد المراجعة"}
-                        </Badge>
+    <div className="flex flex-col gap-5">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl bg-emerald-500/10 p-3 text-center dark:bg-emerald-500/15">
+          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">+{totalPurchasedCoins.toLocaleString()}</p>
+          <p className="text-xs text-neutral-500">عملات مُشترَاة</p>
+        </div>
+        <div className="rounded-xl bg-red-500/10 p-3 text-center dark:bg-red-500/15">
+          <p className="text-lg font-bold text-red-600 dark:text-red-400">-{totalSpentCoins.toLocaleString()}</p>
+          <p className="text-xs text-neutral-500">عملات مُنفَّقة</p>
+        </div>
+        <div className="rounded-xl bg-amber-500/10 p-3 text-center dark:bg-amber-500/15">
+          <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{totalSpentEGP.toLocaleString()}</p>
+          <p className="text-xs text-neutral-500">ج.م مُنفَّقة</p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col gap-2">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+        </div>
+      ) : timeline.length === 0 ? (
+        <EmptyState icon={<History className="h-10 w-10" />} title="لا توجد معاملات" description="لم تقم بأي عملية شراء أو فتح محتوى بعد" />
+      ) : (
+        Object.entries(groupedByDate).map(([date, items]) => (
+          <section key={date}>
+            <h4 className="mb-2 text-xs font-semibold text-neutral-400 dark:text-neutral-500">{date}</h4>
+            <div className="flex flex-col gap-1.5">
+              {items.map((item) => {
+                const st = statusConfig[item.status] ?? { label: item.status, variant: "warning" as const };
+                return (
+                  <div key={item.id}
+                    className="flex items-center gap-3 rounded-xl bg-neutral-50 px-4 py-3 dark:bg-neutral-800/50">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg[item.icon]}`}>
+                      {iconMap[item.icon]}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">{item.title}</p>
+                        {item.icon !== "unlock" && (
+                          <Badge variant={st.variant} className="shrink-0">{st.label}</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-neutral-500">{item.subtitle}</p>
+                    </div>
+                    <div className="shrink-0 text-left">
+                      {item.coinsDirection === "in" ? (
+                        <p className="text-sm font-bold text-emerald-500">+{item.coins.toLocaleString()} عملة</p>
+                      ) : item.coins > 0 ? (
+                        <p className="text-sm font-bold text-red-500">-{item.coins.toLocaleString()} عملة</p>
+                      ) : null}
+                      {item.amountEGP > 0 && (
+                        <p className="text-xs text-neutral-400">{item.amountEGP.toLocaleString()} ج.م</p>
                       )}
-                    </p>
-                    <p className="text-xs text-neutral-500">{new Date(o.createdAt).toLocaleDateString("ar-SA")}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-bold text-amber-500">+{o.coinAmount}</p>
-                  <p className="text-xs text-neutral-400">{o.amount} EGP</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-neutral-400">لا توجد مشتريات</p>
-        )}
-      </section>
-      <section>
-        <h3 className="mb-3 text-sm font-bold text-neutral-700 dark:text-neutral-300">عمليات فتح المحتوى</h3>
-        {isLoading ? (
-          <div className="flex flex-col gap-2">
-            {[1, 2].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
-          </div>
-        ) : unlocks && unlocks.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {unlocks.map((u) => (
-              <div key={u.id}
-                className="flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-3 dark:bg-neutral-800/50">
-                <div className="flex items-center gap-3">
-                  <Gift className="h-5 w-5 text-primary-500" />
-                  <div>
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                      {u.targetType === "UNIT" ? "وحدة" : "درس"} {u.targetId.slice(0, 8)}...
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      عبر {u.unlockMethod === "COINS" ? "عملات" : u.unlockMethod === "CODE" ? "رمز" : "أخرى"}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-left">
-                  <p className="text-xs text-neutral-500">{new Date(u.createdAt).toLocaleDateString("ar-SA")}</p>
-                  {u.coinAmount && <p className="text-xs text-danger-500">-{u.coinAmount}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-neutral-400">لا يوجد محتوى مفتوح</p>
-        )}
-      </section>
+                );
+              })}
+            </div>
+          </section>
+        ))
+      )}
     </div>
   );
 }
