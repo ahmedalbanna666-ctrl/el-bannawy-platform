@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { toast } from "sonner";
 import { playSendSound } from "@/lib/use-send-sound";
 import { useAcademicContext } from "@/lib/academic-context-store";
 import { EDUCATIONAL_STAGES } from "@/lib/education-options";
@@ -257,6 +258,27 @@ export default function StudentsPage(): ReactNode {
   });
   const pendingCount = pendingMeta?.meta.total ?? 0;
 
+  // Inactive students (no purchase/unlock in 15 days)
+  const { data: inactiveStudents } = useQuery<{ id: string; fullName: string; email: string; mobileNumber: string; registeredAt: string; grade: string | null; coins: number }[]>({
+    queryKey: ["students-inactive-15"],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; fullName: string; email: string; mobileNumber: string; registeredAt: string; grade: string | null; coins: number }[]>("/admin/students/inactive?days=15");
+      return res.data ?? [];
+    },
+    staleTime: 60_000,
+  });
+  const inactiveCount = inactiveStudents?.length ?? 0;
+
+  // Students inactive 10 days (reminder candidates)
+  const { data: reminderStudents } = useQuery<{ id: string; fullName: string; email: string }[]>({
+    queryKey: ["students-inactive-10"],
+    queryFn: async () => {
+      const res = await api.get<{ id: string; fullName: string; email: string }[]>("/admin/students/inactive?days=10");
+      return res.data ?? [];
+    },
+    staleTime: 60_000,
+  });
+
   const resendVerificationMutation = useMutation({
     mutationFn: async (email: string) => api.post("/auth/resend-verification", { email }),
   });
@@ -270,7 +292,8 @@ export default function StudentsPage(): ReactNode {
   };
 
   const [dialog, setDialog] = useState<{
-    type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "status" | "delete" | null;
+    type: "edit" | "phone" | "password" | "coins-add" | "coins-remove" | "xp" | "suspend" | "ban" | "delete" | "inactive-list" | "inactive-reminder" | null;
+    students?: { id: string; fullName: string; email: string; mobileNumber?: string; registeredAt?: string; grade?: string | null; coins?: number }[];
   }>({ type: null });
 
   const [waDialog, setWaDialog] = useState<{
@@ -289,10 +312,18 @@ export default function StudentsPage(): ReactNode {
 
   const sendNotifMutation = useMutation({
     mutationFn: async (payload: { title: string; message: string; targetType: string; targetId?: string }) => {
-      return api.post("/notifications/send", payload);
+      return api.post("/notifications/send", {
+        type: "teacher_announcement",
+        channel: "PUSH",
+        ...payload,
+      });
     },
     onSuccess: () => {
+      toast.success("تم إرسال الإشعار بنجاح");
       setNotifDialog({ open: false, student: null, title: "إشعار من المنصة", message: "" });
+    },
+    onError: (err: Error) => {
+      toast.error(`فشل إرسال الإشعار: ${err.message}`);
     },
   });
 
@@ -425,6 +456,42 @@ export default function StudentsPage(): ReactNode {
               >
                 عرض القائمة
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {inactiveCount > 0 && (
+        <Card variant="outline" padding="sm" className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30">
+          <CardContent>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <span className="text-sm font-medium text-red-800 dark:text-red-200">
+                  {inactiveCount} طالب لم يشتروا أي محتوى أو يدخلوا رموز فتح منذ 15 يوم
+                </span>
+              </div>
+              <div className="flex gap-2">
+                {reminderStudents && reminderStudents.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                    onClick={() => { setDialog({ type: "inactive-reminder", students: reminderStudents }); }}
+                  >
+                    <Bell className="h-4 w-4 ml-1" />
+                    إرسال تذكير ({reminderStudents.length})
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-red-300 text-red-700 hover:bg-red-100"
+                  onClick={() => { setDialog({ type: "inactive-list", students: inactiveStudents ?? [] }); }}
+                >
+                  عرض القائمة
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1053,6 +1120,80 @@ function ActionDialogs({
   };
 
   if (!dialog.type) return null;
+
+  // Special dialogs that don't use the standard field form
+  if (dialog.type === "inactive-list") {
+    return (
+      <Dialog open onClose={close} title="الطلاب غير النشطين (15 يوم بدون شراء)">
+        <DialogContent className="space-y-3 max-h-96 overflow-y-auto">
+          {(!dialog.students || dialog.students.length === 0) ? (
+            <p className="text-sm text-neutral-500 text-center py-4">لا يوجد طلاب غير نشطين</p>
+          ) : (
+            dialog.students.map((s) => (
+              <div key={s.id} className="flex items-center justify-between rounded-xl border border-neutral-200 p-3 dark:border-neutral-700">
+                <div>
+                  <p className="font-semibold text-neutral-900 dark:text-neutral-100">{s.fullName}</p>
+                  <p className="text-xs text-neutral-500">{s.email} {s.grade ? `• ${s.grade}` : ""}</p>
+                </div>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="outline" className="text-amber-500 text-xs" onClick={() => { close(); setDialog({ type: "suspend" }); }}>إيقاف</Button>
+                  <Button size="sm" variant="outline" className="text-red-500 text-xs" onClick={() => { close(); setDialog({ type: "ban" }); }}>حظر</Button>
+                  <Button size="sm" variant="outline" className="text-red-500 text-xs" onClick={() => { close(); setDialog({ type: "delete" }); }}>حذف</Button>
+                </div>
+              </div>
+            ))
+          )}
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>إغلاق</Button>
+        </DialogFooter>
+      </Dialog>
+    );
+  }
+
+  if (dialog.type === "inactive-reminder") {
+    return (
+      <Dialog open onClose={close} title="إرسال تذكير للطلاب غير النشطين">
+        <DialogContent className="space-y-3">
+          <div className="rounded-xl bg-amber-50 p-4 dark:bg-amber-900/20">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              سيتم إرسال رسالة تذكير إلى <span className="font-bold">{dialog.students?.length ?? 0}</span> طالب
+              لم يشتروا أي محتوى أو يدخلوا رموز فتح منذ 10 أيام.
+            </p>
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+              الرسالة: "فى حال عدم الرغبة فى الاشتراك أو الاستفادة من المحتوى فستقوم المنصة بإيقاف الحساب لتوفير مكان للطلاب الذين يرغبون فى الاشتراك فى المنصة ولكنهم فى قائمة الانتظار"
+            </p>
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>إلغاء</Button>
+          <Button onClick={() => {
+            // Send reminder to each student
+            if (dialog.students) {
+              for (const s of dialog.students) {
+                confirmAction.mutate({
+                  method: "post",
+                  endpoint: "/notifications/send",
+                  body: {
+                    type: "inactivity_reminder",
+                    title: "تذكير belang重要",
+                    message: "فى حال عدم الرغبة فى الاشتراك أو الاستفادة من المحتوى فستقوم المنصة بإيقاف الحساب لتوفير مكان للطلاب الذين يرغبون فى الاشتراك فى المنصة ولكنهم فى قائمة الانتظار",
+                    priority: "HIGH",
+                    channel: "IN_APP",
+                    targetType: "individual",
+                    targetId: s.id,
+                  },
+                });
+              }
+            }
+            close();
+          }}>
+            إرسال التذكير
+          </Button>
+        </DialogFooter>
+      </Dialog>
+    );
+  }
 
   const setValue = (key: string, value: string): void => {
     setFieldValues((prev) => ({ ...prev, [key]: value }));

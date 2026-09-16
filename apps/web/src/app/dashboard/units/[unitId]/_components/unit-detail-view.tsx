@@ -4,6 +4,7 @@ import { useState, useMemo, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { toast } from "sonner";
 import { playSendSound } from "@/lib/use-send-sound";
 import { usePermissions } from "@/lib/use-permissions";
 import { PERMISSIONS } from "@el-bannawy/shared";
@@ -137,10 +138,18 @@ export function UnitDetailView({
 
   const sendNotifMutation = useMutation({
     mutationFn: async (payload: { title: string; message: string; targetType: string; targetId?: string }) => {
-      return api.post("/notifications/send", payload);
+      return api.post("/notifications/send", {
+        type: "teacher_announcement",
+        channel: "PUSH",
+        ...payload,
+      });
     },
     onSuccess: () => {
+      toast.success("تم إرسال الإشعار بنجاح");
       setNotifDialog({ open: false, lesson: null, title: "", message: "" });
+    },
+    onError: (err: Error) => {
+      toast.error(`فشل إرسال الإشعار: ${err.message}`);
     },
   });
 

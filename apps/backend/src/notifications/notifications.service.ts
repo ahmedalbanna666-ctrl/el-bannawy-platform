@@ -234,16 +234,18 @@ export class NotificationsService implements OnModuleInit {
       return { sent: 0, skipped: true, reason: "No targets resolved" };
     }
 
-    // Fetch user preferences to filter who actually wants this notification
+    // Fetch user preferences to filter who actually wants this notification.
+    // Users WITHOUT a preference record are treated as opted-in (notifications
+    // are on by default). Only users who explicitly set the field to false are
+    // excluded.
     const prefField = this.getPreferenceField(dto.type);
     let filteredUserIds = targetUserIds;
     if (prefField) {
-      const prefs = await this.prisma.notificationPreference.findMany({
-        where: { userId: { in: targetUserIds }, [prefField]: true },
-        select: { userId: true },
+      const allPrefs = await this.prisma.notificationPreference.findMany({
+        where: { userId: { in: targetUserIds } },
       });
-      const optedIn = new Set(prefs.map((p) => p.userId));
-      filteredUserIds = targetUserIds.filter((uid) => optedIn.has(uid));
+      const prefMap = new Map(allPrefs.map((p) => [p.userId, p[prefField as keyof typeof p] as boolean]));
+      filteredUserIds = targetUserIds.filter((uid) => prefMap.get(uid) !== false);
     }
 
     const channel = dto.channel ?? NotificationChannel.IN_APP;
@@ -395,12 +397,11 @@ export class NotificationsService implements OnModuleInit {
     let targetUserIds = [...new Set(userIds)];
     const prefField = this.getPreferenceField(dto.type);
     if (prefField && targetUserIds.length > 0) {
-      const prefs = await this.prisma.notificationPreference.findMany({
-        where: { userId: { in: targetUserIds }, [prefField]: true },
-        select: { userId: true },
+      const allPrefs = await this.prisma.notificationPreference.findMany({
+        where: { userId: { in: targetUserIds } },
       });
-      const optedIn = new Set(prefs.map((p) => p.userId));
-      targetUserIds = targetUserIds.filter((uid) => optedIn.has(uid));
+      const prefMap = new Map(allPrefs.map((p) => [p.userId, p[prefField as keyof typeof p] as boolean]));
+      targetUserIds = targetUserIds.filter((uid) => prefMap.get(uid) !== false);
     }
 
     if (targetUserIds.length === 0) {
