@@ -11,7 +11,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { api } from "@/lib/api-client";
 import { AccountStatusScreen, type AccountStatusData } from "@/components/auth/account-status-screen";
-import { School, Mail, Lock, LogIn, Eye, EyeOff, MonitorSmartphone } from "lucide-react";
+import { School, Mail, Lock, LogIn, Eye, EyeOff, MonitorSmartphone, PauseCircle, Ban, Trash2, MessageCircle, ShieldAlert } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
@@ -118,19 +118,7 @@ function LoginForm(): ReactNode {
     setConfirmToken(null);
   };
 
-  if (accountStatus) {
-    return (
-      <Card variant="elevated" padding="lg">
-        <CardContent>
-          <AccountStatusScreen
-            status={accountStatus.status}
-            whatsapp={accountStatus.whatsapp}
-            message={accountStatus.message}
-          />
-        </CardContent>
-      </Card>
-    );
-  }
+  const isAccountBlocked = accountStatus && accountStatus.status !== "ACTIVE";
 
   return (
     <Card variant="elevated" padding="lg">
@@ -299,6 +287,73 @@ function LoginForm(): ReactNode {
               </Button>
             </div>
           </div>
+        </Dialog>
+
+        <Dialog open={isAccountBlocked} onClose={() => { setAccountStatus(null); }} title="">
+          {accountStatus && (() => {
+            const isSuspended = accountStatus.status === "SUSPENDED";
+            const isBanned = accountStatus.status === "BANNED";
+            const isDeleted = accountStatus.status === "DELETED";
+            const waLink = accountStatus.whatsapp ? (() => {
+              const digits = accountStatus.whatsapp.replace(/\D/g, "").replace(/^0/, "");
+              return `https://wa.me/${digits}`;
+            })() : null;
+
+            const Icon = isSuspended ? PauseCircle : isBanned ? Ban : Trash2;
+            const title = isSuspended
+              ? "حسابك موقوف مؤقتاً"
+              : isBanned
+                ? "تم حظر حسابك"
+                : "تم حذف هذا الحساب";
+            const iconClass = isSuspended
+              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+              : "bg-danger-500/15 text-danger-600 dark:text-danger-400";
+            const description = isSuspended
+              ? "تم إيقاف حسابك مؤقتاً بسبب تقصيرك في الدراسة وعدم التزامك بالمنهج الدراسي. يرجى التواصل مع الدعم الفني لإعادة تشغيل حسابك."
+              : isBanned
+                ? "تم حظر حسابك بشكل دائم. يرجى التواصل مع الدعم الفني لمعرفة سبب الحظر."
+                : "تم حذف هذا الحساب نهائياً. لا يمكن استعادته.";
+
+            return (
+              <div className="flex flex-col items-center gap-4 pt-2 text-center">
+                <div className={`flex h-16 w-16 items-center justify-center rounded-2xl ${iconClass}`}>
+                  <Icon className="h-8 w-8" />
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">{title}</h2>
+                  <p className="mt-3 text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+                    {description}
+                  </p>
+                </div>
+
+                {waLink && (
+                  <a
+                    href={waLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-3 text-sm font-bold text-white shadow-sm transition-transform hover:scale-[1.02]"
+                  >
+                    <MessageCircle className="h-5 w-5" />
+                    تواصل مع الدعم الفني عبر واتساب
+                  </a>
+                )}
+
+                <div className="flex items-center gap-2 rounded-xl border border-neutral-200 px-4 py-3 text-xs text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+                  <ShieldAlert className="h-4 w-4 shrink-0" />
+                  إذا كانت هذه الرسالة غير صحيحة، تواصل مع إدارة المنصة.
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => { setAccountStatus(null); }}
+                  className="mt-1"
+                >
+                  العودة
+                </Button>
+              </div>
+            );
+          })()}
         </Dialog>
       </CardContent>
     </Card>
