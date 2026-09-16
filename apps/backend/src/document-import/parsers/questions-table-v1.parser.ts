@@ -650,9 +650,25 @@ function createMcqItem(
   passageText?: string | null,
   questionType?: QuestionPreviewType,
 ): QuestionPreviewItem {
+  // Handle multi-letter correct answers (e.g. "ab" means options a and b are correct)
+  const correctLabels = new Set<string>();
+  if (correctAnswer) {
+    const lettersOnly = correctAnswer.replace(/[^a-zA-Zأ-ي]/g, "");
+    if (lettersOnly.length > 1) {
+      // Multi-letter answer: each letter is a correct option
+      for (const ch of lettersOnly) {
+        const normalized = ARABIC_TO_LATIN_KEY[ch] ?? ch.toLowerCase();
+        correctLabels.add(normalized);
+      }
+    } else {
+      // Single letter answer
+      correctLabels.add(correctAnswer.toLowerCase());
+    }
+  }
+
   const markedOptions = options.map((o) => ({
     ...o,
-    isCorrect: o.isCorrect || (correctAnswer !== null && o.label.toLowerCase() === correctAnswer.toLowerCase()),
+    isCorrect: o.isCorrect || correctLabels.has(o.label.toLowerCase()),
   }));
 
   const errors: string[] = [];
@@ -672,7 +688,7 @@ function createMcqItem(
     instruction: instruction ?? null,
     explanation: null,
     options: markedOptions,
-    correctAnswer: markedOptions.find((o) => o.isCorrect)?.label ?? correctAnswer,
+    correctAnswer: markedOptions.filter((o) => o.isCorrect).map((o) => o.label).join(",") || correctAnswer,
     acceptableAnswers: [],
     passageText: passageText ?? null,
     status: errors.length > 0 ? "INVALID" : warnings.length > 0 ? "WARNING" : "VALID",

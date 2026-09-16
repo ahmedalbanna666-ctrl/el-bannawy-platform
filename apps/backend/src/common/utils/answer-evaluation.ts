@@ -38,7 +38,31 @@ export function isMcqAnswerCorrect(
   correctAnswer: string | null,
   studentAnswer: string,
 ): boolean {
-  return studentAnswer === normalizeMcqCorrect(optionsJson, correctAnswer);
+  const correct = (correctAnswer ?? "").trim().toLowerCase();
+  const student = studentAnswer.trim().toLowerCase();
+
+  // Single correct answer
+  if (/^[a-f]$/.test(correct)) {
+    return student === correct;
+  }
+
+  // Multiple correct answers (e.g. "ab" or "a,b")
+  // Student answer should be one of the correct labels
+  const correctLabels = new Set<string>();
+  const lettersOnly = correct.replace(/[^a-f]/g, "");
+  if (lettersOnly.length > 1) {
+    for (const ch of lettersOnly) {
+      correctLabels.add(ch);
+    }
+  }
+
+  if (correctLabels.size > 0) {
+    // Check if student answer is a single correct label
+    return correctLabels.has(student);
+  }
+
+  // Fallback: exact match
+  return student === correct;
 }
 
 export function formatMcqStudentAnswer(
