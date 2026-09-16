@@ -7,24 +7,22 @@ import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { School, Mail, Send, ArrowRight, KeyRound } from "lucide-react";
+import { School, Mail, Send, ArrowRight } from "lucide-react";
 
 export default function ForgotPasswordPage(): ReactNode {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setError(null);
-    setMessage(null);
     setLoading(true);
 
     try {
-      const response = await api.post<{ message: string }>("/auth/forgot-password", { identifier: email });
-      setMessage(response.message ?? "تم إرسال كود التحقق إلى بريدك الإلكتروني");
+      await api.post<{ message: string }>("/auth/forgot-password", { identifier: email });
+      router.push(`/reset-password?identifier=${encodeURIComponent(email)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ، يرجى المحاولة مرة أخرى");
     } finally {
@@ -63,25 +61,6 @@ export default function ForgotPasswordPage(): ReactNode {
             <p className="rounded-xl bg-danger-500/10 px-4 py-3 text-sm text-danger-500">
               {error}
             </p>
-          )}
-
-          {message && (
-            <p className="rounded-xl bg-success-500/10 px-4 py-3 text-sm text-success-600 dark:text-success-400">
-              {message}
-            </p>
-          )}
-
-          {message && (
-            <Button
-              type="button"
-              fullWidth
-              onClick={(): void => {
-                router.push(`/reset-password?identifier=${encodeURIComponent(email)}`);
-              }}
-            >
-              <KeyRound className="h-5 w-5" />
-              المتابعة لإدخال الكود
-            </Button>
           )}
 
           <Button type="submit" fullWidth loading={loading}>
