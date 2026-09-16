@@ -1,10 +1,11 @@
 "use client";
 
-import { memo, type ReactNode, useState } from "react";
+import { memo, useCallback, type ReactNode, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { CheckCircle, XCircle, ArrowUp, ArrowDown, HelpCircle, BookOpen } from "lucide-react";
+import { CheckCircle, XCircle, ArrowUp, ArrowDown, HelpCircle, BookOpen, Mic, MicOff, Loader2 } from "lucide-react";
 import { formatMcqAnswer } from "@/lib/mcq-format";
+import { useSpeechToText } from "@/hooks/use-speech-to-text";
 
 export interface StudentQuestion {
   id: string;
@@ -668,13 +669,20 @@ function renderEssay(
   const wc = selectedAnswer ? selectedAnswer.split(/\s+/).filter(Boolean).length : 0;
   return (
     <div>
-      <textarea value={selectedAnswer}
-        onChange={(e): void => { if (!isSubmitted) onAnswerChange(index, e.target.value); }}
-        disabled={isSubmitted} rows={5}
-        className={`w-full resize-y rounded-lg border px-4 py-3 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 ${
-          isSubmitted ? "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800" : "border-neutral-200 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-        }`} dir="auto" placeholder="اكتب إجابتك..."
-      />
+      <div className="relative">
+        <textarea value={selectedAnswer}
+          onChange={(e): void => { if (!isSubmitted) onAnswerChange(index, e.target.value); }}
+          disabled={isSubmitted} rows={5}
+          className={`w-full resize-y rounded-lg border px-4 py-3 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 ${
+            isSubmitted ? "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800" : "border-neutral-200 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+          }`} dir="auto" placeholder="اكتب إجابتك..."
+        />
+        {!isSubmitted && (
+          <MicButton
+            onTranscript={(text) => { onAnswerChange(index, selectedAnswer ? selectedAnswer + " " + text : text); }}
+          />
+        )}
+      </div>
       {!isSubmitted && <p className="mt-1 text-xs text-neutral-400">عدد الكلمات: {wc}</p>}
     </div>
   );
@@ -688,12 +696,56 @@ function renderTextInput(
   placeholder?: string,
 ): ReactNode {
   return (
-    <Input value={selectedAnswer}
-      onChange={(e): void => { if (!isSubmitted) onAnswerChange(index, e.target.value); }}
-      disabled={isSubmitted}
-      placeholder={placeholder ?? "اكتب إجابتك..."}
-      className={isSubmitted ? "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800" : ""}
-      dir="auto"
-    />
+    <div className="relative">
+      <Input value={selectedAnswer}
+        onChange={(e): void => { if (!isSubmitted) onAnswerChange(index, e.target.value); }}
+        disabled={isSubmitted}
+        placeholder={placeholder ?? "اكتب إجابتك..."}
+        className={`pr-10 ${isSubmitted ? "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800" : ""}`}
+        dir="auto"
+      />
+      {!isSubmitted && (
+        <MicButton
+          className="absolute right-1 top-1/2 -translate-y-1/2"
+          onTranscript={(text) => { onAnswerChange(index, selectedAnswer ? selectedAnswer + " " + text : text); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Mic Button ────────────────────────────────────────────────────
+
+function MicButton({
+  onTranscript,
+  className,
+}: {
+  onTranscript: (text: string) => void;
+  className?: string;
+}): ReactNode {
+  const handleResult = useCallback((text: string) => {
+    onTranscript(text);
+  }, [onTranscript]);
+
+  const { isListening, isSupported, start, stop, error } = useSpeechToText(handleResult);
+
+  if (!isSupported) return null;
+
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        onClick={() => { isListening ? stop() : start(); }}
+        className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
+          isListening
+            ? "bg-red-500 text-white shadow-lg shadow-red-500/30 animate-pulse"
+            : "bg-neutral-100 text-neutral-500 hover:bg-primary-100 hover:text-primary-600 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-primary-900/30"
+        }`}
+        title={isListening ? "إيقاف التسجيل" : "التحدث"}
+      >
+        {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+      </button>
+      {error && <p className="absolute -bottom-5 right-0 text-xs text-red-500 whitespace-nowrap">{error}</p>}
+    </div>
   );
 }
