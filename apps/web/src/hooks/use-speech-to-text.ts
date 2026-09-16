@@ -10,17 +10,15 @@ interface UseSpeechToTextReturn {
   error: string | null;
 }
 
-/**
- * Hook for browser-native speech-to-text (Web Speech API).
- * Calls onResult with ONLY the new text (not the full accumulated transcript).
- */
 export function useSpeechToText(
   onResult: (newText: string) => void,
 ): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const lastSentRef = useRef("");
+  const processedCountRef = useRef(0);
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
 
   const isSupported =
     typeof window !== "undefined" &&
@@ -32,7 +30,7 @@ export function useSpeechToText(
       recognitionRef.current = null;
     }
     setIsListening(false);
-    lastSentRef.current = "";
+    processedCountRef.current = 0;
   }, []);
 
   const start = useCallback((): void => {
@@ -42,7 +40,7 @@ export function useSpeechToText(
     }
 
     setError(null);
-    lastSentRef.current = "";
+    processedCountRef.current = 0;
 
     const SpeechRecognitionCtor =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -50,18 +48,21 @@ export function useSpeechToText(
 
     recognition.lang = "en-US";
     recognition.continuous = true;
-    recognition.interimResults = false; // Only send final results
+    recognition.interimResults = false;
 
     recognition.onresult = (event: SpeechRecognitionEvent): void => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          const transcript = event.results[i][0].transcript.trim();
+      const totalResults = event.results.length;
+      // Only process results we haven't seen before
+      for (let i = processedCountRef.current; i < totalResults; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          const transcript = result[0].transcript.trim();
           if (transcript) {
-            lastSentRef.current += transcript + " ";
-            onResult(transcript);
+            onResultRef.current(transcript);
           }
         }
       }
+      processedCountRef.current = totalResults;
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent): void => {
@@ -78,12 +79,11 @@ export function useSpeechToText(
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
-  }, [isSupported, onResult]);
+  }, [isSupported]);
 
   return { isListening, isSupported, start, stop, error };
 }
 
-// Type declarations for Web Speech API
 interface SpeechRecognition extends EventTarget {
   lang: string;
   continuous: boolean;

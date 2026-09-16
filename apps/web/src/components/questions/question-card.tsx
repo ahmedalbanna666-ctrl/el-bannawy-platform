@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, type ReactNode, useState } from "react";
+import { memo, useCallback, useRef, useEffect, type ReactNode, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CheckCircle, XCircle, ArrowUp, ArrowDown, HelpCircle, BookOpen, Mic, MicOff, Loader2 } from "lucide-react";
@@ -660,6 +660,46 @@ function renderReading(
   );
 }
 
+// ── Auto-resize Textarea ─────────────────────────────────────────
+
+function AutoResizeTextarea({
+  value,
+  onChange,
+  disabled,
+  rows = 3,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  disabled?: boolean;
+  rows?: number;
+  placeholder?: string;
+  className?: string;
+}): ReactNode {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      rows={rows}
+      placeholder={placeholder}
+      className={className}
+      dir="auto"
+    />
+  );
+}
+
 // ── ESSAY ─────────────────────────────────────────────────────────
 
 function renderEssay(
@@ -670,12 +710,15 @@ function renderEssay(
   return (
     <div>
       <div className="relative">
-        <textarea value={selectedAnswer}
+        <AutoResizeTextarea
+          value={selectedAnswer}
           onChange={(e): void => { if (!isSubmitted) onAnswerChange(index, e.target.value); }}
-          disabled={isSubmitted} rows={5}
-          className={`w-full resize-y rounded-lg border px-4 py-3 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 ${
+          disabled={isSubmitted}
+          rows={3}
+          placeholder="اكتب إجابتك..."
+          className={`w-full resize-none overflow-hidden rounded-lg border px-4 py-3 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 ${
             isSubmitted ? "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800" : "border-neutral-200 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-          }`} dir="auto" placeholder="اكتب إجابتك..."
+          }`}
         />
         {!isSubmitted && (
           <MicButton
@@ -697,16 +740,19 @@ function renderTextInput(
 ): ReactNode {
   return (
     <div className="relative">
-      <Input value={selectedAnswer}
+      <AutoResizeTextarea
+        value={selectedAnswer}
         onChange={(e): void => { if (!isSubmitted) onAnswerChange(index, e.target.value); }}
         disabled={isSubmitted}
+        rows={1}
         placeholder={placeholder ?? "اكتب إجابتك..."}
-        className={`pr-10 ${isSubmitted ? "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800" : ""}`}
-        dir="auto"
+        className={`w-full resize-none overflow-hidden rounded-lg border px-3 py-2 pr-10 text-sm outline-none transition-colors focus:border-primary-500 focus:ring-1 focus:ring-primary-500 ${
+          isSubmitted ? "border-neutral-200 bg-neutral-100 text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800" : "border-neutral-200 bg-white text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+        }`}
       />
       {!isSubmitted && (
         <MicButton
-          className="absolute right-1 top-1/2 -translate-y-1/2"
+          className="absolute right-1 top-2"
           onTranscript={(text) => { onAnswerChange(index, selectedAnswer ? selectedAnswer + " " + text : text); }}
         />
       )}
@@ -736,14 +782,17 @@ function MicButton({
       <button
         type="button"
         onClick={() => { isListening ? stop() : start(); }}
-        className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
+        className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-all ${
           isListening
-            ? "bg-red-500 text-white shadow-lg shadow-red-500/30 animate-pulse"
+            ? "bg-red-500 text-white shadow-lg shadow-red-500/40"
             : "bg-neutral-100 text-neutral-500 hover:bg-primary-100 hover:text-primary-600 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-primary-900/30"
         }`}
         title={isListening ? "إيقاف التسجيل" : "التحدث"}
       >
-        {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+        {isListening && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+        )}
+        {isListening ? <MicOff className="h-4 w-4 relative z-10" /> : <Mic className="h-4 w-4" />}
       </button>
       {error && <p className="absolute -bottom-5 right-0 text-xs text-red-500 whitespace-nowrap">{error}</p>}
     </div>
