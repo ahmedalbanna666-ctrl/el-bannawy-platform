@@ -7,14 +7,13 @@ import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { School, Mail, Lock, KeyRound, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { School, Lock, KeyRound, ArrowRight, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
 function ResetPasswordForm(): ReactNode {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const prefilledIdentifier = searchParams.get("identifier") ?? "";
-  const [identifier, setIdentifier] = useState(prefilledIdentifier);
+  const email = searchParams.get("identifier") ?? "";
   const [verificationCode, setVerificationCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -28,13 +27,13 @@ function ResetPasswordForm(): ReactNode {
 
     try {
       await api.post("/auth/reset-password", {
-        identifier,
+        identifier: email,
         verificationCode,
         newPassword,
       });
       router.push("/login?reset=true");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Password reset failed");
+      setError(err instanceof Error ? err.message : "فشل إعادة تعيين كلمة المرور");
     } finally {
       setLoading(false);
     }
@@ -48,28 +47,25 @@ function ResetPasswordForm(): ReactNode {
             <School className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            Reset Password
+            إعادة تعيين كلمة المرور
           </h1>
           <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">
-            Enter your email or mobile number, the verification code, and your new password
+            أدخل الكود المرسل إلى بريدك الإلكتروني وكلمة المرور الجديدة
           </p>
         </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={(e): void => { void handleSubmit(e); }} className="flex flex-col gap-5">
-          <Input
-            label="Email or Mobile Number"
-            type="text"
-            placeholder="Enter your email or mobile number"
-            value={identifier}
-            onChange={(e): void => { setIdentifier(e.target.value); }}
-            leftIcon={<Mail className="h-5 w-5" />}
-            required
-          />
+          {email && (
+            <div className="flex items-center gap-2 rounded-xl bg-neutral-100 px-4 py-3 dark:bg-neutral-800">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-success-500" />
+              <span className="text-sm text-neutral-700 dark:text-neutral-300" dir="ltr">{email}</span>
+            </div>
+          )}
 
           <Input
-            label="Verification Code"
-            placeholder="Enter 6-digit code"
+            label="كود التأكيد"
+            placeholder="أدخل الكود المكون من 6 أرقام"
             value={verificationCode}
             onChange={(e): void => { setVerificationCode(e.target.value); }}
             leftIcon={<KeyRound className="h-5 w-5" />}
@@ -77,9 +73,9 @@ function ResetPasswordForm(): ReactNode {
           />
 
           <Input
-            label="New Password"
+            label="كلمة المرور الجديدة"
             type={showPassword ? "text" : "password"}
-            placeholder="Min. 8 characters"
+            placeholder="8 أحرف على الأقل"
             value={newPassword}
             onChange={(e): void => { setNewPassword(e.target.value); }}
             leftIcon={<Lock className="h-5 w-5" />}
@@ -88,7 +84,7 @@ function ResetPasswordForm(): ReactNode {
                 type="button"
                 onClick={(): void => { setShowPassword(!showPassword); }}
                 className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -104,15 +100,15 @@ function ResetPasswordForm(): ReactNode {
 
           <Button type="submit" fullWidth loading={loading}>
             <KeyRound className="h-5 w-5" />
-            Reset Password
+            إعادة تعيين كلمة المرور
           </Button>
 
           <Link
             href="/login"
             className="flex items-center justify-center gap-2 text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to login
+            <ArrowRight className="h-4 w-4" />
+            العودة لتسجيل الدخول
           </Link>
         </form>
       </CardContent>

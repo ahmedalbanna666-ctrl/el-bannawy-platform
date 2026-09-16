@@ -199,7 +199,7 @@ function LoginForm(): ReactNode {
               href="/forgot-password"
               className="text-sm text-primary-600 hover:text-primary-500 dark:text-primary-400"
             >
-              Forgot password?
+              نسيت كلمة المرور؟
             </Link>
           </div>
 

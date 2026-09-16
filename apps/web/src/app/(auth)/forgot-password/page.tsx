@@ -7,11 +7,11 @@ import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { School, Mail, Send, ArrowLeft, KeyRound } from "lucide-react";
+import { School, Mail, Send, ArrowRight, KeyRound } from "lucide-react";
 
 export default function ForgotPasswordPage(): ReactNode {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -23,10 +23,10 @@ export default function ForgotPasswordPage(): ReactNode {
     setLoading(true);
 
     try {
-      const response = await api.post<{ message: string }>("/auth/forgot-password", { identifier });
-      setMessage(response.message ?? "Verification code sent");
+      const response = await api.post<{ message: string }>("/auth/forgot-password", { identifier: email });
+      setMessage(response.message ?? "تم إرسال كود التحقق إلى بريدك الإلكتروني");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
+      setError(err instanceof Error ? err.message : "حدث خطأ، يرجى المحاولة مرة أخرى");
     } finally {
       setLoading(false);
     }
@@ -40,21 +40,21 @@ export default function ForgotPasswordPage(): ReactNode {
             <School className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-            Forgot Password
+            نسيت كلمة المرور؟
           </h1>
           <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">
-            Enter your registered email or mobile number to receive a verification code
+            أدخل بريدك الإلكتروني المسجل وسنرسل لك كود التأكيد
           </p>
         </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={(e): void => { void handleSubmit(e); }} className="flex flex-col gap-5">
           <Input
-            label="Email or Mobile Number"
-            type="text"
-            placeholder="Enter your email or mobile number"
-            value={identifier}
-            onChange={(e): void => { setIdentifier(e.target.value); }}
+            label="البريد الإلكتروني"
+            type="email"
+            placeholder="example@email.com"
+            value={email}
+            onChange={(e): void => { setEmail(e.target.value); }}
             leftIcon={<Mail className="h-5 w-5" />}
             required
           />
@@ -76,25 +76,25 @@ export default function ForgotPasswordPage(): ReactNode {
               type="button"
               fullWidth
               onClick={(): void => {
-                router.push(`/reset-password?identifier=${encodeURIComponent(identifier)}`);
+                router.push(`/reset-password?identifier=${encodeURIComponent(email)}`);
               }}
             >
               <KeyRound className="h-5 w-5" />
-              Continue to enter the code
+              المتابعة لإدخال الكود
             </Button>
           )}
 
           <Button type="submit" fullWidth loading={loading}>
             <Send className="h-5 w-5" />
-            Send Verification Code
+            إرسال كود التأكيد
           </Button>
 
           <Link
             href="/login"
             className="flex items-center justify-center gap-2 text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to login
+            <ArrowRight className="h-4 w-4" />
+            العودة لتسجيل الدخول
           </Link>
         </form>
       </CardContent>
