@@ -708,6 +708,17 @@ export class AuthService {
     });
 
     if (existingUser) {
+      // Block suspended / banned / deleted users from logging in via OAuth.
+      if (existingUser.status === "SUSPENDED") {
+        throw new UnauthorizedException("SUSPENDED");
+      }
+      if (existingUser.status === "BANNED") {
+        throw new UnauthorizedException("BANNED");
+      }
+      if (existingUser.status === "DELETED") {
+        throw new UnauthorizedException("DELETED");
+      }
+
       // If the user was created manually (not via OAuth) and hasn't verified
       // their email yet, redirect them to the verification screen.
       if (existingUser.status === "PENDING_VERIFICATION" && !existingUser.emailVerifiedAt) {

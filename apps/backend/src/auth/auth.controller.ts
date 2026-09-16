@@ -134,6 +134,12 @@ export class AuthController {
       const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? undefined;
       const userAgent = req.headers["user-agent"] ?? undefined;
       const message = err instanceof Error ? err.message : "google_callback_failed";
+      // If the error is a status block (SUSPENDED/BANNED/DELETED), redirect
+      // to login with the status so the frontend can show the popup.
+      if (message === "SUSPENDED" || message === "BANNED" || message === "DELETED") {
+        res.redirect(`${this.config.app.frontendUrl}/login?error=${message}`);
+        return;
+      }
       // Log the failed Google auth attempt
       const fallbackEmail = (req.user as Record<string, unknown>)?.email;
       await this.authService.logGoogleAuthPublic(null, typeof fallbackEmail === "string" ? fallbackEmail : "unknown", "google", "unknown", false, "google_callback_failed", message, ipAddress, userAgent);
@@ -195,7 +201,12 @@ export class AuthController {
           `${frontendUrl}/register?oauth=apple&email=${encodeURIComponent(profile.email)}`,
         );
       }
-    } catch {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "apple_callback_failed";
+      if (message === "SUSPENDED" || message === "BANNED" || message === "DELETED") {
+        res.redirect(`${frontendUrl}/login?error=${message}`);
+        return;
+      }
       res.redirect(`${frontendUrl}/login?error=apple_callback_failed`);
     }
   }

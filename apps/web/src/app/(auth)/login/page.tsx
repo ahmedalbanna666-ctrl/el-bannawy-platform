@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, type ReactNode } from "react";
+import { Suspense, useState, useEffect, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth, DeviceConfirmationError } from "@/providers/auth-provider";
@@ -38,6 +38,15 @@ function LoginForm(): ReactNode {
   const [confirmToken, setConfirmToken] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [accountStatus, setAccountStatus] = useState<AccountStatusData | null>(null);
+
+  // If redirected from OAuth with a status error (SUSPENDED/BANNED/DELETED),
+  // show the account status popup.
+  useEffect(() => {
+    const errParam = searchParams.get("error");
+    if (errParam === "SUSPENDED" || errParam === "BANNED" || errParam === "DELETED") {
+      setAccountStatus({ status: errParam, whatsapp: null, message: null });
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -118,7 +127,7 @@ function LoginForm(): ReactNode {
     setConfirmToken(null);
   };
 
-  const isAccountBlocked = accountStatus && accountStatus.status !== "ACTIVE";
+  const isAccountBlocked = accountStatus !== null && accountStatus.status !== "ACTIVE";
 
   return (
     <Card variant="elevated" padding="lg">
