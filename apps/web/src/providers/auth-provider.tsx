@@ -88,7 +88,7 @@ export class DeviceConfirmationError extends Error {
 }
 
 function isPublicPath(pathname: string): boolean {
-  return pathname === "/" || pathname.startsWith("/certificates/verify");
+  return pathname === "/" || pathname.startsWith("/register") || pathname.startsWith("/certificates/verify");
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -173,40 +173,39 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   useEffect(() => {
     if (!user && !isInitialized) {
+      // Google/Apple OAuth: extract tokens from URL params BEFORE anything else
+      // so they are available on public auth pages (e.g. /register?oauth=google&access_token=...).
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+        if (accessToken && refreshToken) {
+          const expiresInSeconds = Number(params.get("expires_in") ?? "3600");
+          const now = Math.floor(Date.now() / 1000);
+          setOAuthTokens({
+            accessToken,
+            refreshToken,
+            expiresAt: now + expiresInSeconds,
+          });
+          const url = new URL(window.location.href);
+          url.searchParams.delete("access_token");
+          url.searchParams.delete("refresh_token");
+          url.searchParams.delete("expires_in");
+          window.history.replaceState({}, "", url.toString());
+        }
+      }
+
       const pathname = typeof window !== "undefined" ? window.location.pathname : "";
       if (isPublicPath(pathname)) {
         setInitialized();
         return;
       }
+
       void fetchUser();
     } else if (user) {
       setInitialized();
     }
-  }, [user, fetchUser, isInitialized, setInitialized]);
-
-  // Google/Apple OAuth: extract tokens from URL params (passed by backend
-  // because cross-domain cookies are blocked by Chrome third-party phaseout).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const accessToken = params.get("access_token");
-    const refreshToken = params.get("refresh_token");
-    if (accessToken && refreshToken) {
-      const expiresInSeconds = Number(params.get("expires_in") ?? "3600");
-      const now = Math.floor(Date.now() / 1000);
-      setOAuthTokens({
-        accessToken,
-        refreshToken,
-        expiresAt: now + expiresInSeconds,
-      });
-      // Clean the URL to remove sensitive tokens
-      const url = new URL(window.location.href);
-      url.searchParams.delete("access_token");
-      url.searchParams.delete("refresh_token");
-      url.searchParams.delete("expires_in");
-      window.history.replaceState({}, "", url.toString());
-    }
-  }, []);
+  }, [user, fetchUser, isInitialized, setInitialized, setOAuthTokens]);
 
   const login = useCallback(
     async (mobile: string, password: string, rememberMe = false): Promise<void> => {

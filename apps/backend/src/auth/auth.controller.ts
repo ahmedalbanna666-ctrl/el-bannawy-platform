@@ -121,19 +121,27 @@ export class AuthController {
         });
         res.redirect(`${this.config.app.frontendUrl}/dashboard?${params.toString()}`);
       } else if (result.type === "verify") {
-        // User has an incomplete registration with unverified email.
-        // Redirect to the registration page with verify=true so it shows
-        // the email verification screen directly.
-        res.redirect(
-          `${this.config.app.frontendUrl}/register?oauth=google&email=${encodeURIComponent(googleProfile.email)}&verify=true`,
-        );
+        const params = new URLSearchParams({
+          oauth: "google",
+          email: googleProfile.email,
+          verify: "true",
+          access_token: result.accessToken,
+          refresh_token: result.refreshToken,
+          expires_in: String(result.expiresIn),
+        });
+        res.redirect(`${this.config.app.frontendUrl}/register?${params.toString()}`);
       } else {
         // Don't set auth cookies yet – the student hasn't completed registration.
         // Cookies will be set by POST /auth/complete-oauth-registration after the
         // student fills in their profile and academic data.
-        res.redirect(
-          `${this.config.app.frontendUrl}/register?oauth=google&email=${encodeURIComponent(googleProfile.email)}`,
-        );
+        const params = new URLSearchParams({
+          oauth: "google",
+          email: googleProfile.email,
+          access_token: result.accessToken,
+          refresh_token: result.refreshToken,
+          expires_in: String(result.expiresIn),
+        });
+        res.redirect(`${this.config.app.frontendUrl}/register?${params.toString()}`);
       }
     } catch (err: unknown) {
       if (res.headersSent) return;
@@ -197,16 +205,33 @@ export class AuthController {
 
       if (result.type === "existing") {
         setAuthCookies(res, result.accessToken, result.refreshToken, result.expiresIn);
-        res.redirect(`${frontendUrl}/dashboard`);
+        const params = new URLSearchParams({
+          oauth: "apple",
+          access_token: result.accessToken,
+          refresh_token: result.refreshToken,
+          expires_in: String(result.expiresIn),
+        });
+        res.redirect(`${frontendUrl}/dashboard?${params.toString()}`);
       } else if (result.type === "verify") {
-        res.redirect(
-          `${frontendUrl}/register?oauth=apple&email=${encodeURIComponent(profile.email)}&verify=true`,
-        );
+        const params = new URLSearchParams({
+          oauth: "apple",
+          email: profile.email,
+          verify: "true",
+          access_token: result.accessToken,
+          refresh_token: result.refreshToken,
+          expires_in: String(result.expiresIn),
+        });
+        res.redirect(`${frontendUrl}/register?${params.toString()}`);
       } else {
         // Don't set auth cookies yet – registration incomplete.
-        res.redirect(
-          `${frontendUrl}/register?oauth=apple&email=${encodeURIComponent(profile.email)}`,
-        );
+        const params = new URLSearchParams({
+          oauth: "apple",
+          email: profile.email,
+          access_token: result.accessToken,
+          refresh_token: result.refreshToken,
+          expires_in: String(result.expiresIn),
+        });
+        res.redirect(`${frontendUrl}/register?${params.toString()}`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "apple_callback_failed";

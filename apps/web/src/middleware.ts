@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PATHS = ["/dashboard"];
 const AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
 const AUTH_COOKIE = "access_token";
 
@@ -20,7 +19,6 @@ export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   const accessToken = request.cookies.get(AUTH_COOKIE)?.value;
 
-  const isProtected = PROTECTED_PATHS.some((p) => pathname.startsWith(p));
   const isAuthPage = AUTH_PATHS.some((p) => pathname.startsWith(p));
 
   if (pathname === "/") {
@@ -30,16 +28,11 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.next();
   }
 
-  if (isProtected) {
-    if (!accessToken || isTokenExpired(accessToken)) {
-      const isOAuthRedirect = request.nextUrl.searchParams.get("oauth") === "google";
-      if (!isOAuthRedirect) {
-        const loginUrl = new URL("/login", request.url);
-        loginUrl.searchParams.set("redirect", pathname);
-        return NextResponse.redirect(loginUrl);
-      }
-    }
-  }
+  // NOTE: Protected-path auth is handled entirely client-side by the
+  // AuthProvider / DashboardLayout guard.  The middleware cannot verify
+  // OAuth tokens (they live in the Zustand store, not in httpOnly cookies
+  // when cross-domain cookies are blocked by Chrome third-party phaseout).
+  // Keeping the redirect here would break every OAuth-powered navigation.
 
   if (isAuthPage && accessToken && !isTokenExpired(accessToken)) {
     const isOAuthCompletion =
