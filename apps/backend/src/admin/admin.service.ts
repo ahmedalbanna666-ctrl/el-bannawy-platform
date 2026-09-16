@@ -1205,11 +1205,9 @@ export class AdminService {
     const safeLimit = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * safeLimit;
 
-    const [payments, total] = await Promise.all([
+    const [payments, coinPurchases, manualOrders] = await Promise.all([
       this.prisma.payment.findMany({
         where: { userId: id },
-        take: safeLimit,
-        skip,
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -1219,19 +1217,57 @@ export class AdminService {
           createdAt: true,
         },
       }),
-      this.prisma.payment.count({ where: { userId: id } }),
+      this.prisma.coinPurchase.findMany({
+        where: { userId: id },
+        include: { package: { select: { name: true, coinAmount: true } } },
+        orderBy: { createdAt: "desc" },
+      }),
+      this.prisma.manualPaymentOrder.findMany({
+        where: { userId: id },
+        include: { package: { select: { name: true, coinAmount: true } } },
+        orderBy: { createdAt: "desc" },
+      }),
     ]);
 
-    const totalPages = Math.ceil(total / safeLimit);
-
-    return {
-      data: payments.map((p) => ({
+    const allItems = [
+      ...payments.map((p) => ({
         id: p.id,
+        type: "payment" as const,
         productType: p.productType,
         amount: p.amount,
+        coinAmount: 0,
+        packageName: p.productType,
         status: p.status,
         createdAt: p.createdAt.toISOString(),
       })),
+      ...coinPurchases.map((p) => ({
+        id: p.id,
+        type: "coin_purchase" as const,
+        productType: "باقة عملات",
+        amount: p.price,
+        coinAmount: p.coinAmount,
+        packageName: p.package?.name ?? "باقة عملات",
+        status: p.status,
+        createdAt: p.createdAt.toISOString(),
+      })),
+      ...manualOrders.map((o) => ({
+        id: o.id,
+        type: "manual_order" as const,
+        productType: "تحويل يدوي",
+        amount: o.amount,
+        coinAmount: o.coinAmount,
+        packageName: o.package?.name ?? "تحويل يدوي",
+        status: o.status,
+        createdAt: o.createdAt.toISOString(),
+      })),
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const total = allItems.length;
+    const pagedItems = allItems.slice(skip, skip + safeLimit);
+    const totalPages = Math.ceil(total / safeLimit);
+
+    return {
+      data: pagedItems,
       meta: { page, limit: safeLimit, total, totalPages },
     };
   }

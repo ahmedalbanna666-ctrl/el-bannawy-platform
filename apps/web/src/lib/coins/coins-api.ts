@@ -377,8 +377,8 @@ export function useMyUnlocks(): UseQueryResult<ContentUnlockItem[]> {
   return useQuery({
     queryKey: COINS_KEYS.myUnlocks,
     queryFn: async () => {
-      const res = await api.get<ContentUnlockItem[]>("/coins/my-unlocks");
-      return res.data ?? [];
+      const res = await api.get<{ data: ContentUnlockItem[]; meta: { total: number } }>("/coins/my-unlocks");
+      return res.data?.data ?? [];
     },
     staleTime: 30_000,
   });
@@ -388,8 +388,8 @@ export function useMyPurchases(): UseQueryResult<CoinPurchaseItem[]> {
   return useQuery({
     queryKey: COINS_KEYS.myPurchases,
     queryFn: async () => {
-      const res = await api.get<CoinPurchaseItem[]>("/coins/my-purchases");
-      return res.data ?? [];
+      const res = await api.get<{ data: CoinPurchaseItem[]; meta: { total: number } }>("/coins/my-purchases");
+      return res.data?.data ?? [];
     },
     staleTime: 30_000,
   });

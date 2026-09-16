@@ -1077,13 +1077,19 @@ function StudentSubscriptionTab({ studentId }: { studentId: string }): ReactNode
   const { data, isLoading } = useQuery({
     queryKey: ["student-subscription", studentId],
     queryFn: async () => {
-      const res = await api.get<{ data: { id: string; productType: string; amount: number; status: string; createdAt: string }[] }>(`/admin/students/${studentId}/subscription`);
+      const res = await api.get<{ data: { id: string; type: string; productType: string; amount: number; coinAmount: number; packageName: string; status: string; createdAt: string }[] }>(`/admin/students/${studentId}/subscription`);
       return { payments: res.data?.data ?? [] };
     },
     enabled: !!studentId,
   });
 
   if (isLoading) return <Skeleton className="h-48 rounded-xl" />;
+
+  const typeLabels: Record<string, string> = {
+    payment: "مدفوعات",
+    coin_purchase: "شراء عملات",
+    manual_order: "تحويل يدوي",
+  };
 
   return (
     <Card>
@@ -1096,12 +1102,16 @@ function StudentSubscriptionTab({ studentId }: { studentId: string }): ReactNode
             {data.payments.map((p) => (
               <div key={p.id} className="flex items-center justify-between rounded bg-neutral-50 dark:bg-neutral-800 px-3 py-1.5 text-sm">
                 <div>
-                  <span className="font-medium">{p.productType}</span>
+                  <span className="font-medium">{p.packageName || p.productType}</span>
+                  <span className="mr-2 text-xs text-neutral-500">{typeLabels[p.type] ?? p.type}</span>
                   <span className="mr-2 text-neutral-500">{new Date(p.createdAt).toLocaleDateString("ar-EG")}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  {p.coinAmount > 0 && <span className="text-xs text-amber-500">+{p.coinAmount} عملة</span>}
                   <span className="font-bold">{p.amount} ج.م</span>
-                  <Badge variant={p.status === "COMPLETED" ? "success" : "warning"}>{p.status}</Badge>
+                  <Badge variant={p.status === "COMPLETED" || p.status === "APPROVED" ? "success" : p.status === "REJECTED" ? "danger" : "warning"}>
+                    {p.status === "COMPLETED" ? "مكتمل" : p.status === "APPROVED" ? "مقبول" : p.status === "REJECTED" ? "مرفوض" : "قيد المراجعة"}
+                  </Badge>
                 </div>
               </div>
             ))}
