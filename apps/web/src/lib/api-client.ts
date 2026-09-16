@@ -1,11 +1,11 @@
-import {
-  initOfflineEngine,
-  offlineGetFromCache,
-  offlineCacheResponse,
-  offlineEnqueueSubmission,
-  offlineInvalidateAfterMutation,
-  offlineAfterLessonGet,
-} from "@/lib/offline/integration";
+let offlineModule: typeof import("@/lib/offline/integration") | null = null;
+
+async function getOfflineModule(): Promise<typeof import("@/lib/offline/integration")> {
+  if (!offlineModule) {
+    offlineModule = await import("@/lib/offline/integration");
+  }
+  return offlineModule;
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() ?? "http://localhost:4000/api/v1";
 const DEFAULT_TIMEOUT = 30_000;
@@ -85,12 +85,13 @@ async function handleOffline<T>(
   method: string,
   body: unknown,
 ): Promise<ApiResponse<T> | null> {
+  const mod = await getOfflineModule();
   if (method === "GET") {
-    const cached = await offlineGetFromCache(endpoint);
+    const cached = await mod.offlineGetFromCache(endpoint);
     if (cached) return cached as ApiResponse<T>;
     return null;
   }
-  const result = await offlineEnqueueSubmission({ method, endpoint, body });
+  const result = await mod.offlineEnqueueSubmission({ method, endpoint, body });
   if (result?.queued) {
     if (result.fireAndForget) return { success: true };
     throw new ApiError(
@@ -179,10 +180,12 @@ async function request<T>(
       }
 
       if (method === "GET") {
-        void offlineCacheResponse(endpoint, data);
-        void offlineAfterLessonGet(endpoint);
+        const mod = await getOfflineModule();
+        void mod.offlineCacheResponse(endpoint, data);
+        void mod.offlineAfterLessonGet(endpoint);
       } else {
-        void offlineInvalidateAfterMutation(endpoint);
+        const mod = await getOfflineModule();
+        void mod.offlineInvalidateAfterMutation(endpoint);
       }
 
       return data as ApiResponse<T>;
@@ -191,7 +194,8 @@ async function request<T>(
       if (err instanceof DOMException && err.name === "AbortError") {
         if (signal?.aborted) throw err;
         if (method === "GET") {
-          const cached = await offlineGetFromCache(endpoint);
+          const mod = await getOfflineModule();
+          const cached = await mod.offlineGetFromCache(endpoint);
           if (cached) return cached as ApiResponse<T>;
         }
         if (attempt < retries) continue;
@@ -265,4 +269,4 @@ export const api = {
 export { ApiError };
 
 // Attach the offline/sync engine once (idempotent; no-op on SSR).
-initOfflineEngine();
+void getOfflineModule().then((mod) => { mod.initOfflineEngine(); });

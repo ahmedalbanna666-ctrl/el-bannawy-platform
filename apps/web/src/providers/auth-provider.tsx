@@ -175,6 +175,11 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactNode {
 
   useEffect(() => {
     if (!user && !isInitialized) {
+      const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+      if (isPublicPath(pathname)) {
+        setInitialized();
+        return;
+      }
       void fetchUser();
     } else if (user) {
       setInitialized();

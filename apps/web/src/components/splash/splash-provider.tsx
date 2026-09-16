@@ -51,8 +51,9 @@ export function SplashProvider({ children }: { readonly children: ReactNode }): 
   }, []);
 
   useEffect(() => {
+    if (!splashDone) return;
     void registerSw();
-  }, [registerSw]);
+  }, [splashDone, registerSw]);
 
   return (
     <>
