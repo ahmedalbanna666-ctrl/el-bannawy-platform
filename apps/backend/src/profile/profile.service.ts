@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import type { UpdateProfileDto } from "./dto/update-profile.dto";
 
@@ -99,6 +99,25 @@ export class ProfileService {
 
     if (!user) throw new NotFoundException("User not found");
 
+    const gradeChanging =
+      (dto.gradeId !== undefined && dto.gradeId !== user.gradeId) ||
+      (dto.educationalSystem !== undefined && dto.educationalSystem !== user.educationalSystem);
+
+    if (gradeChanging && user.role === "STUDENT") {
+      const [coinPurchase, manualOrder, contentUnlock, payment] = await Promise.all([
+        this.prisma.coinPurchase.findFirst({ where: { userId } }),
+        this.prisma.manualPaymentOrder.findFirst({ where: { userId } }),
+        this.prisma.contentUnlock.findFirst({ where: { userId } }),
+        this.prisma.payment.findFirst({ where: { userId } }),
+      ]);
+
+      if (coinPurchase || manualOrder || contentUnlock || payment) {
+        throw new BadRequestException(
+          "لا يمكنك تغيير الصف الدراسي بعد إجراء عملية شراء. يرجى التواصل مع الدعم الفني إذا كنت بحاجة إلى تغيير الصف.",
+        );
+      }
+    }
+
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -145,5 +164,15 @@ export class ProfileService {
       where: { userId },
       orderBy: { earnedAt: "desc" },
     });
+  }
+
+  async isGradeLocked(userId: string): Promise<boolean> {
+    const [coinPurchase, manualOrder, contentUnlock, payment] = await Promise.all([
+      this.prisma.coinPurchase.findFirst({ where: { userId } }),
+      this.prisma.manualPaymentOrder.findFirst({ where: { userId } }),
+      this.prisma.contentUnlock.findFirst({ where: { userId } }),
+      this.prisma.payment.findFirst({ where: { userId } }),
+    ]);
+    return !!(coinPurchase || manualOrder || contentUnlock || payment);
   }
 }

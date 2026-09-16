@@ -30,4 +30,10 @@ export class ProfileController {
     const data = await this.profileService.getAchievements(userId);
     return successResponse(data);
   }
+
+  @Get("grade-lock-status")
+  async getGradeLockStatus(@CurrentUser() userId: string): Promise<ISuccessResponse<{ locked: boolean }>> {
+    const locked = await this.profileService.isGradeLocked(userId);
+    return successResponse({ locked });
+  }
 }

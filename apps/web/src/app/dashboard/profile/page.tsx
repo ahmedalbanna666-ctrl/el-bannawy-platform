@@ -33,7 +33,54 @@ import {
   Shield,
   BadgeCheck,
   CalendarDays,
+  Coins,
+  Store,
+  BookOpen,
+  Tv,
+  Package,
 } from "lucide-react";
+import { useCoinWallet, useMyUnlocks } from "@/lib/coins/coins-api";
+import { useLiveSubscriptions } from "@/lib/live-api";
+
+// ── Types ────────────────────────────────────────────────────────
+
+interface CurriculumUnit {
+  id: string;
+  title: string;
+}
+
+interface CurriculumGrade {
+  id: string;
+  name: string;
+  units: CurriculumUnit[];
+}
+
+interface Stage {
+  id: string;
+  name: string;
+  grades: CurriculumGrade[];
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+
+const ARABIC_TO_ENGLISH: Record<string, string> = {
+  "أ": "A", "إ": "A", "آ": "A", "ا": "A",
+  "ب": "B", "ت": "T", "ث": "TH", "ج": "J",
+  "ح": "H", "خ": "KH", "د": "D", "ذ": "DH",
+  "ر": "R", "ز": "Z", "س": "S", "ش": "SH",
+  "ص": "S", "ض": "D", "ط": "T", "ظ": "Z",
+  "ع": "A", "غ": "GH", "ف": "F", "ق": "Q",
+  "ك": "K", "ل": "L", "م": "M", "ن": "N",
+  "ه": "H", "و": "W", "ي": "Y", "ة": "H",
+  "ى": "A", "ء": "A",
+};
+
+function getEnglishLetter(name: string): string {
+  if (!name) return "S";
+  const first = name.charAt(0);
+  if (/[a-zA-Z]/.test(first)) return first.toUpperCase();
+  return ARABIC_TO_ENGLISH[first] ?? first.toUpperCase();
+}
 
 // ── Query Hook ──────────────────────────────────────────────────────
 
@@ -196,7 +243,11 @@ function EditableField({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        {!readOnly && (
+        {readOnly ? (
+          <span className="flex items-center gap-1 rounded-lg bg-amber-500/10 px-2 py-1 text-xs text-amber-600 dark:text-amber-400">
+            <Lock className="h-3.5 w-3.5" />
+          </span>
+        ) : (
           editing ? (
             <>
               <button
@@ -240,6 +291,30 @@ export default function ProfilePage(): ReactNode {
   const { logout } = useAuth();
 
   const { data: profile, isLoading, isError, error, refetch } = useProfile(authUser?.id);
+  const { data: wallet } = useCoinWallet();
+  const { data: unlocks } = useMyUnlocks();
+  const { data: liveSubs } = useLiveSubscriptions();
+
+  const { data: gradeLock } = useQuery({
+    queryKey: ["grade-lock-status"],
+    queryFn: async () => {
+      const res = await api.get<{ locked: boolean }>("/profile/grade-lock-status");
+      return res.data ?? { locked: false };
+    },
+    staleTime: 60_000,
+    enabled: authUser?.role === "STUDENT",
+  });
+
+  const isGradeLocked = gradeLock?.locked ?? false;
+
+  const { data: stages } = useQuery<Stage[]>({
+    queryKey: ["curriculum"],
+    queryFn: async () => {
+      const res = await api.get<Stage[]>("/curriculum");
+      return res.data ?? [];
+    },
+    staleTime: 60_000,
+  });
 
   const updateMutation = useMutation({
     mutationFn: async (payload: Record<string, string>) => {
@@ -286,7 +361,7 @@ export default function ProfilePage(): ReactNode {
   const p = profile;
 
   const firstName = p.fullName ? p.fullName.split(" ")[0] : "";
-  const avatarUrl = p.avatarUrl ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(firstName || "User")}&background=06B6D4&color=fff&bold=true&font-size=0.33&size=128`;
+  const avatarLetter = getEnglishLetter(firstName);
 
   const statusLabel = p.status === "ACTIVE" ? "نشط" : p.status === "PENDING_VERIFICATION" ? "قيد التحقق" : p.status;
   const formattedDate = p.createdAt
@@ -309,11 +384,9 @@ export default function ProfilePage(): ReactNode {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
               <div className="relative shrink-0">
-                <img
-                  src={avatarUrl}
-                  alt=""
-                  className="h-24 w-24 rounded-2xl border-2 border-primary-500/40 bg-neutral-100 object-cover shadow-[0_0_24px_rgba(6,182,212,0.25)] dark:bg-neutral-800"
-                />
+                <div className="flex h-24 w-24 items-center justify-center rounded-2xl border-2 border-primary-500/40 bg-gradient-to-br from-primary-400 to-primary-600 text-3xl font-extrabold text-white shadow-[0_0_24px_rgba(6,182,212,0.25)]">
+                  {avatarLetter}
+                </div>
                 {p.status === "ACTIVE" && (
                   <span className="absolute -bottom-1 -end-1 flex h-6 w-6 items-center justify-center rounded-full bg-success-500 text-white shadow-sm">
                     <BadgeCheck className="h-4 w-4" />
@@ -363,6 +436,7 @@ export default function ProfilePage(): ReactNode {
                 fieldKey="educationalSystem"
                 icon={<Layers className="h-4 w-4" />}
                 onSave={handleFieldSave}
+                readOnly={isGradeLocked}
                 renderEditor={(draft, setDraft, disabled): ReactNode => (
                   <Select
                     label=""
@@ -427,11 +501,27 @@ export default function ProfilePage(): ReactNode {
           value={formattedDate}
           icon={<CalendarDays className="h-4 w-4" />}
         />
-        <FieldRow
-          label="نوع الحساب"
-          value="مجاني"
-          icon={<Crown className="h-4 w-4" />}
-        />
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-neutral-50/60 px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-yellow-500/10 text-yellow-500 dark:text-yellow-400">
+              <Coins className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">رصيد العملات</p>
+              <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                {wallet?.balance ?? 0}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(): void => { router.push("/dashboard/shop"); }}
+          >
+            <Store className="h-4 w-4" />
+            المتجر
+          </Button>
+        </div>
       </SectionCard>
 
       {/* Security */}
@@ -454,17 +544,93 @@ export default function ProfilePage(): ReactNode {
       {/* Subscription */}
       <SectionCard
         icon={<Crown className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />}
-        title="الاشتراك"
+        title="الاشتراكات"
       >
-        <FieldRow
-          label="الخطة الحالية"
-          value="مجاني"
-          icon={<Crown className="h-4 w-4" />}
-        />
-        <Button variant="primary" size="sm" fullWidth>
-          <Crown className="h-4 w-4" />
-          تجديد الاشتراك
-        </Button>
+        {(() => {
+          const unitNames = new Map<string, string>();
+          if (stages) {
+            for (const stage of stages) {
+              for (const grade of stage.grades) {
+                for (const unit of grade.units) {
+                  unitNames.set(unit.id, unit.title);
+                }
+              }
+            }
+          }
+
+          const unitUnlocks = (unlocks ?? []).filter((u) => u.targetType === "UNIT");
+          const termUnlocks = (unlocks ?? []).filter((u) => u.targetType === "TERM");
+          const activeLiveSubs = (liveSubs ?? []).filter((s) => s.status === "ACTIVE");
+
+          const hasAny = unitUnlocks.length > 0 || termUnlocks.length > 0 || activeLiveSubs.length > 0;
+
+          if (!hasAny) {
+            return (
+              <>
+                <FieldRow
+                  label="الخطة الحالية"
+                  value="مجاني"
+                  icon={<Crown className="h-4 w-4" />}
+                />
+                <Button variant="primary" size="sm" fullWidth onClick={(): void => { router.push("/dashboard/shop"); }}>
+                  <Store className="h-4 w-4" />
+                  تصفح المتجر
+                </Button>
+              </>
+            );
+          }
+
+          return (
+            <div className="flex flex-col gap-2">
+              {termUnlocks.length > 0 && (
+                <div className="flex items-center gap-3 rounded-xl border border-green-200/70 bg-green-50/60 px-3 py-3 dark:border-green-500/20 dark:bg-green-500/5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-500 dark:text-green-400">
+                    <Package className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-green-600 dark:text-green-400">اشتراك الترم</p>
+                    <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                      مشترك بالترم الكامل ({termUnlocks.length})
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {unitUnlocks.length > 0 && (
+                <div className="flex items-center gap-3 rounded-xl border border-blue-200/70 bg-blue-50/60 px-3 py-3 dark:border-blue-500/20 dark:bg-blue-500/5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 dark:text-blue-400">
+                    <BookOpen className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400">وحدات مشتراة</p>
+                    <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                      {unitUnlocks.map((u) => unitNames.get(u.targetId) ?? "وحدة").join("، ")}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {activeLiveSubs.length > 0 && (
+                <div className="flex items-center gap-3 rounded-xl border border-purple-200/70 bg-purple-50/60 px-3 py-3 dark:border-purple-500/20 dark:bg-purple-500/5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500 dark:text-purple-400">
+                    <Tv className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-purple-600 dark:text-purple-400">حصص مباشرة</p>
+                    <p className="truncate text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                      مشترك في {activeLiveSubs.length} {activeLiveSubs.length === 1 ? "اشتراك" : "اشتراكات"} مباشر
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <Button variant="outline" size="sm" fullWidth onClick={(): void => { router.push("/dashboard/shop"); }}>
+                <Store className="h-4 w-4" />
+                المتجر
+              </Button>
+            </div>
+          );
+        })()}
       </SectionCard>
 
       {/* Logout */}

@@ -7,7 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GraduationCap, BookOpen, Calendar, Pencil, Check, X, AlertCircle, RefreshCw } from "lucide-react";
+import { GraduationCap, BookOpen, Calendar, Pencil, Check, X, AlertCircle, RefreshCw, Lock } from "lucide-react";
 import type { StudentProfileResponse } from "../types";
 
 interface Props {
@@ -24,6 +24,17 @@ export function StudentProfileSection({ profile, onSave }: Props): ReactNode {
   const [editing, setEditing] = useState(false);
   const [gradeId, setGradeId] = useState(profile.grade?.id ?? "");
   const [saving, setSaving] = useState(false);
+
+  const { data: gradeLock, isLoading: gradeLockLoading } = useQuery({
+    queryKey: ["grade-lock-status"],
+    queryFn: async () => {
+      const res = await api.get<{ locked: boolean }>("/profile/grade-lock-status");
+      return res.data ?? { locked: false };
+    },
+    staleTime: 60_000,
+  });
+
+  const isLocked = gradeLock?.locked ?? false;
 
   const { data: options, isLoading: optionsLoading, isError: optionsError, refetch: refetchOptions } = useQuery({
     queryKey: ["academic-options"],
@@ -68,20 +79,35 @@ export function StudentProfileSection({ profile, onSave }: Props): ReactNode {
             <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-50">المعلومات الدراسية</h2>
           </div>
           {!editing && (
-            <button
-              onClick={(): void => {
-                setGradeId(profile.grade?.id ?? "");
-                setEditing(true);
-              }}
-              className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-500/10 hover:text-primary-500 transition-colors dark:text-neutral-500 dark:hover:text-primary-400"
-              aria-label="تعديل المعلومات الدراسية"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
+            isLocked ? (
+              <span className="flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+                <Lock className="h-3.5 w-3.5" />
+                مقفل
+              </span>
+            ) : (
+              <button
+                onClick={(): void => {
+                  setGradeId(profile.grade?.id ?? "");
+                  setEditing(true);
+                }}
+                className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-500/10 hover:text-primary-500 transition-colors dark:text-neutral-500 dark:hover:text-primary-400"
+                aria-label="تعديل المعلومات الدراسية"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            )
           )}
         </div>
       </CardHeader>
       <CardContent>
+        {isLocked && (
+          <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+            <p className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              لا يمكنك تغيير الصف الدراسي بعد إجراء عملية شراء. يرجى التواصل مع الدعم الفني إذا كنت بحاجة إلى تغيير الصف.
+            </p>
+          </div>
+        )}
         {editing ? (
           <div className="flex flex-col gap-3">
             {optionsLoading ? (
