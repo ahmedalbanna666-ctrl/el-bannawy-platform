@@ -194,7 +194,7 @@ export class HomeworkService {
 
     const TEXT_QUESTION_TYPES = new Set(["FILL_IN_BLANKS", "SHORT_ANSWER", "ESSAY", "WRITING"]);
     const ESSAY_TYPES = new Set(["ESSAY", "WRITING"]);
-    const SHORT_ANSWER_TYPES = new Set(["SHORT_ANSWER"]);
+    const SHORT_ANSWER_TYPES = new Set(["SHORT_ANSWER", "FILL_IN_BLANK"]);
 
     for (let i = 0; i < homework.questions.length; i++) {
       const question = homework.questions[i];
@@ -219,6 +219,9 @@ export class HomeworkService {
             try { return JSON.parse(question.options) as string[]; } catch { return undefined; }
           })() : undefined;
           const result = evaluateShortAnswer(rawAnswer.trim(), question.correctAnswer ?? "", acceptable);
+          isCorrect = result.isCorrect;
+        } else if (mode === "EXACT_MATCH") {
+          const result = evaluateShortAnswer(rawAnswer.trim(), question.correctAnswer ?? "");
           isCorrect = result.isCorrect;
         } else if (mode === "AI") {
           // AI mode: first check if student answer matches the reference answer (if provided)
@@ -248,7 +251,7 @@ export class HomeworkService {
           isCorrect = false;
           teacherReviewed = false;
         }
-        // EXACT_MATCH falls through to the default isCorrect above
+        // EXACT_MATCH now handled by evaluateShortAnswer normalization above
       }
 
       // Run essay evaluation based on correction mode

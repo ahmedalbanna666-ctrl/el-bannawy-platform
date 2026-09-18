@@ -1346,6 +1346,214 @@ describe("QuestionsTableV1Parser", () => {
       expect(result.counts.invalid).toBe(1); // line 2 has no inline options and no table
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // 9. AI Correction Mode
+  // ══════════════════════════════════════════════════════════════════════
+
+  describe("9. AI Correction Mode", () => {
+    describe("REWRITE with Ai answer key", () => {
+      it("sets correctionMode=AI and empty correctAnswer for '1=Ai'", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "1. I have done my homework."),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1=Ai"),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.questionType).toBe("SHORT_ANSWER");
+        expect(item.correctAnswer).toBe("");
+        expect(item.correctionMode).toBe("AI");
+      });
+
+      it("sets correctionMode=AI and reference answer for '1=Ai = answer'", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "1. I have done my homework."),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1=Ai = My homework has been done."),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.questionType).toBe("SHORT_ANSWER");
+        expect(item.correctAnswer).toBe("My homework has been done.");
+        expect(item.correctionMode).toBe("AI");
+      });
+
+      it("handles mixed Ai and normal answers", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "1. I have done my homework."),
+          p(2, "2. She has finished her work."),
+          p(3, "3. They have visited Paris."),
+          p(4, "@@ANSWER_KEY@@"),
+          p(5, "1=Ai"),
+          p(6, "2=Ai = She has already finished her work."),
+          p(7, "3=They have visited Paris before."),
+        ]);
+        const result = parser.parse(input);
+        const items = result.groups[0].items;
+        expect(items[0].correctionMode).toBe("AI");
+        expect(items[0].correctAnswer).toBe("");
+        expect(items[1].correctionMode).toBe("AI");
+        expect(items[1].correctAnswer).toBe("She has already finished her work.");
+        expect(items[2].correctionMode).toBeUndefined();
+        expect(items[2].correctAnswer).toBe("They have visited Paris before.");
+      });
+    });
+
+    describe("CORRECT with Ai answer key", () => {
+      it("sets correctionMode=AI for FILL_IN_BLANK with Ai", () => {
+        const input = doc([
+          p(0, "@@CORRECT@@"),
+          p(1, "1. She .................................. (arrive) home."),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1=Ai"),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.questionType).toBe("FILL_IN_BLANK");
+        expect(item.correctAnswer).toBe("");
+        expect(item.correctionMode).toBe("AI");
+      });
+
+      it("sets correctionMode=AI with reference for FILL_IN_BLANK", () => {
+        const input = doc([
+          p(0, "@@CORRECT@@"),
+          p(1, "1. She .................................. (arrive) home."),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1=Ai = arrived"),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.questionType).toBe("FILL_IN_BLANK");
+        expect(item.correctAnswer).toBe("arrived");
+        expect(item.correctionMode).toBe("AI");
+      });
+    });
+
+    describe("MCQ with Ai answer key", () => {
+      it("sets correctionMode=AI for MCQ with Ai", () => {
+        const input = doc([
+          p(0, "@@MCQ@@"),
+          p(1, "1. What is 2+2? a. 3 b. 4 c. 5 d. 6"),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1=Ai"),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.questionType).toBe("MCQ");
+        expect(item.correctionMode).toBe("AI");
+      });
+    });
+
+    describe("Ai answer key without question numbers (positional)", () => {
+      it("uses positional lookup for Ai answers", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "I have done my homework."),
+          p(2, "She has finished her work."),
+          p(3, "@@ANSWER_KEY@@"),
+          p(4, "1=Ai"),
+          p(5, "2=Ai = She has already finished."),
+        ]);
+        const result = parser.parse(input);
+        const items = result.groups[0].items;
+        expect(items[0].correctionMode).toBe("AI");
+        expect(items[0].correctAnswer).toBe("");
+        expect(items[1].correctionMode).toBe("AI");
+        expect(items[1].correctAnswer).toBe("She has already finished.");
+      });
+    });
+
+    describe("Ai answer key case insensitive", () => {
+      it("accepts 'ai' lowercase", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "1. Test question."),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1=ai"),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.correctionMode).toBe("AI");
+        expect(item.correctAnswer).toBe("");
+      });
+
+      it("accepts 'AI' uppercase", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "1. Test question."),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1=AI"),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.correctionMode).toBe("AI");
+        expect(item.correctAnswer).toBe("");
+      });
+
+      it("accepts 'Ai' mixed case", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "1. Test question."),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1=Ai"),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.correctionMode).toBe("AI");
+        expect(item.correctAnswer).toBe("");
+      });
+    });
+
+    describe("Ai answer key with spaces", () => {
+      it("handles '1 = Ai' with spaces around =", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "1. Test question."),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1 = Ai"),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.correctionMode).toBe("AI");
+        expect(item.correctAnswer).toBe("");
+      });
+
+      it("handles '1 = Ai = answer' with spaces", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "1. Test question."),
+          p(2, "@@ANSWER_KEY@@"),
+          p(3, "1 = Ai = reference answer"),
+        ]);
+        const result = parser.parse(input);
+        const item = firstItem(result);
+        expect(item.correctionMode).toBe("AI");
+        expect(item.correctAnswer).toBe("reference answer");
+      });
+    });
+
+    describe("Ai answer key compact format", () => {
+      it("handles compact format '1=Ai2=Ai'", () => {
+        const input = doc([
+          p(0, "@@REWRITE@@"),
+          p(1, "1. Question one."),
+          p(2, "2. Question two."),
+          p(3, "@@ANSWER_KEY@@"),
+          p(4, "1=Ai2=Ai = answer two"),
+        ]);
+        const result = parser.parse(input);
+        const items = result.groups[0].items;
+        expect(items[0].correctionMode).toBe("AI");
+        expect(items[0].correctAnswer).toBe("");
+        expect(items[1].correctionMode).toBe("AI");
+        expect(items[1].correctAnswer).toBe("answer two");
+      });
+    });
+  });
 });
 
 // ── Private function test helpers (access via re-import) ───────────────
