@@ -88,6 +88,7 @@ export class QuizService {
             options: true,
             correctAnswer: true,
             explanation: true,
+            correctionMode: true,
             displayOrder: true,
           },
         },
@@ -757,7 +758,7 @@ export class QuizService {
       include: {
         questions: {
           orderBy: { displayOrder: "asc" },
-          select: { id: true, type: true, question: true, options: true, correctAnswer: true, explanation: true, displayOrder: true },
+          select: { id: true, type: true, question: true, options: true, correctAnswer: true, explanation: true, correctionMode: true, displayOrder: true },
         },
       },
     });

@@ -83,6 +83,7 @@ export class HomeworkService {
             options: true,
             correctAnswer: true,
             explanation: true,
+            correctionMode: true,
             displayOrder: true,
           },
         },
@@ -628,6 +629,7 @@ export class HomeworkService {
               options: q.options,
               correctAnswer: q.correctAnswer,
               explanation: q.explanation,
+              correctionMode: q.correctionMode ?? "EXACT_MATCH",
               displayOrder: q.displayOrder ?? 0,
             })),
           });
@@ -650,7 +652,7 @@ export class HomeworkService {
       include: {
         questions: {
           orderBy: { displayOrder: "asc" },
-          select: { id: true, type: true, question: true, options: true, correctAnswer: true, explanation: true, displayOrder: true },
+          select: { id: true, type: true, question: true, options: true, correctAnswer: true, explanation: true, correctionMode: true, displayOrder: true },
         },
       },
     });

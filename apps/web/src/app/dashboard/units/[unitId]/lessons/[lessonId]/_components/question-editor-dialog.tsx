@@ -107,8 +107,6 @@ export function QuestionEditorDialog({
   useEffect(() => {
     if (type === "DIALOGUE") {
       setCorrectionMode("AI");
-    } else if (type === "SHORT_ANSWER") {
-      setCorrectionMode("EXACT_MATCH");
     }
   }, [type]);
 
